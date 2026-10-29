@@ -1,6 +1,13 @@
 # ICE3 Studio
 
-This repository is reserved for the ICE3 Studio authoring workspace.
+> Document ID: ICE3-STUDIO-RM-001
+>
+> Status: Placeholder
+>
+> Owner: ICE3 Studio maintainers
+
+This repository is reserved for the ICE3 authoring workspace. No public API,
+commands, or architecture exist yet.
 
 ## AI-assisted development
 
