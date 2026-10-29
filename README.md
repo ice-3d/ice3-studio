@@ -6,13 +6,12 @@
 >
 > Owner: ICE3 Studio maintainers
 
-This repository is reserved for the ICE3 authoring workspace. No public API,
-commands, or architecture exist yet.
+本仓库预留为 ICE3 authoring workspace。当前没有公开 API、command 或架构。
 
-## AI-assisted development
+## AI 辅助开发
 
-This project makes substantial use of AI-assisted development. 本项目在设计和实现过程中大量使用了 AI 辅助开发。
+本项目在设计和实现过程中大量使用了 AI 辅助开发。
 
-## License
+## 许可证
 
-This project is licensed under the [MIT License](LICENSE).
+本项目采用 [MIT License](LICENSE) 许可。

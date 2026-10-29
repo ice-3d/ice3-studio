@@ -1,4 +1,4 @@
-# ICE3 Studio Repository Rules
+# ICE3 Studio 仓库规则
 
 > Document ID: ICE3-STUDIO-POL-001
 >
@@ -6,29 +6,29 @@
 >
 > Owner: ICE3 Studio maintainers
 
-## Scope
+## 范围
 
-- This repository is reserved for the ICE3 authoring workspace.
-- No public API, commands, package structure, or architecture exists yet.
-- Do not invent implementation details before an approved authoring-workspace decision exists.
-- Do not add model fixtures or generated assets while this repository remains a placeholder.
+- 本仓库预留为 ICE3 authoring workspace。
+- 当前没有公开 API、command、package structure 或架构。
+- 没有批准的 authoring-workspace 决策前不得虚构实现细节。
+- 在仓库仍是 placeholder 时不得加入模型 fixture 或生成 Asset。
 
-## Delivery
+## 交付
 
-- Develop on a feature branch and merge to `main` only after the applicable verification gate passes.
-- No executable verification command currently exists; documentation changes must keep the placeholder claim accurate.
+- 在功能分支开发，适用验证门禁通过后才可合入 `main`。
+- 当前没有可执行验证 command；文档修改必须保持 placeholder claim 准确。
 
-## Commit identity
+## 提交身份
 
-- Every Git author and committer name in this repository must be `damoqiongqiu`.
-- Verify the configured and recorded names before committing, merging, or pushing.
+- 本仓库所有 Git author 和 committer 名称必须为 `damoqiongqiu`。
+- 提交、合并或推送前核对配置名称与提交记录。
 
-## Naming and legal boundary
+## 命名与法律边界
 
-- Do not use competitor, vendor, or third-party product names in documents, code, comments, identifiers, links, examples, diagnostics, or commits.
-- Describe comparisons only with neutral category names.
-- Do not link to external research that exposes prohibited names.
+- 文档、代码、注释、标识、链接、示例、Diagnostic 或 commit 中不得出现竞品、厂商或第三方产品名称。
+- 技术比较使用中性类别描述。
+- 不得链接会暴露禁止名称的外部调研资料。
 
-## Related Documents
+## 关联文档
 
-- `ICE3-STUDIO-RM-001` — [Repository README](README.md)
+- `ICE3-STUDIO-RM-001` — [仓库 README](README.md)
