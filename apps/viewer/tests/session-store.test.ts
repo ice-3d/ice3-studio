@@ -20,3 +20,23 @@ test('revision events refresh the latest document without changing selection', a
   assert.equal(store.snapshot.revision, 4);
   assert.deepEqual(store.snapshot.selectionIds, ['node-000001']);
 });
+
+test('document refresh survives a preview failure', async () => {
+  const store = new SessionStore({
+    document: async () => ({
+      projectId: 'generic-project',
+      revision: 4,
+      scene: { nodes: [] },
+    }),
+    validation: async () => [],
+    preview: async () => {
+      throw new Error('preview failed');
+    },
+  });
+
+  await store.refresh();
+
+  assert.equal(store.snapshot.revision, 4);
+  assert.equal(store.snapshot.connection, 'connected');
+  assert.equal(store.snapshot.previewUrl, null);
+});

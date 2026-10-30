@@ -39,9 +39,6 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
         this.source.document(),
         this.source.validation(),
       ]);
-      const previewUrl = this.source.preview
-        ? (await this.source.preview(document.revision)).url
-        : this.snapshot.previewUrl;
       if (generation !== this.generation) return;
       this.update({
         ...this.snapshot,
@@ -50,8 +47,18 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
         document,
         diagnostics,
         connection: 'connected',
-        previewUrl,
+        previewUrl: this.snapshot.previewUrl,
       });
+      if (this.source.preview) {
+        try {
+          const preview = await this.source.preview(document.revision);
+          if (generation === this.generation) {
+            this.update({ ...this.snapshot, previewUrl: preview.url });
+          }
+        } catch {
+          // The last valid preview remains mounted while document review continues.
+        }
+      }
     } catch {
       if (generation === this.generation) {
         this.update({ ...this.snapshot, connection: 'error' });
