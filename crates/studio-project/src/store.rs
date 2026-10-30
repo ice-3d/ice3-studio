@@ -276,7 +276,7 @@ impl ProjectStore {
         })?;
         let metadata: ProjectMetadata =
             serde_json::from_slice(&bytes).map_err(ProjectError::Json)?;
-        if metadata.schema_version != PROJECT_SCHEMA_VERSION {
+        if metadata.schema_version != 1 && metadata.schema_version != PROJECT_SCHEMA_VERSION {
             return Err(ProjectError::UnsupportedSchema);
         }
         Ok(metadata)
@@ -323,7 +323,10 @@ impl ProjectStore {
                 return Err(ProjectError::DigestMismatch);
             }
         }
-        serde_json::from_slice(&bytes).map_err(ProjectError::Json)
+        let document: Document = serde_json::from_slice(&bytes).map_err(ProjectError::Json)?;
+        document
+            .migrate()
+            .map_err(|_| ProjectError::UnsupportedSchema)
     }
 
     fn write_metadata(&self, metadata: &ProjectMetadata) -> Result<(), ProjectError> {

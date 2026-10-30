@@ -10,7 +10,7 @@ fn creates_deterministic_ids_and_default_document() {
     let document = Document::new("wwtp-mini");
     assert_eq!(document.revision, Revision::new(0));
     assert_eq!(document.project_id, "wwtp-mini");
-    assert_eq!(document.schema_version, 1);
+    assert_eq!(document.schema_version, 2);
     assert!(document.scene.nodes().is_empty());
 }
 

@@ -83,6 +83,7 @@ define_id!(NodeId);
 define_id!(MaterialId);
 define_id!(RelationId);
 define_id!(ConstraintId);
+define_id!(ComponentId);
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema, TS,
