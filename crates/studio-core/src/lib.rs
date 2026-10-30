@@ -1,4 +1,5 @@
 pub mod document;
+pub mod geometry;
 pub mod ids;
 pub mod math;
 

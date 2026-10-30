@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::PROJECT_SCHEMA_VERSION;
+use crate::geometry::{Primitive, TriangleMesh};
 use crate::ids::{ConstraintId, MaterialId, NodeId, RelationId, Revision};
 use crate::math::Transform;
 
@@ -88,6 +89,13 @@ impl SceneNode {
 pub enum NodeContent {
     #[default]
     Group,
+    Primitive(Primitive),
+    CustomMesh(TriangleMesh),
+    Sweep {
+        points: Vec<[f32; 3]>,
+        radius: f32,
+        radial_segments: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
