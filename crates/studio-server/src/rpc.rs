@@ -1307,6 +1307,9 @@ fn evaluate_session_scene(
         Some(&evaluator),
     )
     .map_err(large_scene_error)?;
+    session
+        .compute
+        .record_cache_hits(evaluated.stats.cache_hits);
     let bounds = evaluated_scene_bounds(&evaluated);
     Ok((evaluated, bounds))
 }

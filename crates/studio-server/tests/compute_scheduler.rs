@@ -169,6 +169,9 @@ async fn cpu_mode_never_invokes_the_gpu() {
     let result = service.evaluate(box_content()).await.unwrap();
     assert_eq!(result.backend, GeometryBackendKind::Cpu);
     assert_eq!(gpu.calls.load(Ordering::SeqCst), 0);
+    let status = service.status();
+    assert_eq!(status.health, "ready");
+    assert_eq!(status.fallback_reason, None);
 }
 
 #[tokio::test]

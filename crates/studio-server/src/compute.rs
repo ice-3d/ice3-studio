@@ -268,6 +268,16 @@ impl ComputeService {
         let triangles = estimate_triangles(&content);
         let estimated_bytes = estimate_geometry_bytes(&content);
         let probe = self.probe().await;
+        let effective_budget = probe
+            .capabilities
+            .as_ref()
+            .map(|capabilities| {
+                min_budget(
+                    self.policy.gpu_budget_bytes,
+                    capabilities.memory_budget_bytes,
+                )
+            })
+            .unwrap_or(self.policy.gpu_budget_bytes);
         let use_gpu = match self.policy.mode {
             GeometryBackendMode::Cpu => false,
             GeometryBackendMode::Gpu => true,
@@ -306,7 +316,7 @@ impl ComputeService {
                             })
                         })
                         .or_else(|| {
-                            (estimated_bytes > self.policy.gpu_budget_bytes)
+                            (estimated_bytes > effective_budget)
                                 .then(|| "GPU job exceeds the host memory budget".into())
                         })
                 }
@@ -320,7 +330,7 @@ impl ComputeService {
                 reason: "no native GPU backend was configured".into(),
             });
         };
-        if estimated_bytes > self.policy.gpu_budget_bytes {
+        if estimated_bytes > effective_budget {
             let error = BackendError::BudgetExceeded;
             return if self.policy.mode == GeometryBackendMode::Auto {
                 self.evaluate_cpu(content, Some(error.to_string()))
@@ -387,9 +397,10 @@ impl ComputeService {
         let probe = self.probe.get();
         let capabilities = probe.and_then(|probe| probe.capabilities.as_ref());
         let failure = probe.and_then(|probe| probe.failure.clone());
+        let cpu_forced = self.policy.mode == GeometryBackendMode::Cpu;
         ComputeStatus {
             mode: self.policy.mode,
-            selected_backend: if self.last_backend.load(Ordering::Acquire) == 1 {
+            selected_backend: if !cpu_forced && self.last_backend.load(Ordering::Acquire) == 1 {
                 GeometryBackendKind::Gpu
             } else {
                 GeometryBackendKind::Cpu
@@ -408,7 +419,9 @@ impl ComputeService {
                     )
                 })
                 .unwrap_or(self.policy.gpu_budget_bytes),
-            health: if !self.gpu_available.load(Ordering::Acquire) {
+            health: if cpu_forced {
+                "ready".into()
+            } else if !self.gpu_available.load(Ordering::Acquire) {
                 "unavailable".into()
             } else {
                 capabilities
@@ -421,14 +434,18 @@ impl ComputeService {
                         }
                     })
             },
-            fallback_reason: failure
-                .or_else(|| capabilities.and_then(|value| value.fallback_reason.clone()))
-                .or_else(|| self.runtime_failure.get().cloned())
-                .or_else(|| {
-                    self.gpu
-                        .is_none()
-                        .then(|| "no native GPU backend configured".into())
-                }),
+            fallback_reason: if cpu_forced {
+                None
+            } else {
+                failure
+                    .or_else(|| capabilities.and_then(|value| value.fallback_reason.clone()))
+                    .or_else(|| self.runtime_failure.get().cloned())
+                    .or_else(|| {
+                        self.gpu
+                            .is_none()
+                            .then(|| "no native GPU backend configured".into())
+                    })
+            },
             queue_depth: self.gate.queue_depth(),
             max_concurrent_jobs: self.policy.max_concurrent_gpu_jobs,
             gpu_threshold_triangles: self.policy.gpu_threshold_triangles,
@@ -443,9 +460,24 @@ impl ComputeService {
         self.policy
     }
 
+    pub fn record_cache_hits(&self, cache_hits: usize) {
+        self.last_cache_hits.store(cache_hits, Ordering::Relaxed);
+    }
+
     pub fn cache_metadata(&self, content: &NodeContent) -> GeometryCacheMetadata {
         let triangles = estimate_triangles(content);
         let estimated_bytes = estimate_geometry_bytes(content);
+        let effective_budget = self
+            .probe
+            .get()
+            .and_then(|probe| probe.capabilities.as_ref())
+            .map(|capabilities| {
+                min_budget(
+                    self.policy.gpu_budget_bytes,
+                    capabilities.memory_budget_bytes,
+                )
+            })
+            .unwrap_or(self.policy.gpu_budget_bytes);
         let gpu_ready = self.gpu_available.load(Ordering::Acquire)
             && self
                 .probe
@@ -458,7 +490,7 @@ impl ComputeService {
             GeometryBackendMode::Auto => {
                 gpu_ready
                     && triangles >= self.policy.gpu_threshold_triangles
-                    && estimated_bytes <= self.policy.gpu_budget_bytes
+                    && estimated_bytes <= effective_budget
             }
         };
         if uses_gpu {
@@ -658,7 +690,7 @@ fn estimate_geometry_bytes(content: &NodeContent) -> u64 {
             estimate_triangles(content) * 3,
         ),
     };
-    vertices as u64 * 24 + indices as u64 * 4
+    vertices as u64 * 64 + indices as u64 * 32
 }
 
 fn monotonic_job_id() -> u64 {
