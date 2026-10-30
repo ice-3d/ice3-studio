@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use schemars::JsonSchema;
@@ -47,7 +47,7 @@ impl ToolchainStatus {
 pub struct ToolchainService {
     workspace_root: PathBuf,
     launch: Mutex<Option<ToolchainLaunchConfig>>,
-    client: Mutex<Option<ToolchainClient>>,
+    client: Mutex<Option<Arc<ToolchainClient>>>,
     status: RwLock<ToolchainStatus>,
 }
 
@@ -128,7 +128,7 @@ impl ToolchainService {
                 *self
                     .client
                     .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(client);
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(Arc::new(client));
                 *self
                     .status
                     .write()
@@ -207,14 +207,13 @@ impl ToolchainService {
             let client = self
                 .client
                 .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            operation(
-                client
-                    .as_ref()
-                    .ok_or_else(|| ToolchainClientError::Unavailable {
-                        reason: "Toolchain sidecar is not ready".into(),
-                    })?,
-            )
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| ToolchainClientError::Unavailable {
+                    reason: "Toolchain sidecar is not ready".into(),
+                })?;
+            operation(&client)
         };
         match first {
             Err(ToolchainClientError::Crashed { .. }) => {
@@ -222,14 +221,13 @@ impl ToolchainService {
                 let client = self
                     .client
                     .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                operation(
-                    client
-                        .as_ref()
-                        .ok_or_else(|| ToolchainClientError::Unavailable {
-                            reason: "Toolchain sidecar restart failed".into(),
-                        })?,
-                )
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .as_ref()
+                    .cloned()
+                    .ok_or_else(|| ToolchainClientError::Unavailable {
+                        reason: "Toolchain sidecar restart failed".into(),
+                    })?;
+                operation(&client)
             }
             result => result,
         }
@@ -274,7 +272,7 @@ impl ToolchainService {
         *self
             .client
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(client);
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(Arc::new(client));
         Ok(())
     }
 

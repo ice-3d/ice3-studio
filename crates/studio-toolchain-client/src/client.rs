@@ -213,8 +213,8 @@ impl ToolchainClient {
             let mut bytes = Vec::new();
             loop {
                 bytes.clear();
-                match reader.read_until(b'\n', &mut bytes) {
-                    Ok(0) => {
+                match read_bounded_line(&mut reader, &mut bytes) {
+                    Ok(LineRead::Eof) => {
                         fail_pending(
                             &reader_pending,
                             PendingReply::Closed,
@@ -222,15 +222,15 @@ impl ToolchainClient {
                         );
                         break;
                     }
-                    Ok(_) => {
-                        if bytes.len() > MAX_MESSAGE_BYTES {
-                            fail_pending(
-                                &reader_pending,
-                                PendingReply::Protocol,
-                                "sidecar response exceeds 8 MiB",
-                            );
-                            continue;
-                        }
+                    Ok(LineRead::TooLarge) => {
+                        fail_pending(
+                            &reader_pending,
+                            PendingReply::Protocol,
+                            "sidecar response exceeds 8 MiB",
+                        );
+                        continue;
+                    }
+                    Ok(LineRead::Line) => {
                         let line = String::from_utf8_lossy(&bytes);
                         let Ok(envelope) = serde_json::from_str::<RpcEnvelope>(&line) else {
                             fail_pending(
@@ -554,5 +554,44 @@ fn current_architecture() -> &'static str {
         "x64"
     } else {
         std::env::consts::ARCH
+    }
+}
+
+enum LineRead {
+    Eof,
+    Line,
+    TooLarge,
+}
+
+fn read_bounded_line(reader: &mut impl BufRead, output: &mut Vec<u8>) -> std::io::Result<LineRead> {
+    let mut too_large = false;
+    loop {
+        let available = reader.fill_buf()?;
+        if available.is_empty() {
+            return Ok(if too_large {
+                LineRead::TooLarge
+            } else if output.is_empty() {
+                LineRead::Eof
+            } else {
+                LineRead::Line
+            });
+        }
+        let newline = available.iter().position(|byte| *byte == b'\n');
+        let take = newline.map_or(available.len(), |index| index + 1);
+        if !too_large {
+            if output.len().saturating_add(take) > MAX_MESSAGE_BYTES {
+                too_large = true;
+            } else {
+                output.extend_from_slice(&available[..take]);
+            }
+        }
+        reader.consume(take);
+        if newline.is_some() {
+            return Ok(if too_large {
+                LineRead::TooLarge
+            } else {
+                LineRead::Line
+            });
+        }
     }
 }

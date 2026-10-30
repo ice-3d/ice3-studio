@@ -209,3 +209,38 @@ fn stopped_sidecar_restarts_lazily_on_the_next_preview() {
     assert_eq!(std::fs::read(&output).unwrap(), b"glTFfixture");
     assert_eq!(service.status().state, ToolchainState::Ready);
 }
+
+#[test]
+fn concurrent_preview_requests_share_one_sidecar_process() {
+    let root = tempfile::tempdir().unwrap();
+    let script = root.path().join("fake-sidecar.mjs");
+    std::fs::write(
+        &script,
+        format!("process.env.FAKE_SIDECAR_MODE = 'slow';\n{FAKE_SIDECAR}"),
+    )
+    .unwrap();
+    std::fs::create_dir_all(root.path().join("cache")).unwrap();
+    std::fs::write(root.path().join("cache/one.glb"), b"one").unwrap();
+    std::fs::write(root.path().join("cache/two.glb"), b"two").unwrap();
+    let service = ToolchainService::new(root.path(), Some(script));
+    let started = std::time::Instant::now();
+    std::thread::scope(|scope| {
+        let first = scope.spawn(|| {
+            service.preview(
+                &root.path().join("cache/one.glb"),
+                &root.path().join("cache/toolchain/one.glb"),
+                "one",
+            )
+        });
+        let second = scope.spawn(|| {
+            service.preview(
+                &root.path().join("cache/two.glb"),
+                &root.path().join("cache/toolchain/two.glb"),
+                "two",
+            )
+        });
+        first.join().unwrap().unwrap();
+        second.join().unwrap().unwrap();
+    });
+    assert!(started.elapsed() < std::time::Duration::from_millis(900));
+}
