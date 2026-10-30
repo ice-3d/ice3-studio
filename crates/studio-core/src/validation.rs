@@ -67,9 +67,27 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED")]
     #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED")]
     ToolchainJobFailed,
+    #[serde(rename = "ICE3_STUDIO_COMPONENT_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_COMPONENT_INVALID")]
+    ComponentInvalid,
+    #[serde(rename = "ICE3_STUDIO_PARAMETER_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_PARAMETER_INVALID")]
+    ParameterInvalid,
+    #[serde(rename = "ICE3_STUDIO_INSTANCE_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_INSTANCE_INVALID")]
+    InstanceInvalid,
+    #[serde(rename = "ICE3_STUDIO_INSTANCE_SET_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_INSTANCE_SET_INVALID")]
+    InstanceSetInvalid,
+    #[serde(rename = "ICE3_STUDIO_CONNECTION_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_CONNECTION_INVALID")]
+    ConnectionInvalid,
+    #[serde(rename = "ICE3_STUDIO_GEOMETRY_CACHE_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_GEOMETRY_CACHE_FAILED")]
+    GeometryCacheFailed,
 }
 
-pub const DIAGNOSTIC_CODES: [&str; 19] = [
+pub const DIAGNOSTIC_CODES: &[&str] = &[
     "ICE3_STUDIO_API_INVALID",
     "ICE3_STUDIO_API_VERSION_UNSUPPORTED",
     "ICE3_STUDIO_AUTH_REQUIRED",
@@ -89,6 +107,12 @@ pub const DIAGNOSTIC_CODES: [&str; 19] = [
     "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
     "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
     "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
+    "ICE3_STUDIO_COMPONENT_INVALID",
+    "ICE3_STUDIO_PARAMETER_INVALID",
+    "ICE3_STUDIO_INSTANCE_INVALID",
+    "ICE3_STUDIO_INSTANCE_SET_INVALID",
+    "ICE3_STUDIO_CONNECTION_INVALID",
+    "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
 ];
 
 impl DiagnosticCode {
@@ -113,6 +137,12 @@ impl DiagnosticCode {
             Self::ToolchainTimeout => "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
             Self::ToolchainProtocolInvalid => "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
             Self::ToolchainJobFailed => "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
+            Self::ComponentInvalid => "ICE3_STUDIO_COMPONENT_INVALID",
+            Self::ParameterInvalid => "ICE3_STUDIO_PARAMETER_INVALID",
+            Self::InstanceInvalid => "ICE3_STUDIO_INSTANCE_INVALID",
+            Self::InstanceSetInvalid => "ICE3_STUDIO_INSTANCE_SET_INVALID",
+            Self::ConnectionInvalid => "ICE3_STUDIO_CONNECTION_INVALID",
+            Self::GeometryCacheFailed => "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
         }
     }
 }
@@ -308,6 +338,7 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
             });
         }
     }
+    diagnostics.extend(crate::large_scene::validate::validate_large_scene(document));
     diagnostics
 }
 
