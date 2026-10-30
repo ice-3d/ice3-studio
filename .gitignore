@@ -1,0 +1,6 @@
+/.worktrees/
+/target/
+/apps/viewer/node_modules/
+/apps/viewer/dist/
+/.studio/
+*.tmp
