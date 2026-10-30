@@ -24,6 +24,7 @@
 | `ICE3-STUDIO-SPEC-004` | [Toolchain Sidecar Integration 设计](specs/2026-10-30-studio-toolchain-sidecar-design.md) | Implemented | Studio 与 Toolchain 的版本化本地 Sidecar、能力协商和资产边界 |
 | `ICE3-STUDIO-SPEC-005` | [Large-Scene Authoring 设计](specs/2026-10-30-large-scene-authoring-design.md) | Proposed | 参数化组件、实例、连接、GPU 求值、分区发布和大型场景验收 |
 | `ICE3-STUDIO-PLAN-006` | [Large-Scene Authoring Foundation 实施计划](plans/2026-10-30-large-scene-authoring-foundation.md) | Implemented | M1 文档 schema、组件、实例、连接、CPU 求值和缓存 |
+| `ICE3-STUDIO-PLAN-007` | [Large Industrial Scene Acceptance 实施计划](plans/2026-10-30-large-industrial-scene-acceptance.md) | Proposed | M2 大规模场景目录、布局、拓扑、公共 API 生成和性能验收 |
 | `ICE3-STUDIO-PLAN-005` | [Toolchain Sidecar Integration 实施计划](plans/2026-10-30-studio-toolchain-sidecar.md) | Implemented | 共享契约、Sidecar、Rust 客户端、Server 集成和发布验收 |
 | `ICE3-STUDIO-PLAN-002` | [ChangeSet 与审批 API 实施计划](plans/2026-10-30-studio-changeset-api.md) | Implemented | 候选变更集、持久化、双权限、预览和恢复 |
 | `ICE3-STUDIO-PLAN-003` | [Studio Web Workbench 实施计划](plans/2026-10-30-studio-web-workbench-ui.md) | Implemented | React 工作台、只读画布、通用表单和 Agent 界面 |
