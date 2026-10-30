@@ -12,6 +12,7 @@ export function buildTopology(instances) {
 
   const links = [];
   for (const area of AREAS) {
+    if (area === 'biological-a' || area === 'secondary') continue;
     const areaInstances = byArea.get(area);
     for (let index = 0; index < areaInstances.length - 1; index += 1) {
       links.push([
@@ -19,6 +20,44 @@ export function buildTopology(instances) {
         areaInstances[index + 1].node_id,
         area,
         area,
+        null,
+      ]);
+    }
+  }
+
+  const distribution = instances.find(
+    (instance) => instance.metadata.kind === 'distribution-well',
+  );
+  const advanced = instances.find(
+    (instance) => instance.metadata.kind === 'filter-cell',
+  );
+  for (const train of PROCESS_TRAINS) {
+    const reactors = instances.filter((instance) => (
+      instance.metadata.kind === 'biological-reactor'
+      && Number(instance.metadata.train) === train
+    ));
+    const secondary = instances.filter((instance) => (
+      instance.metadata.kind === 'secondary-structure'
+      && Number(instance.metadata.train) === train
+    ));
+    if (!distribution || reactors.length !== 3 || secondary.length !== 2) {
+      throw new Error(`ICE3_LARGE_SCENE_INVALID: incomplete process train ${train}`);
+    }
+    links.push(
+      [distribution.node_id, reactors[0].node_id, 'primary', 'biological-a', train],
+      [reactors[0].node_id, reactors[1].node_id, 'biological-a', 'biological-a', train],
+      [reactors[1].node_id, reactors[2].node_id, 'biological-a', 'biological-a', train],
+      [reactors[2].node_id, secondary[0].node_id, 'biological-a', 'secondary', train],
+      [reactors[2].node_id, secondary[1].node_id, 'biological-a', 'secondary', train],
+      [secondary[0].node_id, secondary[1].node_id, 'secondary', 'secondary', train],
+    );
+    if (advanced) {
+      links.push([
+        secondary[1].node_id,
+        advanced.node_id,
+        'secondary',
+        'advanced',
+        train,
       ]);
     }
   }
@@ -27,11 +66,11 @@ export function buildTopology(instances) {
   const utilitySource = byArea.get('utilities')[0]?.node_id;
   if (utilitySource) {
     for (const facility of facilities) {
-      links.push([utilitySource, facility.node_id, 'utilities', 'utilities']);
+      links.push([utilitySource, facility.node_id, 'utilities', 'utilities', null]);
     }
   }
 
-  const pairs = links.map(([fromNode, toNode, fromArea, toArea], index) => {
+  const pairs = links.map(([fromNode, toNode, fromArea, toArea, train], index) => {
     const ordinal = 1001 + index;
     const relation = {
       type: 'relation.create',
@@ -44,6 +83,7 @@ export function buildTopology(instances) {
           medium: 'process-fluid',
           fromArea,
           toArea,
+          ...(train === null ? {} : { train: String(train) }),
         },
       },
     };
@@ -69,7 +109,7 @@ export function buildTopology(instances) {
         relationId: relationId(ordinal),
         metadata: { fromArea, toArea },
       },
-      metadata: { train: String(PROCESS_TRAINS[index % PROCESS_TRAINS.length]) },
+      metadata: train === null ? {} : { train: String(train) },
     };
     return { relation, connection };
   });

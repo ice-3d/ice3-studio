@@ -14,10 +14,10 @@
 - 厂区约 `1000 x 550 m`。
 - 216 个主要可选组件实例，其中 12 个是功能建筑。
 - 4 个 primary structure、18 个 biological reactor 和 12 个 secondary structure。
-- 6 条 process train、8 个功能区、208 条有类型连接。
-- 本次开发参考机器的评估结果为 `6,125,190` effective triangles。
-- 23 个设备/建筑模板和 208 条独立连接路由，共 231 个 unique meshes。
-- unique triangles 为 `716,203`，有效三角形共享比约 `8.55x`。
+- 6 条 process train、8 个功能区、210 条有类型连接。
+- 本次开发参考机器的评估结果为 `6,125,878` effective triangles。
+- 23 个设备/建筑模板和 210 条独立连接路由，共 233 个 unique meshes。
+- unique triangles 为 `716,891`，有效三角形共享比约 `8.54x`。
 
 设备名称和区域只存在于 fixture metadata。Core 和公开 Operation 保持通用。
 
@@ -51,16 +51,16 @@ npm run benchmark:large-industrial
 
 | 指标 | p50 | p95 |
 |---|---:|---:|
-| 高层计划构建 | 20.586 ms | 56.563 ms |
-| 完整初始 apply | 1,341.949 ms | 1,341.949 ms |
-| 216 节点批量更新 + stats | 1,287.207 ms | 1,344.515 ms |
-| warm scene stats | 1,187.955 ms | 1,221.104 ms |
-| 单实例更新 + stats | 1,281.188 ms | 1,289.573 ms |
-| source GLB export | 1,224.457 ms | 1,311.039 ms |
-| close + reopen + stats | 3,860.797 ms | 4,030.901 ms |
+| 高层计划构建 | 17.545 ms | 43.423 ms |
+| 完整初始 apply | 1,266.365 ms | 1,266.365 ms |
+| 216 节点批量更新 + stats | 1,258.115 ms | 1,265.207 ms |
+| warm scene stats | 1,162.025 ms | 1,178.475 ms |
+| 单实例更新 + stats | 1,268.303 ms | 1,275.173 ms |
+| source GLB export | 1,204.369 ms | 1,213.887 ms |
+| close + reopen + stats | 3,802.722 ms | 3,951.809 ms |
 
-本次 source GLB 为 `16,323,856` bytes，Document 序列化为 `37,838,489` bytes。局部更新只
-生成 1 个 mesh，复用 230 个缓存 mesh。
+本次 source GLB 为 `16,336,924` bytes，Document 序列化为 `37,839,429` bytes。局部更新只
+生成 2 个 mesh，复用 231 个缓存 mesh。
 
 这些数字是本机基线，不是跨设备绝对承诺。共享 CI 验证规模、正确性和门禁，不绑定固定硬件
 耗时。

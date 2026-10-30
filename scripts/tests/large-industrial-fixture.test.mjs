@@ -175,3 +175,30 @@ test('benchmark gate rejects missing scale and cache reuse', () => {
     'uniqueMeshes',
   ]);
 });
+
+test('assigns and connects three reactors and two secondary structures per train', () => {
+  const plan = buildIndustrialScenePlan();
+  const instances = plan.transactions
+    .flatMap((transaction) => transaction.operations)
+    .filter((operation) => operation.type === 'instance.create');
+  const byId = new Map(instances.map((instance) => [instance.node_id, instance]));
+
+  for (const train of plan.processTrains) {
+    const reactors = instances.filter((instance) => (
+      instance.metadata.kind === 'biological-reactor'
+      && Number(instance.metadata.train) === train
+    ));
+    const secondary = instances.filter((instance) => (
+      instance.metadata.kind === 'secondary-structure'
+      && Number(instance.metadata.train) === train
+    ));
+    assert.equal(reactors.length, 3, `reactor count for train ${train}`);
+    assert.equal(secondary.length, 2, `secondary count for train ${train}`);
+
+    const trainConnections = plan.transactions
+      .flatMap((transaction) => transaction.operations)
+      .filter((operation) => operation.type === 'connection.create')
+      .filter((operation) => Number(operation.metadata.train) === train);
+    assert.ok(trainConnections.length >= 6, `connections for train ${train}`);
+  }
+});

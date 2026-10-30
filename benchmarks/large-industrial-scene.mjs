@@ -106,7 +106,7 @@ async function main() {
       const result = await rpc('document.apply', transaction);
       revision = result.revision;
     }
-    const fullApplyMs = performance.now() - applyStarted;
+    const initialBuildMs = performance.now() - applyStarted;
     if (revision !== plan.transactions.length) {
       throw new Error('benchmark scene did not commit all transactions');
     }
@@ -181,7 +181,7 @@ async function main() {
 
     const exportSamples = [];
     let sourceBytes = 0;
-    for (let sample = 0; sample < 3; sample += 1) {
+    for (let sample = 0; sample < 7; sample += 1) {
       const started = performance.now();
       const exported = await rpc('export.sourceGlb');
       sourceBytes = (await stat(exported.sourcePath)).size;
@@ -225,7 +225,8 @@ async function main() {
       sourceGlbBytes: sourceBytes,
       measurements: {
         planConstructionMs: metric(planSamples),
-        fullApplyMs: metric([fullApplyMs]),
+        initialBuildMs: metric([initialBuildMs]),
+        fullApplyMs: metric(fullUpdateSamples),
         fullUpdateMs: metric(fullUpdateSamples),
         warmStatsMs: metric(warmSamples),
         incrementalUpdateMs: metric(incrementalSamples),

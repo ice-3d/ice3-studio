@@ -55,6 +55,16 @@ export function buildIndustrialScenePlan() {
     for (let index = 0; index < group.count; index += 1) {
       const areaOrdinal = areaOrdinals.get(area) ?? 0;
       const position = areaPosition(area, areaOrdinal, areaTotals.get(area));
+      const train = group.kind === 'biological-reactor'
+        ? PROCESS_TRAINS[Math.floor(index / 3)]
+        : group.kind === 'secondary-structure'
+          ? PROCESS_TRAINS[Math.floor(index / 2)]
+          : null;
+      const instanceMetadata = {
+        area,
+        kind: group.kind,
+        ...(train === null ? {} : { train: String(train) }),
+      };
       instances.push({
         type: 'instance.create',
         node_id: nodeId(ordinal),
@@ -69,10 +79,10 @@ export function buildIndustrialScenePlan() {
           definitionId: definitions[definitionIndex.get(group.kind)].id,
           parameters: {},
           overrides: {},
-          metadata: { area, kind: group.kind },
+          metadata: instanceMetadata,
         },
         material_id: null,
-        metadata: { area, kind: group.kind },
+        metadata: instanceMetadata,
       });
       areaOrdinals.set(area, areaOrdinal + 1);
       ordinal += 1;
