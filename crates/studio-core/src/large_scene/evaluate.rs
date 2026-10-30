@@ -484,6 +484,19 @@ fn expand_definition_parts(
         }
 
         match &part.content {
+            PartContent::Group => {
+                scene.nodes.push(EvaluatedSceneNode {
+                    id: part_id,
+                    owner_id: instance_id.to_owned(),
+                    name: format!("{}/{}", source_node.name, part.id),
+                    parent_id,
+                    transform,
+                    material_id,
+                    mesh_key: None,
+                    metadata,
+                    visible,
+                });
+            }
             PartContent::ComponentReference {
                 definition_id,
                 parameters: supplied,

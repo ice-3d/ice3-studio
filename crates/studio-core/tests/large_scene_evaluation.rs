@@ -1,5 +1,7 @@
 mod support;
 
+use std::collections::BTreeMap;
+use studio_core::large_scene::component::{ComponentPart, PartContent, PartTransform};
 use studio_core::large_scene::evaluate::evaluate_large_scene;
 use support::shared_pump_document;
 
@@ -14,4 +16,29 @@ fn identical_instances_share_one_mesh_with_stable_part_identity() {
     assert_eq!(evaluated.nodes[1].id, "node-000002/body");
     assert_eq!(evaluated.stats.effective_triangles, 24);
     assert_eq!(evaluated.stats.unique_triangles, 12);
+}
+
+#[test]
+fn group_parts_create_hierarchy_without_empty_meshes() {
+    let mut document = shared_pump_document();
+    document.components[0].parts.push(ComponentPart {
+        id: "group".into(),
+        parent_id: None,
+        transform: PartTransform::default(),
+        content: PartContent::Group,
+        material_role: None,
+        metadata: BTreeMap::new(),
+        visible: true,
+    });
+    let evaluated = evaluate_large_scene(&document).unwrap();
+    assert_eq!(evaluated.nodes.len(), 4);
+    assert_eq!(evaluated.meshes.len(), 1);
+    assert!(
+        evaluated
+            .nodes
+            .iter()
+            .filter(|node| node.mesh_key.is_none())
+            .count()
+            >= 2
+    );
 }

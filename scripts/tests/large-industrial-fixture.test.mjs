@@ -12,6 +12,7 @@ import {
   buildComponentDefinitions,
 } from '../../fixtures/large-industrial-site/templates.mjs';
 import { buildIndustrialScenePlan } from '../../fixtures/large-industrial-site/operations.mjs';
+import { verifyAppliedScene } from '../../scripts/run-large-industrial-fixture.mjs';
 
 test('catalogue preserves the accepted large-scene scale', () => {
   const counts = validateCatalogue({
@@ -135,4 +136,21 @@ test('connects every process train without dangling ports', () => {
     }
   }
   assert.equal(connectionCount, topology.connectionCount);
+});
+
+test('rejects evaluated output outside the accepted scale', () => {
+  assert.throws(() => verifyAppliedScene({
+    sourceNodes: 216,
+    expandedNodes: 4000,
+    uniqueMeshes: 22,
+    effectiveTriangles: 5_000_000,
+    uniqueTriangles: 500_000,
+    cacheHits: 0,
+    cacheMisses: 22,
+    generatedMeshes: 22,
+  }, {
+    primaryObjects: 216,
+    minTriangles: 5_500_000,
+    maxTriangles: 7_500_000,
+  }));
 });

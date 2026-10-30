@@ -58,6 +58,44 @@ async fn unknown_methods_return_a_stable_json_rpc_error() {
 }
 
 #[tokio::test]
+async fn accepts_bounded_large_authoring_requests() {
+    let server = start_test_server(ServerConfig::for_tests("large-request")).await;
+    let filler = "x".repeat(3 * 1024 * 1024);
+    let response = reqwest::Client::new()
+        .post(server.rpc_url())
+        .bearer_auth(server.token())
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 31,
+            "method": "document.apply",
+            "params": {
+                "expectedRevision": 0,
+                "dryRun": false,
+                "idempotencyKey": "large-request",
+                "operations": [{
+                    "type": "node.create",
+                    "node_id": "node-000001",
+                    "parent_id": null,
+                    "name": "Large request",
+                    "transform": {
+                        "translation": { "x": 0, "y": 0, "z": 0 },
+                        "rotation": [0, 0, 0, 1],
+                        "scale": { "x": 1, "y": 1, "z": 1 }
+                    },
+                    "content": { "type": "group" },
+                    "material_id": null,
+                    "metadata": { "payload": filler }
+                }]
+            }
+        }))
+        .send()
+        .await
+        .unwrap();
+    let body: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(body["result"]["revision"], 1, "{body}");
+}
+
+#[tokio::test]
 async fn publishes_a_revision_event_after_a_successful_commit() {
     let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;
     let (mut websocket, _) = tokio_tungstenite::connect_async(server.websocket_url())

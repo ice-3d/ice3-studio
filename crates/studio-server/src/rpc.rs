@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path as AxumPath, Query, State};
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
@@ -33,6 +33,8 @@ use crate::auth::{approval_cookie, bearer_token};
 use crate::capabilities::{WriteMode, authorize_write};
 use crate::preview::{PreviewAdapter, export_source};
 use crate::toolchain::{ToolchainService, ToolchainStatus};
+
+const MAX_RPC_BODY_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -472,7 +474,10 @@ fn build_router(state: AppState, viewer_dir: Option<PathBuf>) -> Router {
     let router = Router::new()
         .route("/health", get(health))
         .route("/session/bootstrap", get(bootstrap_session))
-        .route("/rpc", post(rpc))
+        .route(
+            "/rpc",
+            post(rpc).layer(DefaultBodyLimit::max(MAX_RPC_BODY_BYTES)),
+        )
         .route("/ws", get(websocket))
         .route("/schemas/{name}", get(schema_file))
         .route("/previews/{revision}", get(preview_file))
