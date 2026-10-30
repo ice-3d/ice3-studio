@@ -12,7 +12,7 @@
     "build": "node esbuild.mjs",
     "pretypecheck": "npm --prefix ../../../ice3-engine run build",
     "typecheck": "tsc --noEmit",
-    "test": "node esbuild-tests.mjs && node --test test-dist/*.test.mjs",
+    "test": "node esbuild-tests.mjs && node --test test-dist/*.test.js",
     "pretest:e2e": "npm --prefix ../../../ice3-engine run build && npm --prefix ../../../ice3-toolchain run build && npm run build",
     "test:e2e": "playwright test",
     "verify": "npm run typecheck && npm test && npm run build"
@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "esbuild": "0.28.2",
