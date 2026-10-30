@@ -85,6 +85,10 @@ impl ProjectStore {
         self.read_revision_with_digest(metadata.current_revision, &metadata.snapshot_digest)
     }
 
+    pub fn project_dir(&self) -> &Path {
+        self.path.project_dir()
+    }
+
     pub fn write_snapshot(&self, document: &Document) -> Result<(), ProjectError> {
         let previous = self.read_metadata().ok();
         if previous

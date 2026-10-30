@@ -23,7 +23,7 @@ ts-rs = { version = "11", default-features = false }
 futures-util = "0.3"
 glam = { version = "0.30", features = ["serde"] }
 axum = { version = "0.8", features = ["ws"] }
-tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1", features = ["fs", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
 tempfile = "3"
 reqwest = { version = "0.12", features = ["json"] }
 clap = { version = "4", features = ["derive"] }

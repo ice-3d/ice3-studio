@@ -24,6 +24,7 @@ use ts_rs::TS;
 
 use crate::RevisionEvent;
 use crate::auth::has_valid_token;
+use crate::preview::{PreviewAdapter, export_source};
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -452,10 +453,28 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             }
             serde_json::to_value(output).map_err(serialize_error)
         }
-        "export.sourceGlb" | "export.runtimePreview" => Err(RpcError::application(
-            -32020,
-            "export is not available until the export task is installed".into(),
-        )),
+        "export.sourceGlb" => {
+            let output = export_source(&session.document, session.store.project_dir())
+                .map_err(preview_error)?;
+            serde_json::to_value(output).map_err(serialize_error)
+        }
+        "export.runtimePreview" => {
+            let cli = std::env::var_os("STUDIO_TOOLCHAIN_CLI")
+                .map(PathBuf::from)
+                .ok_or_else(|| {
+                    RpcError::application(-32020, "STUDIO_TOOLCHAIN_CLI is not configured".into())
+                })?;
+            let adapter =
+                PreviewAdapter::new(&session.workspace_root, cli).map_err(preview_error)?;
+            let output = adapter
+                .generate(
+                    &session.document,
+                    session.store.project_dir(),
+                    &session.project_id,
+                )
+                .map_err(preview_error)?;
+            serde_json::to_value(output).map_err(serialize_error)
+        }
         method => Err(RpcError::application(
             -32601,
             format!("unknown method: {method}"),
@@ -551,6 +570,8 @@ fn mutating(method: &str) -> bool {
             | "document.apply"
             | "document.undo"
             | "document.redo"
+            | "export.sourceGlb"
+            | "export.runtimePreview"
     )
 }
 
@@ -588,6 +609,10 @@ fn project_error(error: studio_project::ProjectError) -> RpcError {
 
 fn geometry_error(error: studio_core::geometry::GeometryError) -> RpcError {
     RpcError::application(-32012, error.to_string())
+}
+
+fn preview_error(error: crate::preview::PreviewError) -> RpcError {
+    RpcError::application(-32013, error.to_string())
 }
 
 impl RpcError {

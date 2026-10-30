@@ -2,6 +2,7 @@
 
 mod auth;
 mod events;
+pub mod preview;
 mod rpc;
 
 pub use events::RevisionEvent;

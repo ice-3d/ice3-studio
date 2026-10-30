@@ -1,6 +1,7 @@
 pub mod apply;
 pub mod diff;
 pub mod document;
+pub mod export;
 pub mod geometry;
 pub mod ids;
 pub mod math;
