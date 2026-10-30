@@ -41,7 +41,7 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 | Method | Write | Parameters | Result |
 |---|---:|---|---|
 | `system.health` | No | none | Version and status |
-| `system.capabilities` | No | none | API version and method inventory |
+| `system.capabilities` | No | none | API version, method inventory, and Toolchain state |
 | `project.create` | Yes | `{ projectId }` | `{ opened: true }` |
 | `project.open` | Yes | `{ projectId }` | `{ opened: true }` |
 | `project.get` | No | none | Current document |
@@ -62,6 +62,11 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 
 `export.runtimePreview` always prepares the current document revision. A commit is persisted
 before its revision event is published.
+
+`system.capabilities.toolchain` reports `state`, contract/package versions, enabled operations,
+and a sanitized failure reason. Runtime preview responses include the derived `assetId` and
+content hash. Toolchain failures do not change the current revision or the previously valid
+preview.
 
 After `project.close`, document and scene methods return `ICE3_STUDIO_PROJECT_NOT_FOUND`
 until a project is opened again.

@@ -46,3 +46,34 @@ test('loads an arbitrary generic project without industry-specific UI', async ({
   await expect(page.getByRole('heading', { name: 'generic-project' })).toBeVisible();
   await expect(page.getByText('Aeration Tank')).toHaveCount(0);
 });
+
+test('keeps editing available when Toolchain is incompatible', async ({ page }) => {
+  await page.route('**/rpc', async (route) => {
+    const request = route.request().postDataJSON() as { method?: string };
+    if (request.method !== 'system.capabilities') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        result: {
+          apiVersion: '1.0',
+          schemaVersion: 1,
+          methods: [],
+          toolchain: {
+            state: 'incompatible',
+            contractVersion: null,
+            packageVersion: null,
+            capabilities: [],
+            reason: 'required contract 1.x',
+          },
+        },
+      }),
+    });
+  });
+  await page.goto('/');
+  await expect(page.getByText('Toolchain incompatible')).toBeVisible();
+  await expect(page.locator('canvas[data-layer="scene"]')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Objects' })).toBeVisible();
+});

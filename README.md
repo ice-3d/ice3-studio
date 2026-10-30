@@ -30,6 +30,8 @@ npm run benchmark
 - Rust Studio Core：Document、通用几何、材质、关系、约束、事务、校验和 GLB 导出。
 - Rust Studio Server：仅 loopback 的 JSON-RPC、写入令牌、revision WebSocket 和受控
   Toolchain 预览编排。
+- Managed Toolchain Sidecar：固定版本的本地资产准备进程，提供 Preview、GLB 准备、
+  Validation、LOD/partition 和能力状态；Rust Core 保持独立。
 - ChangeSet 审查层：AI 与人工表单变更共享候选 digest；默认由短期人工授权提交。
 - TypeScript Viewer：只通过公开 API 展示场景、revision、诊断和选择状态。
 - `wastewater-mini`：确定性 AI API 验收 fixture，不是写死在 Core 中的行业类型。

@@ -35,6 +35,21 @@ export type DocumentDiff = {
   removedConstraintIds: string[];
 };
 
+export type ToolchainStatus = {
+  state: 'starting' | 'ready' | 'busy' | 'unavailable' | 'incompatible' | 'failed';
+  contractVersion: string | null;
+  packageVersion: string | null;
+  capabilities: string[];
+  reason: string | null;
+};
+
+export type StudioCapabilities = {
+  apiVersion: string;
+  schemaVersion: number;
+  methods: string[];
+  toolchain: ToolchainStatus;
+};
+
 export type ChangeSetEvaluation = {
   changeSetId: string;
   version: number;
@@ -76,6 +91,10 @@ export class StudioClient {
 
   health(): Promise<{ apiVersion: string; schemaVersion: number }> {
     return fetch('/health', { credentials: 'include' }).then((response) => response.json());
+  }
+
+  capabilities(): Promise<StudioCapabilities> {
+    return this.rpc('system.capabilities', {});
   }
 
   document(): Promise<StudioDocument> {

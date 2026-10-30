@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-004
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 

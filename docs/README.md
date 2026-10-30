@@ -16,12 +16,13 @@
 | `ICE3-STUDIO-REF-API-001` | [API Reference](reference/api.md) | Implemented | JSON-RPC、Operation、revision 和导出契约 |
 | `ICE3-STUDIO-REF-DIAG-001` | [Diagnostics](reference/diagnostics.md) | Implemented | 稳定错误码和恢复规则 |
 | `ICE3-STUDIO-REF-CHANGESET-001` | [ChangeSet Review](reference/change-sets.md) | Implemented | 候选变更、digest 审批、权限和恢复 |
+| `ICE3-STUDIO-REF-TOOL-001` | [Toolchain Sidecar](reference/toolchain-sidecar.md) | Implemented | 固定版本 Sidecar、能力协商、缓存与故障降级 |
 | `ICE3-STUDIO-ADR-0001` | [Document as Source of Truth](decisions/0001-document-as-source-of-truth.md) | Implemented | Document 与派生 Geometry 的决策 |
 | `ICE3-STUDIO-ADR-0002` | [Local API Boundary](decisions/0002-local-api-boundary.md) | Implemented | 本地 API 与 Viewer 边界决策 |
 | `ICE3-STUDIO-SPEC-002` | [Studio Web Workbench 设计](specs/2026-10-30-studio-web-workbench-design.md) | Implemented | AI-native 审查、表单编辑、ChangeSet 和通用工作台设计 |
 | `ICE3-STUDIO-SPEC-003` | [Native GPU Compute 设计](specs/2026-10-30-native-gpu-compute-design.md) | Proposed | Native `wgpu` 后端、调度、增量缓存和量化验收 |
-| `ICE3-STUDIO-SPEC-004` | [Toolchain Sidecar Integration 设计](specs/2026-10-30-studio-toolchain-sidecar-design.md) | Proposed | Studio 与 Toolchain 的版本化本地 Sidecar、能力协商和资产边界 |
-| `ICE3-STUDIO-PLAN-005` | [Toolchain Sidecar Integration 实施计划](plans/2026-10-30-studio-toolchain-sidecar.md) | Proposed | 共享契约、Sidecar、Rust 客户端、Server 集成和发布验收 |
+| `ICE3-STUDIO-SPEC-004` | [Toolchain Sidecar Integration 设计](specs/2026-10-30-studio-toolchain-sidecar-design.md) | Implemented | Studio 与 Toolchain 的版本化本地 Sidecar、能力协商和资产边界 |
+| `ICE3-STUDIO-PLAN-005` | [Toolchain Sidecar Integration 实施计划](plans/2026-10-30-studio-toolchain-sidecar.md) | Implemented | 共享契约、Sidecar、Rust 客户端、Server 集成和发布验收 |
 | `ICE3-STUDIO-PLAN-002` | [ChangeSet 与审批 API 实施计划](plans/2026-10-30-studio-changeset-api.md) | Implemented | 候选变更集、持久化、双权限、预览和恢复 |
 | `ICE3-STUDIO-PLAN-003` | [Studio Web Workbench 实施计划](plans/2026-10-30-studio-web-workbench-ui.md) | Implemented | React 工作台、只读画布、通用表单和 Agent 界面 |
 | `ICE3-STUDIO-SPEC-001` | [AI-Native Modeling MVP 设计](specs/2026-10-30-ai-native-studio-mvp-design.md) | Implemented | Rust Core、API、数据模型、Viewer 和验收设计 |

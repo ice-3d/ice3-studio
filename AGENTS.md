@@ -21,6 +21,8 @@
 - 公开 API 是产品边界；Web Viewer 只通过公开 API 展示和审查。
 - Document 和 operation history 是真源，evaluated Geometry 是派生结果。
 - Studio Core 不依赖 Toolchain、Engine、Viewer 或外部模型 SDK。
+- Studio Server 只能通过 `studio-toolchain-client` 和版本化本地 Sidecar 使用 Toolchain；
+  不得把 Node.js 或 Toolchain 私有源码引入建模 Kernel。
 - 标准 GLB 是互操作输出；Runtime LOD 和分区继续由 Toolchain 负责。
 - 本地 API 默认只监听 loopback，并限制项目路径和 Operation 能力。
 - AI 提案和人工表单修改必须进入 ChangeSet；未批准候选不得修改当前 revision。

@@ -291,9 +291,7 @@ impl ToolchainService {
                 "--workspace".into(),
                 self.workspace_root.clone(),
             ],
-            environment: std::env::var_os("PATH")
-                .map(|path| vec![("PATH".into(), path.to_string_lossy().into_owned())])
-                .unwrap_or_default(),
+            environment: toolchain_environment(),
             workspace_root: self.workspace_root.clone(),
             request_timeout: Duration::from_secs(30),
         })
@@ -335,4 +333,21 @@ fn node_binary() -> Result<PathBuf, String> {
         .map(|directory| directory.join(executable))
         .find(|candidate| candidate.is_file())
         .ok_or_else(|| "Node.js runtime is unavailable".into())
+}
+
+fn toolchain_environment() -> Vec<(String, String)> {
+    const PASSTHROUGH: [&str; 8] = [
+        "PATH",
+        "ICE3_TOOLCHAIN_CLI",
+        "BLENDER_BIN",
+        "ICE3_JT_CONVERTER",
+        "ICE3_FBX_TIMEOUT_MS",
+        "ICE3_USD_TIMEOUT_MS",
+        "ICE3_JT_TIMEOUT_MS",
+        "STUDIO_NODE",
+    ];
+    PASSTHROUGH
+        .into_iter()
+        .filter_map(|name| std::env::var(name).ok().map(|value| (name.into(), value)))
+        .collect()
 }

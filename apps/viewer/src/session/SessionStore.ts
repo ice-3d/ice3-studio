@@ -1,10 +1,16 @@
-import type { Diagnostic, StudioDocument } from '../api/StudioClient';
+import type {
+  Diagnostic,
+  StudioCapabilities,
+  StudioDocument,
+  ToolchainStatus,
+} from '../api/StudioClient';
 import { ExternalStore } from '../shared/ExternalStore';
 
 type DocumentSource = {
   document(): Promise<StudioDocument>;
   validation(): Promise<Diagnostic[]>;
   preview?(revision: number): Promise<{ url: string }>;
+  capabilities?(): Promise<StudioCapabilities>;
 };
 
 export type SessionSnapshot = {
@@ -15,6 +21,7 @@ export type SessionSnapshot = {
   selectionIds: string[];
   connection: 'connecting' | 'connected' | 'error';
   previewUrl: string | null;
+  toolchain: ToolchainStatus | null;
 };
 
 export class SessionStore extends ExternalStore<SessionSnapshot> {
@@ -29,15 +36,17 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
       selectionIds: [],
       connection: 'connecting',
       previewUrl: null,
+      toolchain: null,
     });
   }
 
   async refresh(): Promise<void> {
     const generation = ++this.generation;
     try {
-      const [document, diagnostics] = await Promise.all([
+      const [document, diagnostics, capabilities] = await Promise.all([
         this.source.document(),
         this.source.validation(),
+        this.source.capabilities?.() ?? Promise.resolve(null),
       ]);
       if (generation !== this.generation) return;
       this.update({
@@ -48,6 +57,7 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
         diagnostics,
         connection: 'connected',
         previewUrl: this.snapshot.previewUrl,
+        toolchain: capabilities?.toolchain ?? this.snapshot.toolchain,
       });
       if (this.source.preview) {
         try {

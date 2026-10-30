@@ -18,16 +18,23 @@ external AI or script
         | JSON-RPC 2.0
         v
 Studio Server (loopback)
-        |
-        v
+        |-------------------+
+        |                   |
+        v                   v
 Rust Studio Core
   document + operations + validation + geometry + export
         |
         +----> revision snapshots and history
         |
-        +----> source GLB ----> independent Toolchain
+        +----> source GLB
         |
         +----> revision event ----> thin Web Viewer
+
+studio-toolchain-client
+        |
+        +----> pinned local Toolchain Sidecar
+                         |
+                         +----> prepared GLB / preview / partition
 ```
 
 Studio Core has no dependency on the Viewer, Engine, Toolchain, or an AI provider SDK. Node.js
@@ -52,6 +59,12 @@ Owns the local HTTP and WebSocket boundary. It validates authentication and para
 one transaction at a time, persists accepted revisions, and publishes revision events. Blocking
 filesystem and Toolchain work runs on Tokio blocking workers so health and event delivery remain
 responsive.
+
+### `studio-toolchain-client` and Toolchain sidecar
+
+Owns the pinned sidecar process, capability handshake, newline-delimited JSON-RPC request map,
+timeout, bounded stderr capture, restart policy, and project-relative asset paths. Toolchain
+prepares derived assets and never receives document mutation authority.
 
 ### `studio-cli`
 
@@ -84,7 +97,7 @@ hard-coded process type in the modeling API.
 - Writes require a process-scoped bearer token.
 - Project IDs and resources are confined to the configured workspace.
 - Operations cannot submit paths, URLs, shell commands, scripts, or arbitrary expressions.
-- The Toolchain executable is configured by the host, never by an API request.
+- The Toolchain executable comes from a host-owned pinned manifest, never from an API request.
 - Diagnostics exclude credentials and out-of-workspace paths.
 
 ## Deferred Scope

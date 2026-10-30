@@ -8,6 +8,7 @@ import { FormRenderer } from '../forms/FormRenderer';
 import { useChangeSet, useChangeSetStore } from '../changeset/ChangeSetProvider';
 import { AgentPanel } from '../agent/AgentPanel';
 import { useState } from 'react';
+import { ToolchainPanel } from '../toolchain/ToolchainPanel';
 
 export function Workbench() {
   const session = useSession();
@@ -49,6 +50,7 @@ export function Workbench() {
           </div>
           <div hidden={dock !== 'agent'}><AgentPanel /></div>
           <div hidden={dock !== 'inspect'}>
+            <ToolchainPanel status={session.toolchain} />
             <FormRenderer
               node={selected}
               onStage={async (operations) => {
