@@ -148,6 +148,67 @@ impl NativeGpuBackend {
                 reason: "device initialization did not publish capabilities".into(),
             })
     }
+
+    pub fn evaluate_primitive(
+        &self,
+        job: crate::PrimitiveJob,
+    ) -> Result<crate::MeshReadback, BackendError> {
+        let (device, queue) = self.ready_device()?;
+        match job.primitive {
+            studio_core::geometry::Primitive::Box {
+                width,
+                height,
+                depth,
+            } => {
+                validate_positive(&[width, height, depth])?;
+                crate::evaluate_box(
+                    &device,
+                    &queue,
+                    crate::PrimitiveGpuParams::for_box(width, height, depth),
+                )
+            }
+            studio_core::geometry::Primitive::Plane { width, depth } => {
+                validate_positive(&[width, depth, 1.0])?;
+                crate::evaluate_plane(
+                    &device,
+                    &queue,
+                    crate::PrimitiveGpuParams::for_plane(width, depth),
+                )
+            }
+            studio_core::geometry::Primitive::Cylinder { .. }
+            | studio_core::geometry::Primitive::Sphere { .. } => Err(BackendError::Kernel {
+                message: "this primitive kernel is not implemented yet".into(),
+            }),
+        }
+    }
+
+    fn ready_device(&self) -> Result<(Arc<Device>, Arc<Queue>), BackendError> {
+        if self.mode == GeometryBackendMode::Cpu {
+            return Err(BackendError::Unavailable {
+                reason: "GPU mode is disabled".into(),
+            });
+        }
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(capabilities) = &state.capabilities
+            && capabilities.health != "ready"
+        {
+            return Err(BackendError::DeviceLost {
+                message: capabilities
+                    .fallback_reason
+                    .clone()
+                    .unwrap_or_else(|| "GPU device is no longer ready".into()),
+            });
+        }
+        match (&state._device, &state._queue) {
+            (Some(device), Some(queue)) => Ok((device.clone(), queue.clone())),
+            _ => Err(BackendError::Unavailable {
+                reason: "GPU device has not been initialized".into(),
+            }),
+        }
+    }
 }
 
 pub struct CapabilityProbe {
@@ -239,6 +300,16 @@ fn record_device_loss(state: &Mutex<DeviceState>, reason: String) {
         capabilities.health = "unavailable".into();
         capabilities.accelerated = false;
         capabilities.fallback_reason = Some(reason);
+    }
+}
+
+fn validate_positive(values: &[f32]) -> Result<(), BackendError> {
+    if values.iter().all(|value| value.is_finite() && *value > 0.0) {
+        Ok(())
+    } else {
+        Err(BackendError::Kernel {
+            message: "primitive dimensions must be finite and positive".into(),
+        })
     }
 }
 
