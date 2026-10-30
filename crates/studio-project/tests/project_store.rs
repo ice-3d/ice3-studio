@@ -57,6 +57,28 @@ fn undo_and_redo_restore_document_content() {
 }
 
 #[test]
+fn open_rejects_a_history_with_a_missing_revision() {
+    let root = tempfile::tempdir().unwrap();
+    let path = WorkspacePath::new(root.path(), "history-gap").unwrap();
+    let store = ProjectStore::create(path.clone()).unwrap();
+    let mut first = Document::new("history-gap");
+    store.write_snapshot(&first).unwrap();
+    first.revision = first.revision.next();
+    store.write_snapshot(&first).unwrap();
+    drop(store);
+
+    let history_path = root.path().join("history-gap/history/operations.jsonl");
+    let history = std::fs::read_to_string(&history_path).unwrap();
+    std::fs::write(
+        &history_path,
+        history.lines().skip(1).collect::<Vec<_>>().join("\n"),
+    )
+    .unwrap();
+
+    assert!(ProjectStore::open(path).is_err());
+}
+
+#[test]
 fn recovers_a_lock_left_by_a_dead_process() {
     let root = tempfile::tempdir().unwrap();
     let path = WorkspacePath::new(root.path(), "stale-lock").unwrap();
@@ -67,4 +89,21 @@ fn recovers_a_lock_left_by_a_dead_process() {
 
     let reopened = ProjectStore::open(path);
     assert!(reopened.is_ok());
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_a_project_symlink_that_escapes_the_workspace() {
+    use std::os::unix::fs::symlink;
+
+    let root = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let escaped = outside.path().join("project");
+    std::fs::create_dir_all(&escaped).unwrap();
+    std::fs::write(escaped.join("project.json"), "{}").unwrap();
+    symlink(&escaped, root.path().join("linked-project")).unwrap();
+
+    if let Ok(path) = WorkspacePath::new(root.path(), "linked-project") {
+        assert!(ProjectStore::open(path).is_err());
+    }
 }

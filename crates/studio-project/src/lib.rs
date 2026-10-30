@@ -5,4 +5,4 @@ mod path;
 mod store;
 
 pub use path::WorkspacePath;
-pub use store::{ProjectError, ProjectStore};
+pub use store::{HistoryEntry, ProjectError, ProjectStore};

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::document::{Document, SceneNode};
-use crate::geometry::{Bounds, evaluate_node_content};
+use crate::geometry::{evaluate_node_content, world_bounds};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[ts(export)]
@@ -72,7 +72,7 @@ pub const DIAGNOSTIC_CODES: [&str; 14] = [
 ];
 
 impl DiagnosticCode {
-    pub fn as_str(self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             Self::ApiInvalid => "ICE3_STUDIO_API_INVALID",
             Self::ApiVersionUnsupported => "ICE3_STUDIO_API_VERSION_UNSUPPORTED",
@@ -272,7 +272,7 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
             ));
         }
         if constraint.constraint_type == "no_overlap"
-            && overlapping_nodes(&constraint.node_ids, &node_by_id)
+            && overlapping_nodes(document, &constraint.node_ids, &node_by_id)
         {
             diagnostics.push(Diagnostic {
                 code: DiagnosticCode::ConstraintFailed,
@@ -287,6 +287,12 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
 }
 
 fn finite_transform(node: &SceneNode) -> bool {
+    let rotation_norm_squared = node
+        .transform
+        .rotation
+        .iter()
+        .map(|value| value * value)
+        .sum::<f32>();
     node.transform.translation.x.is_finite()
         && node.transform.translation.y.is_finite()
         && node.transform.translation.z.is_finite()
@@ -295,6 +301,7 @@ fn finite_transform(node: &SceneNode) -> bool {
             .rotation
             .iter()
             .all(|value| value.is_finite())
+        && rotation_norm_squared > f32::EPSILON
         && node.transform.scale.x.is_finite()
         && node.transform.scale.y.is_finite()
         && node.transform.scale.z.is_finite()
@@ -318,12 +325,17 @@ fn has_parent_cycle(node: &SceneNode, nodes: &HashMap<crate::ids::NodeId, &Scene
 }
 
 fn overlapping_nodes(
+    document: &Document,
     node_ids: &[crate::ids::NodeId],
     nodes: &HashMap<crate::ids::NodeId, &SceneNode>,
 ) -> bool {
     let bounds: Vec<_> = node_ids
         .iter()
-        .filter_map(|id| nodes.get(id).and_then(|node| world_bounds(node)))
+        .filter_map(|id| {
+            nodes
+                .get(id)
+                .and_then(|node| world_bounds(document, node).ok().flatten())
+        })
         .collect();
     for left in 0..bounds.len() {
         for right in left + 1..bounds.len() {
@@ -341,25 +353,6 @@ fn overlapping_nodes(
         }
     }
     false
-}
-
-fn world_bounds(node: &SceneNode) -> Option<Bounds> {
-    let mesh = evaluate_node_content(&node.content).ok()?;
-    if mesh.vertices.is_empty() {
-        return None;
-    }
-    Some(Bounds {
-        min: crate::math::Vec3 {
-            x: mesh.bounds.min.x * node.transform.scale.x + node.transform.translation.x,
-            y: mesh.bounds.min.y * node.transform.scale.y + node.transform.translation.y,
-            z: mesh.bounds.min.z * node.transform.scale.z + node.transform.translation.z,
-        },
-        max: crate::math::Vec3 {
-            x: mesh.bounds.max.x * node.transform.scale.x + node.transform.translation.x,
-            y: mesh.bounds.max.y * node.transform.scale.y + node.transform.translation.y,
-            z: mesh.bounds.max.z * node.transform.scale.z + node.transform.translation.z,
-        },
-    })
 }
 
 fn reference(

@@ -16,6 +16,10 @@ fn writes_deterministic_schema_output() {
         std::fs::read(output.join("studio-types.ts")).unwrap(),
         first_types
     );
+    assert!(first.ends_with(b"\n"));
+    assert!(!first.ends_with(b"\n\n"));
+    assert!(first_types.ends_with(b"\n"));
+    assert!(!first_types.ends_with(b"\n\n"));
     let text = String::from_utf8(first).unwrap();
     assert!(text.contains("node.create"));
     assert!(text.contains("export.runtimePreview"));

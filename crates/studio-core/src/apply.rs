@@ -11,7 +11,7 @@ use crate::operation::Operation;
 use crate::validation::{Diagnostic, DiagnosticCode, validate_document};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ApplyRequest {
     pub expected_revision: Revision,

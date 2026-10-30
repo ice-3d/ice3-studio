@@ -35,6 +35,21 @@ async fn deterministic_ai_client_builds_and_reloads_wastewater_fixture() {
 
     let first = rpc(&server, 1, "document.apply", transactions[0].clone()).await;
     assert_eq!(first["result"]["revision"], 1);
+    let history = rpc(&server, 101, "document.history", serde_json::json!({})).await;
+    let applied = history["result"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["event"]["kind"] == "apply")
+        .unwrap();
+    assert_eq!(applied["revision"], 1);
+    assert_eq!(
+        applied["event"]["request"]["operations"]
+            .as_array()
+            .unwrap()
+            .len(),
+        7
+    );
 
     let rejected = rpc(&server, 2, "document.apply", transactions[1].clone()).await;
     assert_eq!(rejected["error"]["code"], -32010);

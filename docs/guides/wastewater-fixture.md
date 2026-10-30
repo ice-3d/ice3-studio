@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-GUIDE-001
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 

@@ -10,6 +10,9 @@ Studio diagnostics use stable machine-readable codes. A code identifies the fail
 the message provides human-readable context. Diagnostics never include credentials, stack
 traces, or paths outside the configured workspace.
 
+JSON-RPC errors expose the code as `error.diagnosticCode`. Document validation results expose the
+same value as `code`.
+
 ## Diagnostic Fields
 
 | Field | Meaning |

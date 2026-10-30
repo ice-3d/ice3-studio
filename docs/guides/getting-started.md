@@ -30,7 +30,7 @@ From the repository root:
 STUDIO_TOOLCHAIN_CLI=scripts/preview-example.mjs \
 ICE3_TOOLCHAIN_CLI=../ice3-toolchain/packages/cli/dist/main.js \
 cargo run -p studio-cli -- serve \
-  --workspace . \
+  --workspace .studio \
   --project wastewater-mini \
   --fixture fixtures/wastewater-mini
 ```

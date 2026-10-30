@@ -179,6 +179,31 @@ fn cylinder_mesh(radius: f32, height: f32, segments: u32) -> Result<EvaluatedMes
         let base = ring * 2;
         indices.extend([base, base + 2, base + 3, base, base + 3, base + 1]);
     }
+    for (y, normal, reverse) in [
+        (-half, [0.0, -1.0, 0.0], false),
+        (half, [0.0, 1.0, 0.0], true),
+    ] {
+        let center = vertices.len() as u32;
+        vertices.push(Vertex {
+            position: [0.0, y, 0.0],
+            normal,
+        });
+        let rim = vertices.len() as u32;
+        for ring in 0..=segments {
+            let angle = std::f32::consts::TAU * ring as f32 / segments as f32;
+            vertices.push(Vertex {
+                position: [angle.cos() * radius, y, angle.sin() * radius],
+                normal,
+            });
+        }
+        for segment in 0..segments {
+            if reverse {
+                indices.extend([center, rim + segment + 1, rim + segment]);
+            } else {
+                indices.extend([center, rim + segment, rim + segment + 1]);
+            }
+        }
+    }
     Ok(EvaluatedMesh {
         vertices,
         indices,

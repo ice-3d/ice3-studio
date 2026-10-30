@@ -12,6 +12,15 @@ use thiserror::Error;
 use crate::WorkspacePath;
 use crate::lock::{LockError, ProjectLock};
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryEntry {
+    pub revision: Revision,
+    pub digest: String,
+    #[serde(default)]
+    pub event: serde_json::Value,
+}
+
 #[derive(Debug, Error)]
 pub enum ProjectError {
     #[error("project already exists")]
@@ -20,6 +29,8 @@ pub enum ProjectError {
     Missing,
     #[error("project is locked by another writer")]
     Locked,
+    #[error("project is closed")]
+    Closed,
     #[error("project schema is unsupported")]
     UnsupportedSchema,
     #[error("project revision is invalid")]
@@ -28,6 +39,8 @@ pub enum ProjectError {
     DigestMismatch,
     #[error("project history is empty")]
     EmptyHistory,
+    #[error("project history is inconsistent")]
+    InvalidHistory,
     #[error("project storage operation failed")]
     Io(#[source] std::io::Error),
     #[error("project JSON is invalid")]
@@ -56,7 +69,7 @@ struct ProjectMetadata {
 
 pub struct ProjectStore {
     path: WorkspacePath,
-    _lock: ProjectLock,
+    lock: Option<ProjectLock>,
 }
 
 impl ProjectStore {
@@ -69,7 +82,10 @@ impl ProjectStore {
         fs::create_dir_all(path.project.join("resources")).map_err(ProjectError::Io)?;
         fs::create_dir_all(path.project.join("cache/preview")).map_err(ProjectError::Io)?;
         let lock = ProjectLock::acquire(ProjectLock::path_for(&path.project))?;
-        Ok(Self { path, _lock: lock })
+        Ok(Self {
+            path,
+            lock: Some(lock),
+        })
     }
 
     pub fn open(path: WorkspacePath) -> Result<Self, ProjectError> {
@@ -77,10 +93,16 @@ impl ProjectStore {
             return Err(ProjectError::Missing);
         }
         let lock = ProjectLock::acquire(ProjectLock::path_for(&path.project))?;
-        Ok(Self { path, _lock: lock })
+        let store = Self {
+            path,
+            lock: Some(lock),
+        };
+        store.validate_history()?;
+        Ok(store)
     }
 
     pub fn load_current(&self) -> Result<Document, ProjectError> {
+        self.ensure_open()?;
         let metadata = self.read_metadata()?;
         self.read_revision_with_digest(metadata.current_revision, &metadata.snapshot_digest)
     }
@@ -89,8 +111,28 @@ impl ProjectStore {
         self.path.project_dir()
     }
 
+    pub fn close(&mut self) {
+        self.lock = None;
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.lock.is_some()
+    }
+
     pub fn write_snapshot(&self, document: &Document) -> Result<(), ProjectError> {
+        self.write_snapshot_with_history(document, &serde_json::json!({ "kind": "snapshot" }))
+    }
+
+    pub fn write_snapshot_with_history(
+        &self,
+        document: &Document,
+        event: &serde_json::Value,
+    ) -> Result<(), ProjectError> {
+        self.ensure_open()?;
         let previous = self.read_metadata().ok();
+        if previous.is_none() && document.revision != Revision::new(0) {
+            return Err(ProjectError::InvalidRevision);
+        }
         if previous
             .as_ref()
             .is_some_and(|metadata| document.revision <= metadata.current_revision)
@@ -104,11 +146,12 @@ impl ProjectStore {
         if let Some(metadata) = &previous {
             undo_stack.push(metadata.current_revision);
         }
-        let metadata = self.write_revision(document, undo_stack, Vec::new())?;
+        let metadata = self.write_revision(document, undo_stack, Vec::new(), event)?;
         self.write_metadata(&metadata)
     }
 
     pub fn undo(&self) -> Result<Document, ProjectError> {
+        self.ensure_open()?;
         let metadata = self.read_metadata()?;
         let target = *metadata
             .undo_stack
@@ -121,12 +164,17 @@ impl ProjectStore {
             &restored,
             metadata.undo_stack[..metadata.undo_stack.len() - 1].to_vec(),
             vec![current],
+            &serde_json::json!({
+                "kind": "undo",
+                "restoredFrom": target.as_u64()
+            }),
         )?;
         self.write_metadata(&next_metadata)?;
         Ok(restored)
     }
 
     pub fn redo(&self) -> Result<Document, ProjectError> {
+        self.ensure_open()?;
         let metadata = self.read_metadata()?;
         let target = *metadata
             .redo_stack
@@ -141,18 +189,29 @@ impl ProjectStore {
             &restored,
             undo_stack,
             metadata.redo_stack[..metadata.redo_stack.len() - 1].to_vec(),
+            &serde_json::json!({
+                "kind": "redo",
+                "restoredFrom": target.as_u64()
+            }),
         )?;
         self.write_metadata(&next_metadata)?;
         Ok(restored)
     }
 
-    pub fn history(&self) -> Result<Vec<String>, ProjectError> {
+    pub fn history(&self) -> Result<Vec<HistoryEntry>, ProjectError> {
+        self.ensure_open()?;
+        self.read_history()
+    }
+
+    fn read_history(&self) -> Result<Vec<HistoryEntry>, ProjectError> {
         let path = self.path.project.join("history/operations.jsonl");
         if !path.exists() {
             return Ok(Vec::new());
         }
         let body = fs::read_to_string(path).map_err(ProjectError::Io)?;
-        Ok(body.lines().map(str::to_owned).collect())
+        body.lines()
+            .map(|line| serde_json::from_str(line).map_err(ProjectError::Json))
+            .collect()
     }
 
     fn write_revision(
@@ -160,6 +219,7 @@ impl ProjectStore {
         document: &Document,
         undo_stack: Vec<Revision>,
         redo_stack: Vec<Revision>,
+        event: &serde_json::Value,
     ) -> Result<ProjectMetadata, ProjectError> {
         if document.schema_version != PROJECT_SCHEMA_VERSION {
             return Err(ProjectError::UnsupportedSchema);
@@ -168,13 +228,15 @@ impl ProjectStore {
         let digest = format!("{:x}", Sha256::digest(&bytes));
         let revision_path = self.revision_path(document.revision);
         write_atomic(&revision_path, &bytes)?;
+        let history_entry = HistoryEntry {
+            revision: document.revision,
+            digest: digest.clone(),
+            event: event.clone(),
+        };
+        let history_entry = serde_json::to_string(&history_entry).map_err(ProjectError::Json)?;
         append_history(
             &self.path.project.join("history/operations.jsonl"),
-            &format!(
-                "{{\"revision\":{},\"digest\":\"{}\"}}",
-                document.revision.as_u64(),
-                digest
-            ),
+            &history_entry,
         )?;
         Ok(ProjectMetadata {
             schema_version: PROJECT_SCHEMA_VERSION,
@@ -201,6 +263,35 @@ impl ProjectStore {
             return Err(ProjectError::UnsupportedSchema);
         }
         Ok(metadata)
+    }
+
+    fn validate_history(&self) -> Result<(), ProjectError> {
+        let metadata = self.read_metadata()?;
+        let history = self.read_history()?;
+        if history.is_empty() {
+            return Err(ProjectError::EmptyHistory);
+        }
+        for (index, entry) in history.iter().enumerate() {
+            if entry.revision != Revision::new(index as u64) {
+                return Err(ProjectError::InvalidHistory);
+            }
+            self.read_revision_with_digest(entry.revision, &entry.digest)?;
+        }
+        let Some(last) = history.last() else {
+            return Err(ProjectError::EmptyHistory);
+        };
+        if last.revision != metadata.current_revision || last.digest != metadata.snapshot_digest {
+            return Err(ProjectError::InvalidHistory);
+        }
+        Ok(())
+    }
+
+    fn ensure_open(&self) -> Result<(), ProjectError> {
+        if self.lock.is_some() {
+            Ok(())
+        } else {
+            Err(ProjectError::Closed)
+        }
     }
 
     fn read_revision_with_digest(
@@ -256,5 +347,6 @@ fn append_history(path: &Path, entry: &str) -> Result<(), ProjectError> {
         .append(true)
         .open(path)
         .map_err(ProjectError::Io)?;
-    writeln!(file, "{entry}").map_err(ProjectError::Io)
+    writeln!(file, "{entry}").map_err(ProjectError::Io)?;
+    file.sync_all().map_err(ProjectError::Io)
 }

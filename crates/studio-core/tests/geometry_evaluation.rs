@@ -1,5 +1,6 @@
-use studio_core::document::NodeContent;
-use studio_core::geometry::{Primitive, evaluate_node_content};
+use studio_core::document::{Document, NodeContent, SceneNode};
+use studio_core::geometry::{Primitive, evaluate_node_content, world_bounds};
+use studio_core::ids::NodeId;
 
 #[test]
 fn evaluates_a_box_with_outward_triangles() {
@@ -45,4 +46,34 @@ fn rejects_zero_sized_and_non_finite_primitives() {
         }))
         .is_err()
     );
+}
+
+#[test]
+fn closes_cylinder_ends_with_outward_facing_triangles() {
+    let content = NodeContent::Primitive(Primitive::Cylinder {
+        radius: 2.0,
+        height: 4.0,
+        segments: 16,
+    });
+    let mesh = evaluate_node_content(&content).unwrap();
+    assert_eq!(mesh.indices.len(), 192);
+}
+
+#[test]
+fn includes_parent_transforms_in_world_bounds() {
+    let mut document = Document::new("world-bounds");
+    let mut parent = SceneNode::group(NodeId::from("node-000001"), "Parent");
+    parent.transform.translation.x = 10.0;
+    let mut child = SceneNode::group(NodeId::from("node-000002"), "Child");
+    child.parent_id = Some(parent.id.clone());
+    child.content = NodeContent::Primitive(Primitive::Box {
+        width: 2.0,
+        height: 2.0,
+        depth: 2.0,
+    });
+    document.scene.nodes_mut().extend([parent, child.clone()]);
+
+    let bounds = world_bounds(&document, &child).unwrap().unwrap();
+    assert_eq!(bounds.min.x, 9.0);
+    assert_eq!(bounds.max.x, 11.0);
 }

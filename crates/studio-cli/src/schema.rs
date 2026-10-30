@@ -58,7 +58,8 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "RevisionEvent": schema_for!(RevisionEvent)
         }
     });
-    let api_bytes = serde_json::to_vec_pretty(&api).map_err(SchemaError::Json)?;
+    let mut api_bytes = serde_json::to_vec_pretty(&api).map_err(SchemaError::Json)?;
+    api_bytes.push(b'\n');
     let types = collect_types()?;
     if check {
         expect_equal(&output.join("studio-api.schema.json"), &api_bytes)?;
@@ -94,7 +95,6 @@ fn collect_types() -> Result<String, SchemaError> {
         if !output.ends_with('\n') {
             output.push('\n');
         }
-        output.push('\n');
     }
     Ok(output)
 }

@@ -11,4 +11,6 @@ test('viewer exposes the required API operations', async () => {
   ]) {
     assert.match(source, new RegExp(operation.replace('.', '\\.')));
   }
+  assert.match(source, /diagnosticCode/);
+  assert.match(source, /preview\.revision/);
 });

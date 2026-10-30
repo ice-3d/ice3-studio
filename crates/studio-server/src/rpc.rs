@@ -1,8 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use axum::extract::rejection::JsonRejection;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -14,9 +15,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction};
 use studio_core::document::Document;
-use studio_core::geometry::evaluate_node_content;
+use studio_core::geometry::{Bounds, evaluate_node_content, world_bounds};
 use studio_core::ids::NodeId;
-use studio_core::validation::validate_document;
+use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_project::{ProjectStore, WorkspacePath};
 use tokio::sync::broadcast;
@@ -60,6 +61,7 @@ pub struct RpcRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcResponse {
     pub jsonrpc: String,
@@ -73,10 +75,13 @@ pub struct RpcResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcError {
     pub code: i64,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(type = "unknown | null")]
     pub data: Option<serde_json::Value>,
@@ -98,6 +103,7 @@ struct Session {
     document: Document,
     token: String,
     events: broadcast::Sender<RevisionEvent>,
+    closed: bool,
 }
 
 #[derive(Clone)]
@@ -169,12 +175,20 @@ impl TestServer {
                 metadata: Default::default(),
             }],
         };
+        let history_event = serde_json::json!({
+            "kind": "apply",
+            "request": &request
+        });
+        let previous = session.document.clone();
         let result =
             apply_transaction(&mut session.document, request).map_err(|error| error.to_string())?;
-        session
+        if let Err(error) = session
             .store
-            .write_snapshot(&session.document)
-            .map_err(|error| error.to_string())?;
+            .write_snapshot_with_history(&session.document, &history_event)
+        {
+            session.document = previous;
+            return Err(error.to_string());
+        }
         let _ = session.events.send(RevisionEvent {
             event: "revision.committed".into(),
             revision: result.revision,
@@ -263,11 +277,11 @@ async fn initialize_state(
     };
     if project_exists {
         // Existing projects are already persisted.
-    } else if let Some(fixture) = fixture {
-        seed_fixture(&mut document, root, fixture)?;
-        store.write_snapshot(&document)?;
     } else {
         store.write_snapshot(&document)?;
+        if let Some(fixture) = fixture {
+            seed_fixture(&mut document, &store, root, fixture)?;
+        }
     }
     let (events, _) = broadcast::channel(64);
     let state = AppState {
@@ -278,6 +292,7 @@ async fn initialize_state(
             document,
             token,
             events,
+            closed: false,
         })),
     };
     let listener =
@@ -310,8 +325,46 @@ async fn health() -> Json<serde_json::Value> {
 async fn rpc(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<RpcRequest>,
+    request: Result<Json<RpcRequest>, JsonRejection>,
 ) -> Response {
+    let Json(request) = match request {
+        Ok(request) => request,
+        Err(error) => {
+            let code = if matches!(error, JsonRejection::JsonSyntaxError(_)) {
+                -32700
+            } else {
+                -32600
+            };
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": null,
+                    "error": {
+                        "code": code,
+                        "message": format!("ICE3_STUDIO_API_INVALID: {error}"),
+                        "diagnosticCode": "ICE3_STUDIO_API_INVALID"
+                    }
+                })),
+            )
+                .into_response();
+        }
+    };
+    if request.jsonrpc != "2.0" {
+        return (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": request.id,
+                "error": {
+                    "code": -32600,
+                    "message": "ICE3_STUDIO_API_INVALID: jsonrpc must be 2.0",
+                    "diagnosticCode": "ICE3_STUDIO_API_INVALID"
+                }
+            })),
+        )
+            .into_response();
+    }
     let authorized = {
         let session = state.session.lock().expect("session lock");
         !mutating(&request.method) || has_valid_token(&headers, &session.token)
@@ -324,7 +377,8 @@ async fn rpc(
                 "id": request.id,
                 "error": {
                     "code": -32001,
-                    "message": "ICE3_STUDIO_AUTH_REQUIRED"
+                    "message": "ICE3_STUDIO_AUTH_REQUIRED",
+                    "diagnosticCode": "ICE3_STUDIO_AUTH_REQUIRED"
                 }
             })),
         )
@@ -353,9 +407,11 @@ async fn rpc(
             jsonrpc: "2.0".into(),
             id: request_id,
             result: None,
-            error: Some(RpcError::application(
+            error: Some(RpcError::with_diagnostic(
                 -32603,
+                DiagnosticCode::ApiInvalid.as_str(),
                 format!("request worker failed: {error}"),
+                None,
             )),
         },
     };
@@ -363,6 +419,19 @@ async fn rpc(
 }
 
 fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::Value, RpcError> {
+    if session.closed
+        && !matches!(
+            request.method.as_str(),
+            "system.health" | "system.capabilities" | "project.create" | "project.open"
+        )
+    {
+        return Err(RpcError::with_diagnostic(
+            -32010,
+            DiagnosticCode::ProjectNotFound.as_str(),
+            "ICE3_STUDIO_PROJECT_NOT_FOUND: no project is open".into(),
+            None,
+        ));
+    }
     match request.method.as_str() {
         "system.health" => Ok(serde_json::json!({
             "status": "ok",
@@ -401,13 +470,21 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         "document.apply" => {
             let apply: ApplyRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let history_event = serde_json::json!({
+                "kind": "apply",
+                "request": &apply
+            });
+            let previous = session.document.clone();
             let result =
                 apply_transaction(&mut session.document, apply).map_err(transaction_error)?;
             if !result.dry_run {
-                session
+                if let Err(error) = session
                     .store
-                    .write_snapshot(&session.document)
-                    .map_err(project_error)?;
+                    .write_snapshot_with_history(&session.document, &history_event)
+                {
+                    session.document = previous;
+                    return Err(project_error(error));
+                }
                 let _ = session.events.send(RevisionEvent {
                     event: "revision.committed".into(),
                     revision: result.revision,
@@ -440,36 +517,90 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             "revision": session.document.revision,
             "saved": true
         })),
-        "project.close" => Ok(serde_json::json!({ "closed": true })),
+        "project.close" => {
+            session.store.close();
+            session.closed = true;
+            Ok(serde_json::json!({ "closed": true }))
+        }
         "project.create" => {
             let params: ProjectParams =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
-            let path = WorkspacePath::new(&session.workspace_root, &params.project_id)
-                .map_err(|error| RpcError::application(-32010, error.to_string()))?;
+            let path = WorkspacePath::new(&session.workspace_root, &params.project_id).map_err(
+                |error| {
+                    RpcError::with_diagnostic(
+                        -32010,
+                        DiagnosticCode::ApiInvalid.as_str(),
+                        format!("ICE3_STUDIO_API_INVALID: {error}"),
+                        None,
+                    )
+                },
+            )?;
             let store = ProjectStore::create(path).map_err(project_error)?;
             let document = Document::new(params.project_id.clone());
             store.write_snapshot(&document).map_err(project_error)?;
+            session.store.close();
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
+            session.closed = false;
             Ok(serde_json::json!({ "opened": true }))
         }
         "project.open" => {
             let params: ProjectParams =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
-            let path = WorkspacePath::new(&session.workspace_root, &params.project_id)
-                .map_err(|error| RpcError::application(-32010, error.to_string()))?;
+            let path = WorkspacePath::new(&session.workspace_root, &params.project_id).map_err(
+                |error| {
+                    RpcError::with_diagnostic(
+                        -32010,
+                        DiagnosticCode::ApiInvalid.as_str(),
+                        format!("ICE3_STUDIO_API_INVALID: {error}"),
+                        None,
+                    )
+                },
+            )?;
+            let same_project = session.store.project_dir() == path.project_dir();
+            if same_project {
+                session.store.close();
+                session.closed = true;
+            }
             let store = ProjectStore::open(path).map_err(project_error)?;
             let document = store.load_current().map_err(project_error)?;
+            if !same_project {
+                session.store.close();
+            }
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
+            session.closed = false;
             Ok(serde_json::json!({ "opened": true }))
         }
         "scene.get" => serde_json::to_value(&session.document.scene).map_err(serialize_error),
         "scene.query" => {
             let query: SceneQuery =
-                serde_json::from_value(request.params.clone()).unwrap_or_default();
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let relation_nodes = if query.relation_type.is_some() || query.related_node_id.is_some()
+            {
+                let mut nodes = HashSet::new();
+                for relation in &session.document.relations {
+                    if query
+                        .relation_type
+                        .as_ref()
+                        .is_some_and(|kind| relation.relation_type != *kind)
+                    {
+                        continue;
+                    }
+                    if query.related_node_id.as_ref().is_some_and(|node_id| {
+                        relation.from_node_id != *node_id && relation.to_node_id != *node_id
+                    }) {
+                        continue;
+                    }
+                    nodes.insert(relation.from_node_id.clone());
+                    nodes.insert(relation.to_node_id.clone());
+                }
+                Some(nodes)
+            } else {
+                None
+            };
             let nodes = session
                 .document
                 .scene
@@ -477,9 +608,34 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 .iter()
                 .filter(|node| {
                     query
+                        .node_id
+                        .as_ref()
+                        .is_none_or(|node_id| node.id == *node_id)
+                })
+                .filter(|node| {
+                    query
                         .parent_id
                         .as_ref()
                         .is_none_or(|parent| node.parent_id.as_ref() == Some(parent))
+                })
+                .filter(|node| {
+                    query
+                        .metadata
+                        .iter()
+                        .all(|(key, value)| node.metadata.get(key) == Some(value))
+                })
+                .filter(|node| {
+                    relation_nodes
+                        .as_ref()
+                        .is_none_or(|nodes| nodes.contains(&node.id))
+                })
+                .filter(|node| {
+                    query.bounds.is_none_or(|bounds| {
+                        world_bounds(&session.document, node)
+                            .ok()
+                            .flatten()
+                            .is_some_and(|candidate| bounds_intersect(candidate, bounds))
+                    })
                 })
                 .collect::<Vec<_>>();
             serde_json::to_value(nodes).map_err(serialize_error)
@@ -487,8 +643,8 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         "scene.bounds" => {
             let mut output = BTreeMap::new();
             for node in session.document.scene.nodes() {
-                if let Ok(mesh) = evaluate_node_content(&node.content) {
-                    output.insert(node.id.as_str().to_owned(), mesh.bounds);
+                if let Ok(Some(bounds)) = world_bounds(&session.document, node) {
+                    output.insert(node.id.as_str().to_owned(), bounds);
                 }
             }
             serde_json::to_value(output).map_err(serialize_error)
@@ -513,7 +669,13 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             let cli = std::env::var_os("STUDIO_TOOLCHAIN_CLI")
                 .map(PathBuf::from)
                 .ok_or_else(|| {
-                    RpcError::application(-32020, "STUDIO_TOOLCHAIN_CLI is not configured".into())
+                    RpcError::with_diagnostic(
+                        -32020,
+                        DiagnosticCode::RuntimePreviewFailed.as_str(),
+                        "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED: STUDIO_TOOLCHAIN_CLI is not configured"
+                            .into(),
+                        None,
+                    )
                 })?;
             let adapter =
                 PreviewAdapter::new(&session.workspace_root, cli).map_err(preview_error)?;
@@ -526,9 +688,11 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 .map_err(preview_error)?;
             serde_json::to_value(output).map_err(serialize_error)
         }
-        method => Err(RpcError::application(
+        method => Err(RpcError::with_diagnostic(
             -32601,
-            format!("unknown method: {method}"),
+            DiagnosticCode::ApiInvalid.as_str(),
+            format!("ICE3_STUDIO_API_INVALID: unknown method: {method}"),
+            None,
         )),
     }
 }
@@ -618,6 +782,7 @@ async fn preview_file(
 
 fn seed_fixture(
     document: &mut Document,
+    store: &ProjectStore,
     workspace_root: &Path,
     fixture: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -634,9 +799,13 @@ fn seed_fixture(
     let plan: FixturePlan = serde_json::from_slice(&std::fs::read(fixture)?)?;
     for request in plan.transactions {
         let dry_run = request.dry_run;
+        let history_event = serde_json::json!({
+            "kind": "apply",
+            "request": &request
+        });
         match apply_transaction(document, request) {
             Ok(_) if dry_run => {}
-            Ok(_) => {}
+            Ok(_) => store.write_snapshot_with_history(document, &history_event)?,
             Err(_) if dry_run => {}
             Err(error) => return Err(error.into()),
         }
@@ -664,7 +833,22 @@ struct ProjectParams {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SceneQuery {
+    node_id: Option<NodeId>,
     parent_id: Option<NodeId>,
+    #[serde(default)]
+    metadata: BTreeMap<String, String>,
+    relation_type: Option<String>,
+    related_node_id: Option<NodeId>,
+    bounds: Option<Bounds>,
+}
+
+fn bounds_intersect(left: Bounds, right: Bounds) -> bool {
+    left.min.x <= right.max.x
+        && left.max.x >= right.min.x
+        && left.min.y <= right.max.y
+        && left.max.y >= right.min.y
+        && left.min.z <= right.max.z
+        && left.max.z >= right.min.z
 }
 
 fn mutating(method: &str) -> bool {
@@ -689,45 +873,114 @@ fn random_hex(bytes: usize) -> String {
 }
 
 fn invalid_params(error: serde_json::Error) -> RpcError {
-    RpcError::application(-32602, error.to_string())
+    RpcError::with_diagnostic(
+        -32602,
+        "ICE3_STUDIO_API_INVALID",
+        format!("ICE3_STUDIO_API_INVALID: {error}"),
+        None,
+    )
 }
 
 fn serialize_error(error: serde_json::Error) -> RpcError {
-    RpcError::application(-32603, error.to_string())
+    RpcError::with_diagnostic(
+        -32603,
+        "ICE3_STUDIO_API_INVALID",
+        format!("ICE3_STUDIO_API_INVALID: {error}"),
+        None,
+    )
 }
 
 fn transaction_error(error: studio_core::apply::TransactionError) -> RpcError {
-    let data = match error {
-        studio_core::apply::TransactionError::ValidationFailed(ref diagnostics) => {
-            serde_json::to_value(diagnostics).ok()
+    let (diagnostic_code, data) = match &error {
+        studio_core::apply::TransactionError::RevisionConflict { .. } => {
+            (DiagnosticCode::RevisionConflict, None)
         }
-        _ => None,
+        studio_core::apply::TransactionError::ValidationFailed(diagnostics) => {
+            let code = diagnostics
+                .first()
+                .map(|diagnostic| diagnostic.code.clone())
+                .unwrap_or(DiagnosticCode::OperationInvalid);
+            (code, serde_json::to_value(diagnostics).ok())
+        }
+        studio_core::apply::TransactionError::OperationInvalid {
+            operation_index,
+            code,
+            object_id,
+            pointer,
+            message,
+        } => (
+            code.clone(),
+            Some(serde_json::json!({
+                "operationIndex": operation_index,
+                "objectId": object_id,
+                "pointer": pointer,
+                "message": message
+            })),
+        ),
+        studio_core::apply::TransactionError::EmptyTransaction
+        | studio_core::apply::TransactionError::IdempotencyKeyReused => {
+            (DiagnosticCode::OperationInvalid, None)
+        }
+        studio_core::apply::TransactionError::Serialization(_) => {
+            (DiagnosticCode::ApiInvalid, None)
+        }
     };
-    RpcError {
-        code: -32010,
-        message: error.to_string(),
+    RpcError::with_diagnostic(
+        -32010,
+        diagnostic_code.as_str(),
+        format!("{}: {error}", diagnostic_code.as_str()),
         data,
-    }
+    )
 }
 
 fn project_error(error: studio_project::ProjectError) -> RpcError {
-    RpcError::application(-32011, error.to_string())
+    let (code, diagnostic) = match &error {
+        studio_project::ProjectError::Missing => (-32010, DiagnosticCode::ProjectNotFound),
+        studio_project::ProjectError::Locked => (-32011, DiagnosticCode::ProjectLocked),
+        _ => (-32011, DiagnosticCode::PersistenceFailed),
+    };
+    RpcError::with_diagnostic(
+        code,
+        diagnostic.as_str(),
+        format!("{}: {error}", diagnostic.as_str()),
+        None,
+    )
 }
 
 fn geometry_error(error: studio_core::geometry::GeometryError) -> RpcError {
-    RpcError::application(-32012, error.to_string())
+    RpcError::with_diagnostic(
+        -32012,
+        DiagnosticCode::GeometryInvalid.as_str(),
+        format!("{}: {error}", DiagnosticCode::GeometryInvalid.as_str()),
+        None,
+    )
 }
 
 fn preview_error(error: crate::preview::PreviewError) -> RpcError {
-    RpcError::application(-32013, error.to_string())
+    let diagnostic = match &error {
+        crate::preview::PreviewError::Export(_) => DiagnosticCode::ExportFailed,
+        _ => DiagnosticCode::RuntimePreviewFailed,
+    };
+    RpcError::with_diagnostic(
+        -32013,
+        diagnostic.as_str(),
+        format!("{}: {error}", diagnostic.as_str()),
+        None,
+    )
 }
 
 impl RpcError {
-    fn application(code: i64, message: String) -> Self {
+    fn with_diagnostic(
+        code: i64,
+        diagnostic_code: &str,
+        message: String,
+        data: Option<serde_json::Value>,
+    ) -> Self {
         Self {
             code,
             message,
-            data: None,
+            diagnostic_code: Some(diagnostic_code.into()),
+            data,
         }
     }
 }

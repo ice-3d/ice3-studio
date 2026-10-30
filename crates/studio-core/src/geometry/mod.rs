@@ -2,14 +2,100 @@ mod evaluate;
 mod primitives;
 mod sweep;
 
+use std::collections::HashSet;
+
+use glam::{Mat4, Quat, Vec3 as GlamVec3};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ts_rs::TS;
 
+use crate::document::{Document, SceneNode};
 use crate::math::Vec3;
 
 pub use evaluate::evaluate_node_content;
+
+pub fn world_bounds(
+    document: &Document,
+    node: &SceneNode,
+) -> Result<Option<Bounds>, GeometryError> {
+    let mesh = evaluate_node_content(&node.content)?;
+    if mesh.vertices.is_empty() {
+        return Ok(None);
+    }
+    let mut chain = Vec::new();
+    let mut current = node;
+    let mut seen = HashSet::new();
+    loop {
+        if !seen.insert(current.id.clone()) {
+            return Err(GeometryError::InvalidTransform);
+        }
+        chain.push(node_matrix(current));
+        let Some(parent_id) = &current.parent_id else {
+            break;
+        };
+        let Some(parent) = document
+            .scene
+            .nodes()
+            .iter()
+            .find(|candidate| candidate.id == *parent_id)
+        else {
+            return Err(GeometryError::InvalidTransform);
+        };
+        current = parent;
+    }
+    let matrix = chain
+        .iter()
+        .rev()
+        .fold(Mat4::IDENTITY, |world, local| world * *local);
+    let mut minimum = [f32::INFINITY; 3];
+    let mut maximum = [f32::NEG_INFINITY; 3];
+    for x in [mesh.bounds.min.x, mesh.bounds.max.x] {
+        for y in [mesh.bounds.min.y, mesh.bounds.max.y] {
+            for z in [mesh.bounds.min.z, mesh.bounds.max.z] {
+                let point = matrix.transform_point3(GlamVec3::new(x, y, z));
+                minimum = [
+                    minimum[0].min(point.x),
+                    minimum[1].min(point.y),
+                    minimum[2].min(point.z),
+                ];
+                maximum = [
+                    maximum[0].max(point.x),
+                    maximum[1].max(point.y),
+                    maximum[2].max(point.z),
+                ];
+            }
+        }
+    }
+    Ok(Some(Bounds {
+        min: Vec3 {
+            x: minimum[0],
+            y: minimum[1],
+            z: minimum[2],
+        },
+        max: Vec3 {
+            x: maximum[0],
+            y: maximum[1],
+            z: maximum[2],
+        },
+    }))
+}
+
+fn node_matrix(node: &SceneNode) -> Mat4 {
+    Mat4::from_scale_rotation_translation(
+        GlamVec3::new(
+            node.transform.scale.x,
+            node.transform.scale.y,
+            node.transform.scale.z,
+        ),
+        Quat::from_array(node.transform.rotation),
+        GlamVec3::new(
+            node.transform.translation.x,
+            node.transform.translation.y,
+            node.transform.translation.z,
+        ),
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -83,6 +169,8 @@ impl EvaluatedMesh {
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum GeometryError {
+    #[error("transform or hierarchy is invalid")]
+    InvalidTransform,
     #[error("geometry dimensions must be finite and positive")]
     InvalidDimensions,
     #[error("geometry contains a non-finite position")]

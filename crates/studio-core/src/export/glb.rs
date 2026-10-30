@@ -41,16 +41,16 @@ pub fn export_glb(document: &Document) -> Result<Vec<u8>, ExportError> {
         .materials
         .iter()
         .map(|material| {
+            let mut base_color = material.base_color.map(srgb_to_linear);
+            base_color[3] = material.opacity;
             json!({
                 "name": material.name,
                 "pbrMetallicRoughness": {
-                    "baseColorFactor": material
-                        .base_color
-                        .map(srgb_to_linear),
+                    "baseColorFactor": base_color,
                     "metallicFactor": 0.0,
-                    "roughnessFactor": 0.9,
-                    "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" }
-                }
+                    "roughnessFactor": 0.9
+                },
+                "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" }
             })
         })
         .collect::<Vec<_>>();

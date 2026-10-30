@@ -36,6 +36,12 @@ impl WorkspacePath {
         {
             return Err(PathError::InvalidProjectId);
         }
+        if project.exists() {
+            let canonical = project.canonicalize().map_err(PathError::InvalidRoot)?;
+            if canonical != project || !canonical.starts_with(&root) {
+                return Err(PathError::InvalidProjectId);
+            }
+        }
         Ok(Self { root, project })
     }
 

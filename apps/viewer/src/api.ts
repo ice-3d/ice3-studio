@@ -19,11 +19,21 @@ export type ValidationReport = Array<{
 
 type RpcEnvelope<T> = {
   result?: T;
-  error?: { code: number; message: string; data?: unknown };
+  error?: {
+    code: number;
+    message: string;
+    diagnosticCode?: string;
+    data?: unknown;
+  };
 };
 
 export class StudioApiError extends Error {
-  constructor(message: string, readonly code?: number, readonly data?: unknown) {
+  constructor(
+    message: string,
+    readonly code?: number,
+    readonly diagnosticCode?: string,
+    readonly data?: unknown,
+  ) {
     super(message);
   }
 }
@@ -50,8 +60,11 @@ export class StudioClient {
   }
 
   async preview(revision: number): Promise<{ url: string }> {
-    await this.rpc('export.runtimePreview', { revision });
-    return { url: `/previews/${revision}` };
+    const preview = await this.rpc<{ revision: number }>(
+      'export.runtimePreview',
+      { revision },
+    );
+    return { url: `/previews/${preview.revision}` };
   }
 
   subscribe(onRevision: (revision: number) => void): () => void {
@@ -94,6 +107,7 @@ export class StudioClient {
       throw new StudioApiError(
         envelope.error.message,
         envelope.error.code,
+        envelope.error.diagnosticCode,
         envelope.error.data,
       );
     }

@@ -46,6 +46,12 @@ async function refresh(): Promise<void> {
   }
 }
 
+let refreshQueue = Promise.resolve();
+function queueRefresh(): Promise<void> {
+  refreshQueue = refreshQueue.then(refresh, refresh);
+  return refreshQueue;
+}
+
 await scene.mount(stage);
 scene.onSelection = selectVisibleNode;
 window.__studioTest = {
@@ -54,6 +60,6 @@ window.__studioTest = {
   },
 };
 client.subscribe(() => {
-  void refresh();
+  void queueRefresh();
 });
-await refresh();
+await queueRefresh();

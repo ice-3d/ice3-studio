@@ -40,12 +40,12 @@ npm run benchmark
 
 | 指标 | p95 |
 |---|---:|
-| Server 冷启动到 health | 224.93 ms |
-| 重开 100 Node 项目 | 1.12 ms |
-| 100 Operations 原子事务 | 11.33 ms |
-| `wastewater-mini` 求值 | 0.97 ms |
-| source GLB 导出 | 0.80 ms |
-| Toolchain Runtime preview | 153.72 ms |
+| Server 冷启动到 health | 432.58 ms |
+| 重开 100 Node 项目 | 2.07 ms |
+| 100 Operations 原子事务 | 17.51 ms |
+| `wastewater-mini` 求值 | 1.68 ms |
+| source GLB 导出 | 0.90 ms |
+| Toolchain Runtime preview | 127.37 ms |
 
 这些值是当前设备上的工程基线，不是跨机器容量承诺。脚本会在任一 p95 超过设计上限时
 失败。

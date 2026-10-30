@@ -6,6 +6,31 @@ use studio_core::ids::{ConstraintId, RelationId, Revision};
 use studio_core::operation::Operation;
 
 #[test]
+fn rejects_unknown_operation_fields() {
+    let result = serde_json::from_value::<studio_core::apply::ApplyRequest>(serde_json::json!({
+        "expectedRevision": 0,
+        "idempotencyKey": "strict-operation",
+        "operations": [{
+            "type": "node.delete",
+            "node_id": "node-000001",
+            "unexpected": true
+        }]
+    }));
+    assert!(result.is_err());
+}
+
+#[test]
+fn rejects_unknown_apply_request_fields() {
+    let result = serde_json::from_value::<studio_core::apply::ApplyRequest>(serde_json::json!({
+        "expectedRevision": 0,
+        "idempotencyKey": "strict-request",
+        "operations": [],
+        "unexpected": true
+    }));
+    assert!(result.is_err());
+}
+
+#[test]
 fn applies_a_batch_and_increments_revision_once() {
     let mut document = Document::new("demo");
     let result = apply_transaction(
@@ -84,6 +109,32 @@ fn rejects_stale_revision_without_partial_changes() {
         .is_err()
     );
     assert_eq!(document, before);
+}
+
+#[test]
+fn rejects_a_singular_rotation() {
+    let mut document = Document::new("demo");
+    let mut transform = studio_core::math::Transform::IDENTITY;
+    transform.rotation = [0.0, 0.0, 0.0, 0.0];
+    let result = apply_transaction(
+        &mut document,
+        ApplyRequest {
+            expected_revision: Revision::new(0),
+            dry_run: false,
+            idempotency_key: "singular-rotation".into(),
+            operations: vec![Operation::NodeCreate {
+                node_id: "node-000001".into(),
+                parent_id: None,
+                name: "Singular".into(),
+                transform,
+                content: Default::default(),
+                material_id: None,
+                metadata: Default::default(),
+            }],
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(document.revision, Revision::new(0));
 }
 
 #[test]

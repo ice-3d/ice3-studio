@@ -10,7 +10,7 @@ use crate::ids::{ConstraintId, MaterialId, NodeId, RelationId};
 use crate::math::Transform;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
-#[serde(tag = "type")]
+#[serde(tag = "type", deny_unknown_fields)]
 #[ts(export)]
 pub enum Operation {
     #[serde(rename = "node.create")]

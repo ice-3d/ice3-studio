@@ -39,7 +39,7 @@ const steps = [
   {
     label: 'Viewer unit tests',
     command: 'node',
-    args: ['--test', 'apps/viewer/tests/api.test.mjs'],
+    args: ['--test', 'apps/viewer/tests/*.test.mjs'],
   },
   {
     label: 'Viewer typecheck',

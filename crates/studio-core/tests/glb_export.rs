@@ -1,5 +1,7 @@
-use studio_core::document::Document;
+use studio_core::document::{Document, Material, NodeContent, SceneNode};
 use studio_core::export::glb::export_glb;
+use studio_core::geometry::Primitive;
+use studio_core::ids::{MaterialId, NodeId};
 
 #[test]
 fn exports_a_standard_glb_header_and_json_chunk() {
@@ -17,4 +19,35 @@ fn exports_stable_bytes_for_the_same_revision() {
         export_glb(&document).unwrap(),
         export_glb(&document).unwrap(),
     );
+}
+
+#[test]
+fn exports_material_opacity_as_a_gltf_blend_material() {
+    let mut document = Document::new("materials");
+    let material_id = MaterialId::from("mat-000001");
+    document.materials.push(Material {
+        id: material_id.clone(),
+        name: "Translucent water".into(),
+        base_color: [0.1, 0.3, 0.5, 1.0],
+        opacity: 0.4,
+        edge_color: None,
+    });
+    let mut node = SceneNode::group(NodeId::from("node-000001"), "Water");
+    node.material_id = Some(material_id);
+    node.content = NodeContent::Primitive(Primitive::Box {
+        width: 1.0,
+        height: 1.0,
+        depth: 1.0,
+    });
+    document.scene.nodes_mut().push(node);
+
+    let bytes = export_glb(&document).unwrap();
+    let json_len = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    let gltf: serde_json::Value = serde_json::from_slice(&bytes[20..20 + json_len]).unwrap();
+    let opacity = gltf["materials"][0]["pbrMetallicRoughness"]["baseColorFactor"][3]
+        .as_f64()
+        .unwrap();
+    assert!((opacity - 0.4).abs() < 1e-6);
+    assert_eq!(gltf["materials"][0]["alphaMode"], "BLEND");
+    assert!(gltf["materials"][0]["pbrMetallicRoughness"]["alphaMode"].is_null());
 }
