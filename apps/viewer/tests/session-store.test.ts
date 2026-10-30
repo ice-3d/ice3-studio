@@ -9,6 +9,7 @@ test('revision events refresh the latest document without changing selection', a
       projectId: 'generic-project',
       revision,
       scene: { nodes: [] },
+      components: [],
     }),
     validation: async () => [],
   });
@@ -27,6 +28,7 @@ test('document refresh survives a preview failure', async () => {
       projectId: 'generic-project',
       revision: 4,
       scene: { nodes: [] },
+      components: [],
     }),
     validation: async () => [],
     preview: async () => {

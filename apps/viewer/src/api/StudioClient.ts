@@ -8,10 +8,35 @@ export type StudioNode = {
   content?: Record<string, unknown>;
 };
 
+export type ParameterValue =
+  | { kind: 'number'; value: number }
+  | { kind: 'vector3'; value: { x: number; y: number; z: number } }
+  | { kind: 'color'; value: [number, number, number, number] }
+  | { kind: 'enumeration'; value: string };
+
+export type ComponentDefinition = {
+  id: string;
+  name: string;
+  parameters: Array<{
+    name: string;
+    valueType: Record<string, unknown> & { kind: string };
+    default: ParameterValue;
+    unit?: string | null;
+  }>;
+};
+
+export type ComponentInstance = {
+  definitionId: string;
+  parameters: Record<string, ParameterValue>;
+  overrides: Record<string, unknown>;
+  metadata: Record<string, string>;
+};
+
 export type StudioDocument = {
   projectId: string;
   revision: number;
   scene: { nodes: StudioNode[] };
+  components: ComponentDefinition[];
 };
 
 export type Diagnostic = {
