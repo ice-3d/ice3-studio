@@ -12,6 +12,7 @@
 |---|---|---|---|
 | `ICE3-STUDIO-RM-001` | [Studio README](../README.md) | Proposed | 项目定位、当前状态和文档入口 |
 | `ICE3-STUDIO-SPEC-001` | [AI-Native Modeling MVP 设计](specs/2026-10-30-ai-native-studio-mvp-design.md) | Proposed | Rust Core、API、数据模型、Viewer 和验收设计 |
+| `ICE3-STUDIO-PLAN-001` | [AI-Native Modeling MVP 实施计划](plans/2026-10-30-ai-native-studio-mvp.md) | Proposed | Rust Core、API、Viewer、AI 验收和性能的实施步骤 |
 | `ICE3-STUDIO-POL-001` | [仓库规则](../AGENTS.md) | Proposed | 架构、交付和命名边界 |
 
 ## 状态说明
