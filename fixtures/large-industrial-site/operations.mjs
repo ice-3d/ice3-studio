@@ -5,6 +5,7 @@ import {
 } from './catalog.mjs';
 import { areaPosition, facilityPosition } from './layout.mjs';
 import { buildComponentDefinitions } from './templates.mjs';
+import { buildTopology } from './topology.mjs';
 
 const AREA_BY_KIND = new Map([
   ['inlet-structure', 'intake'],
@@ -99,9 +100,16 @@ export function buildIndustrialScenePlan() {
     });
     ordinal += 1;
   }
+  const topology = buildTopology(instances);
+  const baseOperations = [...operations, ...instances];
+  const baseTransactions = chunkTransactions(baseOperations, 80);
+  const topologyTransactions = chunkTopology(
+    topology.pairs,
+    baseTransactions.length,
+  );
   return {
     projectId: 'large-industrial-site',
-    transactions: chunkTransactions([...operations, ...instances], 80),
+    transactions: [...baseTransactions, ...topologyTransactions],
     processTrains: PROCESS_TRAINS,
     expected: {
       primaryObjects: 216,
@@ -111,6 +119,7 @@ export function buildIndustrialScenePlan() {
       secondaryClarifiers: 12,
       minTriangles: 5_500_000,
       maxTriangles: 7_500_000,
+      topology: topology.validation,
     },
   };
 }
@@ -123,6 +132,21 @@ export function chunkTransactions(operations, size) {
       dryRun: false,
       idempotencyKey: `large-industrial-batch-${transactions.length + 1}`,
       operations: operations.slice(index, index + size),
+    });
+  }
+  return transactions;
+}
+
+function chunkTopology(pairs, startRevision) {
+  const transactions = [];
+  const pairsPerTransaction = 40;
+  for (let index = 0; index < pairs.length; index += pairsPerTransaction) {
+    const slice = pairs.slice(index, index + pairsPerTransaction);
+    transactions.push({
+      expectedRevision: startRevision + transactions.length,
+      dryRun: false,
+      idempotencyKey: `large-industrial-topology-${transactions.length + 1}`,
+      operations: slice.flatMap((pair) => [pair.relation, pair.connection]),
     });
   }
   return transactions;

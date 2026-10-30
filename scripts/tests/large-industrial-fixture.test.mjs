@@ -103,3 +103,36 @@ test('keeps operation batches and source node references valid', () => {
   }
   assert.equal(nodeIds.size, 216);
 });
+
+test('connects every process train without dangling ports', () => {
+  const plan = buildIndustrialScenePlan();
+  const topology = plan.expected.topology;
+  assert.equal(topology.processTrains, 6);
+  assert.equal(topology.danglingPorts, 0);
+  assert.equal(topology.invalidMedia, 0);
+  assert.ok(topology.connectionCount >= 120);
+
+  const instanceIds = new Set(plan.transactions
+    .flatMap((transaction) => transaction.operations)
+    .filter((operation) => operation.type === 'instance.create')
+    .map((operation) => operation.node_id));
+  const relationIds = new Set();
+  let connectionCount = 0;
+  for (const transaction of plan.transactions) {
+    for (const operation of transaction.operations) {
+      if (operation.type === 'relation.create') {
+        relationIds.add(operation.relation.id);
+      }
+      if (operation.type === 'connection.create') {
+        connectionCount += 1;
+        assert.ok(instanceIds.has(operation.connection.from.nodeId));
+        assert.ok(instanceIds.has(operation.connection.to.nodeId));
+        assert.equal(operation.connection.from.port, 'process-out');
+        assert.equal(operation.connection.to.port, 'process-in');
+        assert.equal(operation.connection.medium, 'process-fluid');
+        assert.ok(relationIds.has(operation.connection.relationId));
+      }
+    }
+  }
+  assert.equal(connectionCount, topology.connectionCount);
+});
