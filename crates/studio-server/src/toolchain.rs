@@ -46,6 +46,7 @@ impl ToolchainStatus {
 
 pub struct ToolchainService {
     workspace_root: PathBuf,
+    launch_root: PathBuf,
     launch: Mutex<Option<ToolchainLaunchConfig>>,
     client: Mutex<Option<Arc<ToolchainClient>>>,
     status: RwLock<ToolchainStatus>,
@@ -53,11 +54,23 @@ pub struct ToolchainService {
 
 impl ToolchainService {
     pub fn new(workspace_root: &Path, toolchain_cli: Option<PathBuf>) -> Self {
+        Self::new_with_launch_root(workspace_root, workspace_root, toolchain_cli)
+    }
+
+    pub fn new_with_launch_root(
+        workspace_root: &Path,
+        launch_root: &Path,
+        toolchain_cli: Option<PathBuf>,
+    ) -> Self {
         let root = workspace_root
             .canonicalize()
             .unwrap_or_else(|_| workspace_root.to_path_buf());
+        let launch_root = launch_root
+            .canonicalize()
+            .unwrap_or_else(|_| launch_root.to_path_buf());
         let service = Self {
             workspace_root: root,
+            launch_root,
             launch: Mutex::new(None),
             client: Mutex::new(None),
             status: RwLock::new(ToolchainStatus::unavailable(
@@ -278,8 +291,8 @@ impl ToolchainService {
 
     fn build_launch(&self, script: PathBuf) -> Result<ToolchainLaunchConfig, String> {
         let script = script.canonicalize().map_err(|error| error.to_string())?;
-        if !script.is_file() || !script.starts_with(&self.workspace_root) {
-            return Err("Toolchain sidecar must be a file inside the workspace".into());
+        if !script.is_file() || !script.starts_with(&self.launch_root) {
+            return Err("Toolchain sidecar must be a file inside the server workspace".into());
         }
         Ok(ToolchainLaunchConfig {
             program: node_binary()?,

@@ -422,7 +422,11 @@ async fn initialize_state(
         }
     }
     let (events, _) = broadcast::channel(64);
-    let toolchain = Arc::new(ToolchainService::new(root, toolchain_cli.clone()));
+    let toolchain = Arc::new(ToolchainService::new_with_launch_root(
+        store.project_dir(),
+        root,
+        toolchain_cli.clone(),
+    ));
     let state = AppState {
         session: Arc::new(Mutex::new(Session {
             workspace_root: root.to_path_buf(),
@@ -1040,7 +1044,7 @@ async fn preview_file(
         session
             .store
             .project_dir()
-            .join("cache/preview")
+            .join("cache/toolchain/preview")
             .join(format!("{revision:08}.glb"))
     };
     match tokio::fs::read(path).await {
@@ -1066,7 +1070,7 @@ async fn candidate_preview_file(
         session
             .store
             .project_dir()
-            .join("cache/preview")
+            .join("cache/toolchain/candidates")
             .join(format!("{digest}.glb"))
     };
     match tokio::fs::read(path).await {

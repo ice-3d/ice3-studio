@@ -59,7 +59,7 @@ test('keeps editing available when Toolchain is incompatible', async ({ page }) 
       body: JSON.stringify({
         result: {
           apiVersion: '1.0',
-          schemaVersion: 1,
+          schemaVersion: 2,
           methods: [],
           toolchain: {
             state: 'incompatible',

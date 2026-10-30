@@ -94,13 +94,22 @@ async fn rpc(server: &TestServer, method: &str, params: serde_json::Value) -> se
 }
 
 async fn install_sidecar(server: &TestServer, mode: &str) {
-    let script = PathBuf::from(server.workspace_root()).join("fake-sidecar.mjs");
+    let script = server_project_dir(server).join("fake-sidecar.mjs");
     std::fs::write(
         &script,
         format!("process.env.FAKE_SIDECAR_MODE = '{mode}';\n{FAKE_SIDECAR}"),
     )
     .unwrap();
     server.set_toolchain_cli(script).await;
+}
+
+fn server_project_dir(server: &TestServer) -> PathBuf {
+    std::fs::read_dir(server.workspace_root())
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| path.join("project.json").is_file())
+        .expect("test project directory")
 }
 
 async fn revision(server: &TestServer) -> u64 {

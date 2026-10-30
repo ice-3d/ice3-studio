@@ -23,6 +23,13 @@ createInterface({ input: process.stdin }).on('line', async (line) => {
       limits: { maxMessageBytes: 8388608, maxConcurrentJobs: 2, maxSourceBytes: 2147483648 }
     } }) + '\n');
   } else if (request.method === 'asset.preview') {
+    if (!request.params.outputPath.startsWith('cache/toolchain/')) {
+      process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: request.id, error: {
+        code: -32603, message: 'asset outputs must be inside cache/toolchain',
+        data: { code: 'ICE3_TOOL_SIDECAR_PATH_INVALID', message: 'asset outputs must be inside cache/toolchain', retryable: false }
+      } }) + '\n');
+      return;
+    }
     if (process.argv[1]?.includes('slow-toolchain')) {
       await new Promise((resolve) => setTimeout(resolve, 600));
     }
@@ -69,7 +76,13 @@ pub async fn start_with_toolchain(project_id: &str, body: &str) -> TestServer {
 }
 
 pub async fn replace_toolchain_body(server: &TestServer, body: &str) {
-    let path = server.workspace_root().join("test-toolchain.mjs");
+    let project = std::fs::read_dir(server.workspace_root())
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|path| path.join("project.json").is_file())
+        .unwrap();
+    let path = project.join("test-toolchain.mjs");
     fs::write(&path, body).unwrap();
     server.set_toolchain_cli(path).await;
 }

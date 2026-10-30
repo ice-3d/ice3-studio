@@ -104,7 +104,7 @@ impl PreviewAdapter {
         project_dir: &Path,
         asset_id: &str,
     ) -> Result<RuntimePreview, PreviewError> {
-        let preview_dir = project_dir.join("cache/preview");
+        let preview_dir = project_dir.join("cache/toolchain/preview");
         std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
         let revision = document.revision.as_u64();
         let source_export = export_source(document, project_dir)?;
@@ -130,7 +130,7 @@ impl PreviewAdapter {
         digest: &str,
     ) -> Result<CandidatePreview, PreviewError> {
         let candidate_dir = project_dir.join("cache/candidates");
-        let preview_dir = project_dir.join("cache/preview");
+        let preview_dir = project_dir.join("cache/toolchain/candidates");
         std::fs::create_dir_all(&candidate_dir).map_err(PreviewError::Io)?;
         std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
         let preview_path = preview_dir.join(format!("{digest}.glb"));

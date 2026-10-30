@@ -22,8 +22,8 @@ async fn writes_deterministic_source_and_publishes_successful_preview() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let adapter = fake_toolchain(root.path(), SUCCESS_TOOLCHAIN);
-    let preview = PreviewAdapter::new(root.path(), adapter)
+    let adapter = fake_toolchain(&project, SUCCESS_TOOLCHAIN);
+    let preview = PreviewAdapter::new(&project, adapter)
         .unwrap()
         .generate(&Document::new("preview-test"), &project, "preview-test")
         .unwrap();
@@ -37,8 +37,8 @@ async fn retains_no_partial_preview_when_adapter_fails() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("failed-project");
     fs::create_dir_all(&project).unwrap();
-    let adapter = fake_toolchain(root.path(), FAILED_TOOLCHAIN);
-    let error = PreviewAdapter::new(root.path(), adapter)
+    let adapter = fake_toolchain(&project, FAILED_TOOLCHAIN);
+    let error = PreviewAdapter::new(&project, adapter)
         .unwrap()
         .generate(&Document::new("failed"), &project, "failed")
         .unwrap_err();
