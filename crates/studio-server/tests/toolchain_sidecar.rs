@@ -166,6 +166,13 @@ async fn capabilities_expose_toolchain_state() {
     let response = rpc(&server, "system.capabilities", serde_json::json!({})).await;
     assert_eq!(response["result"]["toolchain"]["state"], "ready");
     assert_eq!(response["result"]["toolchain"]["contractVersion"], "1.0.0");
+    assert!(response["result"]["compute"]["mode"].is_string());
+    assert!(response["result"]["compute"]["selectedBackend"].is_string());
+    assert!(
+        response["result"]["compute"]["gpuThresholdTriangles"]
+            .as_u64()
+            .is_some_and(|threshold| threshold > 0)
+    );
 }
 
 #[tokio::test]

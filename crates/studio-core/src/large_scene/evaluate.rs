@@ -5,8 +5,12 @@ use sha2::{Digest, Sha256};
 
 use crate::document::{Document, NodeContent, SceneNode};
 use crate::geometry::{Bounds, EvaluatedMesh, GeometryError, Primitive};
+use crate::gpu_contract::BackendError;
 use crate::ids::{ComponentId, MaterialId};
-use crate::large_scene::cache::{GeometryStore, MemoryGeometryStore};
+use crate::large_scene::cache::{
+    GeometryCacheMetadata, GeometryEvaluation, GeometryEvaluator, GeometryStore,
+    MemoryGeometryStore,
+};
 use crate::large_scene::component::{
     ComponentDefinition, ComponentInstance, InstanceLayout, InstanceSet, MaterialBinding,
     ParameterValue, PartContent, PartTransform, ScalarBinding, Vector3Binding,
@@ -59,6 +63,8 @@ pub enum LargeSceneError {
     Connection(#[from] ConnectionError),
     #[error("component reference is missing or cyclic")]
     InvalidComponentReference,
+    #[error(transparent)]
+    Backend(#[from] BackendError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -80,6 +86,14 @@ pub fn evaluate_large_scene_with_cache<S: GeometryStore>(
     document: &Document,
     store: &mut S,
 ) -> Result<EvaluatedScene, LargeSceneError> {
+    evaluate_large_scene_with_cache_and_evaluator(document, store, None)
+}
+
+pub fn evaluate_large_scene_with_cache_and_evaluator<S: GeometryStore>(
+    document: &Document,
+    store: &mut S,
+    evaluator: Option<&dyn GeometryEvaluator>,
+) -> Result<EvaluatedScene, LargeSceneError> {
     let definitions = document
         .components
         .iter()
@@ -99,13 +113,29 @@ pub fn evaluate_large_scene_with_cache<S: GeometryStore>(
                 let definition = definitions
                     .get(&instance.definition_id)
                     .ok_or(LargeSceneError::InvalidComponentReference)?;
-                expand_instance(node, instance, definition, &definitions, store, &mut scene)?;
+                expand_instance(
+                    node,
+                    instance,
+                    definition,
+                    &definitions,
+                    store,
+                    evaluator,
+                    &mut scene,
+                )?;
             }
             NodeContent::InstanceSet(set) => {
                 let definition = definitions
                     .get(&set.definition_id)
                     .ok_or(LargeSceneError::InvalidComponentReference)?;
-                expand_instance_set(node, set, definition, &definitions, store, &mut scene)?;
+                expand_instance_set(
+                    node,
+                    set,
+                    definition,
+                    &definitions,
+                    store,
+                    evaluator,
+                    &mut scene,
+                )?;
             }
             NodeContent::Connection(connection) => {
                 append_connection(node, connection, document, &definitions, store, &mut scene)?;
@@ -129,9 +159,26 @@ pub fn resolved_part_geometry_key(
     content: &PartContent,
     parameters: &BTreeMap<String, ParameterValue>,
 ) -> Result<String, LargeSceneError> {
+    resolved_part_geometry_key_with_metadata(
+        blueprint_digest,
+        part_id,
+        content,
+        parameters,
+        &GeometryCacheMetadata::cpu(),
+    )
+}
+
+fn resolved_part_geometry_key_with_metadata(
+    blueprint_digest: &str,
+    part_id: &str,
+    content: &PartContent,
+    parameters: &BTreeMap<String, ParameterValue>,
+    metadata: &GeometryCacheMetadata,
+) -> Result<String, LargeSceneError> {
     let bytes = serde_json::to_vec(&(
-        "cpu",
-        "geometry-kernel-v1",
+        metadata.backend,
+        &metadata.kernel_version,
+        &metadata.parity_status,
         blueprint_digest,
         part_id,
         content,
@@ -335,6 +382,7 @@ fn expand_instance(
     definition: &ComponentDefinition,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
     store: &mut impl GeometryStore,
+    evaluator: Option<&dyn GeometryEvaluator>,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     let instance_id = node.id.as_str().to_owned();
@@ -347,6 +395,7 @@ fn expand_instance(
         &instance_id,
         node.transform,
         store,
+        evaluator,
         scene,
     )
 }
@@ -357,6 +406,7 @@ fn expand_instance_set(
     definition: &ComponentDefinition,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
     store: &mut impl GeometryStore,
+    evaluator: Option<&dyn GeometryEvaluator>,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     for (ordinal, placement) in expand_instance_layout(&set.layout)?.into_iter().enumerate() {
@@ -384,6 +434,7 @@ fn expand_instance_set(
             &owner,
             item_node.transform,
             store,
+            evaluator,
             scene,
         )?;
     }
@@ -400,6 +451,7 @@ fn expand_instance_with_ids(
     id_prefix: &str,
     root_transform: Transform,
     store: &mut impl GeometryStore,
+    evaluator: Option<&dyn GeometryEvaluator>,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     let parameters = resolve_parameters(definition, &instance.parameters)?;
@@ -418,6 +470,7 @@ fn expand_instance_with_ids(
         root_transform,
         node.parent_id.as_ref().map(ToString::to_string),
         store,
+        evaluator,
         &mut path,
         scene,
     )
@@ -437,6 +490,7 @@ fn expand_definition_parts(
     root_transform: Transform,
     source_parent: Option<String>,
     store: &mut impl GeometryStore,
+    evaluator: Option<&dyn GeometryEvaluator>,
     path: &mut BTreeSet<ComponentId>,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
@@ -531,19 +585,21 @@ fn expand_definition_parts(
                     Transform::IDENTITY,
                     parent_id,
                     store,
+                    evaluator,
                     path,
                     scene,
                 )?;
             }
             content => {
-                let mesh_key =
-                    resolved_part_geometry_key(blueprint, &part.id, content, &part_parameters)?;
-                let mesh = load_or_evaluate_mesh(
+                let (mesh, mesh_key) = load_or_evaluate_part_mesh(
                     store,
-                    &mesh_key,
                     &mut scene.stats,
                     &mut scene.meshes,
-                    || evaluate_part_content(content, &part_parameters),
+                    blueprint,
+                    &part.id,
+                    content,
+                    &part_parameters,
+                    evaluator,
                 )?;
                 let triangle_count = mesh.indices.len() / 3;
                 scene.stats.effective_triangles += triangle_count;
@@ -631,11 +687,11 @@ fn blueprint_digest(
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
-fn evaluate_part_content(
+fn resolve_part_content(
     content: &PartContent,
     parameters: &BTreeMap<String, ParameterValue>,
-) -> Result<EvaluatedMesh, LargeSceneError> {
-    let content = match content {
+) -> Result<NodeContent, LargeSceneError> {
+    Ok(match content {
         PartContent::Group => NodeContent::Group,
         PartContent::Box {
             width,
@@ -679,8 +735,7 @@ fn evaluate_part_content(
             radial_segments: *radial_segments,
         },
         PartContent::ComponentReference { .. } => NodeContent::Group,
-    };
-    crate::geometry::evaluate_node_content(&content).map_err(LargeSceneError::Geometry)
+    })
 }
 
 fn resolve_scalar(
@@ -854,6 +909,90 @@ fn normalize(value: Vec3) -> Result<Vec3, LayoutError> {
 
 fn vec3_is_finite(value: Vec3) -> bool {
     value.x.is_finite() && value.y.is_finite() && value.z.is_finite()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn load_or_evaluate_part_mesh<S: GeometryStore>(
+    store: &mut S,
+    stats: &mut LargeSceneStats,
+    meshes: &mut BTreeMap<String, EvaluatedMesh>,
+    blueprint: &str,
+    part_id: &str,
+    content: &PartContent,
+    parameters: &BTreeMap<String, ParameterValue>,
+    evaluator: Option<&dyn GeometryEvaluator>,
+) -> Result<(EvaluatedMesh, String), LargeSceneError> {
+    let node_content = resolve_part_content(content, parameters)?;
+    let selected_metadata = evaluator
+        .map(|evaluator| evaluator.select_cache_metadata(&node_content))
+        .unwrap_or_else(GeometryCacheMetadata::cpu);
+    let selected_key = resolved_part_geometry_key_with_metadata(
+        blueprint,
+        part_id,
+        content,
+        parameters,
+        &selected_metadata,
+    )?;
+    if let Some(mesh) =
+        load_matching_cache_entry(store, stats, meshes, &selected_key, &selected_metadata)
+    {
+        return Ok((mesh, selected_key));
+    }
+
+    let evaluation = if let Some(evaluator) = evaluator {
+        evaluator
+            .evaluate(&node_content)
+            .map_err(LargeSceneError::Backend)?
+    } else {
+        GeometryEvaluation {
+            mesh: crate::geometry::evaluate_node_content(&node_content)?,
+            metadata: GeometryCacheMetadata::cpu(),
+        }
+    };
+    let actual_key = resolved_part_geometry_key_with_metadata(
+        blueprint,
+        part_id,
+        content,
+        parameters,
+        &evaluation.metadata,
+    )?;
+    if actual_key != selected_key
+        && let Some(mesh) =
+            load_matching_cache_entry(store, stats, meshes, &actual_key, &evaluation.metadata)
+    {
+        return Ok((mesh, actual_key));
+    }
+
+    stats.cache_misses += 1;
+    stats.generated_meshes += 1;
+    store.store_entry(
+        actual_key.clone(),
+        crate::large_scene::cache::GeometryCacheEntry {
+            mesh: evaluation.mesh.clone(),
+            metadata: evaluation.metadata,
+        },
+    );
+    meshes.insert(actual_key.clone(), evaluation.mesh.clone());
+    Ok((evaluation.mesh, actual_key))
+}
+
+fn load_matching_cache_entry<S: GeometryStore>(
+    store: &S,
+    stats: &mut LargeSceneStats,
+    meshes: &mut BTreeMap<String, EvaluatedMesh>,
+    key: &str,
+    expected_metadata: &GeometryCacheMetadata,
+) -> Option<EvaluatedMesh> {
+    if let Some(mesh) = meshes.get(key) {
+        return Some(mesh.clone());
+    }
+    let cached = store.load_entry(key)?;
+    if &cached.metadata != expected_metadata {
+        return None;
+    }
+    stats.cache_hits += 1;
+    meshes.insert(key.to_owned(), cached.mesh.clone());
+    Some(cached.mesh)
 }
 
 fn load_or_evaluate_mesh<S: GeometryStore>(

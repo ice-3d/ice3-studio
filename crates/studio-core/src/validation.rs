@@ -86,6 +86,24 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_GEOMETRY_CACHE_FAILED")]
     #[ts(rename = "ICE3_STUDIO_GEOMETRY_CACHE_FAILED")]
     GeometryCacheFailed,
+    #[serde(rename = "ICE3_STUDIO_GPU_UNAVAILABLE")]
+    #[ts(rename = "ICE3_STUDIO_GPU_UNAVAILABLE")]
+    GpuUnavailable,
+    #[serde(rename = "ICE3_STUDIO_GPU_INCOMPATIBLE")]
+    #[ts(rename = "ICE3_STUDIO_GPU_INCOMPATIBLE")]
+    GpuIncompatible,
+    #[serde(rename = "ICE3_STUDIO_GPU_BUDGET_EXCEEDED")]
+    #[ts(rename = "ICE3_STUDIO_GPU_BUDGET_EXCEEDED")]
+    GpuBudgetExceeded,
+    #[serde(rename = "ICE3_STUDIO_GPU_KERNEL_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_GPU_KERNEL_FAILED")]
+    GpuKernelFailed,
+    #[serde(rename = "ICE3_STUDIO_GPU_DEVICE_LOST")]
+    #[ts(rename = "ICE3_STUDIO_GPU_DEVICE_LOST")]
+    GpuDeviceLost,
+    #[serde(rename = "ICE3_STUDIO_GPU_PARITY_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_GPU_PARITY_FAILED")]
+    GpuParityFailed,
 }
 
 pub const DIAGNOSTIC_CODES: &[&str] = &[
@@ -114,6 +132,12 @@ pub const DIAGNOSTIC_CODES: &[&str] = &[
     "ICE3_STUDIO_INSTANCE_SET_INVALID",
     "ICE3_STUDIO_CONNECTION_INVALID",
     "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+    "ICE3_STUDIO_GPU_UNAVAILABLE",
+    "ICE3_STUDIO_GPU_INCOMPATIBLE",
+    "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+    "ICE3_STUDIO_GPU_KERNEL_FAILED",
+    "ICE3_STUDIO_GPU_DEVICE_LOST",
+    "ICE3_STUDIO_GPU_PARITY_FAILED",
 ];
 
 impl DiagnosticCode {
@@ -144,6 +168,12 @@ impl DiagnosticCode {
             Self::InstanceSetInvalid => "ICE3_STUDIO_INSTANCE_SET_INVALID",
             Self::ConnectionInvalid => "ICE3_STUDIO_CONNECTION_INVALID",
             Self::GeometryCacheFailed => "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+            Self::GpuUnavailable => "ICE3_STUDIO_GPU_UNAVAILABLE",
+            Self::GpuIncompatible => "ICE3_STUDIO_GPU_INCOMPATIBLE",
+            Self::GpuBudgetExceeded => "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+            Self::GpuKernelFailed => "ICE3_STUDIO_GPU_KERNEL_FAILED",
+            Self::GpuDeviceLost => "ICE3_STUDIO_GPU_DEVICE_LOST",
+            Self::GpuParityFailed => "ICE3_STUDIO_GPU_PARITY_FAILED",
         }
     }
 }

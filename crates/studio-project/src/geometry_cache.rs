@@ -3,12 +3,12 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use studio_core::geometry::{Bounds, EvaluatedMesh, Vertex};
-use studio_core::large_scene::cache::GeometryStore;
+use studio_core::large_scene::cache::{GeometryCacheEntry, GeometryCacheMetadata, GeometryStore};
 use studio_core::math::Vec3;
 use thiserror::Error;
 
-const MAGIC: &[u8; 8] = b"ICE3GEO1";
-const HEADER_BYTES: u64 = 24;
+const MAGIC: &[u8; 8] = b"ICE3GEO2";
+const HEADER_BYTES: u64 = 28;
 const VERTEX_BYTES: u64 = 6 * 4;
 const BOUNDS_BYTES: u64 = 6 * 4;
 const DEFAULT_MAX_BYTES: u64 = 256 * 1024 * 1024;
@@ -56,6 +56,10 @@ impl GeometryDiskCache {
 
 impl GeometryStore for GeometryDiskCache {
     fn load(&self, key: &str) -> Option<EvaluatedMesh> {
+        self.load_entry(key).map(|entry| entry.mesh)
+    }
+
+    fn load_entry(&self, key: &str) -> Option<GeometryCacheEntry> {
         let path = self.path_for(key)?;
         let metadata = fs::metadata(&path).ok()?;
         if metadata.len() < HEADER_BYTES + BOUNDS_BYTES || metadata.len() > self.max_bytes {
@@ -69,7 +73,7 @@ impl GeometryStore for GeometryDiskCache {
             .read_to_end(&mut bytes)
             .ok()?;
         match decode(&bytes) {
-            Some(mesh) => Some(mesh),
+            Some(entry) => Some(entry),
             None => {
                 let _ = fs::remove_file(path);
                 None
@@ -78,10 +82,20 @@ impl GeometryStore for GeometryDiskCache {
     }
 
     fn store(&mut self, key: String, mesh: EvaluatedMesh) {
+        self.store_entry(
+            key,
+            GeometryCacheEntry {
+                mesh,
+                metadata: GeometryCacheMetadata::cpu(),
+            },
+        );
+    }
+
+    fn store_entry(&mut self, key: String, entry: GeometryCacheEntry) {
         let Some(path) = self.path_for(&key) else {
             return;
         };
-        let Some(bytes) = encode(&mesh) else {
+        let Some(bytes) = encode(&entry) else {
             return;
         };
         if bytes.len() as u64 > self.max_bytes {
@@ -101,17 +115,23 @@ impl GeometryStore for GeometryDiskCache {
     }
 }
 
-fn encode(mesh: &EvaluatedMesh) -> Option<Vec<u8>> {
+fn encode(entry: &GeometryCacheEntry) -> Option<Vec<u8>> {
+    let mesh = &entry.mesh;
     let vertex_count = u64::try_from(mesh.vertices.len()).ok()?;
     let index_count = u64::try_from(mesh.indices.len()).ok()?;
+    let metadata = serde_json::to_vec(&entry.metadata).ok()?;
+    let metadata_length = u32::try_from(metadata.len()).ok()?;
     let byte_length = HEADER_BYTES
         .checked_add(vertex_count.checked_mul(VERTEX_BYTES)?)?
         .checked_add(index_count.checked_mul(4)?)?
-        .checked_add(BOUNDS_BYTES)?;
+        .checked_add(BOUNDS_BYTES)?
+        .checked_add(metadata.len() as u64)?;
     let mut output = Vec::with_capacity(usize::try_from(byte_length).ok()?);
     output.extend_from_slice(MAGIC);
     output.extend_from_slice(&vertex_count.to_le_bytes());
     output.extend_from_slice(&index_count.to_le_bytes());
+    output.extend_from_slice(&metadata_length.to_le_bytes());
+    output.extend_from_slice(&metadata);
     for vertex in &mesh.vertices {
         for value in vertex.position.into_iter().chain(vertex.normal) {
             output.extend_from_slice(&value.to_le_bytes());
@@ -133,23 +153,32 @@ fn encode(mesh: &EvaluatedMesh) -> Option<Vec<u8>> {
     Some(output)
 }
 
-fn decode(bytes: &[u8]) -> Option<EvaluatedMesh> {
+fn decode(bytes: &[u8]) -> Option<GeometryCacheEntry> {
     if bytes.len() < HEADER_BYTES as usize || &bytes[0..8] != MAGIC {
         return None;
     }
     let vertex_count = usize::try_from(u64::from_le_bytes(bytes[8..16].try_into().ok()?)).ok()?;
     let index_count = usize::try_from(u64::from_le_bytes(bytes[16..24].try_into().ok()?)).ok()?;
+    let metadata_length =
+        usize::try_from(u32::from_le_bytes(bytes[24..28].try_into().ok()?)).ok()?;
+    if metadata_length > 4096 {
+        return None;
+    }
     if vertex_count == 0 || index_count == 0 || !index_count.is_multiple_of(3) {
         return None;
     }
-    let expected = 24usize
+    let metadata_start = HEADER_BYTES as usize;
+    let metadata_end = metadata_start.checked_add(metadata_length)?;
+    let metadata: GeometryCacheMetadata =
+        serde_json::from_slice(bytes.get(metadata_start..metadata_end)?).ok()?;
+    let expected = metadata_end
         .checked_add(vertex_count.checked_mul(VERTEX_BYTES as usize)?)?
         .checked_add(index_count.checked_mul(4)?)?
         .checked_add(BOUNDS_BYTES as usize)?;
     if expected != bytes.len() {
         return None;
     }
-    let mut offset = 24;
+    let mut offset = metadata_end;
     let mut vertices = Vec::with_capacity(vertex_count);
     for _ in 0..vertex_count {
         let mut values = [0.0_f32; 6];
@@ -186,20 +215,23 @@ fn decode(bytes: &[u8]) -> Option<EvaluatedMesh> {
     {
         return None;
     }
-    Some(EvaluatedMesh {
-        vertices,
-        indices,
-        bounds: Bounds {
-            min: Vec3 {
-                x: bounds[0],
-                y: bounds[1],
-                z: bounds[2],
-            },
-            max: Vec3 {
-                x: bounds[3],
-                y: bounds[4],
-                z: bounds[5],
+    Some(GeometryCacheEntry {
+        mesh: EvaluatedMesh {
+            vertices,
+            indices,
+            bounds: Bounds {
+                min: Vec3 {
+                    x: bounds[0],
+                    y: bounds[1],
+                    z: bounds[2],
+                },
+                max: Vec3 {
+                    x: bounds[3],
+                    y: bounds[4],
+                    z: bounds[5],
+                },
             },
         },
+        metadata,
     })
 }

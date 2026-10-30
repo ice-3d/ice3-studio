@@ -16,12 +16,14 @@ use serde::{Deserialize, Serialize};
 use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction};
 use studio_core::document::Document;
 use studio_core::geometry::Bounds;
+use studio_core::gpu_contract::{GeometryBackend, GeometryBackendMode};
 use studio_core::ids::NodeId;
 use studio_core::large_scene::evaluate::{
-    EvaluatedScene, evaluate_large_scene_with_cache, evaluated_scene_bounds,
+    EvaluatedScene, evaluate_large_scene_with_cache_and_evaluator, evaluated_scene_bounds,
 };
 use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
+use studio_gpu::NativeGpuBackend;
 use studio_project::geometry_cache::GeometryDiskCache;
 use studio_project::{ProjectStore, WorkspacePath};
 use tokio::sync::broadcast;
@@ -31,6 +33,7 @@ use ts_rs::TS;
 use crate::ServerEvent;
 use crate::auth::{approval_cookie, bearer_token};
 use crate::capabilities::{WriteMode, authorize_write};
+use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
 use crate::preview::{PreviewAdapter, export_source};
 use crate::toolchain::{ToolchainService, ToolchainStatus};
 
@@ -121,6 +124,7 @@ pub struct Capabilities {
     pub schema_version: u32,
     pub methods: Vec<String>,
     pub toolchain: ToolchainStatus,
+    pub compute: ComputeStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
@@ -147,6 +151,7 @@ pub(crate) struct Session {
     pub(crate) closed: bool,
     pub(crate) toolchain_cli: Option<PathBuf>,
     pub(crate) toolchain: Arc<ToolchainService>,
+    pub(crate) compute: Arc<ComputeService>,
     pub(crate) approval_token: String,
     pub(crate) write_mode: WriteMode,
     pub(crate) bootstrap_token: Option<String>,
@@ -443,6 +448,9 @@ async fn initialize_state(
         root,
         toolchain_cli.clone(),
     ));
+    let gpu: Arc<dyn GeometryBackend> = Arc::new(NativeGpuBackend::new(GeometryBackendMode::Gpu));
+    let compute = Arc::new(ComputeService::defaults(Some(gpu)));
+    let _ = pollster::block_on(compute.initialize());
     let state = AppState {
         session: Arc::new(Mutex::new(Session {
             workspace_root: root.to_path_buf(),
@@ -454,6 +462,7 @@ async fn initialize_state(
             closed: false,
             toolchain_cli,
             toolchain,
+            compute,
             approval_token: credentials.approval_token,
             write_mode: credentials.write_mode,
             bootstrap_token: credentials.bootstrap_token,
@@ -801,6 +810,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "changeset.discard".into(),
             ],
             toolchain: session.toolchain.status(),
+            compute: session.compute.status(),
         })
         .expect("serializable capabilities")),
         "project.get" | "document.get" => {
@@ -1278,8 +1288,13 @@ fn evaluate_session_scene(
             None,
         )
     })?;
-    let evaluated = evaluate_large_scene_with_cache(&session.document, &mut cache)
-        .map_err(large_scene_error)?;
+    let evaluator = ComputeEvaluator::new(&session.compute);
+    let evaluated = evaluate_large_scene_with_cache_and_evaluator(
+        &session.document,
+        &mut cache,
+        Some(&evaluator),
+    )
+    .map_err(large_scene_error)?;
     let bounds = evaluated_scene_bounds(&evaluated);
     Ok((evaluated, bounds))
 }
@@ -1403,6 +1418,24 @@ fn large_scene_error(error: studio_core::large_scene::evaluate::LargeSceneError)
         LargeSceneError::Layout(_) => DiagnosticCode::InstanceSetInvalid,
         LargeSceneError::Geometry(_) => DiagnosticCode::GeometryInvalid,
         LargeSceneError::InvalidComponentReference => DiagnosticCode::ComponentInvalid,
+        LargeSceneError::Backend(error) => match error {
+            studio_core::gpu_contract::BackendError::Unavailable { .. } => {
+                DiagnosticCode::GpuUnavailable
+            }
+            studio_core::gpu_contract::BackendError::Incompatible { .. } => {
+                DiagnosticCode::GpuIncompatible
+            }
+            studio_core::gpu_contract::BackendError::BudgetExceeded => {
+                DiagnosticCode::GpuBudgetExceeded
+            }
+            studio_core::gpu_contract::BackendError::Kernel { .. } => {
+                DiagnosticCode::GpuKernelFailed
+            }
+            studio_core::gpu_contract::BackendError::DeviceLost { .. } => {
+                DiagnosticCode::GpuDeviceLost
+            }
+            studio_core::gpu_contract::BackendError::Parity => DiagnosticCode::GpuParityFailed,
+        },
     };
     RpcError::with_diagnostic(
         -32012,

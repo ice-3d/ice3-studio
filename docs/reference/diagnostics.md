@@ -52,6 +52,12 @@ same value as `code`.
 | `ICE3_STUDIO_INSTANCE_SET_INVALID` | An instance layout, count, placement, or item override is invalid |
 | `ICE3_STUDIO_CONNECTION_INVALID` | A connection endpoint, port, medium, relation, or route is invalid |
 | `ICE3_STUDIO_GEOMETRY_CACHE_FAILED` | Derived geometry cache access or recovery failed |
+| `ICE3_STUDIO_GPU_UNAVAILABLE` | Native GPU compute was requested but no compatible ready backend is available |
+| `ICE3_STUDIO_GPU_INCOMPATIBLE` | The native GPU adapter or feature set cannot satisfy the compute contract |
+| `ICE3_STUDIO_GPU_BUDGET_EXCEEDED` | A derived-geometry job exceeds the configured GPU memory budget |
+| `ICE3_STUDIO_GPU_KERNEL_FAILED` | A native GPU compute kernel failed or returned incomplete output |
+| `ICE3_STUDIO_GPU_DEVICE_LOST` | The native GPU device was lost during derived-geometry evaluation |
+| `ICE3_STUDIO_GPU_PARITY_FAILED` | GPU output failed finite-value, topology, bounds, or CPU parity validation |
 
 ## Recovery Rules
 
@@ -61,6 +67,10 @@ same value as `code`.
   content is rejected.
 - A runtime preview failure keeps the previous valid preview.
 - A persistence failure keeps the previous snapshot loadable.
+- An explicit GPU-only failure returns its stable GPU diagnostic; automatic mode retries eligible
+  work on the CPU and keeps the current revision unchanged.
+- A lost or failed GPU device is removed from scheduling until a later process restart or explicit
+  host reinitialization; cached CPU and GPU geometry remain separately keyed.
 
 ChangeSet version conflicts and stale approved digests use `ICE3_STUDIO_OPERATION_INVALID` with a
 specific message. A stale base revision uses `ICE3_STUDIO_REVISION_CONFLICT`.

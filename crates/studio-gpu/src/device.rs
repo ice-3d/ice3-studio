@@ -305,28 +305,58 @@ impl GeometryBackend for NativeGpuBackend {
     }
 
     async fn evaluate(&self, batch: GeometryBatch) -> Result<GeometryBatchResult, BackendError> {
+        if self.mode == GeometryBackendMode::Cpu {
+            return evaluate_cpu_batch(batch);
+        }
+        let (device, queue) = self.ready_device()?;
         let mut meshes = std::collections::BTreeMap::new();
-        let mut diagnostics = Vec::new();
-        for node in &batch.nodes {
-            match studio_core::geometry::evaluate_node_content(&node.content) {
-                Ok(mesh) => {
-                    meshes.insert(node.node_id.clone(), mesh);
+        for node in batch.nodes {
+            let mesh = match &node.content {
+                studio_core::document::NodeContent::Group => {
+                    studio_core::geometry::EvaluatedMesh::empty()
                 }
-                Err(error) => diagnostics.push(studio_core::validation::Diagnostic {
-                    code: studio_core::validation::DiagnosticCode::GeometryInvalid,
-                    operation_index: None,
-                    object_id: Some(node.node_id.as_str().into()),
-                    pointer: format!("/nodes/{}/content", node.node_id.as_str()),
-                    message: error.to_string(),
-                }),
-            }
+                studio_core::document::NodeContent::Primitive(_) => {
+                    let readback = self.evaluate_primitive(crate::PrimitiveJob {
+                        primitive: match &node.content {
+                            studio_core::document::NodeContent::Primitive(primitive) => {
+                                primitive.clone()
+                            }
+                            _ => unreachable!(),
+                        },
+                    })?;
+                    readback_to_mesh(readback)
+                }
+                studio_core::document::NodeContent::CustomMesh(mesh) => {
+                    crate::evaluate_custom_mesh(&device, &queue, mesh)?
+                }
+                studio_core::document::NodeContent::Sweep {
+                    points,
+                    radius,
+                    radial_segments,
+                } => {
+                    let readback = self.evaluate_sweep(crate::SweepJob {
+                        points: points.clone(),
+                        radius: *radius,
+                        radial_segments: *radial_segments,
+                    })?;
+                    readback_to_mesh(readback)
+                }
+                studio_core::document::NodeContent::ComponentInstance(_)
+                | studio_core::document::NodeContent::InstanceSet(_)
+                | studio_core::document::NodeContent::Connection(_) => {
+                    return Err(BackendError::Kernel {
+                        message: "GPU batch contains unresolved scene content".into(),
+                    });
+                }
+            };
+            meshes.insert(node.node_id, mesh);
         }
         Ok(GeometryBatchResult {
             job_id: batch.job_id,
-            backend: GeometryBackendKind::Cpu,
+            backend: GeometryBackendKind::Gpu,
             meshes,
             stats: GeometryExecutionStats::default(),
-            diagnostics,
+            diagnostics: Vec::new(),
         })
     }
 
@@ -361,6 +391,59 @@ fn validate_positive(values: &[f32]) -> Result<(), BackendError> {
         Err(BackendError::Kernel {
             message: "primitive dimensions must be finite and positive".into(),
         })
+    }
+}
+
+fn evaluate_cpu_batch(batch: GeometryBatch) -> Result<GeometryBatchResult, BackendError> {
+    let mut meshes = std::collections::BTreeMap::new();
+    let mut diagnostics = Vec::new();
+    for node in batch.nodes {
+        match studio_core::geometry::evaluate_node_content(&node.content) {
+            Ok(mesh) => {
+                meshes.insert(node.node_id, mesh);
+            }
+            Err(error) => diagnostics.push(studio_core::validation::Diagnostic {
+                code: studio_core::validation::DiagnosticCode::GeometryInvalid,
+                operation_index: None,
+                object_id: Some(node.node_id.as_str().into()),
+                pointer: format!("/nodes/{}/content", node.node_id.as_str()),
+                message: error.to_string(),
+            }),
+        }
+    }
+    Ok(GeometryBatchResult {
+        job_id: batch.job_id,
+        backend: GeometryBackendKind::Cpu,
+        meshes,
+        stats: GeometryExecutionStats::default(),
+        diagnostics,
+    })
+}
+
+fn readback_to_mesh(readback: crate::MeshReadback) -> studio_core::geometry::EvaluatedMesh {
+    let mut minimum = [f32::INFINITY; 3];
+    let mut maximum = [f32::NEG_INFINITY; 3];
+    for vertex in &readback.vertices {
+        for axis in 0..3 {
+            minimum[axis] = minimum[axis].min(vertex.position[axis]);
+            maximum[axis] = maximum[axis].max(vertex.position[axis]);
+        }
+    }
+    studio_core::geometry::EvaluatedMesh {
+        vertices: readback.vertices,
+        indices: readback.indices,
+        bounds: studio_core::geometry::Bounds {
+            min: studio_core::math::Vec3 {
+                x: minimum[0],
+                y: minimum[1],
+                z: minimum[2],
+            },
+            max: studio_core::math::Vec3 {
+                x: maximum[0],
+                y: maximum[1],
+                z: maximum[2],
+            },
+        },
     }
 }
 
