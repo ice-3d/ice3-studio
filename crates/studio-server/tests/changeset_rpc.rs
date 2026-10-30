@@ -365,3 +365,31 @@ async fn concurrent_commits_from_one_base_have_one_winner() {
         .count();
     assert_eq!(successes, 1);
 }
+
+#[tokio::test]
+async fn empty_change_set_is_blocked_instead_of_ready() {
+    let server = start_test_server(ServerConfig::review_required("empty-proposal")).await;
+    let created = rpc_with_bearer(
+        &server,
+        server.agent_token(),
+        "changeset.create",
+        serde_json::json!({ "baseRevision": 0, "title": "Empty" }),
+    )
+    .await;
+    let evaluated = rpc_with_bearer(
+        &server,
+        server.agent_token(),
+        "changeset.evaluate",
+        serde_json::json!({
+            "changeSetId": created["result"]["id"],
+            "expectedVersion": 0,
+            "includeCandidate": false
+        }),
+    )
+    .await;
+    assert_eq!(evaluated["result"]["status"], "blocked");
+    assert_eq!(
+        evaluated["result"]["diagnostics"][0]["code"],
+        "ICE3_STUDIO_OPERATION_INVALID"
+    );
+}

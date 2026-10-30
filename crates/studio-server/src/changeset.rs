@@ -355,6 +355,35 @@ fn evaluate(
         .load_revision(change_set.base_revision)
         .map_err(project_error)?;
     let operations = change_set.operations();
+    if operations.is_empty() {
+        let diagnostics = vec![Diagnostic {
+            code: DiagnosticCode::OperationInvalid,
+            operation_index: None,
+            object_id: None,
+            pointer: "/entries".into(),
+            message: "ChangeSet contains no operations".into(),
+        }];
+        change_set
+            .register_evaluation(expected_version, None, diagnostics.clone(), now_ms())
+            .map_err(changeset_error)?;
+        store.save(&change_set).map_err(project_error)?;
+        let _ = session.events.send(ServerEvent::ChangeSetEvaluated {
+            change_set_id: change_set.id.clone(),
+            version: change_set.version,
+            status: change_set.status.clone(),
+            candidate_digest: None,
+        });
+        return Ok(ChangeSetEvaluation {
+            change_set_id: change_set.id,
+            version: change_set.version,
+            base_revision: change_set.base_revision,
+            status: change_set.status,
+            candidate_digest: None,
+            candidate: None,
+            diff: DocumentDiff::default(),
+            diagnostics,
+        });
+    }
     let candidate = evaluate_operations(&base, &operations).map_err(transaction_error)?;
     let digest = if candidate.diagnostics.is_empty() {
         Some(candidate_digest(&base, &operations).map_err(transaction_error)?)

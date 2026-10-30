@@ -124,6 +124,7 @@ pub(crate) struct Session {
     pub(crate) approval_token: String,
     pub(crate) write_mode: WriteMode,
     pub(crate) bootstrap_token: Option<String>,
+    pub(crate) bootstrap_expires_at_ms: u64,
     pub(crate) bootstrap_consumed: bool,
 }
 
@@ -422,6 +423,7 @@ async fn initialize_state(
             approval_token: credentials.approval_token,
             write_mode: credentials.write_mode,
             bootstrap_token: credentials.bootstrap_token,
+            bootstrap_expires_at_ms: now_ms().saturating_add(60_000),
             bootstrap_consumed: false,
         })),
     };
@@ -462,6 +464,7 @@ async fn bootstrap_session(
         let mut session = state.session.lock().expect("session lock");
         let valid = !session.bootstrap_consumed
             && query.token.as_deref() == session.bootstrap_token.as_deref()
+            && now_ms() <= session.bootstrap_expires_at_ms
             && session.write_mode == WriteMode::ReviewRequired;
         if !valid {
             return StatusCode::FORBIDDEN.into_response();
@@ -1111,6 +1114,13 @@ fn random_hex(bytes: usize) -> String {
     let mut data = vec![0_u8; bytes];
     rand::rng().fill_bytes(&mut data);
     data.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 pub(crate) fn invalid_params(error: serde_json::Error) -> RpcError {
