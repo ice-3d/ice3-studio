@@ -8,12 +8,14 @@
 
 ## Implementation Status
 
-M1 scale-out authoring is implemented: Document schema v2 migration, validated parameterized
-components, explicit instances, deterministic instance sets, typed connections, shared CPU
-evaluation, persistent geometry caching, GLB mesh sharing, API projections, and parameter forms.
+M1 scale-out authoring and M2 large-scene acceptance are implemented: Document schema v2
+migration, validated parameterized components, explicit instances, deterministic instance sets,
+typed connections, shared CPU evaluation, persistent geometry caching, GLB mesh sharing, API
+projections, parameter forms, a 216-object / 6.1M-triangle fixture, topology checks, and
+machine-readable performance evidence.
 
-M2 large-scene acceptance, M3 native GPU evaluation, and M4 Runtime publication remain pending.
-The system therefore remains `Proposed` as a whole.
+M3 native GPU evaluation and M4 Runtime publication remain pending. The system therefore remains
+`Proposed` as a whole.
 
 ## 1. Summary
 
