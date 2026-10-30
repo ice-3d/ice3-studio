@@ -156,6 +156,7 @@ impl TestServer {
                 transform: Default::default(),
                 content: Default::default(),
                 material_id: None,
+                metadata: Default::default(),
             }],
         };
         let result =

@@ -146,6 +146,13 @@
                     "null"
                   ]
                 },
+                "metadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "default": {},
+                  "type": "object"
+                },
                 "name": {
                   "type": "string"
                 },
@@ -2021,6 +2028,13 @@
                 "string",
                 "null"
               ]
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "default": {},
+              "type": "object"
             },
             "name": {
               "type": "string"

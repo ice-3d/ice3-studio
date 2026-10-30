@@ -208,6 +208,7 @@ fn apply_operation(
             transform,
             content,
             material_id,
+            metadata,
         } => {
             document.scene.nodes_mut().push(crate::document::SceneNode {
                 id: node_id.clone(),
@@ -216,7 +217,7 @@ fn apply_operation(
                 transform,
                 material_id,
                 content,
-                metadata: Default::default(),
+                metadata,
                 visible: true,
             });
             diff.node_added(node_id);

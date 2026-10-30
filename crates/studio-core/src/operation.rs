@@ -22,6 +22,8 @@ pub enum Operation {
         transform: Transform,
         content: NodeContent,
         material_id: Option<MaterialId>,
+        #[serde(default)]
+        metadata: BTreeMap<String, String>,
     },
     #[serde(rename = "node.update")]
     #[ts(rename = "node.update")]

@@ -29,6 +29,7 @@ fn applies_a_batch_and_increments_revision_once() {
                     transform: Default::default(),
                     content: Default::default(),
                     material_id: Some("mat-000001".into()),
+                    metadata: Default::default(),
                 },
             ],
         },
@@ -57,6 +58,7 @@ fn dry_run_reports_changes_without_mutating_the_document() {
                 transform: Default::default(),
                 content: Default::default(),
                 material_id: None,
+                metadata: Default::default(),
             }],
         },
     )
@@ -98,6 +100,7 @@ fn returns_the_original_result_for_a_repeated_idempotency_key() {
             transform: Default::default(),
             content: Default::default(),
             material_id: None,
+            metadata: Default::default(),
         }],
     };
     let first = apply_transaction(&mut document, request.clone()).unwrap();
@@ -121,6 +124,7 @@ fn box_operation(node_id: &str, x: f32) -> Operation {
             depth: 2.0,
         }),
         material_id: None,
+        metadata: Default::default(),
     }
 }
 
@@ -216,6 +220,7 @@ fn rejects_duplicate_ids_and_hierarchy_cycles() {
                     transform: Default::default(),
                     content: NodeContent::Group,
                     material_id: None,
+                    metadata: Default::default(),
                 },
                 Operation::NodeCreate {
                     node_id: "node-000002".into(),
@@ -224,6 +229,7 @@ fn rejects_duplicate_ids_and_hierarchy_cycles() {
                     transform: Default::default(),
                     content: NodeContent::Group,
                     material_id: None,
+                    metadata: Default::default(),
                 },
             ],
         },
