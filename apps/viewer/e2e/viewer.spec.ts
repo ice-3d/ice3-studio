@@ -30,3 +30,19 @@ test('keeps review available when Agent Gateway is offline', async ({ page }) =>
   await expect(page.getByText('The Agent Gateway is not connected.')).toBeVisible();
   await expect(page.getByRole('tree').getByRole('button').first()).toBeEnabled();
 });
+
+test('loads an arbitrary generic project without industry-specific UI', async ({ page, request }) => {
+  const response = await request.post('/rpc', {
+    headers: { authorization: 'Bearer studio-e2e' },
+    data: {
+      jsonrpc: '2.0',
+      id: 'generic-project',
+      method: 'project.create',
+      params: { projectId: 'generic-project' },
+    },
+  });
+  expect(response.ok()).toBe(true);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'generic-project' })).toBeVisible();
+  await expect(page.getByText('Aeration Tank')).toHaveCount(0);
+});
