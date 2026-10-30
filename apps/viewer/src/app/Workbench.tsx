@@ -4,11 +4,13 @@ import { useSession, useSessionStore } from '../session/SessionProvider';
 import { buildObjectTree } from '../navigation/objectTreeModel';
 import { ObjectTree } from '../navigation/ObjectTree';
 import { Viewport } from '../viewport/Viewport';
+import { FormRenderer } from '../forms/FormRenderer';
 
 export function Workbench() {
   const session = useSession();
   const sessionStore = useSessionStore();
   const nodes = session.document?.scene.nodes ?? [];
+  const selected = nodes.find((node) => node.id === session.selectionIds[0]);
   return (
     <main className="workbench">
       <WorkbenchHeader />
@@ -26,7 +28,8 @@ export function Workbench() {
           onSelection={(ids) => sessionStore.select(ids)}
         />
         <aside aria-label="Review dock">
-          <h2>Review</h2>
+          <h2>Inspect</h2>
+          <FormRenderer node={selected} onStage={() => {}} />
           <p>{session.connection}</p>
         </aside>
       </section>

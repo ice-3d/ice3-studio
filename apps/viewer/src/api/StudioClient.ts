@@ -2,7 +2,10 @@ export type StudioNode = {
   id: string;
   name: string;
   parentId: string | null;
+  visible?: boolean;
   metadata: Record<string, string>;
+  transform?: Record<string, unknown>;
+  content?: Record<string, unknown>;
 };
 
 export type StudioDocument = {
