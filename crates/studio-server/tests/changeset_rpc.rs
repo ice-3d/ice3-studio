@@ -203,7 +203,7 @@ async fn failed_candidate_preview_preserves_previous_candidate() {
 
     assert_eq!(
         response["error"]["diagnosticCode"],
-        "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED"
+        "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED"
     );
     let previous = reqwest::get(format!(
         "{}/previews/candidates/{valid_digest}",

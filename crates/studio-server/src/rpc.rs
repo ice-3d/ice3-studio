@@ -658,8 +658,56 @@ async fn dispatch_unlocked_preview(
         return None;
     }
     let params: RuntimePreviewParams = serde_json::from_value(request.params.clone()).ok()?;
-    if params.candidate_digest.is_some() {
-        return None;
+    if let Some(digest) = params.candidate_digest {
+        let prepared = {
+            let mut session = state.session.lock().expect("session lock");
+            if session.closed {
+                return Some(Err(RpcError::with_diagnostic(
+                    -32010,
+                    DiagnosticCode::ProjectNotFound.as_str(),
+                    "ICE3_STUDIO_PROJECT_NOT_FOUND: no project is open".into(),
+                    None,
+                )));
+            }
+            (
+                crate::changeset::prepare_candidate_preview(&mut session, &digest),
+                Arc::clone(&session.toolchain),
+            )
+        };
+        let (prepared, toolchain) = prepared;
+        let prepared = match prepared {
+            Ok(prepared) => prepared,
+            Err(error) => return Some(Err(error)),
+        };
+        let result = tokio::task::spawn_blocking(move || {
+            PreviewAdapter::from_service(toolchain).generate_candidate(
+                &prepared.document,
+                &prepared.project_dir,
+                &prepared.digest,
+            )
+        })
+        .await
+        .unwrap_or_else(|error| {
+            Err(crate::preview::PreviewError::Toolchain(
+                studio_toolchain_client::ToolchainClientError::Crashed {
+                    message: format!("preview worker failed: {error}"),
+                },
+            ))
+        });
+        return Some(match result {
+            Ok(preview) => serde_json::to_value(preview).map_err(serialize_error),
+            Err(error) => {
+                let mut session = state.session.lock().expect("session lock");
+                if let Err(record_error) = crate::changeset::record_candidate_preview_failure(
+                    &mut session,
+                    &digest,
+                    error.to_string(),
+                ) {
+                    return Some(Err(record_error));
+                }
+                Err(preview_error(error))
+            }
+        });
     }
     let (document, project_dir, project_id, toolchain, closed) = {
         let session = state.session.lock().expect("session lock");
