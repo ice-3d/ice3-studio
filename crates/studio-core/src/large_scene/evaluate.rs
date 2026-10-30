@@ -7,10 +7,10 @@ use crate::document::{Document, NodeContent, SceneNode};
 use crate::geometry::{EvaluatedMesh, GeometryError, Primitive};
 use crate::ids::{ComponentId, MaterialId};
 use crate::large_scene::component::{
-    ComponentDefinition, ComponentInstance, MaterialBinding, ParameterValue, PartContent,
-    PartTransform, ScalarBinding, Vector3Binding,
+    ComponentDefinition, ComponentInstance, InstanceLayout, InstanceSet, MaterialBinding,
+    ParameterValue, PartContent, PartTransform, ScalarBinding, Vector3Binding,
 };
-use crate::large_scene::validate::{ParameterError, resolve_parameters};
+use crate::large_scene::validate::{MAX_INSTANCE_SET_ITEMS, ParameterError, resolve_parameters};
 use crate::math::{Transform, Vec3};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -48,8 +48,20 @@ pub enum LargeSceneError {
     Parameter(#[from] ParameterError),
     #[error(transparent)]
     Geometry(#[from] GeometryError),
+    #[error(transparent)]
+    Layout(#[from] LayoutError),
     #[error("component reference is missing or cyclic")]
     InvalidComponentReference,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LayoutError {
+    #[error("instance layout requires at least one item")]
+    Empty,
+    #[error("instance layout exceeds the configured item limit")]
+    TooManyItems,
+    #[error("instance layout contains non-finite or invalid values")]
+    Invalid,
 }
 
 pub fn evaluate_large_scene(document: &Document) -> Result<EvaluatedScene, LargeSceneError> {
@@ -74,7 +86,13 @@ pub fn evaluate_large_scene(document: &Document) -> Result<EvaluatedScene, Large
                     .ok_or(LargeSceneError::InvalidComponentReference)?;
                 expand_instance(node, instance, definition, &definitions, &mut scene)?;
             }
-            NodeContent::InstanceSet(_) | NodeContent::Connection(_) => {}
+            NodeContent::InstanceSet(set) => {
+                let definition = definitions
+                    .get(&set.definition_id)
+                    .ok_or(LargeSceneError::InvalidComponentReference)?;
+                expand_instance_set(node, set, definition, &definitions, &mut scene)?;
+            }
+            NodeContent::Connection(_) => {}
             content => append_legacy_node(node, content, &mut scene)?,
         }
     }
@@ -106,11 +124,193 @@ pub fn resolved_part_geometry_key(
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
+pub fn expand_instance_layout(layout: &InstanceLayout) -> Result<Vec<Transform>, LayoutError> {
+    match layout {
+        InstanceLayout::Linear {
+            origin,
+            direction,
+            spacing,
+            count,
+        } => {
+            validate_count(*count)?;
+            validate_vec3(*origin)?;
+            let direction = normalize(*direction)?;
+            validate_positive_finite(*spacing)?;
+            Ok((0..*count)
+                .map(|ordinal| {
+                    let mut transform = Transform::IDENTITY;
+                    transform.translation = Vec3 {
+                        x: origin.x + direction.x * (*spacing) * ordinal as f32,
+                        y: origin.y + direction.y * (*spacing) * ordinal as f32,
+                        z: origin.z + direction.z * (*spacing) * ordinal as f32,
+                    };
+                    transform
+                })
+                .collect())
+        }
+        InstanceLayout::Grid {
+            origin,
+            x_direction,
+            z_direction,
+            rows,
+            columns,
+            row_spacing,
+            column_spacing,
+        } => {
+            validate_count(*rows)?;
+            validate_count(*columns)?;
+            let total = (*rows)
+                .checked_mul(*columns)
+                .ok_or(LayoutError::TooManyItems)?;
+            if total > MAX_INSTANCE_SET_ITEMS {
+                return Err(LayoutError::TooManyItems);
+            }
+            validate_vec3(*origin)?;
+            let x = normalize(*x_direction)?;
+            let z = normalize(*z_direction)?;
+            validate_positive_finite(*row_spacing)?;
+            validate_positive_finite(*column_spacing)?;
+            let mut placements = Vec::with_capacity(total as usize);
+            for row in 0..*rows {
+                for column in 0..*columns {
+                    let mut transform = Transform::IDENTITY;
+                    transform.translation = Vec3 {
+                        x: origin.x
+                            + x.x * (*column_spacing) * column as f32
+                            + z.x * (*row_spacing) * row as f32,
+                        y: origin.y
+                            + x.y * (*column_spacing) * column as f32
+                            + z.y * (*row_spacing) * row as f32,
+                        z: origin.z
+                            + x.z * (*column_spacing) * column as f32
+                            + z.z * (*row_spacing) * row as f32,
+                    };
+                    placements.push(transform);
+                }
+            }
+            Ok(placements)
+        }
+        InstanceLayout::Radial {
+            centre,
+            radius,
+            start_angle_radians,
+            count,
+        } => {
+            validate_count(*count)?;
+            validate_vec3(*centre)?;
+            validate_positive_finite(*radius)?;
+            if !start_angle_radians.is_finite() {
+                return Err(LayoutError::Invalid);
+            }
+            Ok((0..*count)
+                .map(|ordinal| {
+                    let angle = *start_angle_radians
+                        + std::f32::consts::TAU * ordinal as f32 / *count as f32;
+                    let mut transform = Transform::IDENTITY;
+                    transform.translation = Vec3 {
+                        x: centre.x + (*radius) * angle.cos(),
+                        y: centre.y,
+                        z: centre.z + (*radius) * angle.sin(),
+                    };
+                    transform.rotation = Quat::from_rotation_y(-angle).to_array();
+                    transform
+                })
+                .collect())
+        }
+        InstanceLayout::Path { placements } => {
+            if placements.is_empty() {
+                return Err(LayoutError::Empty);
+            }
+            if placements.len() > MAX_INSTANCE_SET_ITEMS as usize {
+                return Err(LayoutError::TooManyItems);
+            }
+            if placements.iter().any(|transform| {
+                !vec3_is_finite(transform.translation)
+                    || !vec3_is_finite(transform.scale)
+                    || transform.scale.x <= 0.0
+                    || transform.scale.y <= 0.0
+                    || transform.scale.z <= 0.0
+                    || !transform.rotation.iter().all(|value| value.is_finite())
+                    || transform
+                        .rotation
+                        .iter()
+                        .map(|value| value * value)
+                        .sum::<f32>()
+                        <= f32::EPSILON
+            }) {
+                return Err(LayoutError::Invalid);
+            }
+            Ok(placements.clone())
+        }
+    }
+}
+
 fn expand_instance(
     node: &SceneNode,
     instance: &ComponentInstance,
     definition: &ComponentDefinition,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    scene: &mut EvaluatedScene,
+) -> Result<(), LargeSceneError> {
+    let instance_id = node.id.as_str().to_owned();
+    expand_instance_with_ids(
+        node,
+        instance,
+        definition,
+        definitions,
+        &instance_id,
+        &instance_id,
+        node.transform,
+        scene,
+    )
+}
+
+fn expand_instance_set(
+    node: &SceneNode,
+    set: &InstanceSet,
+    definition: &ComponentDefinition,
+    definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    scene: &mut EvaluatedScene,
+) -> Result<(), LargeSceneError> {
+    for (ordinal, placement) in expand_instance_layout(&set.layout)?.into_iter().enumerate() {
+        let ordinal = u32::try_from(ordinal).map_err(|_| LayoutError::TooManyItems)?;
+        let mut parameters = set.shared_parameters.clone();
+        if let Some(overrides) = set.item_overrides.get(&ordinal) {
+            parameters.extend(overrides.clone());
+        }
+        let mut item_node = node.clone();
+        item_node.transform = compose_transform(node.transform, placement);
+        item_node.metadata = set.metadata.clone();
+        let owner = format!("{}/{:06}", node.id.as_str(), ordinal);
+        let instance = ComponentInstance {
+            definition_id: set.definition_id.clone(),
+            parameters,
+            overrides: BTreeMap::new(),
+            metadata: set.metadata.clone(),
+        };
+        expand_instance_with_ids(
+            &item_node,
+            &instance,
+            definition,
+            definitions,
+            &owner,
+            &owner,
+            item_node.transform,
+            scene,
+        )?;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn expand_instance_with_ids(
+    node: &SceneNode,
+    instance: &ComponentInstance,
+    definition: &ComponentDefinition,
+    definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    owner_id: &str,
+    id_prefix: &str,
+    root_transform: Transform,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     let parameters = resolve_parameters(definition, &instance.parameters)?;
@@ -123,10 +323,10 @@ fn expand_instance(
         node,
         &parameters,
         &blueprint,
-        &node.id.as_str().to_owned(),
-        &node.id.as_str().to_owned(),
+        id_prefix,
+        owner_id,
         None,
-        node.transform,
+        root_transform,
         node.parent_id.as_ref().map(ToString::to_string),
         &mut path,
         scene,
@@ -449,4 +649,47 @@ fn transform_matrix(transform: Transform) -> Mat4 {
             transform.translation.z,
         ),
     )
+}
+
+fn validate_count(count: u32) -> Result<(), LayoutError> {
+    if count == 0 {
+        Err(LayoutError::Empty)
+    } else if count > MAX_INSTANCE_SET_ITEMS {
+        Err(LayoutError::TooManyItems)
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_positive_finite(value: f32) -> Result<(), LayoutError> {
+    if value.is_finite() && value > 0.0 {
+        Ok(())
+    } else {
+        Err(LayoutError::Invalid)
+    }
+}
+
+fn validate_vec3(value: Vec3) -> Result<(), LayoutError> {
+    if vec3_is_finite(value) {
+        Ok(())
+    } else {
+        Err(LayoutError::Invalid)
+    }
+}
+
+fn normalize(value: Vec3) -> Result<Vec3, LayoutError> {
+    validate_vec3(value)?;
+    let length = (value.x * value.x + value.y * value.y + value.z * value.z).sqrt();
+    if !length.is_finite() || length <= f32::EPSILON {
+        return Err(LayoutError::Invalid);
+    }
+    Ok(Vec3 {
+        x: value.x / length,
+        y: value.y / length,
+        z: value.z / length,
+    })
+}
+
+fn vec3_is_finite(value: Vec3) -> bool {
+    value.x.is_finite() && value.y.is_finite() && value.z.is_finite()
 }
