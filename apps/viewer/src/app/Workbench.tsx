@@ -1,9 +1,13 @@
 import './studioTokens.css';
 import { WorkbenchHeader } from './WorkbenchHeader';
-import { useSession } from '../session/SessionProvider';
+import { useSession, useSessionStore } from '../session/SessionProvider';
+import { buildObjectTree } from '../navigation/objectTreeModel';
+import { ObjectTree } from '../navigation/ObjectTree';
+import { Viewport } from '../viewport/Viewport';
 
 export function Workbench() {
   const session = useSession();
+  const sessionStore = useSessionStore();
   const nodes = session.document?.scene.nodes ?? [];
   return (
     <main className="workbench">
@@ -11,9 +15,16 @@ export function Workbench() {
       <section className="workbench__body">
         <nav aria-label="Project navigation">
           <h2>Objects</h2>
-          <ol>{nodes.map((node) => <li key={node.id}>{node.name}</li>)}</ol>
+          <ObjectTree
+            nodes={buildObjectTree(nodes)}
+            selectedIds={session.selectionIds}
+            onSelect={(id) => sessionStore.select([id])}
+          />
         </nav>
-        <section aria-label="Model viewport">Viewport</section>
+        <Viewport
+          previewUrl={session.previewUrl}
+          onSelection={(ids) => sessionStore.select(ids)}
+        />
         <aside aria-label="Review dock">
           <h2>Review</h2>
           <p>{session.connection}</p>

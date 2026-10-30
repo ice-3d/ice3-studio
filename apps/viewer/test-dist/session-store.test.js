@@ -31,7 +31,8 @@ var SessionStore = class extends ExternalStore {
       document: null,
       diagnostics: [],
       selectionIds: [],
-      connection: "connecting"
+      connection: "connecting",
+      previewUrl: null
     });
     this.source = source;
   }
@@ -44,6 +45,7 @@ var SessionStore = class extends ExternalStore {
         this.source.document(),
         this.source.validation()
       ]);
+      const previewUrl = this.source.preview ? (await this.source.preview(document.revision)).url : this.snapshot.previewUrl;
       if (generation !== this.generation) return;
       this.update({
         ...this.snapshot,
@@ -51,7 +53,8 @@ var SessionStore = class extends ExternalStore {
         revision: document.revision,
         document,
         diagnostics,
-        connection: "connected"
+        connection: "connected",
+        previewUrl
       });
     } catch {
       if (generation === this.generation) {

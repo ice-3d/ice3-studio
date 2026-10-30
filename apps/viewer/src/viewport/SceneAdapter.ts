@@ -6,7 +6,7 @@ import {
   ICEPerspectiveCamera,
 } from 'ice3';
 
-export class SceneView {
+export class SceneAdapter {
   private engine: ICE3 | null = null;
   private loader: ICEAssetLoader | null = null;
   private camera: ICEPerspectiveCamera | null = null;
@@ -35,9 +35,7 @@ export class SceneView {
   }
 
   async show(url: string): Promise<void> {
-    if (!this.engine || !this.loader || !this.camera) {
-      throw new Error('scene is not mounted');
-    }
+    if (!this.engine || !this.loader || !this.camera) throw new Error('scene is not mounted');
     const handle = await this.loader.load(`${url}?v=${Date.now()}`);
     const { min, max } = handle.bounds;
     const center: [number, number, number] = [

@@ -8,7 +8,12 @@ export function SessionProvider({ store, children }: { store: SessionStore; chil
 }
 
 export function useSession(): SessionSnapshot {
+  const store = useSessionStore();
+  return useSyncExternalStore(store.subscribe, () => store.snapshot);
+}
+
+export function useSessionStore(): SessionStore {
   const store = useContext(SessionContext);
   if (!store) throw new Error('SessionProvider is missing');
-  return useSyncExternalStore(store.subscribe, () => store.snapshot);
+  return store;
 }
