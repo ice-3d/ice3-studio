@@ -161,7 +161,7 @@ fn validate_definition(
             diagnostics.push(parameter_diagnostic(
                 definition.id.as_str(),
                 format!("/parameters/{index}/default"),
-                &error.to_string(),
+                error.to_string(),
             ));
         }
     }
@@ -303,10 +303,9 @@ fn validate_reference_depth(
                 definition_id: nested,
                 ..
             } = &part.content
+                && definitions.contains_key(nested)
             {
-                if definitions.contains_key(nested) {
-                    validate_reference_depth(nested, definitions, depth + 1, stack, diagnostics);
-                }
+                validate_reference_depth(nested, definitions, depth + 1, stack, diagnostics);
             }
         }
     }
@@ -429,7 +428,7 @@ fn validate_parameter_map(
             diagnostics.push(parameter_diagnostic(
                 object_id,
                 format!("{pointer}/{name}"),
-                &error.to_string(),
+                error.to_string(),
             ));
         }
     }
