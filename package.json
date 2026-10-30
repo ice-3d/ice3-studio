@@ -1,0 +1,13 @@
+{
+  "name": "@ice3/studio",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^24.0.0 || >=26.0.0",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "benchmark": "node benchmarks/studio-mvp.mjs",
+    "verify": "node scripts/verify.mjs"
+  }
+}

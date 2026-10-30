@@ -1,0 +1,13 @@
+/.worktrees/
+/target/
+/apps/viewer/node_modules/
+/apps/viewer/dist/
+/apps/viewer/test-dist/
+/.studio/
+/.superpowers/
+/wwtp-mini/
+/wastewater-mini/
+/apps/viewer/playwright-report/
+/apps/viewer/test-results/
+/output/
+*.tmp

@@ -2,21 +2,38 @@
 
 > Document ID: ICE3-STUDIO-POL-001
 >
-> Status: Placeholder
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
 ## 范围
 
-- 本仓库预留为 ICE3 authoring workspace。
-- 当前没有公开 API、command、package structure 或架构。
-- 没有批准的 authoring-workspace 决策前不得虚构实现细节。
-- 在仓库仍是 placeholder 时不得加入模型 fixture 或生成 Asset。
+- 本仓库是 AI-native authoring workspace。
+- `ICE3-STUDIO-SPEC-001` 和 `ICE3-STUDIO-PLAN-001` 描述已交付的 MVP；扩展能力必须通过
+  新的设计或实施计划明确范围。
+- 文档必须明确区分 Proposed 设计与 Implemented 能力。
+- Studio Core 使用 Rust；Node.js 不得成为建模 Kernel 或 Runtime。
+- 外部 AI 负责语言理解，Studio 不内置模型凭据或 Agent policy。
+- 外部建模应用不得作为 Studio Core 的建模实现。
+
+## 架构边界
+
+- 公开 API 是产品边界；Web Viewer 只通过公开 API 展示和审查。
+- Document 和 operation history 是真源，evaluated Geometry 是派生结果。
+- Studio Core 不依赖 Toolchain、Engine、Viewer 或外部模型 SDK。
+- 标准 GLB 是互操作输出；Runtime LOD 和分区继续由 Toolchain 负责。
+- 本地 API 默认只监听 loopback，并限制项目路径和 Operation 能力。
+- AI 提案和人工表单修改必须进入 ChangeSet；未批准候选不得修改当前 revision。
 
 ## 交付
 
 - 在功能分支开发，适用验证门禁通过后才可合入 `main`。
-- 当前没有可执行验证 command；文档修改必须保持 placeholder claim 准确。
+- 实施开始后必须提供文档检查、Rust format、typecheck、test、API integration 和 E2E
+  verification command。
+- 根级 `npm run verify` 必须覆盖 Rust format、lint、test、schema、Viewer typecheck、
+  unit、build、E2E 和依赖审计。
+- 性能行为变化必须更新 `npm run benchmark` 的机器可读基线并核对设计上限。
+- 文档变更必须保持 Proposed 与 Implemented 状态准确。
 
 ## 提交身份
 
