@@ -30,6 +30,7 @@ npm run benchmark
 - Rust Studio Core：Document、通用几何、材质、关系、约束、事务、校验和 GLB 导出。
 - Rust Studio Server：仅 loopback 的 JSON-RPC、写入令牌、revision WebSocket 和受控
   Toolchain 预览编排。
+- ChangeSet 审查层：AI 与人工表单变更共享候选 digest；默认由短期人工授权提交。
 - TypeScript Viewer：只通过公开 API 展示场景、revision、诊断和选择状态。
 - `wastewater-mini`：确定性 AI API 验收 fixture，不是写死在 Core 中的行业类型。
 
@@ -40,12 +41,14 @@ npm run benchmark
 
 | 指标 | p95 |
 |---|---:|
-| Server 冷启动到 health | 432.58 ms |
-| 重开 100 Node 项目 | 2.07 ms |
-| 100 Operations 原子事务 | 17.51 ms |
-| `wastewater-mini` 求值 | 1.68 ms |
-| source GLB 导出 | 0.90 ms |
-| Toolchain Runtime preview | 127.37 ms |
+| Server 冷启动到 health | 437.41 ms |
+| 重开 100 Node 项目 | 2.61 ms |
+| 100 Operations 原子事务 | 18.07 ms |
+| 100 Operations ChangeSet 求值 | 15.94 ms |
+| `wastewater-mini` 求值 | 0.85 ms |
+| source GLB 导出 | 2.10 ms |
+| Toolchain Runtime preview | 113.70 ms |
+| ChangeSet candidate preview | 224.82 ms |
 
 这些值是当前设备上的工程基线，不是跨机器容量承诺。脚本会在任一 p95 超过设计上限时
 失败。

@@ -1,6 +1,6 @@
 mod common;
 
-use studio_server::{ServerConfig, TestServer, start_test_server};
+use studio_server::{ServerConfig, TestServer, start_test_server, start_test_server_at};
 
 use common::{
     FAILED_TOOLCHAIN, SUCCESS_TOOLCHAIN, replace_toolchain_body, rpc_with_approval_cookie,
@@ -319,4 +319,49 @@ async fn approval_cookie_commits_the_exact_candidate() {
     let committed =
         rpc_with_approval_cookie(&server, "changeset.commit", commit_params(&evaluated)).await;
     assert_eq!(committed["result"]["revision"], 1, "{committed}");
+}
+
+async fn commit_candidate(
+    server: &TestServer,
+    change_set: &serde_json::Value,
+) -> serde_json::Value {
+    rpc_with_approval_cookie(server, "changeset.commit", commit_params(change_set)).await
+}
+
+#[tokio::test]
+async fn restart_restores_active_change_set_and_candidate() {
+    let root = tempfile::tempdir().unwrap();
+    let first = start_test_server_at(root.path()).await;
+    let prepared = create_and_evaluate_with_token(&first, first.agent_token()).await;
+    let change_set_id = prepared["changeSetId"].as_str().unwrap().to_owned();
+    let version = prepared["version"].clone();
+    let digest = prepared["candidateDigest"].clone();
+    first.stop().await;
+
+    let second = start_test_server_at(root.path()).await;
+    let restored = rpc(
+        &second,
+        "changeset.get",
+        serde_json::json!({ "changeSetId": change_set_id }),
+    )
+    .await;
+    assert_eq!(restored["result"]["version"], version);
+    assert_eq!(restored["result"]["candidateDigest"], digest);
+}
+
+#[tokio::test]
+async fn concurrent_commits_from_one_base_have_one_winner() {
+    let server = start_test_server(ServerConfig::review_required("concurrent")).await;
+    let first = create_and_evaluate_with_token(&server, server.agent_token()).await;
+    let second = create_and_evaluate_with_token(&server, server.agent_token()).await;
+
+    let results = tokio::join!(
+        commit_candidate(&server, &first),
+        commit_candidate(&server, &second),
+    );
+    let successes = [&results.0, &results.1]
+        .iter()
+        .filter(|value| value["result"]["revision"] == 1)
+        .count();
+    assert_eq!(successes, 1);
 }

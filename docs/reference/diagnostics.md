@@ -50,3 +50,6 @@ same value as `code`.
   content is rejected.
 - A runtime preview failure keeps the previous valid preview.
 - A persistence failure keeps the previous snapshot loadable.
+
+ChangeSet version conflicts and stale approved digests use `ICE3_STUDIO_OPERATION_INVALID` with a
+specific message. A stale base revision uses `ICE3_STUDIO_REVISION_CONFLICT`.

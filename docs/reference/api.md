@@ -170,3 +170,9 @@ writes a standard glTF 2.0 binary. Runtime optimization, LOD, and spatial partit
 outside Studio Core and are performed by the configured Toolchain adapter.
 
 See [Diagnostics](diagnostics.md) for stable failure codes.
+
+## ChangeSet Review
+
+AI proposals and human form edits use the persistent ChangeSet lifecycle described in
+[ChangeSet Review](change-sets.md). Candidate approval binds `expectedVersion` to
+`approvedDigest`; no draft operation affects the current revision before commit.

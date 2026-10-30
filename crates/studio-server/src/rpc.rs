@@ -132,6 +132,13 @@ struct AppState {
     session: Arc<Mutex<Session>>,
 }
 
+struct SessionCredentials {
+    agent_token: String,
+    approval_token: String,
+    write_mode: WriteMode,
+    bootstrap_token: Option<String>,
+}
+
 pub struct TestServer {
     base_url: String,
     token: String,
@@ -201,6 +208,12 @@ impl TestServer {
             .toolchain_cli = Some(path);
     }
 
+    pub async fn stop(mut self) {
+        self.task.abort();
+        let _ = (&mut self.task).await;
+        self.cleanup_root = None;
+    }
+
     pub async fn apply_fixture_batch(&self) -> Result<ApplyResult, String> {
         let mut session = self.state.session.lock().expect("session lock");
         let request = ApplyRequest {
@@ -264,13 +277,15 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
     let (state, listener) = initialize_state(
         &cleanup_root,
         &config.project_id,
-        token.clone(),
+        SessionCredentials {
+            agent_token: token.clone(),
+            approval_token: approval_token.clone(),
+            write_mode: config.write_mode,
+            bootstrap_token,
+        },
         config.fixture.as_deref(),
         config.port,
         config.toolchain_cli,
-        approval_token.clone(),
-        config.write_mode,
-        bootstrap_token,
     )
     .await
     .expect("test server state");
@@ -286,6 +301,41 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         state,
         task,
         cleanup_root: Some(cleanup_root),
+    }
+}
+
+pub async fn start_test_server_at(root: &Path) -> TestServer {
+    let config = ServerConfig::review_required("restart-project");
+    std::fs::create_dir_all(root).expect("restart workspace");
+    let token = config.token.expect("test agent token");
+    let approval_token = config.approval_token.expect("test approval token");
+    let (state, listener) = initialize_state(
+        root,
+        &config.project_id,
+        SessionCredentials {
+            agent_token: token.clone(),
+            approval_token: approval_token.clone(),
+            write_mode: config.write_mode,
+            bootstrap_token: Some("test-bootstrap-token".into()),
+        },
+        None,
+        config.port,
+        config.toolchain_cli,
+    )
+    .await
+    .expect("restart test server state");
+    let address = listener.local_addr().expect("listener address");
+    let task_state = state.clone();
+    let task = tokio::spawn(async move {
+        let _ = axum::serve(listener, build_router(task_state)).await;
+    });
+    TestServer {
+        base_url: format!("http://{address}"),
+        token,
+        approval_token,
+        state,
+        task,
+        cleanup_root: None,
     }
 }
 
@@ -306,13 +356,15 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
     let (state, listener) = initialize_state(
         &config.workspace_root,
         &config.project_id,
-        token.clone(),
+        SessionCredentials {
+            agent_token: token.clone(),
+            approval_token,
+            write_mode: config.write_mode,
+            bootstrap_token: bootstrap_token.clone(),
+        },
         config.fixture.as_deref(),
         config.port,
         toolchain_cli,
-        approval_token,
-        config.write_mode,
-        bootstrap_token.clone(),
     )
     .await?;
     println!("{}", listener.local_addr()?);
@@ -330,13 +382,10 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
 async fn initialize_state(
     root: &std::path::Path,
     project_id: &str,
-    token: String,
+    credentials: SessionCredentials,
     fixture: Option<&std::path::Path>,
     port: u16,
     toolchain_cli: Option<PathBuf>,
-    approval_token: String,
-    write_mode: WriteMode,
-    bootstrap_token: Option<String>,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
     let path = WorkspacePath::new(root, project_id)?;
@@ -366,13 +415,13 @@ async fn initialize_state(
             project_id: project_id.into(),
             store,
             document,
-            token,
+            token: credentials.agent_token,
             events,
             closed: false,
             toolchain_cli,
-            approval_token,
-            write_mode,
-            bootstrap_token,
+            approval_token: credentials.approval_token,
+            write_mode: credentials.write_mode,
+            bootstrap_token: credentials.bootstrap_token,
             bootstrap_consumed: false,
         })),
     };

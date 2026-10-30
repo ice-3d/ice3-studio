@@ -21,6 +21,8 @@ const limits = {
   wastewaterMiniEvaluationMs: 300,
   sourceGlbExportMs: 2_000,
   runtimePreviewMs: 10_000,
+  changesetEvaluate100OperationsMs: 500,
+  changesetCandidatePreviewMs: 10_000,
 };
 
 function percentile(samples, fraction) {
@@ -225,6 +227,58 @@ try {
     transactionSamples.push(measurement.duration);
   }
 
+  const changesetSamples = [];
+  const candidateDigests = [];
+  for (let sample = 0; sample < 10; sample += 1) {
+    const created = await rpc('changeset.create', {
+      baseRevision: 11,
+      title: `Benchmark proposal ${sample + 1}`,
+    });
+    const operations = nodeIds.map((nodeId) => ({
+      type: 'node.update',
+      node_id: nodeId,
+      name: `Candidate ${sample + 1}`,
+      transform: null,
+      visible: null,
+      metadata: null,
+    }));
+    const measurement = await timed(async () => {
+      await rpc('changeset.addOperations', {
+        changeSetId: created.id,
+        expectedVersion: 0,
+        entries: operations.map((operation) => ({
+          source: { kind: 'agent', label: 'benchmark' },
+          operation,
+        })),
+      });
+      return rpc('changeset.evaluate', {
+        changeSetId: created.id,
+        expectedVersion: 1,
+        includeCandidate: false,
+      });
+    });
+    if (measurement.result.status !== 'ready') {
+      throw new Error('benchmark ChangeSet did not evaluate');
+    }
+    changesetSamples.push(measurement.duration);
+    candidateDigests.push(measurement.result.candidateDigest);
+  }
+  const unchanged = await rpc('document.get');
+  if (unchanged.revision !== 11) {
+    throw new Error('ChangeSet evaluation changed the committed revision');
+  }
+
+  const changesetPreviewSamples = [];
+  for (const digest of candidateDigests.slice(0, 3)) {
+    const measurement = await timed(() => rpc('export.runtimePreview', {
+      candidateDigest: digest,
+    }));
+    if (!measurement.result.url) {
+      throw new Error('candidate preview omitted its URL');
+    }
+    changesetPreviewSamples.push(measurement.duration);
+  }
+
   await rpc('project.open', { projectId: 'wastewater-mini' });
   const evaluationSamples = [];
   for (let sample = 0; sample < 10; sample += 1) {
@@ -260,6 +314,8 @@ try {
       wastewaterMiniEvaluationMs: metric(evaluationSamples),
       sourceGlbExportMs: metric(exportSamples),
       runtimePreviewMs: metric(previewSamples),
+      changesetEvaluate100OperationsMs: metric(changesetSamples),
+      changesetCandidatePreviewMs: metric(changesetPreviewSamples),
     },
     limits,
   };
