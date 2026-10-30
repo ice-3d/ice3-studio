@@ -21,8 +21,8 @@
 | `ICE3-STUDIO-ADR-0001` | [Document as Source of Truth](decisions/0001-document-as-source-of-truth.md) | Implemented | Document 与派生 Geometry 的决策 |
 | `ICE3-STUDIO-ADR-0002` | [Local API Boundary](decisions/0002-local-api-boundary.md) | Implemented | 本地 API 与 Viewer 边界决策 |
 | `ICE3-STUDIO-SPEC-002` | [Studio Web Workbench 设计](specs/2026-10-30-studio-web-workbench-design.md) | Implemented | AI-native 审查、表单编辑、ChangeSet 和通用工作台设计 |
-| `ICE3-STUDIO-SPEC-003` | [Native GPU Compute 设计](specs/2026-10-30-native-gpu-compute-design.md) | Proposed | Native `wgpu` 后端、调度、增量缓存和量化验收 |
-| `ICE3-STUDIO-PLAN-008` | [Native GPU Compute Backend 实施计划](plans/2026-10-30-native-gpu-compute-backend.md) | Proposed | GPU 契约、设备生命周期、内核、调度、证据和性能门禁 |
+| `ICE3-STUDIO-SPEC-003` | [Native GPU Compute 设计](specs/2026-10-30-native-gpu-compute-design.md) | Experimental | Native `wgpu` 实现完整，当前设备未达到 release 性能门禁 |
+| `ICE3-STUDIO-PLAN-008` | [Native GPU Compute Backend 实施计划](plans/2026-10-30-native-gpu-compute-backend.md) | Experimental | GPU 契约、设备生命周期、内核、调度、证据和 fail-closed 性能门禁 |
 | `ICE3-STUDIO-SPEC-004` | [Toolchain Sidecar Integration 设计](specs/2026-10-30-studio-toolchain-sidecar-design.md) | Implemented | Studio 与 Toolchain 的版本化本地 Sidecar、能力协商和资产边界 |
 | `ICE3-STUDIO-SPEC-005` | [Large-Scene Authoring 设计](specs/2026-10-30-large-scene-authoring-design.md) | Proposed | 参数化组件、实例、连接、GPU 求值、分区发布和大型场景验收 |
 | `ICE3-STUDIO-PLAN-006` | [Large-Scene Authoring Foundation 实施计划](plans/2026-10-30-large-scene-authoring-foundation.md) | Implemented | M1 文档 schema、组件、实例、连接、CPU 求值和缓存 |
@@ -38,6 +38,7 @@
 
 - `Proposed`：设计待审阅，尚无对应实现。
 - `Implemented`：实现、测试和用户入口均已交付。
+- `Experimental`：实现和功能验收已交付，但量化发布门禁尚未通过；默认不得启用。
 
 ## 关联文档
 

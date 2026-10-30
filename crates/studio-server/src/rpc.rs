@@ -50,6 +50,7 @@ pub struct ServerConfig {
     pub approval_token: Option<String>,
     pub write_mode: WriteMode,
     pub viewer_dir: Option<PathBuf>,
+    pub compute_mode: GeometryBackendMode,
 }
 
 impl ServerConfig {
@@ -64,6 +65,7 @@ impl ServerConfig {
             approval_token: None,
             write_mode: WriteMode::Autonomous,
             viewer_dir: None,
+            compute_mode: GeometryBackendMode::Cpu,
         }
     }
 
@@ -317,6 +319,7 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         config.fixture.as_deref(),
         config.port,
         config.toolchain_cli,
+        config.compute_mode,
     )
     .await
     .expect("test server state");
@@ -352,6 +355,7 @@ pub async fn start_test_server_at(root: &Path) -> TestServer {
         None,
         config.port,
         config.toolchain_cli,
+        config.compute_mode,
     )
     .await
     .expect("restart test server state");
@@ -399,6 +403,7 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
         config.fixture.as_deref(),
         config.port,
         toolchain_cli,
+        config.compute_mode,
     )
     .await?;
     println!("{}", listener.local_addr()?);
@@ -420,6 +425,7 @@ async fn initialize_state(
     fixture: Option<&std::path::Path>,
     port: u16,
     toolchain_cli: Option<PathBuf>,
+    compute_mode: GeometryBackendMode,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
     let path = WorkspacePath::new(root, project_id)?;
@@ -449,7 +455,13 @@ async fn initialize_state(
         toolchain_cli.clone(),
     ));
     let gpu: Arc<dyn GeometryBackend> = Arc::new(NativeGpuBackend::new(GeometryBackendMode::Gpu));
-    let compute = Arc::new(ComputeService::defaults(Some(gpu)));
+    let compute = Arc::new(ComputeService::new(
+        crate::compute::ComputePolicy {
+            mode: compute_mode,
+            ..crate::compute::ComputePolicy::default()
+        },
+        (compute_mode != GeometryBackendMode::Cpu).then_some(gpu),
+    ));
     let _ = pollster::block_on(compute.initialize());
     let state = AppState {
         session: Arc::new(Mutex::new(Session {

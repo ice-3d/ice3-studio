@@ -41,7 +41,7 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 | Method | Write | Parameters | Result |
 |---|---:|---|---|
 | `system.health` | No | none | Version and status |
-| `system.capabilities` | No | none | API version, method inventory, and Toolchain state |
+| `system.capabilities` | No | none | API version, method inventory, Toolchain state, and native compute evidence |
 | `project.create` | Yes | `{ projectId }` | `{ opened: true }` |
 | `project.open` | Yes | `{ projectId }` | `{ opened: true }` |
 | `project.get` | No | none | Current document |
@@ -67,6 +67,17 @@ before its revision event is published.
 and a sanitized failure reason. Runtime preview responses include the derived `assetId` and
 content hash. Toolchain failures do not change the current revision or the previously valid
 preview.
+
+`system.capabilities.compute` reports host `mode`, the last selected backend, sanitized adapter
+tier and backend family, effective memory budget, health and fallback reason, queue depth,
+concurrency limit, crossover threshold, and the latest kernel/upload/readback/cache evidence.
+Native compute and browser rendering are separate: this status does not describe the Viewer's
+WebGL2 or experimental browser WebGPU renderer.
+
+The current default is CPU reference evaluation because the integrated Metal benchmark did not
+meet the native GPU crossover. `cpu`, `auto`, and explicit `gpu` host modes exist in the scheduler;
+`auto` falls back to CPU when GPU health, parity, budget, or device state is unsuitable, while
+explicit GPU-only failure returns a stable `ICE3_STUDIO_GPU_*` diagnostic.
 
 After `project.close`, document and scene methods return `ICE3_STUDIO_PROJECT_NOT_FOUND`
 until a project is opened again.

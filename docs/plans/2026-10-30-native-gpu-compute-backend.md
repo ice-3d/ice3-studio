@@ -16,6 +16,10 @@ schemars, ts-rs, Tokio; Node.js 24.22.1 benchmarks.
 
 **Spec:** [`docs/specs/2026-10-30-native-gpu-compute-design.md`](../specs/2026-10-30-native-gpu-compute-design.md)
 
+**Implementation status:** Experimental. Functional tasks are implemented and tested. The release
+performance gate fails on the current integrated Metal GPU; automatic selection therefore remains
+on CPU until a measured crossover is established.
+
 ## Global Constraints
 
 - GPU output is derived geometry and never owns Document, validation, approval, or revision state.

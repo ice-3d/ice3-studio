@@ -20,6 +20,7 @@ API 建模、修复失败事务、撤销/重做、重开项目、导出标准 GL
 npm --prefix apps/viewer ci
 npm run verify
 npm run benchmark
+npm run benchmark:gpu
 ```
 
 完整的本地启动、API 调用和 Viewer 使用方式见
@@ -33,6 +34,8 @@ npm run benchmark
 - Managed Toolchain Sidecar：固定版本的本地资产准备进程，提供 Preview、GLB 准备、
   Validation、LOD/partition 和能力状态；Rust Core 保持独立。
 - ChangeSet 审查层：AI 与人工表单变更共享候选 digest；默认由短期人工授权提交。
+- Native GPU Compute（experimental）：Rust `wgpu` 几何内核、CPU parity、优先级调度与安全
+  fallback；当前设备未达到 release 性能门槛，因此自动路径仍使用 CPU。
 - TypeScript Viewer：只通过公开 API 展示场景、revision、诊断和选择状态。
 - `wastewater-mini`：确定性 AI API 验收 fixture，不是写死在 Core 中的行业类型。
 
@@ -54,6 +57,11 @@ npm run benchmark
 
 这些值是当前设备上的工程基线，不是跨机器容量承诺。脚本会在任一 p95 超过设计上限时
 失败。
+
+`npm run benchmark:gpu` 运行 50k、500k 和 2M 三角形的 CPU/GPU parity 与延迟门禁，并输出
+`output/native-gpu-benchmark.json`。当前 integrated Metal 结果在 500k/2M 上分别约为 CPU
+2.49/9.15 ms、GPU 10.16/31.61 ms；命令会按设计失败，阻止把未验证的 GPU 路径作为 release
+默认值。
 
 ## AI 辅助开发
 

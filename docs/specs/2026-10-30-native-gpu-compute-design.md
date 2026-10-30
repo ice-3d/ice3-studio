@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-003
 >
-> Status: Proposed
+> Status: Experimental
 >
 > Owner: ICE3 Studio maintainers
 
@@ -18,6 +18,34 @@ the source of truth.
 
 The existing browser WebGPU renderer remains separate. Rendering with GPU hardware does not count
 as Studio Core GPU acceleration.
+
+### Implementation Status
+
+The backend-neutral contract, native `wgpu` device lifecycle, Box/Plane/Cylinder/Sphere/Sweep
+geometry kernels, custom-mesh normals and bounds, CPU/GPU scheduler, safe fallback, cache identity,
+public capability evidence, and Workbench panel are implemented. The release performance gate is
+not met on the current integrated Metal GPU: at 500k triangles p50 was 10.16 ms on GPU versus
+2.49 ms on CPU, and at 2M triangles it was 31.61 ms versus 9.15 ms. All tested workloads passed
+topology, finite-value, normal, and bounds parity. Because the design requires a measured gain,
+automatic dispatch remains on the CPU reference and native GPU execution is host-opt-in and
+experimental.
+
+Delivered host behavior:
+
+- `cpu` never initializes or invokes native GPU work.
+- `gpu` requests native compute and returns a structured `ICE3_STUDIO_GPU_*` diagnostic when the
+  request cannot be satisfied.
+- `auto` requires a measured crossover, a healthy adapter, parity, and a job below both host and
+  adapter memory budgets. Current defaults intentionally keep its threshold above practical jobs
+  until a positive crossover is measured.
+- GPU admission is limited to two concurrent jobs, orders Interactive before Throughput before
+  Background, waits outside the async request loop, and falls back to CPU after auto-mode failure.
+- Supported kernels are Box, Plane, Cylinder, Sphere, Sweep, and custom indexed mesh face-normal
+  accumulation plus per-workgroup bounds reduction.
+- Cache keys include resolved geometry content, part and dependency digests, backend, kernel
+  version, and parity state. CPU and GPU entries are independently keyed.
+- `npm run benchmark:gpu` writes `output/native-gpu-benchmark.json` and fails closed unless 500k
+  and 2M workloads improve p50 by at least 10% while GPU p95 remains within 5% of CPU.
 
 ## 2. Goals
 

@@ -2267,7 +2267,13 @@
             "ICE3_STUDIO_INSTANCE_INVALID",
             "ICE3_STUDIO_INSTANCE_SET_INVALID",
             "ICE3_STUDIO_CONNECTION_INVALID",
-            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED"
+            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+            "ICE3_STUDIO_GPU_UNAVAILABLE",
+            "ICE3_STUDIO_GPU_INCOMPATIBLE",
+            "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+            "ICE3_STUDIO_GPU_KERNEL_FAILED",
+            "ICE3_STUDIO_GPU_DEVICE_LOST",
+            "ICE3_STUDIO_GPU_PARITY_FAILED"
           ],
           "type": "string"
         },
@@ -2474,6 +2480,101 @@
     },
     "Capabilities": {
       "$defs": {
+        "ComputeStatus": {
+          "properties": {
+            "adapter": {
+              "type": "string"
+            },
+            "fallbackReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "gpuThresholdTriangles": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "health": {
+              "type": "string"
+            },
+            "lastCacheHits": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "lastKernelMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "lastReadbackBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "lastUploadBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxConcurrentJobs": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "memoryBudgetBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mode": {
+              "$ref": "#/$defs/GeometryBackendMode"
+            },
+            "queueDepth": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "selectedBackend": {
+              "$ref": "#/$defs/GeometryBackendKind"
+            },
+            "tier": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "mode",
+            "selectedBackend",
+            "adapter",
+            "tier",
+            "memoryBudgetBytes",
+            "health",
+            "queueDepth",
+            "maxConcurrentJobs",
+            "gpuThresholdTriangles",
+            "lastKernelMs",
+            "lastUploadBytes",
+            "lastReadbackBytes",
+            "lastCacheHits"
+          ],
+          "type": "object"
+        },
+        "GeometryBackendKind": {
+          "enum": [
+            "cpu",
+            "gpu"
+          ],
+          "type": "string"
+        },
+        "GeometryBackendMode": {
+          "enum": [
+            "auto",
+            "cpu",
+            "gpu"
+          ],
+          "type": "string"
+        },
         "ToolchainState": {
           "enum": [
             "starting",
@@ -2527,6 +2628,9 @@
         "apiVersion": {
           "type": "string"
         },
+        "compute": {
+          "$ref": "#/$defs/ComputeStatus"
+        },
         "methods": {
           "items": {
             "type": "string"
@@ -2546,7 +2650,8 @@
         "apiVersion",
         "schemaVersion",
         "methods",
-        "toolchain"
+        "toolchain",
+        "compute"
       ],
       "title": "Capabilities",
       "type": "object"
@@ -2989,7 +3094,13 @@
             "ICE3_STUDIO_INSTANCE_INVALID",
             "ICE3_STUDIO_INSTANCE_SET_INVALID",
             "ICE3_STUDIO_CONNECTION_INVALID",
-            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED"
+            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+            "ICE3_STUDIO_GPU_UNAVAILABLE",
+            "ICE3_STUDIO_GPU_INCOMPATIBLE",
+            "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+            "ICE3_STUDIO_GPU_KERNEL_FAILED",
+            "ICE3_STUDIO_GPU_DEVICE_LOST",
+            "ICE3_STUDIO_GPU_PARITY_FAILED"
           ],
           "type": "string"
         },
@@ -7602,7 +7713,13 @@
             "ICE3_STUDIO_INSTANCE_INVALID",
             "ICE3_STUDIO_INSTANCE_SET_INVALID",
             "ICE3_STUDIO_CONNECTION_INVALID",
-            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED"
+            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+            "ICE3_STUDIO_GPU_UNAVAILABLE",
+            "ICE3_STUDIO_GPU_INCOMPATIBLE",
+            "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+            "ICE3_STUDIO_GPU_KERNEL_FAILED",
+            "ICE3_STUDIO_GPU_DEVICE_LOST",
+            "ICE3_STUDIO_GPU_PARITY_FAILED"
           ],
           "type": "string"
         },
@@ -9216,7 +9333,13 @@
             "ICE3_STUDIO_INSTANCE_INVALID",
             "ICE3_STUDIO_INSTANCE_SET_INVALID",
             "ICE3_STUDIO_CONNECTION_INVALID",
-            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED"
+            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+            "ICE3_STUDIO_GPU_UNAVAILABLE",
+            "ICE3_STUDIO_GPU_INCOMPATIBLE",
+            "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+            "ICE3_STUDIO_GPU_KERNEL_FAILED",
+            "ICE3_STUDIO_GPU_DEVICE_LOST",
+            "ICE3_STUDIO_GPU_PARITY_FAILED"
           ],
           "type": "string"
         }
@@ -9557,7 +9680,13 @@
             "ICE3_STUDIO_INSTANCE_INVALID",
             "ICE3_STUDIO_INSTANCE_SET_INVALID",
             "ICE3_STUDIO_CONNECTION_INVALID",
-            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED"
+            "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+            "ICE3_STUDIO_GPU_UNAVAILABLE",
+            "ICE3_STUDIO_GPU_INCOMPATIBLE",
+            "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+            "ICE3_STUDIO_GPU_KERNEL_FAILED",
+            "ICE3_STUDIO_GPU_DEVICE_LOST",
+            "ICE3_STUDIO_GPU_PARITY_FAILED"
           ],
           "type": "string"
         },

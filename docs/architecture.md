@@ -18,23 +18,25 @@ external AI or script
         | JSON-RPC 2.0
         v
 Studio Server (loopback)
-        |-------------------+
-        |                   |
-        v                   v
+        |-------------------+-------------------+
+        |                   |                   |
+        v                   v                   v
 Rust Studio Core
   document + operations + validation + geometry + export
+        |             Native GPU Compute
+        |               bounded wgpu kernels + CPU parity
+        |                   |
+        +-------------------+
         |
         +----> revision snapshots and history
         |
         +----> source GLB
         |
         +----> revision event ----> thin Web Viewer
-
-studio-toolchain-client
         |
-        +----> pinned local Toolchain Sidecar
-                         |
-                         +----> prepared GLB / preview / partition
+        +----> studio-toolchain-client ----> pinned Toolchain Sidecar
+                                                  |
+                                                  +----> prepared GLB / preview / partition
 ```
 
 Studio Core has no dependency on the Viewer, Engine, Toolchain, or an AI provider SDK. Node.js
@@ -58,13 +60,21 @@ Owns project paths, writer locks, atomic snapshots, revision history, undo/redo,
 integrity. It also owns the bounded content-addressed geometry cache under
 `cache/geometry/`. A snapshot is persisted before the new revision becomes externally visible.
 
+### `studio-gpu`
+
+Owns the local adapter/device lifecycle, bounded `wgpu` buffers, WGSL kernels, CPU/GPU parity
+checks, and backend statistics for native geometry compute. It does not read projects, serve HTTP,
+approve revisions, or replace browser WebGPU rendering. CPU remains the canonical evaluator and is
+the default automatic path until adapter-specific benchmarks demonstrate a positive crossover.
+
 ### `studio-server`
 
 Owns the local HTTP and WebSocket boundary. It validates authentication and parameters, applies
 one transaction at a time, persists accepted revisions, and publishes revision events. Blocking
 filesystem and Toolchain work runs on Tokio blocking workers so health and event delivery remain
 responsive. Scene bounds and evaluation read from the same cached derived scene so a request does
-not evaluate equivalent component instances twice.
+not evaluate equivalent component instances twice. `ComputeService` enforces GPU memory,
+concurrency, priority, cancellation-safe admission, backend health, and automatic CPU fallback.
 
 ### `studio-toolchain-client` and Toolchain sidecar
 
@@ -105,10 +115,12 @@ hard-coded process type in the modeling API.
 - Project IDs and resources are confined to the configured workspace.
 - Operations cannot submit paths, URLs, shell commands, scripts, or arbitrary expressions.
 - The Toolchain executable comes from a host-owned pinned manifest, never from an API request.
+- GPU requests cannot submit WGSL, select an arbitrary adapter, or bypass host budgets.
 - Diagnostics exclude credentials and out-of-workspace paths.
 
 ## Deferred Scope
 
 Boolean geometry, free-form curves, sculpting, collaborative editing, cloud tenancy, large
-static asset import, and incremental GPU transport are outside this MVP. Runtime LOD and spatial
-partitioning remain Toolchain responsibilities.
+static asset import, and persistent GPU buffer pooling are outside this MVP. Runtime LOD and
+spatial partitioning remain Toolchain responsibilities. Native GPU execution remains experimental
+until the release benchmark shows a stable latency gain.

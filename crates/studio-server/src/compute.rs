@@ -400,7 +400,14 @@ impl ComputeService {
             tier: capabilities
                 .map(|capabilities| capabilities.adapter_tier.clone())
                 .unwrap_or_else(|| "cpu".into()),
-            memory_budget_bytes: self.policy.gpu_budget_bytes,
+            memory_budget_bytes: capabilities
+                .map(|capabilities| {
+                    min_budget(
+                        self.policy.gpu_budget_bytes,
+                        capabilities.memory_budget_bytes,
+                    )
+                })
+                .unwrap_or(self.policy.gpu_budget_bytes),
             health: if !self.gpu_available.load(Ordering::Acquire) {
                 "unavailable".into()
             } else {

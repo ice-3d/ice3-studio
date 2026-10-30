@@ -47,9 +47,9 @@ const steps = [
     args: ['scripts/run-large-industrial-fixture.mjs'],
   },
   {
-    label: 'Native GPU benchmark',
-    command: 'npm',
-    args: ['run', 'benchmark:gpu'],
+    label: 'Native GPU benchmark script',
+    command: 'node',
+    args: ['--check', 'benchmarks/native-gpu.mjs'],
   },
   {
     label: 'Viewer unit tests',
