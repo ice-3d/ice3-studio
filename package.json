@@ -8,6 +8,7 @@
   },
   "scripts": {
     "benchmark": "node benchmarks/studio-mvp.mjs",
+    "benchmark:large-industrial": "node benchmarks/large-industrial-scene.mjs",
     "fixture:large-industrial": "node scripts/run-large-industrial-fixture.mjs",
     "toolchain:stage": "node scripts/stage-toolchain.mjs",
     "toolchain:verify": "node scripts/verify-toolchain-bundle.mjs",

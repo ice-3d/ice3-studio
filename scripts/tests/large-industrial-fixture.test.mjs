@@ -13,6 +13,7 @@ import {
 } from '../../fixtures/large-industrial-site/templates.mjs';
 import { buildIndustrialScenePlan } from '../../fixtures/large-industrial-site/operations.mjs';
 import { verifyAppliedScene } from '../../scripts/run-large-industrial-fixture.mjs';
+import { evaluateBenchmarkGate } from '../../benchmarks/large-industrial-scene.mjs';
 
 test('catalogue preserves the accepted large-scene scale', () => {
   const counts = validateCatalogue({
@@ -153,4 +154,24 @@ test('rejects evaluated output outside the accepted scale', () => {
     minTriangles: 5_500_000,
     maxTriangles: 7_500_000,
   }));
+});
+
+test('benchmark gate rejects missing scale and cache reuse', () => {
+  const failures = evaluateBenchmarkGate({
+    stats: {
+      effectiveTriangles: 5_000_000,
+      uniqueMeshes: 400,
+    },
+    incremental: {
+      cacheHits: 0,
+      generatedMeshes: 400,
+    },
+    operationCount: 100_001,
+  });
+  assert.deepEqual(failures.sort(), [
+    'effectiveTriangles',
+    'incrementalCacheReuse',
+    'operationCount',
+    'uniqueMeshes',
+  ]);
 });

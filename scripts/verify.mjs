@@ -42,6 +42,11 @@ const steps = [
     args: ['scripts/run-ai-fixture.mjs', '--fixture', 'fixtures/wastewater-mini'],
   },
   {
+    label: 'Large industrial fixture',
+    command: 'node',
+    args: ['scripts/run-large-industrial-fixture.mjs'],
+  },
+  {
     label: 'Viewer unit tests',
     command: 'npm',
     args: ['--prefix', 'apps/viewer', 'test'],
