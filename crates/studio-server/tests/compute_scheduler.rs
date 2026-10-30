@@ -24,6 +24,7 @@ struct FakeGpu {
     active: AtomicUsize,
     max_active: AtomicUsize,
     starts: Mutex<Vec<GeometryJobPriority>>,
+    memory_budget_bytes: u64,
     outcome: FakeOutcome,
 }
 
@@ -41,6 +42,18 @@ impl FakeGpu {
             active: AtomicUsize::new(0),
             max_active: AtomicUsize::new(0),
             starts: Mutex::new(Vec::new()),
+            memory_budget_bytes: 2 * 1024 * 1024 * 1024,
+            outcome,
+        })
+    }
+
+    fn with_memory_budget(outcome: FakeOutcome, memory_budget_bytes: u64) -> Arc<Self> {
+        Arc::new(Self {
+            calls: AtomicUsize::new(0),
+            active: AtomicUsize::new(0),
+            max_active: AtomicUsize::new(0),
+            starts: Mutex::new(Vec::new()),
+            memory_budget_bytes,
             outcome,
         })
     }
@@ -59,7 +72,7 @@ impl GeometryBackend for FakeGpu {
                 accelerated: true,
                 adapter_tier: "mock".into(),
                 backend_family: "fake".into(),
-                memory_budget_bytes: 2 * 1024 * 1024 * 1024,
+                memory_budget_bytes: self.memory_budget_bytes,
                 fallback_reason: None,
             }),
         }
@@ -119,6 +132,13 @@ fn box_content() -> NodeContent {
         width: 1.0,
         height: 1.0,
         depth: 1.0,
+    })
+}
+
+fn oversized_custom_content() -> NodeContent {
+    NodeContent::CustomMesh(studio_core::geometry::TriangleMesh {
+        positions: vec![[0.0, 0.0, 0.0]; 5_000],
+        indices: vec![0, 0, 0],
     })
 }
 
@@ -237,6 +257,24 @@ async fn forced_gpu_reports_backend_initialization_failure() {
     );
     let error = service.evaluate(box_content()).await.unwrap_err();
     assert!(error.to_string().contains("fake adapter unavailable"));
+}
+
+#[tokio::test]
+async fn forced_gpu_respects_the_adapter_memory_cap() {
+    let gpu = FakeGpu::with_memory_budget(FakeOutcome::Success, 64 * 1024);
+    let service = ComputeService::new(
+        ComputePolicy {
+            mode: GeometryBackendMode::Gpu,
+            gpu_budget_bytes: 1024 * 1024,
+            ..ComputePolicy::default()
+        },
+        Some(gpu),
+    );
+    let error = service
+        .evaluate(oversized_custom_content())
+        .await
+        .unwrap_err();
+    assert_eq!(error.diagnostic_code(), "ICE3_STUDIO_GPU_BUDGET_EXCEEDED");
 }
 
 #[tokio::test]
