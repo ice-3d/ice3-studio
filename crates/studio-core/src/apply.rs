@@ -121,6 +121,29 @@ pub enum TransactionError {
     Serialization(#[source] serde_json::Error),
 }
 
+pub struct OperationEvaluation {
+    pub document: Document,
+    pub diff: DocumentDiff,
+    pub diagnostics: Vec<Diagnostic>,
+}
+
+pub fn evaluate_operations(
+    base: &Document,
+    operations: &[Operation],
+) -> Result<OperationEvaluation, TransactionError> {
+    let mut candidate = base.clone();
+    let mut diff = DiffBuilder::default();
+    for (index, operation) in operations.iter().cloned().enumerate() {
+        apply_operation(&mut candidate, operation, &mut diff, index)?;
+    }
+    let diagnostics = validate_document(&candidate);
+    Ok(OperationEvaluation {
+        document: candidate,
+        diff: diff.finish(),
+        diagnostics,
+    })
+}
+
 pub fn apply_transaction(
     document: &mut Document,
     request: ApplyRequest,
@@ -142,23 +165,18 @@ pub fn apply_transaction(
         return Err(TransactionError::EmptyTransaction);
     }
 
-    let mut candidate = document.clone();
-    let mut diff = DiffBuilder::default();
-    for (index, operation) in request.operations.iter().cloned().enumerate() {
-        apply_operation(&mut candidate, operation, &mut diff, index)?;
+    let evaluation = evaluate_operations(document, &request.operations)?;
+    if !evaluation.diagnostics.is_empty() {
+        return Err(TransactionError::ValidationFailed(evaluation.diagnostics));
     }
-    let diagnostics = validate_document(&candidate);
-    if !diagnostics.is_empty() {
-        return Err(TransactionError::ValidationFailed(diagnostics));
-    }
-    let diff = diff.finish();
     if request.dry_run {
-        return Ok(ApplyResult::dry_run(document.revision, diff));
+        return Ok(ApplyResult::dry_run(document.revision, evaluation.diff));
     }
 
     let previous_revision = document.revision;
+    let mut candidate = evaluation.document;
     candidate.revision = previous_revision.next();
-    let result = ApplyResult::committed(previous_revision, candidate.revision, diff);
+    let result = ApplyResult::committed(previous_revision, candidate.revision, evaluation.diff);
     candidate.idempotency_keys.push(IdempotencyRecord {
         key: request.idempotency_key,
         request_digest: digest,

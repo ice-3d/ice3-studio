@@ -1,4 +1,5 @@
 pub mod apply;
+pub mod changeset;
 pub mod diff;
 pub mod document;
 pub mod export;
