@@ -10,6 +10,7 @@ use crate::large_scene::component::{
     ComponentDefinition, ComponentInstance, InstanceLayout, InstanceSet, MaterialBinding,
     ParameterValue, PartContent, PartTransform, ScalarBinding, Vector3Binding,
 };
+use crate::large_scene::route::{ConnectionError, route_connection};
 use crate::large_scene::validate::{MAX_INSTANCE_SET_ITEMS, ParameterError, resolve_parameters};
 use crate::math::{Transform, Vec3};
 
@@ -50,6 +51,8 @@ pub enum LargeSceneError {
     Geometry(#[from] GeometryError),
     #[error(transparent)]
     Layout(#[from] LayoutError),
+    #[error(transparent)]
+    Connection(#[from] ConnectionError),
     #[error("component reference is missing or cyclic")]
     InvalidComponentReference,
 }
@@ -92,7 +95,9 @@ pub fn evaluate_large_scene(document: &Document) -> Result<EvaluatedScene, Large
                     .ok_or(LargeSceneError::InvalidComponentReference)?;
                 expand_instance_set(node, set, definition, &definitions, &mut scene)?;
             }
-            NodeContent::Connection(_) => {}
+            NodeContent::Connection(connection) => {
+                append_connection(node, connection, document, &definitions, &mut scene)?;
+            }
             content => append_legacy_node(node, content, &mut scene)?,
         }
     }
@@ -620,7 +625,7 @@ fn resolve_part_transform(
     })
 }
 
-fn compose_transform(parent: Transform, child: Transform) -> Transform {
+pub(crate) fn compose_transform(parent: Transform, child: Transform) -> Transform {
     let parent = transform_matrix(parent);
     let child = transform_matrix(child);
     let (scale, rotation, translation) = (parent * child).to_scale_rotation_translation();
@@ -637,6 +642,45 @@ fn compose_transform(parent: Transform, child: Transform) -> Transform {
             z: scale.z,
         },
     }
+}
+
+fn append_connection(
+    node: &SceneNode,
+    connection: &crate::large_scene::connection::ConnectionIntent,
+    document: &Document,
+    definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    scene: &mut EvaluatedScene,
+) -> Result<(), LargeSceneError> {
+    let points = route_connection(document, definitions, connection)?;
+    let mesh = crate::geometry::evaluate_node_content(&NodeContent::Sweep {
+        points,
+        radius: connection.diameter / 2.0,
+        radial_segments: 12,
+    })?;
+    let triangle_count = mesh.indices.len() / 3;
+    let bytes = serde_json::to_vec(&(
+        node.id.as_str(),
+        &connection.from,
+        &connection.to,
+        &connection.route_policy,
+        connection.diameter,
+    ))
+    .map_err(|_| LargeSceneError::InvalidComponentReference)?;
+    let mesh_key = format!("connection-{:x}", Sha256::digest(bytes));
+    scene.meshes.entry(mesh_key.clone()).or_insert(mesh);
+    scene.nodes.push(EvaluatedSceneNode {
+        id: format!("{}/route", node.id.as_str()),
+        owner_id: node.id.as_str().to_owned(),
+        name: format!("{}/route", node.name),
+        parent_id: node.parent_id.as_ref().map(ToString::to_string),
+        transform: Transform::IDENTITY,
+        material_id: node.material_id.clone(),
+        mesh_key: Some(mesh_key),
+        metadata: node.metadata.clone(),
+        visible: node.visible,
+    });
+    scene.stats.effective_triangles += triangle_count;
+    Ok(())
 }
 
 fn transform_matrix(transform: Transform) -> Mat4 {
