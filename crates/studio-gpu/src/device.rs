@@ -175,11 +175,54 @@ impl NativeGpuBackend {
                     crate::PrimitiveGpuParams::for_plane(width, depth),
                 )
             }
-            studio_core::geometry::Primitive::Cylinder { .. }
-            | studio_core::geometry::Primitive::Sphere { .. } => Err(BackendError::Kernel {
-                message: "this primitive kernel is not implemented yet".into(),
-            }),
+            studio_core::geometry::Primitive::Cylinder {
+                radius,
+                height,
+                segments,
+            } => {
+                validate_positive(&[radius, height])?;
+                if !(3..=256).contains(&segments) {
+                    return Err(BackendError::Kernel {
+                        message: "cylinder segments are outside the supported range".into(),
+                    });
+                }
+                crate::evaluate_cylinder(
+                    &device,
+                    &queue,
+                    crate::PrimitiveGpuParams::for_cylinder(radius, height, segments),
+                )
+            }
+            studio_core::geometry::Primitive::Sphere {
+                radius,
+                segments,
+                rings,
+            } => {
+                validate_positive(&[radius])?;
+                if !(3..=256).contains(&segments) || !(2..=128).contains(&rings) {
+                    return Err(BackendError::Kernel {
+                        message: "sphere segments or rings are outside the supported range".into(),
+                    });
+                }
+                crate::evaluate_sphere(
+                    &device,
+                    &queue,
+                    crate::PrimitiveGpuParams::for_sphere(radius, segments, rings),
+                )
+            }
         }
+    }
+
+    pub fn evaluate_sweep(
+        &self,
+        job: crate::SweepJob,
+    ) -> Result<crate::MeshReadback, BackendError> {
+        let (device, queue) = self.ready_device()?;
+        let point_count =
+            u32::try_from(job.points.len()).map_err(|_| BackendError::BudgetExceeded)?;
+        let params =
+            crate::PrimitiveGpuParams::for_sweep(point_count, job.radius, job.radial_segments)
+                .ok_or(BackendError::BudgetExceeded)?;
+        crate::evaluate_sweep(&device, &queue, params, &job.points)
     }
 
     fn ready_device(&self) -> Result<(Arc<Device>, Arc<Queue>), BackendError> {
