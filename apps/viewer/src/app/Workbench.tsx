@@ -7,12 +7,15 @@ import { Viewport } from '../viewport/Viewport';
 import { FormRenderer } from '../forms/FormRenderer';
 import { useChangeSet, useChangeSetStore } from '../changeset/ChangeSetProvider';
 import { AgentPanel } from '../agent/AgentPanel';
+import { useState } from 'react';
 
 export function Workbench() {
   const session = useSession();
   const sessionStore = useSessionStore();
   const changeSetStore = useChangeSetStore();
   const changeSet = useChangeSet();
+  const [dock, setDock] = useState<'agent' | 'inspect' | 'changes'>('inspect');
+  const [drawer, setDrawer] = useState<'operations' | 'timeline' | 'diagnostics'>('operations');
   const nodes = session.document?.scene.nodes ?? [];
   const selected = nodes.find((node) => node.id === session.selectionIds[0]);
   return (
@@ -32,39 +35,73 @@ export function Workbench() {
           onSelection={(ids) => sessionStore.select(ids)}
         />
         <aside aria-label="Review dock">
-          <AgentPanel />
-          <h2>Inspect</h2>
-          <FormRenderer
-            node={selected}
-            onStage={async (operations) => {
-              await changeSetStore.addOperations(session.revision, operations);
-            }}
-          />
-          <p>{changeSet.status}</p>
-          <button
-            type="button"
-            disabled={!changeSet.active?.candidateDigest}
-            onClick={() => {
-              const digest = changeSet.active?.candidateDigest;
-              if (digest) changeSetStore.markReviewed(digest);
-            }}
-          >
-            Review candidate
-          </button>
-          <button
-            type="button"
-            disabled={!changeSet.canApprove}
-            onClick={async () => {
-              await changeSetStore.commit();
-              await sessionStore.refresh();
-            }}
-          >
-            Approve &amp; commit
-          </button>
-          <p>{session.connection}</p>
+          <div role="tablist" aria-label="Review">
+            {(['agent', 'inspect', 'changes'] as const).map((tab) => (
+              <button
+                role="tab"
+                aria-selected={dock === tab}
+                key={tab}
+                onClick={() => setDock(tab)}
+              >
+                {tab === 'agent' ? 'Agent' : tab === 'inspect' ? 'Inspect' : 'Changes'}
+              </button>
+            ))}
+          </div>
+          <div hidden={dock !== 'agent'}><AgentPanel /></div>
+          <div hidden={dock !== 'inspect'}>
+            <FormRenderer
+              node={selected}
+              onStage={async (operations) => {
+                await changeSetStore.addOperations(session.revision, operations);
+              }}
+            />
+            <p>{changeSet.status}</p>
+            <button
+              type="button"
+              disabled={!changeSet.active?.candidateDigest}
+              onClick={() => {
+                const digest = changeSet.active?.candidateDigest;
+                if (digest) changeSetStore.markReviewed(digest);
+              }}
+            >
+              Review candidate
+            </button>
+            <button
+              type="button"
+              disabled={!changeSet.canApprove}
+              onClick={async () => {
+                await changeSetStore.commit();
+                await sessionStore.refresh();
+              }}
+            >
+              Approve &amp; commit
+            </button>
+          </div>
+          <div hidden={dock !== 'changes'}>
+            <h2>Changes</h2>
+            <p>{changeSet.active ? `${changeSet.active.diff.updatedNodeIds.length} updated objects` : 'No staged changes'}</p>
+          </div>
         </aside>
       </section>
-      <footer>{session.diagnostics.length} diagnostics</footer>
+      <footer role="tablist" aria-label="Evidence">
+        {(['operations', 'timeline', 'diagnostics'] as const).map((tab) => (
+          <button
+            role="tab"
+            aria-selected={drawer === tab}
+            key={tab}
+            onClick={() => setDrawer(tab)}
+          >
+            {tab[0]!.toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+        <span>
+          {drawer === 'diagnostics'
+            ? `${session.diagnostics.length} diagnostics`
+            : drawer === 'timeline'
+              ? `Current revision ${session.revision}`
+              : changeSet.status}
+        </span>
+      </footer>
     </main>
   );
 }

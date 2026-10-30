@@ -5,6 +5,8 @@ test('loads the generic workbench with a persistent scene canvas', async ({ page
   await expect(page.getByRole('heading', { name: 'wastewater-mini' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText('Revision 2');
   await expect(page.locator('canvas[data-layer="scene"]')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Inspect' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Operations' })).toBeVisible();
 });
 
 test('stages, reviews, and commits a form change', async ({ page }) => {
@@ -13,7 +15,9 @@ test('stages, reviews, and commits a form change', async ({ page }) => {
   await page.getByRole('button', { name: 'Aeration Tank A' }).click();
   await page.getByLabel('Name').fill('Aeration Tank Renamed');
   await page.getByRole('button', { name: 'Stage changes' }).click();
-  await expect(page.getByText('ready')).toBeVisible();
+  await expect(
+    page.getByRole('complementary', { name: 'Review dock' }).getByText('ready'),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Review candidate' }).click();
   await page.getByRole('button', { name: 'Approve & commit' }).click();
   await expect(page.getByRole('status')).toContainText('Revision 3');
@@ -22,6 +26,7 @@ test('stages, reviews, and commits a form change', async ({ page }) => {
 
 test('keeps review available when Agent Gateway is offline', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('tab', { name: 'Agent' }).click();
   await expect(page.getByText('The Agent Gateway is not connected.')).toBeVisible();
   await expect(page.getByRole('tree').getByRole('button').first()).toBeEnabled();
 });
