@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use schemars::JsonSchema;
@@ -17,7 +17,7 @@ use studio_core::validation::DiagnosticCode;
 use tokio::sync::{Notify, OnceCell};
 use ts_rs::TS;
 
-pub const INITIAL_GPU_THRESHOLD_TRIANGLES: usize = 250_000;
+pub const INITIAL_GPU_THRESHOLD_TRIANGLES: usize = usize::MAX;
 pub const MAX_CONCURRENT_GPU_JOBS: usize = 2;
 pub const DEFAULT_GPU_BUDGET_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const GPU_KERNEL_VERSION: &str = "geometry-kernel-v1";
@@ -55,6 +55,10 @@ pub struct ComputeStatus {
     pub queue_depth: usize,
     pub max_concurrent_jobs: usize,
     pub gpu_threshold_triangles: usize,
+    pub last_kernel_ms: f64,
+    pub last_upload_bytes: u64,
+    pub last_readback_bytes: u64,
+    pub last_cache_hits: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -208,6 +212,11 @@ pub struct ComputeService {
     gate: Arc<PriorityGate>,
     gpu_available: Arc<AtomicBool>,
     runtime_failure: OnceLock<String>,
+    last_kernel_ms_bits: std::sync::atomic::AtomicU64,
+    last_upload_bytes: std::sync::atomic::AtomicU64,
+    last_readback_bytes: std::sync::atomic::AtomicU64,
+    last_cache_hits: AtomicUsize,
+    last_backend: AtomicU8,
 }
 
 impl ComputeService {
@@ -220,6 +229,11 @@ impl ComputeService {
             gate: Arc::new(PriorityGate::new(policy.max_concurrent_gpu_jobs.max(1))),
             gpu_available: Arc::new(AtomicBool::new(gpu_configured)),
             runtime_failure: OnceLock::new(),
+            last_kernel_ms_bits: std::sync::atomic::AtomicU64::new(0.0f64.to_bits()),
+            last_upload_bytes: std::sync::atomic::AtomicU64::new(0),
+            last_readback_bytes: std::sync::atomic::AtomicU64::new(0),
+            last_cache_hits: AtomicUsize::new(0),
+            last_backend: AtomicU8::new(0),
         }
     }
 
@@ -315,7 +329,9 @@ impl ComputeService {
             };
         }
 
+        let queue_wait_started = std::time::Instant::now();
         let permit = self.gate.acquire(priority).await;
+        let queue_wait_ms = queue_wait_started.elapsed().as_secs_f64() * 1_000.0;
         let node_id = NodeId::from("compute-node-000001");
         let batch = GeometryBatch {
             job_id: format!("compute-{}-{triangles}", monotonic_job_id()),
@@ -341,11 +357,15 @@ impl ComputeService {
                         },
                     );
                 };
-                let fallback_reason = batch_result.stats.fallback_reason.clone();
+                let mut stats = batch_result.stats;
+                stats.queue_wait_ms = queue_wait_ms;
+                let fallback_reason = stats.fallback_reason.clone();
+                self.record_stats(&stats);
+                self.last_backend.store(1, Ordering::Release);
                 Ok(ComputeResult {
                     mesh,
                     backend: batch_result.backend,
-                    stats: batch_result.stats,
+                    stats,
                     fallback_reason,
                     kernel_version: GPU_KERNEL_VERSION.into(),
                     parity_status: "passed".into(),
@@ -369,11 +389,8 @@ impl ComputeService {
         let failure = probe.and_then(|probe| probe.failure.clone());
         ComputeStatus {
             mode: self.policy.mode,
-            selected_backend: if self.gpu_available.load(Ordering::Acquire) {
-                capabilities
-                    .filter(|capabilities| capabilities.health == "ready")
-                    .map(|_| GeometryBackendKind::Gpu)
-                    .unwrap_or(GeometryBackendKind::Cpu)
+            selected_backend: if self.last_backend.load(Ordering::Acquire) == 1 {
+                GeometryBackendKind::Gpu
             } else {
                 GeometryBackendKind::Cpu
             },
@@ -408,6 +425,10 @@ impl ComputeService {
             queue_depth: self.gate.queue_depth(),
             max_concurrent_jobs: self.policy.max_concurrent_gpu_jobs,
             gpu_threshold_triangles: self.policy.gpu_threshold_triangles,
+            last_kernel_ms: f64::from_bits(self.last_kernel_ms_bits.load(Ordering::Relaxed)),
+            last_upload_bytes: self.last_upload_bytes.load(Ordering::Relaxed),
+            last_readback_bytes: self.last_readback_bytes.load(Ordering::Relaxed),
+            last_cache_hits: self.last_cache_hits.load(Ordering::Relaxed),
         }
     }
 
@@ -496,6 +517,12 @@ impl ComputeService {
         fallback_reason: Option<String>,
     ) -> Result<ComputeResult, ComputeError> {
         let mesh = studio_core::geometry::evaluate_node_content(&content)?;
+        self.last_backend.store(0, Ordering::Release);
+        self.last_kernel_ms_bits
+            .store(0.0f64.to_bits(), Ordering::Relaxed);
+        self.last_upload_bytes.store(0, Ordering::Relaxed);
+        self.last_readback_bytes.store(0, Ordering::Relaxed);
+        self.last_cache_hits.store(0, Ordering::Relaxed);
         Ok(ComputeResult {
             mesh,
             backend: GeometryBackendKind::Cpu,
@@ -507,6 +534,17 @@ impl ComputeService {
             kernel_version: "geometry-kernel-v1".into(),
             parity_status: "reference".into(),
         })
+    }
+
+    fn record_stats(&self, stats: &GeometryExecutionStats) {
+        self.last_kernel_ms_bits
+            .store(stats.kernel_ms.to_bits(), Ordering::Relaxed);
+        self.last_upload_bytes
+            .store(stats.upload_bytes, Ordering::Relaxed);
+        self.last_readback_bytes
+            .store(stats.readback_bytes, Ordering::Relaxed);
+        self.last_cache_hits
+            .store(stats.cache_hits, Ordering::Relaxed);
     }
 }
 

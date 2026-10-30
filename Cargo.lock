@@ -1974,6 +1974,8 @@ dependencies = [
  "async-trait",
  "bytemuck",
  "pollster",
+ "serde",
+ "serde_json",
  "studio-core",
  "thiserror",
  "wgpu",

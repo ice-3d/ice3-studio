@@ -2,4 +2,4 @@
 import type { GeometryBackendKind } from "./GeometryBackendKind";
 import type { GeometryBackendMode } from "./GeometryBackendMode";
 
-export type ComputeStatus = { mode: GeometryBackendMode, selected_backend: GeometryBackendKind, adapter: string, tier: string, memory_budget_bytes: bigint, health: string, fallback_reason: string | null, queue_depth: number, max_concurrent_jobs: number, gpu_threshold_triangles: number, };
+export type ComputeStatus = { mode: GeometryBackendMode, selected_backend: GeometryBackendKind, adapter: string, tier: string, memory_budget_bytes: bigint, health: string, fallback_reason: string | null, queue_depth: number, max_concurrent_jobs: number, gpu_threshold_triangles: number, last_kernel_ms: number, last_upload_bytes: bigint, last_readback_bytes: bigint, last_cache_hits: number, };

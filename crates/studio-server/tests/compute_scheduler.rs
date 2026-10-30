@@ -172,6 +172,15 @@ async fn cpu_mode_never_invokes_the_gpu() {
 }
 
 #[tokio::test]
+async fn measured_default_keeps_auto_on_the_cpu_reference() {
+    let gpu = FakeGpu::new(FakeOutcome::Success);
+    let service = ComputeService::defaults(Some(gpu.clone()));
+    let result = service.evaluate(box_content()).await.unwrap();
+    assert_eq!(result.backend, GeometryBackendKind::Cpu);
+    assert_eq!(gpu.calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn auto_uses_the_measured_triangle_threshold() {
     let gpu = FakeGpu::new(FakeOutcome::Success);
     let service = ComputeService::new(

@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
+use std::time::Instant;
 
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
@@ -309,8 +310,14 @@ impl GeometryBackend for NativeGpuBackend {
             return evaluate_cpu_batch(batch);
         }
         let (device, queue) = self.ready_device()?;
+        let started = Instant::now();
         let mut meshes = std::collections::BTreeMap::new();
+        let mut upload_bytes = 0u64;
+        let mut readback_bytes = 0u64;
         for node in batch.nodes {
+            let (upload, readback) = estimate_transfer(&node.content);
+            upload_bytes = upload_bytes.saturating_add(upload);
+            readback_bytes = readback_bytes.saturating_add(readback);
             let mesh = match &node.content {
                 studio_core::document::NodeContent::Group => {
                     studio_core::geometry::EvaluatedMesh::empty()
@@ -355,7 +362,13 @@ impl GeometryBackend for NativeGpuBackend {
             job_id: batch.job_id,
             backend: GeometryBackendKind::Gpu,
             meshes,
-            stats: GeometryExecutionStats::default(),
+            stats: GeometryExecutionStats {
+                kernel_ms: started.elapsed().as_secs_f64() * 1_000.0,
+                upload_bytes,
+                readback_bytes,
+                gpu_memory_estimate_bytes: upload_bytes.saturating_add(readback_bytes),
+                ..GeometryExecutionStats::default()
+            },
             diagnostics: Vec::new(),
         })
     }
@@ -445,6 +458,55 @@ fn readback_to_mesh(readback: crate::MeshReadback) -> studio_core::geometry::Eva
             },
         },
     }
+}
+
+fn estimate_transfer(content: &studio_core::document::NodeContent) -> (u64, u64) {
+    use studio_core::document::NodeContent;
+    use studio_core::geometry::Primitive;
+
+    let (upload_positions, upload_indices, readback_vertices, readback_indices) = match content {
+        NodeContent::Group
+        | NodeContent::ComponentInstance(_)
+        | NodeContent::InstanceSet(_)
+        | NodeContent::Connection(_) => (0usize, 0usize, 0usize, 0usize),
+        NodeContent::Primitive(Primitive::Box { .. }) => (0, 0, 24, 36),
+        NodeContent::Primitive(Primitive::Plane { .. }) => (0, 0, 4, 6),
+        NodeContent::Primitive(Primitive::Cylinder { segments, .. }) => {
+            (0, 0, *segments as usize * 4 + 6, *segments as usize * 12)
+        }
+        NodeContent::Primitive(Primitive::Sphere {
+            segments, rings, ..
+        }) => (
+            0,
+            0,
+            (*segments as usize + 1) * (*rings as usize + 1),
+            *segments as usize * *rings as usize * 6,
+        ),
+        NodeContent::CustomMesh(mesh) => (
+            mesh.positions.len(),
+            mesh.indices.len(),
+            mesh.positions.len(),
+            mesh.indices.len(),
+        ),
+        NodeContent::Sweep {
+            points,
+            radial_segments,
+            ..
+        } => {
+            let vertices = points.len() * *radial_segments as usize;
+            let triangles = points
+                .len()
+                .saturating_sub(1)
+                .saturating_mul(*radial_segments as usize)
+                .saturating_mul(6)
+                .saturating_add(radial_segments.saturating_sub(2).saturating_mul(6) as usize);
+            (points.len(), 0, vertices, triangles * 3)
+        }
+    };
+    (
+        upload_positions as u64 * 12 + upload_indices as u64 * 4,
+        readback_vertices as u64 * 24 + readback_indices as u64 * 4,
+    )
 }
 
 const WARMUP_SHADER: &str = r#"

@@ -68,11 +68,29 @@ export type ToolchainStatus = {
   reason: string | null;
 };
 
+export type ComputeStatus = {
+  mode: 'auto' | 'cpu' | 'gpu';
+  selectedBackend: 'cpu' | 'gpu';
+  adapter: string;
+  tier: string;
+  memoryBudgetBytes: number;
+  health: 'probing' | 'ready' | 'unavailable' | string;
+  fallbackReason: string | null;
+  queueDepth: number;
+  maxConcurrentJobs: number;
+  gpuThresholdTriangles: number;
+  lastKernelMs: number;
+  lastUploadBytes: number;
+  lastReadbackBytes: number;
+  lastCacheHits: number;
+};
+
 export type StudioCapabilities = {
   apiVersion: string;
   schemaVersion: number;
   methods: string[];
   toolchain: ToolchainStatus;
+  compute: ComputeStatus;
 };
 
 export type ChangeSetEvaluation = {

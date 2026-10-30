@@ -1,4 +1,5 @@
 import type {
+  ComputeStatus,
   Diagnostic,
   StudioCapabilities,
   StudioDocument,
@@ -22,6 +23,7 @@ export type SessionSnapshot = {
   connection: 'connecting' | 'connected' | 'error';
   previewUrl: string | null;
   toolchain: ToolchainStatus | null;
+  compute: ComputeStatus | null;
 };
 
 export class SessionStore extends ExternalStore<SessionSnapshot> {
@@ -37,6 +39,7 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
       connection: 'connecting',
       previewUrl: null,
       toolchain: null,
+      compute: null,
     });
   }
 
@@ -58,6 +61,7 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
         connection: 'connected',
         previewUrl: this.snapshot.previewUrl,
         toolchain: capabilities?.toolchain ?? this.snapshot.toolchain,
+        compute: capabilities?.compute ?? this.snapshot.compute,
       });
       if (this.source.preview) {
         try {
