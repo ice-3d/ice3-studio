@@ -6,6 +6,7 @@ use sha2::{Digest, Sha256};
 use crate::document::{Document, NodeContent, SceneNode};
 use crate::geometry::{EvaluatedMesh, GeometryError, Primitive};
 use crate::ids::{ComponentId, MaterialId};
+use crate::large_scene::cache::{GeometryStore, MemoryGeometryStore};
 use crate::large_scene::component::{
     ComponentDefinition, ComponentInstance, InstanceLayout, InstanceSet, MaterialBinding,
     ParameterValue, PartContent, PartTransform, ScalarBinding, Vector3Binding,
@@ -34,6 +35,9 @@ pub struct LargeSceneStats {
     pub unique_meshes: usize,
     pub effective_triangles: usize,
     pub unique_triangles: usize,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+    pub generated_meshes: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -68,6 +72,14 @@ pub enum LayoutError {
 }
 
 pub fn evaluate_large_scene(document: &Document) -> Result<EvaluatedScene, LargeSceneError> {
+    let mut store = MemoryGeometryStore::default();
+    evaluate_large_scene_with_cache(document, &mut store)
+}
+
+pub fn evaluate_large_scene_with_cache<S: GeometryStore>(
+    document: &Document,
+    store: &mut S,
+) -> Result<EvaluatedScene, LargeSceneError> {
     let definitions = document
         .components
         .iter()
@@ -87,18 +99,18 @@ pub fn evaluate_large_scene(document: &Document) -> Result<EvaluatedScene, Large
                 let definition = definitions
                     .get(&instance.definition_id)
                     .ok_or(LargeSceneError::InvalidComponentReference)?;
-                expand_instance(node, instance, definition, &definitions, &mut scene)?;
+                expand_instance(node, instance, definition, &definitions, store, &mut scene)?;
             }
             NodeContent::InstanceSet(set) => {
                 let definition = definitions
                     .get(&set.definition_id)
                     .ok_or(LargeSceneError::InvalidComponentReference)?;
-                expand_instance_set(node, set, definition, &definitions, &mut scene)?;
+                expand_instance_set(node, set, definition, &definitions, store, &mut scene)?;
             }
             NodeContent::Connection(connection) => {
-                append_connection(node, connection, document, &definitions, &mut scene)?;
+                append_connection(node, connection, document, &definitions, store, &mut scene)?;
             }
-            content => append_legacy_node(node, content, &mut scene)?,
+            content => append_legacy_node(node, content, store, &mut scene)?,
         }
     }
     scene.stats.expanded_nodes = scene.nodes.len();
@@ -255,6 +267,7 @@ fn expand_instance(
     instance: &ComponentInstance,
     definition: &ComponentDefinition,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    store: &mut impl GeometryStore,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     let instance_id = node.id.as_str().to_owned();
@@ -266,6 +279,7 @@ fn expand_instance(
         &instance_id,
         &instance_id,
         node.transform,
+        store,
         scene,
     )
 }
@@ -275,6 +289,7 @@ fn expand_instance_set(
     set: &InstanceSet,
     definition: &ComponentDefinition,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    store: &mut impl GeometryStore,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     for (ordinal, placement) in expand_instance_layout(&set.layout)?.into_iter().enumerate() {
@@ -301,6 +316,7 @@ fn expand_instance_set(
             &owner,
             &owner,
             item_node.transform,
+            store,
             scene,
         )?;
     }
@@ -316,6 +332,7 @@ fn expand_instance_with_ids(
     owner_id: &str,
     id_prefix: &str,
     root_transform: Transform,
+    store: &mut impl GeometryStore,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     let parameters = resolve_parameters(definition, &instance.parameters)?;
@@ -333,6 +350,7 @@ fn expand_instance_with_ids(
         None,
         root_transform,
         node.parent_id.as_ref().map(ToString::to_string),
+        store,
         &mut path,
         scene,
     )
@@ -351,6 +369,7 @@ fn expand_definition_parts(
     definition_parent: Option<String>,
     root_transform: Transform,
     source_parent: Option<String>,
+    store: &mut impl GeometryStore,
     path: &mut BTreeSet<ComponentId>,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
@@ -431,6 +450,7 @@ fn expand_definition_parts(
                     Some(part_id.clone()),
                     Transform::IDENTITY,
                     parent_id,
+                    store,
                     path,
                     scene,
                 )?;
@@ -438,10 +458,15 @@ fn expand_definition_parts(
             content => {
                 let mesh_key =
                     resolved_part_geometry_key(blueprint, &part.id, content, &part_parameters)?;
-                let mesh = evaluate_part_content(content, &part_parameters)?;
+                let mesh = load_or_evaluate_mesh(
+                    store,
+                    &mesh_key,
+                    &mut scene.stats,
+                    &mut scene.meshes,
+                    || evaluate_part_content(content, &part_parameters),
+                )?;
                 let triangle_count = mesh.indices.len() / 3;
                 scene.stats.effective_triangles += triangle_count;
-                scene.meshes.entry(mesh_key.clone()).or_insert(mesh);
                 scene.nodes.push(EvaluatedSceneNode {
                     id: part_id,
                     owner_id: instance_id.to_owned(),
@@ -463,6 +488,7 @@ fn expand_definition_parts(
 fn append_legacy_node(
     node: &SceneNode,
     content: &NodeContent,
+    store: &mut impl GeometryStore,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     let mesh = crate::geometry::evaluate_node_content(content)?;
@@ -472,7 +498,9 @@ fn append_legacy_node(
         let bytes =
             serde_json::to_vec(content).map_err(|_| LargeSceneError::InvalidComponentReference)?;
         let key = format!("legacy-{:x}", Sha256::digest(bytes));
-        scene.meshes.entry(key.clone()).or_insert(mesh);
+        load_or_evaluate_mesh(store, &key, &mut scene.stats, &mut scene.meshes, || {
+            Ok(mesh)
+        })?;
         Some(key)
     };
     scene.nodes.push(EvaluatedSceneNode {
@@ -649,15 +677,10 @@ fn append_connection(
     connection: &crate::large_scene::connection::ConnectionIntent,
     document: &Document,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    store: &mut impl GeometryStore,
     scene: &mut EvaluatedScene,
 ) -> Result<(), LargeSceneError> {
     let points = route_connection(document, definitions, connection)?;
-    let mesh = crate::geometry::evaluate_node_content(&NodeContent::Sweep {
-        points,
-        radius: connection.diameter / 2.0,
-        radial_segments: 12,
-    })?;
-    let triangle_count = mesh.indices.len() / 3;
     let bytes = serde_json::to_vec(&(
         node.id.as_str(),
         &connection.from,
@@ -667,7 +690,21 @@ fn append_connection(
     ))
     .map_err(|_| LargeSceneError::InvalidComponentReference)?;
     let mesh_key = format!("connection-{:x}", Sha256::digest(bytes));
-    scene.meshes.entry(mesh_key.clone()).or_insert(mesh);
+    let mesh = load_or_evaluate_mesh(
+        store,
+        &mesh_key,
+        &mut scene.stats,
+        &mut scene.meshes,
+        || {
+            crate::geometry::evaluate_node_content(&NodeContent::Sweep {
+                points,
+                radius: connection.diameter / 2.0,
+                radial_segments: 12,
+            })
+            .map_err(LargeSceneError::Geometry)
+        },
+    )?;
+    let triangle_count = mesh.indices.len() / 3;
     scene.nodes.push(EvaluatedSceneNode {
         id: format!("{}/route", node.id.as_str()),
         owner_id: node.id.as_str().to_owned(),
@@ -736,4 +773,27 @@ fn normalize(value: Vec3) -> Result<Vec3, LayoutError> {
 
 fn vec3_is_finite(value: Vec3) -> bool {
     value.x.is_finite() && value.y.is_finite() && value.z.is_finite()
+}
+
+fn load_or_evaluate_mesh<S: GeometryStore>(
+    store: &mut S,
+    key: &str,
+    stats: &mut LargeSceneStats,
+    meshes: &mut BTreeMap<String, EvaluatedMesh>,
+    evaluate: impl FnOnce() -> Result<EvaluatedMesh, LargeSceneError>,
+) -> Result<EvaluatedMesh, LargeSceneError> {
+    if let Some(mesh) = meshes.get(key) {
+        return Ok(mesh.clone());
+    }
+    if let Some(mesh) = store.load(key) {
+        stats.cache_hits += 1;
+        meshes.insert(key.to_owned(), mesh.clone());
+        return Ok(mesh);
+    }
+    stats.cache_misses += 1;
+    let mesh = evaluate()?;
+    stats.generated_meshes += 1;
+    store.store(key.to_owned(), mesh.clone());
+    meshes.insert(key.to_owned(), mesh.clone());
+    Ok(mesh)
 }

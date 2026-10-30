@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod component;
 pub mod connection;
 pub mod evaluate;

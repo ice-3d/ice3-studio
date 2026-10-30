@@ -83,6 +83,7 @@ impl ProjectStore {
         fs::create_dir_all(path.project.join("resources")).map_err(ProjectError::Io)?;
         fs::create_dir_all(path.project.join("changesets")).map_err(ProjectError::Io)?;
         fs::create_dir_all(path.project.join("cache/preview")).map_err(ProjectError::Io)?;
+        fs::create_dir_all(path.project.join("cache/geometry")).map_err(ProjectError::Io)?;
         let lock = ProjectLock::acquire(ProjectLock::path_for(&path.project))?;
         Ok(Self {
             path,
@@ -100,6 +101,8 @@ impl ProjectStore {
             lock: Some(lock),
         };
         std::fs::create_dir_all(store.path.project.join("changesets")).map_err(ProjectError::Io)?;
+        std::fs::create_dir_all(store.path.project.join("cache/geometry"))
+            .map_err(ProjectError::Io)?;
         store.validate_history()?;
         Ok(store)
     }

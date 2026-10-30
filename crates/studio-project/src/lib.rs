@@ -2,6 +2,7 @@
 
 pub mod changeset;
 mod changeset_store;
+pub mod geometry_cache;
 mod lock;
 mod path;
 mod store;
