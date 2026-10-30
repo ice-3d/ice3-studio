@@ -129,6 +129,24 @@ async fn preview_uses_the_sidecar_and_preserves_revision() {
 }
 
 #[tokio::test]
+async fn preview_uses_the_current_project_after_a_project_switch() {
+    let server = start_test_server(ServerConfig::for_tests("toolchain-project-a")).await;
+    install_sidecar(&server, "ready").await;
+    let first = rpc(&server, "export.runtimePreview", serde_json::json!({})).await;
+    assert!(first["result"]["previewPath"].is_string(), "{first}");
+
+    let created = rpc(
+        &server,
+        "project.create",
+        serde_json::json!({ "projectId": "toolchain-project-b" }),
+    )
+    .await;
+    assert_eq!(created["result"]["opened"], true, "{created}");
+    let second = rpc(&server, "export.runtimePreview", serde_json::json!({})).await;
+    assert!(second["result"]["previewPath"].is_string(), "{second}");
+}
+
+#[tokio::test]
 async fn incompatible_sidecar_disables_preview_but_not_document_reads() {
     let server = start_test_server(ServerConfig::for_tests("toolchain-incompatible")).await;
     install_sidecar(&server, "incompatible").await;

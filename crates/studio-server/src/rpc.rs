@@ -823,13 +823,21 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                     )
                 },
             )?;
+            let project_dir = path.project_dir().to_path_buf();
             let store = ProjectStore::create(path).map_err(project_error)?;
             let document = Document::new(params.project_id.clone());
             store.write_snapshot(&document).map_err(project_error)?;
+            let toolchain = Arc::new(ToolchainService::new_with_launch_root(
+                &project_dir,
+                &session.workspace_root,
+                session.toolchain_cli.clone(),
+            ));
+            session.toolchain.shutdown();
             session.store.close();
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
+            session.toolchain = toolchain;
             session.closed = false;
             Ok(serde_json::json!({ "opened": true }))
         }
@@ -847,18 +855,26 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 },
             )?;
             let same_project = session.store.project_dir() == path.project_dir();
+            let project_dir = path.project_dir().to_path_buf();
             if same_project {
                 session.store.close();
                 session.closed = true;
             }
             let store = ProjectStore::open(path).map_err(project_error)?;
             let document = store.load_current().map_err(project_error)?;
+            let toolchain = Arc::new(ToolchainService::new_with_launch_root(
+                &project_dir,
+                &session.workspace_root,
+                session.toolchain_cli.clone(),
+            ));
             if !same_project {
                 session.store.close();
             }
+            session.toolchain.shutdown();
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
+            session.toolchain = toolchain;
             session.closed = false;
             Ok(serde_json::json!({ "opened": true }))
         }
