@@ -225,6 +225,14 @@ impl NativeGpuBackend {
         crate::evaluate_sweep(&device, &queue, params, &job.points)
     }
 
+    pub fn evaluate_custom_mesh(
+        &self,
+        mesh: &studio_core::geometry::TriangleMesh,
+    ) -> Result<studio_core::geometry::EvaluatedMesh, BackendError> {
+        let (device, queue) = self.ready_device()?;
+        crate::evaluate_custom_mesh(&device, &queue, mesh)
+    }
+
     fn ready_device(&self) -> Result<(Arc<Device>, Arc<Queue>), BackendError> {
         if self.mode == GeometryBackendMode::Cpu {
             return Err(BackendError::Unavailable {
