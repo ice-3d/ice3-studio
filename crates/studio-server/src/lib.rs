@@ -6,6 +6,7 @@ mod changeset;
 mod events;
 pub mod preview;
 mod rpc;
+pub mod toolchain;
 
 pub use events::ServerEvent;
 pub use rpc::{

@@ -804,7 +804,12 @@
             "ICE3_STUDIO_BUDGET_EXCEEDED",
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
-            "ICE3_STUDIO_PERSISTENCE_FAILED"
+            "ICE3_STUDIO_PERSISTENCE_FAILED",
+            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED"
           ],
           "type": "string"
         },
@@ -962,6 +967,9 @@
         "assetId": {
           "type": "string"
         },
+        "contentHash": {
+          "type": "string"
+        },
         "digest": {
           "type": "string"
         },
@@ -972,12 +980,62 @@
       "required": [
         "assetId",
         "digest",
+        "contentHash",
         "url"
       ],
       "title": "CandidatePreview",
       "type": "object"
     },
     "Capabilities": {
+      "$defs": {
+        "ToolchainState": {
+          "enum": [
+            "starting",
+            "ready",
+            "busy",
+            "unavailable",
+            "incompatible",
+            "failed"
+          ],
+          "type": "string"
+        },
+        "ToolchainStatus": {
+          "properties": {
+            "capabilities": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "contractVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "packageVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "state": {
+              "$ref": "#/$defs/ToolchainState"
+            }
+          },
+          "required": [
+            "state",
+            "capabilities"
+          ],
+          "type": "object"
+        }
+      },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "apiVersion": {
@@ -993,12 +1051,16 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
+        },
+        "toolchain": {
+          "$ref": "#/$defs/ToolchainStatus"
         }
       },
       "required": [
         "apiVersion",
         "schemaVersion",
-        "methods"
+        "methods",
+        "toolchain"
       ],
       "title": "Capabilities",
       "type": "object"
@@ -1200,7 +1262,12 @@
             "ICE3_STUDIO_BUDGET_EXCEEDED",
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
-            "ICE3_STUDIO_PERSISTENCE_FAILED"
+            "ICE3_STUDIO_PERSISTENCE_FAILED",
+            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED"
           ],
           "type": "string"
         },
@@ -2945,7 +3012,12 @@
             "ICE3_STUDIO_BUDGET_EXCEEDED",
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
-            "ICE3_STUDIO_PERSISTENCE_FAILED"
+            "ICE3_STUDIO_PERSISTENCE_FAILED",
+            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED"
           ],
           "type": "string"
         },
@@ -3638,7 +3710,12 @@
             "ICE3_STUDIO_BUDGET_EXCEEDED",
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
-            "ICE3_STUDIO_PERSISTENCE_FAILED"
+            "ICE3_STUDIO_PERSISTENCE_FAILED",
+            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED"
           ],
           "type": "string"
         }
@@ -3811,7 +3888,12 @@
             "ICE3_STUDIO_BUDGET_EXCEEDED",
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
-            "ICE3_STUDIO_PERSISTENCE_FAILED"
+            "ICE3_STUDIO_PERSISTENCE_FAILED",
+            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED"
           ],
           "type": "string"
         },

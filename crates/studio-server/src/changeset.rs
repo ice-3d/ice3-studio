@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rand::RngCore;
@@ -111,11 +112,7 @@ pub(crate) fn export_candidate_preview(
     if current_digest != digest || !candidate.diagnostics.is_empty() {
         return Err(operation_error("candidate digest is stale or blocked"));
     }
-    let toolchain = session
-        .toolchain_cli
-        .clone()
-        .ok_or_else(|| preview_error("STUDIO_TOOLCHAIN_CLI is not configured"))?;
-    let adapter = PreviewAdapter::new(&session.workspace_root, toolchain).map_err(preview_error)?;
+    let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain));
     match adapter.generate_candidate(&candidate.document, session.store.project_dir(), digest) {
         Ok(preview) => Ok(preview),
         Err(error) => {

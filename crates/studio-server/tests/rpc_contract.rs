@@ -1,5 +1,9 @@
+mod common;
+
 use futures_util::StreamExt;
 use studio_server::{ServerConfig, start_test_server};
+
+use common::SUCCESS_TOOLCHAIN;
 
 #[tokio::test]
 async fn health_reports_api_and_schema_versions() {
@@ -87,11 +91,7 @@ async fn publishes_generated_api_schemas() {
 async fn health_stays_responsive_while_preview_processing_blocks() {
     let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;
     let adapter = server.workspace_root().join("slow-toolchain.mjs");
-    std::fs::write(
-        &adapter,
-        "import fs from 'node:fs'; import { setTimeout as delay } from 'node:timers/promises'; const args=process.argv.slice(2); await delay(600); fs.copyFileSync(args[1], args[args.indexOf('--output')+1]);",
-    )
-    .unwrap();
+    std::fs::write(&adapter, SUCCESS_TOOLCHAIN).unwrap();
 
     server.set_toolchain_cli(adapter).await;
 

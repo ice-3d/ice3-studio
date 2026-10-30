@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::sync::Arc;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,12 +9,16 @@ use studio_core::export::glb::export_glb;
 use thiserror::Error;
 use ts_rs::TS;
 
+use crate::toolchain::ToolchainService;
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RuntimePreview {
     pub revision: u64,
+    pub asset_id: String,
     pub source_digest: String,
+    pub content_hash: String,
     pub source_path: PathBuf,
     pub preview_path: PathBuf,
 }
@@ -34,6 +38,7 @@ pub struct SourceExport {
 pub struct CandidatePreview {
     pub asset_id: String,
     pub digest: String,
+    pub content_hash: String,
     pub url: String,
 }
 
@@ -66,26 +71,23 @@ pub enum PreviewError {
     AdapterFailed(std::process::ExitStatus),
     #[error("preview adapter did not produce a valid GLB")]
     InvalidOutput,
+    #[error("Toolchain sidecar failed: {0}")]
+    Toolchain(#[from] studio_toolchain_client::ToolchainClientError),
 }
 
 pub struct PreviewAdapter {
-    node_binary: PathBuf,
-    toolchain_cli: PathBuf,
+    toolchain: Arc<ToolchainService>,
 }
 
 impl PreviewAdapter {
     pub fn new(workspace_root: &Path, toolchain_cli: PathBuf) -> Result<Self, PreviewError> {
-        let root = workspace_root.canonicalize().map_err(PreviewError::Io)?;
-        let toolchain_cli = toolchain_cli.canonicalize().map_err(PreviewError::Io)?;
-        if !toolchain_cli.is_file() || !toolchain_cli.starts_with(&root) {
-            return Err(PreviewError::InvalidToolchain);
-        }
         Ok(Self {
-            node_binary: std::env::var_os("STUDIO_NODE")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("node")),
-            toolchain_cli,
+            toolchain: Arc::new(ToolchainService::new(workspace_root, Some(toolchain_cli))),
         })
+    }
+
+    pub fn from_service(toolchain: Arc<ToolchainService>) -> Self {
+        Self { toolchain }
     }
 
     pub fn generate(
@@ -100,41 +102,14 @@ impl PreviewAdapter {
         let source_export = export_source(document, project_dir)?;
         let source_path = source_export.source_path;
         let preview_path = preview_dir.join(format!("{revision:08}.glb"));
-        let temporary = preview_dir.join(format!("{revision:08}.glb.tmp"));
-        let status = std::process::Command::new(&self.node_binary)
-            .arg(&self.toolchain_cli)
-            .arg("build")
-            .arg(&source_path)
-            .arg("--output")
-            .arg(&temporary)
-            .arg("--asset-id")
-            .arg(asset_id)
-            .arg("--budget")
-            .arg("unrestricted")
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .status()
-            .map_err(PreviewError::Io)?;
-        if !status.success() {
-            let _ = std::fs::remove_file(&temporary);
-            return Err(PreviewError::AdapterFailed(status));
-        }
-        let bytes = match std::fs::read(&temporary) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                let _ = std::fs::remove_file(&temporary);
-                return Err(PreviewError::Io(error));
-            }
-        };
-        if bytes.len() < 12 || &bytes[0..4] != b"glTF" {
-            let _ = std::fs::remove_file(&temporary);
-            return Err(PreviewError::InvalidOutput);
-        }
-        std::fs::rename(&temporary, &preview_path).map_err(PreviewError::Io)?;
+        let asset = self
+            .toolchain
+            .preview(&source_path, &preview_path, asset_id)?;
         Ok(RuntimePreview {
             revision,
+            asset_id: asset.asset_id,
             source_digest: source_export.source_digest,
+            content_hash: asset.content_hash,
             source_path,
             preview_path,
         })
@@ -155,6 +130,10 @@ impl PreviewAdapter {
             return Ok(CandidatePreview {
                 asset_id: digest.into(),
                 digest: digest.into(),
+                content_hash: format!(
+                    "{:x}",
+                    Sha256::digest(std::fs::read(&preview_path).map_err(PreviewError::Io)?)
+                ),
                 url: format!("/previews/candidates/{digest}"),
             });
         }
@@ -162,34 +141,15 @@ impl PreviewAdapter {
         let source_digest = format!("{:x}", Sha256::digest(&source));
         let source_path = candidate_dir.join(format!("{digest}-source.glb"));
         std::fs::write(&source_path, source).map_err(PreviewError::Io)?;
-        let temporary = preview_dir.join(format!("{digest}.glb.tmp"));
-        let status = std::process::Command::new(&self.node_binary)
-            .arg(&self.toolchain_cli)
-            .arg("build")
-            .arg(&source_path)
-            .arg("--output")
-            .arg(&temporary)
-            .arg("--asset-id")
-            .arg(format!("candidate-{source_digest}"))
-            .arg("--budget")
-            .arg("unrestricted")
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .status()
-            .map_err(PreviewError::Io)?;
-        if !status.success() {
-            let _ = std::fs::remove_file(&temporary);
-            return Err(PreviewError::AdapterFailed(status));
-        }
-        if !valid_glb(&temporary) {
-            let _ = std::fs::remove_file(&temporary);
-            return Err(PreviewError::InvalidOutput);
-        }
-        std::fs::rename(&temporary, &preview_path).map_err(PreviewError::Io)?;
+        let asset = self.toolchain.preview(
+            &source_path,
+            &preview_path,
+            &format!("candidate-{source_digest}"),
+        )?;
         Ok(CandidatePreview {
             asset_id: digest.into(),
             digest: digest.into(),
+            content_hash: asset.content_hash,
             url: format!("/previews/candidates/{digest}"),
         })
     }

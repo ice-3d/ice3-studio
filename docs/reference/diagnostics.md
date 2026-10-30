@@ -41,6 +41,11 @@ same value as `code`.
 | `ICE3_STUDIO_EXPORT_FAILED` | Source GLB export failed |
 | `ICE3_STUDIO_RUNTIME_PREVIEW_FAILED` | Toolchain preview processing failed |
 | `ICE3_STUDIO_PERSISTENCE_FAILED` | Atomic project persistence failed |
+| `ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE` | The managed Toolchain sidecar is not configured or cannot start |
+| `ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE` | The sidecar contract major does not match Studio |
+| `ICE3_STUDIO_TOOLCHAIN_TIMEOUT` | A Toolchain operation exceeded its host timeout |
+| `ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID` | Sidecar stdout violated the JSON-RPC contract or the process crashed |
+| `ICE3_STUDIO_TOOLCHAIN_JOB_FAILED` | Toolchain rejected or failed an asset job |
 
 ## Recovery Rules
 

@@ -52,9 +52,24 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_PERSISTENCE_FAILED")]
     #[ts(rename = "ICE3_STUDIO_PERSISTENCE_FAILED")]
     PersistenceFailed,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE")]
+    ToolchainUnavailable,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE")]
+    ToolchainIncompatible,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_TIMEOUT")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_TIMEOUT")]
+    ToolchainTimeout,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID")]
+    ToolchainProtocolInvalid,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED")]
+    ToolchainJobFailed,
 }
 
-pub const DIAGNOSTIC_CODES: [&str; 14] = [
+pub const DIAGNOSTIC_CODES: [&str; 19] = [
     "ICE3_STUDIO_API_INVALID",
     "ICE3_STUDIO_API_VERSION_UNSUPPORTED",
     "ICE3_STUDIO_AUTH_REQUIRED",
@@ -69,6 +84,11 @@ pub const DIAGNOSTIC_CODES: [&str; 14] = [
     "ICE3_STUDIO_EXPORT_FAILED",
     "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
     "ICE3_STUDIO_PERSISTENCE_FAILED",
+    "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+    "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+    "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+    "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+    "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
 ];
 
 impl DiagnosticCode {
@@ -88,6 +108,11 @@ impl DiagnosticCode {
             Self::ExportFailed => "ICE3_STUDIO_EXPORT_FAILED",
             Self::RuntimePreviewFailed => "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
             Self::PersistenceFailed => "ICE3_STUDIO_PERSISTENCE_FAILED",
+            Self::ToolchainUnavailable => "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+            Self::ToolchainIncompatible => "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+            Self::ToolchainTimeout => "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+            Self::ToolchainProtocolInvalid => "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+            Self::ToolchainJobFailed => "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
         }
     }
 }

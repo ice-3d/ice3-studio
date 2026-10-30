@@ -28,6 +28,7 @@ use crate::ServerEvent;
 use crate::auth::{approval_cookie, bearer_token};
 use crate::capabilities::{WriteMode, authorize_write};
 use crate::preview::{PreviewAdapter, export_source};
+use crate::toolchain::{ToolchainService, ToolchainStatus};
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -113,6 +114,7 @@ pub struct Capabilities {
     pub api_version: String,
     pub schema_version: u32,
     pub methods: Vec<String>,
+    pub toolchain: ToolchainStatus,
 }
 
 pub(crate) struct Session {
@@ -124,6 +126,7 @@ pub(crate) struct Session {
     pub(crate) events: broadcast::Sender<ServerEvent>,
     pub(crate) closed: bool,
     pub(crate) toolchain_cli: Option<PathBuf>,
+    pub(crate) toolchain: Arc<ToolchainService>,
     pub(crate) approval_token: String,
     pub(crate) write_mode: WriteMode,
     pub(crate) bootstrap_token: Option<String>,
@@ -205,11 +208,9 @@ impl TestServer {
     }
 
     pub async fn set_toolchain_cli(&self, path: PathBuf) {
-        self.state
-            .session
-            .lock()
-            .expect("session lock")
-            .toolchain_cli = Some(path);
+        let mut session = self.state.session.lock().expect("session lock");
+        session.toolchain_cli = Some(path.clone());
+        session.toolchain.reconfigure(path);
     }
 
     pub async fn stop(mut self) {
@@ -417,6 +418,7 @@ async fn initialize_state(
         }
     }
     let (events, _) = broadcast::channel(64);
+    let toolchain = Arc::new(ToolchainService::new(root, toolchain_cli.clone()));
     let state = AppState {
         session: Arc::new(Mutex::new(Session {
             workspace_root: root.to_path_buf(),
@@ -427,6 +429,7 @@ async fn initialize_state(
             events,
             closed: false,
             toolchain_cli,
+            toolchain,
             approval_token: credentials.approval_token,
             write_mode: credentials.write_mode,
             bootstrap_token: credentials.bootstrap_token,
@@ -570,6 +573,23 @@ async fn rpc(
             .into_response();
     }
     let request_id = request.id.clone();
+    if let Some(result) = dispatch_unlocked_preview(&state, &request).await {
+        let response = match result {
+            Ok(result) => RpcResponse {
+                jsonrpc: "2.0".into(),
+                id: request_id,
+                result: Some(result),
+                error: None,
+            },
+            Err(error) => RpcResponse {
+                jsonrpc: "2.0".into(),
+                id: request_id,
+                result: None,
+                error: Some(error),
+            },
+        };
+        return (StatusCode::OK, Json(response)).into_response();
+    }
     let response = match tokio::task::spawn_blocking(move || {
         let mut session = state.session.lock().expect("session lock");
         dispatch(&mut session, &request)
@@ -601,6 +621,54 @@ async fn rpc(
         },
     };
     (StatusCode::OK, Json(response)).into_response()
+}
+
+async fn dispatch_unlocked_preview(
+    state: &AppState,
+    request: &RpcRequest,
+) -> Option<Result<serde_json::Value, RpcError>> {
+    if request.method != "export.runtimePreview" {
+        return None;
+    }
+    let params: RuntimePreviewParams = serde_json::from_value(request.params.clone()).ok()?;
+    if params.candidate_digest.is_some() {
+        return None;
+    }
+    let (document, project_dir, project_id, toolchain, closed) = {
+        let session = state.session.lock().expect("session lock");
+        (
+            session.document.clone(),
+            session.store.project_dir().to_path_buf(),
+            session.project_id.clone(),
+            Arc::clone(&session.toolchain),
+            session.closed,
+        )
+    };
+    if closed {
+        return Some(Err(RpcError::with_diagnostic(
+            -32010,
+            DiagnosticCode::ProjectNotFound.as_str(),
+            "ICE3_STUDIO_PROJECT_NOT_FOUND: no project is open".into(),
+            None,
+        )));
+    }
+    Some(
+        tokio::task::spawn_blocking(move || {
+            PreviewAdapter::from_service(toolchain)
+                .generate(&document, &project_dir, &project_id)
+                .map_err(preview_error)
+                .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error))
+        })
+        .await
+        .unwrap_or_else(|error| {
+            Err(RpcError::with_diagnostic(
+                -32603,
+                DiagnosticCode::RuntimePreviewFailed.as_str(),
+                format!("preview worker failed: {error}"),
+                None,
+            ))
+        }),
+    )
 }
 
 fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::Value, RpcError> {
@@ -656,6 +724,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "changeset.commit".into(),
                 "changeset.discard".into(),
             ],
+            toolchain: session.toolchain.status(),
         })
         .expect("serializable capabilities")),
         "project.get" | "document.get" => {
@@ -863,17 +932,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 return crate::changeset::export_candidate_preview(session, &digest)
                     .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error));
             }
-            let cli = session.toolchain_cli.clone().ok_or_else(|| {
-                RpcError::with_diagnostic(
-                    -32020,
-                    DiagnosticCode::RuntimePreviewFailed.as_str(),
-                    "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED: STUDIO_TOOLCHAIN_CLI is not configured"
-                        .into(),
-                    None,
-                )
-            })?;
-            let adapter =
-                PreviewAdapter::new(&session.workspace_root, cli).map_err(preview_error)?;
+            let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain));
             let output = adapter
                 .generate(
                     &session.document,
@@ -1224,6 +1283,22 @@ fn geometry_error(error: studio_core::geometry::GeometryError) -> RpcError {
 fn preview_error(error: crate::preview::PreviewError) -> RpcError {
     let diagnostic = match &error {
         crate::preview::PreviewError::Export(_) => DiagnosticCode::ExportFailed,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Unavailable { .. },
+        ) => DiagnosticCode::ToolchainUnavailable,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Incompatible { .. },
+        ) => DiagnosticCode::ToolchainIncompatible,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Timeout { .. },
+        ) => DiagnosticCode::ToolchainTimeout,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Protocol { .. }
+            | studio_toolchain_client::ToolchainClientError::Crashed { .. },
+        ) => DiagnosticCode::ToolchainProtocolInvalid,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Rejected { .. },
+        ) => DiagnosticCode::ToolchainJobFailed,
         _ => DiagnosticCode::RuntimePreviewFailed,
     };
     RpcError::with_diagnostic(
