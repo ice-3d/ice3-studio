@@ -1381,12 +1381,14 @@ dependencies = [
 name = "studio-project"
 version = "0.1.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
  "sha2",
  "studio-core",
  "tempfile",
  "thiserror",
+ "ts-rs",
 ]
 
 [[package]]

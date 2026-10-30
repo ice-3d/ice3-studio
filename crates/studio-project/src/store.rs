@@ -10,6 +10,7 @@ use studio_core::ids::Revision;
 use thiserror::Error;
 
 use crate::WorkspacePath;
+use crate::changeset_store::ChangeSetStore;
 use crate::lock::{LockError, ProjectLock};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -80,6 +81,7 @@ impl ProjectStore {
         fs::create_dir_all(path.project.join("revisions")).map_err(ProjectError::Io)?;
         fs::create_dir_all(path.project.join("history")).map_err(ProjectError::Io)?;
         fs::create_dir_all(path.project.join("resources")).map_err(ProjectError::Io)?;
+        fs::create_dir_all(path.project.join("changesets")).map_err(ProjectError::Io)?;
         fs::create_dir_all(path.project.join("cache/preview")).map_err(ProjectError::Io)?;
         let lock = ProjectLock::acquire(ProjectLock::path_for(&path.project))?;
         Ok(Self {
@@ -97,6 +99,7 @@ impl ProjectStore {
             path,
             lock: Some(lock),
         };
+        std::fs::create_dir_all(store.path.project.join("changesets")).map_err(ProjectError::Io)?;
         store.validate_history()?;
         Ok(store)
     }
@@ -109,6 +112,20 @@ impl ProjectStore {
 
     pub fn project_dir(&self) -> &Path {
         self.path.project_dir()
+    }
+
+    pub fn change_set_store(&self) -> ChangeSetStore {
+        ChangeSetStore::new(self.project_dir()).expect("project changeset directory")
+    }
+
+    pub fn load_revision(&self, revision: Revision) -> Result<Document, ProjectError> {
+        self.ensure_open()?;
+        let history = self.read_history()?;
+        let entry = history
+            .into_iter()
+            .find(|entry| entry.revision == revision)
+            .ok_or(ProjectError::InvalidRevision)?;
+        self.read_revision_with_digest(revision, &entry.digest)
     }
 
     pub fn close(&mut self) {
@@ -322,7 +339,7 @@ impl ProjectStore {
     }
 }
 
-fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), ProjectError> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), ProjectError> {
     let temporary = path.with_extension(format!(
         "{}.tmp",
         path.extension()
