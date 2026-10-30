@@ -66,6 +66,8 @@ impl ToolchainService {
         };
         if let Some(script) = toolchain_cli {
             service.reconfigure(script);
+        } else if let Some(application_root) = std::env::var_os("STUDIO_APP_ROOT") {
+            service.configure_managed(PathBuf::from(application_root));
         }
         service
     }
@@ -86,6 +88,33 @@ impl ToolchainService {
                 return;
             }
         };
+        self.activate(config);
+    }
+
+    pub fn configure_managed(&self, application_root: PathBuf) {
+        match ToolchainLaunchConfig::from_manifest(application_root)
+            .map(|config| config.with_workspace_root(self.workspace_root.clone()))
+        {
+            Ok(config) => self.activate(config),
+            Err(error) => {
+                *self
+                    .launch
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+                *self
+                    .status
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner()) =
+                    if matches!(error, ToolchainClientError::Incompatible { .. }) {
+                        ToolchainStatus::incompatible(error.to_string())
+                    } else {
+                        ToolchainStatus::unavailable(error.to_string())
+                    };
+            }
+        }
+    }
+
+    fn activate(&self, config: ToolchainLaunchConfig) {
         *self
             .launch
             .lock()

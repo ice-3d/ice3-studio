@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use studio_toolchain_client::{
     ToolchainClient, ToolchainClientError, ToolchainLaunchConfig, validate_workspace_path,
 };
@@ -116,4 +117,45 @@ fn preview_returns_a_typed_asset_result() {
     assert_eq!(result.asset_id, "preview");
     assert_eq!(result.primary_path, "cache/toolchain/result.glb");
     assert_eq!(result.byte_length, 12);
+}
+
+#[test]
+fn loads_and_hashes_a_managed_manifest() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join("toolchain/dist")).unwrap();
+    std::fs::create_dir_all(root.path().join("runtime")).unwrap();
+    let runtime = root.path().join("runtime/node");
+    let entry = root.path().join("toolchain/dist/main.js");
+    std::fs::write(&runtime, b"runner").unwrap();
+    std::fs::write(&entry, b"entry").unwrap();
+    let hash = |bytes: &[u8]| format!("{:x}", Sha256::digest(bytes));
+    std::fs::write(
+        root.path().join("toolchain/manifest.json"),
+        serde_json::to_vec(&json!({
+            "schemaVersion": 1,
+            "contractVersion": "1.0.0",
+            "packageVersion": "0.2.0",
+            "nodeVersion": "v24.22.1",
+            "platform": if cfg!(target_os = "macos") { "macos" } else { std::env::consts::OS },
+            "architecture": if cfg!(target_arch = "aarch64") {
+                "arm64"
+            } else if cfg!(target_arch = "x86_64") {
+                "x64"
+            } else {
+                std::env::consts::ARCH
+            },
+            "entrypoint": "runtime/node",
+            "packageEntry": "toolchain/dist/main.js",
+            "sha256": "unused-by-loader",
+            "files": {
+                "runtime/node": hash(b"runner"),
+                "toolchain/dist/main.js": hash(b"entry")
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let config = ToolchainLaunchConfig::from_manifest(root.path()).unwrap();
+    assert_eq!(config.program, runtime.canonicalize().unwrap());
+    assert_eq!(config.args[0], entry.canonicalize().unwrap());
 }

@@ -8,6 +8,8 @@
   },
   "scripts": {
     "benchmark": "node benchmarks/studio-mvp.mjs",
+    "toolchain:stage": "node scripts/stage-toolchain.mjs",
+    "toolchain:verify": "node scripts/verify-toolchain-bundle.mjs",
     "verify": "node scripts/verify.mjs"
   }
 }

@@ -8,8 +8,10 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::protocol::{
@@ -28,6 +30,88 @@ pub struct ToolchainLaunchConfig {
     pub environment: Vec<(String, String)>,
     pub workspace_root: PathBuf,
     pub request_timeout: Duration,
+}
+
+impl ToolchainLaunchConfig {
+    pub fn from_manifest(
+        application_root: impl AsRef<std::path::Path>,
+    ) -> Result<Self, ToolchainClientError> {
+        let application_root = application_root.as_ref().canonicalize().map_err(|error| {
+            ToolchainClientError::Unavailable {
+                reason: error.to_string(),
+            }
+        })?;
+        let manifest_path = application_root.join("toolchain/manifest.json");
+        let manifest: ToolchainManifest =
+            serde_json::from_slice(&std::fs::read(&manifest_path).map_err(|error| {
+                ToolchainClientError::Unavailable {
+                    reason: error.to_string(),
+                }
+            })?)
+            .map_err(|error| ToolchainClientError::protocol(error.to_string()))?;
+        if !manifest.contract_version.starts_with("1.") {
+            return Err(ToolchainClientError::Incompatible {
+                required: "1.x".into(),
+                received: manifest.contract_version,
+            });
+        }
+        if manifest.platform != current_platform()
+            || manifest.architecture != current_architecture()
+        {
+            return Err(ToolchainClientError::Incompatible {
+                required: format!("{}/{}", current_platform(), current_architecture()),
+                received: format!("{}/{}", manifest.platform, manifest.architecture),
+            });
+        }
+        let entrypoint = validate_workspace_path(&application_root, &manifest.entrypoint)?;
+        let package_entry = validate_workspace_path(&application_root, &manifest.package_entry)?;
+        for (path, expected) in &manifest.files {
+            let absolute = validate_workspace_path(&application_root, path)?;
+            let digest = Sha256::digest(std::fs::read(&absolute).map_err(|error| {
+                ToolchainClientError::Unavailable {
+                    reason: error.to_string(),
+                }
+            })?);
+            if format!("{digest:x}") != *expected {
+                return Err(ToolchainClientError::protocol(format!(
+                    "toolchain bundle hash mismatch: {path}"
+                )));
+            }
+        }
+        Ok(Self {
+            program: entrypoint,
+            args: vec![package_entry, "sidecar".into()],
+            environment: std::env::var_os("PATH")
+                .map(|path| vec![("PATH".into(), path.to_string_lossy().into_owned())])
+                .unwrap_or_default(),
+            workspace_root: application_root,
+            request_timeout: Duration::from_secs(30),
+        })
+    }
+
+    pub fn with_workspace_root(mut self, workspace_root: impl Into<PathBuf>) -> Self {
+        self.workspace_root = workspace_root.into();
+        self.args.push("--workspace".into());
+        self.args.push(self.workspace_root.clone());
+        self
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolchainManifest {
+    contract_version: String,
+    #[allow(dead_code)]
+    package_version: String,
+    #[allow(dead_code)]
+    node_version: String,
+    platform: String,
+    architecture: String,
+    entrypoint: String,
+    package_entry: String,
+    #[allow(dead_code)]
+    sha256: String,
+    files: HashMap<String, String>,
 }
 
 #[derive(Debug, Error)]
@@ -450,5 +534,25 @@ fn fail_pending(
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     for (_, sender) in pending.drain() {
         let _ = sender.send(make_reply(message.into()));
+    }
+}
+
+fn current_platform() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        std::env::consts::OS
+    }
+}
+
+fn current_architecture() -> &'static str {
+    if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else if cfg!(target_arch = "x86_64") {
+        "x64"
+    } else {
+        std::env::consts::ARCH
     }
 }

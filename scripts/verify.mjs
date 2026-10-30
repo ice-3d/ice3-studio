@@ -17,6 +17,11 @@ const steps = [
     args: ['test', '--workspace'],
   },
   {
+    label: 'Toolchain bundle contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/toolchain-bundle.test.mjs'],
+  },
+  {
     label: 'Generated schemas',
     command: 'cargo',
     args: [
