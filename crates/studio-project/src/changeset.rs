@@ -1,5 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use studio_core::apply::ApplyResult;
 use studio_core::diff::DocumentDiff;
 use studio_core::document::Document;
 use studio_core::ids::Revision;
@@ -115,6 +116,10 @@ pub struct ChangeSet {
     pub candidate_digest: Option<String>,
     pub diagnostics: Vec<Diagnostic>,
     pub committed_revision: Option<Revision>,
+    #[serde(default)]
+    pub commit_result: Option<ApplyResult>,
+    #[serde(default)]
+    pub commit_idempotency_key: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
 }
@@ -139,6 +144,8 @@ impl ChangeSet {
             candidate_digest: None,
             diagnostics: Vec::new(),
             committed_revision: None,
+            commit_result: None,
+            commit_idempotency_key: None,
             created_at,
             updated_at: created_at,
         }
@@ -222,9 +229,16 @@ impl ChangeSet {
         self.updated_at = updated_at;
     }
 
-    pub fn mark_committed(&mut self, revision: Revision, updated_at: u64) {
+    pub fn mark_committed(
+        &mut self,
+        result: ApplyResult,
+        idempotency_key: String,
+        updated_at: u64,
+    ) {
         self.status = ChangeSetStatus::Committed;
-        self.committed_revision = Some(revision);
+        self.committed_revision = Some(result.revision);
+        self.commit_result = Some(result);
+        self.commit_idempotency_key = Some(idempotency_key);
         self.updated_at = updated_at;
     }
 

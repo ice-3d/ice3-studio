@@ -249,6 +249,17 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
     let mut change_set = change_sets
         .load(&params.change_set_id)
         .map_err(project_error)?;
+    if change_set.status == ChangeSetStatus::Committed {
+        if change_set.commit_idempotency_key.as_deref() == Some(params.idempotency_key.as_str()) {
+            return serde_json::to_value(
+                change_set
+                    .commit_result
+                    .expect("committed ChangeSet stores its result"),
+            )
+            .map_err(serialize_error);
+        }
+        return Err(operation_error("ChangeSet is already committed"));
+    }
     if change_set.version != params.expected_version {
         return Err(operation_error("ChangeSet version conflict"));
     }
@@ -270,6 +281,7 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
         return Err(operation_error("blocked ChangeSet cannot be committed"));
     }
     let previous = session.document.clone();
+    let commit_key = params.idempotency_key.clone();
     let result = apply_transaction(
         &mut session.document,
         ApplyRequest {
@@ -293,7 +305,7 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
         session.document = previous;
         return Err(project_error(error));
     }
-    change_set.mark_committed(result.revision, now_ms());
+    change_set.mark_committed(result.clone(), commit_key, now_ms());
     change_sets.save(&change_set).map_err(project_error)?;
     let _ = session.events.send(ServerEvent::ChangeSetCommitted {
         change_set_id: change_set.id,

@@ -393,3 +393,16 @@ async fn empty_change_set_is_blocked_instead_of_ready() {
         "ICE3_STUDIO_OPERATION_INVALID"
     );
 }
+
+#[tokio::test]
+async fn repeated_commit_returns_the_original_result() {
+    let server = start_test_server(ServerConfig::review_required("idempotent-commit")).await;
+    let evaluated = create_and_evaluate_with_token(&server, server.agent_token()).await;
+    let params = commit_params(&evaluated);
+    let first = rpc_with_approval_cookie(&server, "changeset.commit", params.clone()).await;
+    let second = rpc_with_approval_cookie(&server, "changeset.commit", params).await;
+
+    assert_eq!(first["result"], second["result"]);
+    let current = rpc(&server, "document.get", serde_json::json!({})).await;
+    assert_eq!(current["result"]["revision"], 1);
+}

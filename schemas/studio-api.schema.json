@@ -1005,6 +1005,61 @@
     },
     "ChangeSet": {
       "$defs": {
+        "ApplyResult": {
+          "properties": {
+            "changedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "changedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "changedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "diagnostics": {
+              "items": {
+                "$ref": "#/$defs/Diagnostic"
+              },
+              "type": "array"
+            },
+            "diff": {
+              "$ref": "#/$defs/DocumentDiff"
+            },
+            "dryRun": {
+              "type": "boolean"
+            },
+            "previousRevision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "previousRevision",
+            "revision",
+            "changedNodeIds",
+            "changedMaterialIds",
+            "changedRelationIds",
+            "diff",
+            "diagnostics",
+            "dryRun"
+          ],
+          "type": "object"
+        },
         "ChangeSetEntry": {
           "additionalProperties": false,
           "properties": {
@@ -1148,6 +1203,97 @@
             "ICE3_STUDIO_PERSISTENCE_FAILED"
           ],
           "type": "string"
+        },
+        "DocumentDiff": {
+          "properties": {
+            "addedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "addedNodeIds",
+            "updatedNodeIds",
+            "removedNodeIds",
+            "addedMaterialIds",
+            "updatedMaterialIds",
+            "removedMaterialIds",
+            "addedRelationIds",
+            "updatedRelationIds",
+            "removedRelationIds",
+            "addedConstraintIds",
+            "updatedConstraintIds",
+            "removedConstraintIds"
+          ],
+          "type": "object"
         },
         "NodeContent": {
           "oneOf": [
@@ -1822,6 +1968,24 @@
             "string",
             "null"
           ]
+        },
+        "commitIdempotencyKey": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "commitResult": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ApplyResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "committedRevision": {
           "format": "uint64",
