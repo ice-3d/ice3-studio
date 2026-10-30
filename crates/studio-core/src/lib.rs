@@ -4,6 +4,7 @@ pub mod diff;
 pub mod document;
 pub mod export;
 pub mod geometry;
+pub mod gpu_contract;
 pub mod ids;
 pub mod large_scene;
 pub mod math;
