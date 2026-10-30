@@ -4,6 +4,7 @@ members = [
   "crates/studio-project",
   "crates/studio-server",
   "crates/studio-cli",
+  "crates/studio-toolchain-client",
 ]
 resolver = "3"
 
