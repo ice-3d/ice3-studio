@@ -144,18 +144,34 @@ pub fn route_between_ports(
         RoutePolicy::Rack { elevation } if elevation.is_finite() => Some(*elevation),
         _ => return Err(ConnectionError::InvalidPolicy),
     };
-    Ok(build_route(from.position, to.position, elevation))
+    Ok(build_route(
+        from.position,
+        from.direction,
+        to.position,
+        to.direction,
+        elevation,
+    ))
 }
 
-fn build_route(start: Vec3, end: Vec3, elevation: Option<f32>) -> Vec<[f32; 3]> {
+fn build_route(
+    start: Vec3,
+    start_direction: Vec3,
+    end: Vec3,
+    end_direction: Vec3,
+    elevation: Option<f32>,
+) -> Vec<[f32; 3]> {
     let Some(elevation) = elevation else {
         return vec![[start.x, start.y, start.z], [end.x, end.y, end.z]];
     };
+    let start_stub = add_scaled(start, start_direction, 0.9);
+    let end_stub = add_scaled(end, end_direction, 0.9);
     let mut points = Vec::new();
     push_unique(&mut points, [start.x, start.y, start.z]);
-    push_unique(&mut points, [start.x, elevation, start.z]);
-    push_unique(&mut points, [start.x, elevation, end.z]);
-    push_unique(&mut points, [end.x, elevation, end.z]);
+    push_unique(&mut points, [start_stub.x, start_stub.y, start_stub.z]);
+    push_unique(&mut points, [start_stub.x, elevation, start_stub.z]);
+    push_unique(&mut points, [end_stub.x, elevation, start_stub.z]);
+    push_unique(&mut points, [end_stub.x, elevation, end_stub.z]);
+    push_unique(&mut points, [end_stub.x, end_stub.y, end_stub.z]);
     push_unique(&mut points, [end.x, end.y, end.z]);
     points
 }
@@ -169,6 +185,14 @@ fn push_unique(points: &mut Vec<[f32; 3]>, point: [f32; 3]) {
 fn distance(left: Vec3, right: Vec3) -> f32 {
     let delta = [right.x - left.x, right.y - left.y, right.z - left.z];
     (delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2]).sqrt()
+}
+
+fn add_scaled(value: Vec3, direction: Vec3, distance: f32) -> Vec3 {
+    Vec3 {
+        x: value.x + direction.x * distance,
+        y: value.y + direction.y * distance,
+        z: value.z + direction.z * distance,
+    }
 }
 
 fn world_transform(document: &Document, node: &SceneNode) -> Result<Transform, ConnectionError> {

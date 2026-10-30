@@ -1,10 +1,16 @@
 use std::collections::BTreeMap;
 
+use studio_core::document::Constraint;
 use studio_core::document::Document;
-use studio_core::ids::ComponentId;
+use studio_core::ids::{ComponentId, ConstraintId};
 use studio_core::large_scene::component::*;
 use studio_core::large_scene::validate::{resolve_parameters, validate_large_scene};
 use studio_core::math::Vec3;
+use studio_core::validation::{DiagnosticCode, validate_document};
+
+mod support;
+
+use support::shared_pump_document;
 
 fn definition(id: &str) -> ComponentDefinition {
     ComponentDefinition {
@@ -89,4 +95,23 @@ fn rejects_unknown_and_cyclic_component_references() {
         .map(|diagnostic| diagnostic.message)
         .collect::<Vec<_>>();
     assert!(messages.iter().any(|message| message.contains("cycle")));
+}
+
+#[test]
+fn enforces_no_overlap_for_component_instances() {
+    let mut document = shared_pump_document();
+    document.scene.nodes_mut()[1].transform.translation.x = 3.5;
+    document.constraints.push(Constraint {
+        id: ConstraintId::from("constraint-000001"),
+        constraint_type: "no_overlap".into(),
+        node_ids: vec!["node-000001".into(), "node-000002".into()],
+        metadata: BTreeMap::new(),
+    });
+
+    let diagnostics = validate_document(&document);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::ConstraintFailed)
+    );
 }

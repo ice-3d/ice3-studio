@@ -29,9 +29,6 @@ pub enum ExportError {
 }
 
 pub fn export_glb(document: &Document) -> Result<Vec<u8>, ExportError> {
-    if !validate_document(document).is_empty() {
-        return Err(ExportError::Validation);
-    }
     let evaluated = evaluate_large_scene(document)?;
     export_glb_from_scene(document, &evaluated)
 }
@@ -40,6 +37,9 @@ pub fn export_glb_from_scene(
     document: &Document,
     evaluated: &EvaluatedScene,
 ) -> Result<Vec<u8>, ExportError> {
+    if !validate_document(document).is_empty() {
+        return Err(ExportError::Validation);
+    }
     let mut binary = Vec::new();
     let mut buffer_views = Vec::<Value>::new();
     let mut accessors = Vec::<Value>::new();

@@ -754,6 +754,7 @@ fn append_connection(
         &connection.to,
         &connection.route_policy,
         connection.diameter,
+        &points,
     ))
     .map_err(|_| LargeSceneError::InvalidComponentReference)?;
     let mesh_key = format!("connection-{:x}", Sha256::digest(bytes));

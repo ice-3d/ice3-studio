@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::document::{Document, SceneNode};
-use crate::geometry::{evaluate_node_content, world_bounds};
+use crate::geometry::{Bounds, evaluate_node_content};
+use crate::large_scene::evaluate::{evaluate_large_scene, evaluated_scene_bounds};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[ts(export)]
@@ -202,6 +203,15 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
         .iter()
         .map(|node| (node.id.clone(), node))
         .collect();
+    let has_overlap_constraint = document
+        .constraints
+        .iter()
+        .any(|constraint| constraint.constraint_type == "no_overlap");
+    let constraint_bounds = if has_overlap_constraint {
+        derived_source_bounds(document)
+    } else {
+        HashMap::new()
+    };
     for (index, node) in document.scene.nodes().iter().enumerate() {
         if let Some(parent) = &node.parent_id
             && !node_by_id.contains_key(parent)
@@ -327,7 +337,7 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
             ));
         }
         if constraint.constraint_type == "no_overlap"
-            && overlapping_nodes(document, &constraint.node_ids, &node_by_id)
+            && overlapping_nodes(&constraint.node_ids, &node_by_id, &constraint_bounds)
         {
             diagnostics.push(Diagnostic {
                 code: DiagnosticCode::ConstraintFailed,
@@ -381,17 +391,14 @@ fn has_parent_cycle(node: &SceneNode, nodes: &HashMap<crate::ids::NodeId, &Scene
 }
 
 fn overlapping_nodes(
-    document: &Document,
     node_ids: &[crate::ids::NodeId],
     nodes: &HashMap<crate::ids::NodeId, &SceneNode>,
+    bounds_by_node: &HashMap<crate::ids::NodeId, Bounds>,
 ) -> bool {
     let bounds: Vec<_> = node_ids
         .iter()
-        .filter_map(|id| {
-            nodes
-                .get(id)
-                .and_then(|node| world_bounds(document, node).ok().flatten())
-        })
+        .filter(|id| nodes.contains_key(id))
+        .filter_map(|id| bounds_by_node.get(id).copied())
         .collect();
     for left in 0..bounds.len() {
         for right in left + 1..bounds.len() {
@@ -409,6 +416,46 @@ fn overlapping_nodes(
         }
     }
     false
+}
+
+fn derived_source_bounds(document: &Document) -> HashMap<crate::ids::NodeId, Bounds> {
+    let Ok(evaluated) = evaluate_large_scene(document) else {
+        return HashMap::new();
+    };
+    let bounds = evaluated_scene_bounds(&evaluated);
+    let mut output = HashMap::new();
+    for node in &evaluated.nodes {
+        let Some(node_bounds) = bounds.get(&node.id) else {
+            continue;
+        };
+        let source_id = document
+            .scene
+            .nodes()
+            .iter()
+            .find(|source| {
+                node.owner_id == source.id.as_str()
+                    || node
+                        .owner_id
+                        .strip_prefix(source.id.as_str())
+                        .is_some_and(|suffix| suffix.starts_with('/'))
+            })
+            .map(|source| source.id.clone());
+        let Some(source_id) = source_id else {
+            continue;
+        };
+        output
+            .entry(source_id)
+            .and_modify(|current: &mut Bounds| {
+                current.min.x = current.min.x.min(node_bounds.min.x);
+                current.min.y = current.min.y.min(node_bounds.min.y);
+                current.min.z = current.min.z.min(node_bounds.min.z);
+                current.max.x = current.max.x.max(node_bounds.max.x);
+                current.max.y = current.max.y.max(node_bounds.max.y);
+                current.max.z = current.max.z.max(node_bounds.max.z);
+            })
+            .or_insert(*node_bounds);
+    }
+    output
 }
 
 fn reference(
