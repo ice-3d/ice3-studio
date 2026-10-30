@@ -2,6 +2,7 @@
 /target/
 /apps/viewer/node_modules/
 /apps/viewer/dist/
+/apps/viewer/test-dist/
 /.studio/
 /.superpowers/
 /wwtp-mini/

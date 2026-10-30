@@ -20,6 +20,32 @@ export type Diagnostic = {
   message: string;
 };
 
+export type DocumentDiff = {
+  addedNodeIds: string[];
+  updatedNodeIds: string[];
+  removedNodeIds: string[];
+  addedMaterialIds: string[];
+  updatedMaterialIds: string[];
+  removedMaterialIds: string[];
+  addedRelationIds: string[];
+  updatedRelationIds: string[];
+  removedRelationIds: string[];
+  addedConstraintIds: string[];
+  updatedConstraintIds: string[];
+  removedConstraintIds: string[];
+};
+
+export type ChangeSetEvaluation = {
+  changeSetId: string;
+  version: number;
+  baseRevision: number;
+  status: string;
+  candidateDigest: string | null;
+  diff: DocumentDiff;
+  diagnostics: Diagnostic[];
+  previewUrl?: string;
+};
+
 type Envelope<T> = {
   result?: T;
   error?: {
@@ -65,6 +91,57 @@ export class StudioClient {
       revision,
       url: `/previews/${revision}`,
     }));
+  }
+
+  candidatePreview(candidateDigest: string): Promise<{ url: string }> {
+    return this.rpc('export.runtimePreview', { candidateDigest });
+  }
+
+  createChangeSet(baseRevision: number, title: string): Promise<{ id: string; version: number }> {
+    return this.rpc('changeset.create', { baseRevision, title });
+  }
+
+  addChangeSetOperations(
+    changeSetId: string,
+    expectedVersion: number,
+    operations: Record<string, unknown>[],
+    source: { kind: 'human' | 'agent'; label?: string },
+  ): Promise<{ version: number }> {
+    return this.rpc('changeset.addOperations', {
+      changeSetId,
+      expectedVersion,
+      entries: operations.map((operation) => ({ source, operation })),
+    });
+  }
+
+  removeChangeSetOperations(
+    changeSetId: string,
+    expectedVersion: number,
+    entryIds: string[],
+  ): Promise<{ version: number }> {
+    return this.rpc('changeset.removeOperations', { changeSetId, expectedVersion, entryIds });
+  }
+
+  evaluateChangeSet(changeSetId: string, expectedVersion: number): Promise<ChangeSetEvaluation> {
+    return this.rpc('changeset.evaluate', {
+      changeSetId,
+      expectedVersion,
+      includeCandidate: true,
+    });
+  }
+
+  commitChangeSet(
+    changeSetId: string,
+    expectedVersion: number,
+    approvedDigest: string,
+    idempotencyKey: string,
+  ): Promise<{ revision: number }> {
+    return this.rpc('changeset.commit', {
+      changeSetId,
+      expectedVersion,
+      approvedDigest,
+      idempotencyKey,
+    });
   }
 
   subscribe(onEvent: (event: { event: string; revision?: number }) => void): () => void {
