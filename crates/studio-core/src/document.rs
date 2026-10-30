@@ -21,6 +21,7 @@ pub struct Document {
     pub relations: Vec<Relation>,
     pub constraints: Vec<Constraint>,
     pub metadata: BTreeMap<String, String>,
+    pub idempotency_keys: Vec<crate::apply::IdempotencyRecord>,
 }
 
 impl Document {
@@ -34,7 +35,14 @@ impl Document {
             relations: Vec::new(),
             constraints: Vec::new(),
             metadata: BTreeMap::new(),
+            idempotency_keys: Vec::new(),
         }
+    }
+
+    pub fn idempotency_record(&self, key: &str) -> Option<&crate::apply::IdempotencyRecord> {
+        self.idempotency_keys
+            .iter()
+            .find(|record| record.key == key)
     }
 }
 

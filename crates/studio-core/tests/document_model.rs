@@ -18,6 +18,8 @@ fn creates_deterministic_ids_and_default_document() {
 fn rejects_invalid_ids() {
     assert!(NodeId::new("", 1).is_err());
     assert!(NodeId::new("node space", 1).is_err());
+    assert!(!NodeId::from("invalid").is_valid());
+    assert!(NodeId::from("node-000002").is_valid());
 }
 
 #[test]

@@ -45,11 +45,35 @@ macro_rules! define_id {
             pub fn as_str(&self) -> &str {
                 &self.0
             }
+
+            pub fn is_valid(&self) -> bool {
+                let Some((prefix, ordinal)) = self.0.rsplit_once('-') else {
+                    return false;
+                };
+                !prefix.is_empty()
+                    && ordinal.len() == 6
+                    && ordinal.bytes().all(|byte| byte.is_ascii_digit())
+                    && prefix.bytes().all(|byte| {
+                        byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'
+                    })
+            }
         }
 
         impl Display for $name {
             fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
                 formatter.write_str(&self.0)
+            }
+        }
+
+        impl From<String> for $name {
+            fn from(value: String) -> Self {
+                Self(value)
+            }
+        }
+
+        impl From<&str> for $name {
+            fn from(value: &str) -> Self {
+                Self(value.to_owned())
             }
         }
     };
