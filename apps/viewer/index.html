@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ICE3 Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <span class="wordmark">ICE3 / STUDIO</span>
+      <output role="status">Connecting</output>
+    </header>
+    <main>
+      <section class="stage" data-role="stage" aria-label="Studio preview"></section>
+      <aside class="inspector">
+        <header>
+          <p class="eyebrow">AI-NATIVE MODEL</p>
+          <h1 data-role="project-name">Loading</h1>
+          <p data-role="revision">Revision —</p>
+        </header>
+        <section>
+          <h2>Scene</h2>
+          <ol data-role="node-list"></ol>
+        </section>
+        <section>
+          <h2>Validation</h2>
+          <div data-role="diagnostics">Pending</div>
+        </section>
+        <section data-role="selection" hidden>
+          <h2>Selection</h2>
+          <dl data-role="selection-details"></dl>
+        </section>
+      </aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

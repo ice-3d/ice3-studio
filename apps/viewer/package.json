@@ -1,0 +1,28 @@
+{
+  "name": "@ice3/studio-viewer",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^24.0.0 || >=26.0.0",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "predev": "npm --prefix ../../../ice3-engine run build && npm --prefix ../../../ice3-toolchain run build",
+    "dev": "vite",
+    "build": "vite build",
+    "pretypecheck": "npm --prefix ../../../ice3-engine run build",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "pretest:e2e": "npm --prefix ../../../ice3-engine run build && npm --prefix ../../../ice3-toolchain run build",
+    "test:e2e": "playwright test",
+    "verify": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "ice3": "file:../../../ice3-engine/packages/ice3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "typescript": "7.0.2",
+    "vite": "^7.3.7"
+  }
+}

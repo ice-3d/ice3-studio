@@ -24,6 +24,10 @@ enum Command {
         workspace: PathBuf,
         #[arg(long)]
         project: String,
+        #[arg(long)]
+        fixture: Option<PathBuf>,
+        #[arg(long, default_value_t = 8120)]
+        port: u16,
     },
 }
 
@@ -32,11 +36,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
         Command::Schema { output, check } => schema::generate(&output, check)?,
-        Command::Serve { workspace, project } => {
+        Command::Serve {
+            workspace,
+            project,
+            fixture,
+            port,
+        } => {
             serve(ServerConfig {
                 workspace_root: workspace,
                 project_id: project,
                 token: None,
+                fixture,
+                port,
             })
             .await?;
         }

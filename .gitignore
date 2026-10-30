@@ -3,4 +3,8 @@
 /apps/viewer/node_modules/
 /apps/viewer/dist/
 /.studio/
+/wwtp-mini/
+/wastewater-mini/
+/apps/viewer/playwright-report/
+/apps/viewer/test-results/
 *.tmp

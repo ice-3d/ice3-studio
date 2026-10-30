@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::net::{Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -31,6 +31,8 @@ pub struct ServerConfig {
     pub workspace_root: PathBuf,
     pub project_id: String,
     pub token: Option<String>,
+    pub fixture: Option<PathBuf>,
+    pub port: u16,
 }
 
 impl ServerConfig {
@@ -39,6 +41,8 @@ impl ServerConfig {
             workspace_root: std::env::temp_dir(),
             project_id: project_id.into(),
             token: Some("test-session-token".into()),
+            fixture: None,
+            port: 0,
         }
     }
 }
@@ -189,9 +193,15 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         .join(format!("ice3-studio-test-{unique}"));
     std::fs::create_dir_all(&cleanup_root).expect("test workspace");
     let token = config.token.unwrap_or_else(|| random_hex(32));
-    let (state, listener) = initialize_state(&cleanup_root, &config.project_id, token.clone())
-        .await
-        .expect("test server state");
+    let (state, listener) = initialize_state(
+        &cleanup_root,
+        &config.project_id,
+        token.clone(),
+        config.fixture.as_deref(),
+        config.port,
+    )
+    .await
+    .expect("test server state");
     let address = listener.local_addr().expect("listener address");
     let router = build_router(state.clone());
     let task = tokio::spawn(async move {
@@ -207,9 +217,18 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
 }
 
 pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let token = config.token.unwrap_or_else(|| random_hex(32));
-    let (state, listener) =
-        initialize_state(&config.workspace_root, &config.project_id, token.clone()).await?;
+    let token = config
+        .token
+        .or_else(|| std::env::var("STUDIO_SESSION_TOKEN").ok())
+        .unwrap_or_else(|| random_hex(32));
+    let (state, listener) = initialize_state(
+        &config.workspace_root,
+        &config.project_id,
+        token.clone(),
+        config.fixture.as_deref(),
+        config.port,
+    )
+    .await?;
     println!("{}", listener.local_addr()?);
     println!("{token}");
     axum::serve(listener, build_router(state)).await?;
@@ -220,22 +239,28 @@ async fn initialize_state(
     root: &std::path::Path,
     project_id: &str,
     token: String,
+    fixture: Option<&std::path::Path>,
+    port: u16,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
     let path = WorkspacePath::new(root, project_id)?;
-    let store = if path.project_dir().exists() {
+    let project_exists = path_project_exists(root, project_id);
+    let store = if project_exists {
         ProjectStore::open(path)?
     } else {
         ProjectStore::create(path)?
     };
-    let document = if path_project_exists(root, project_id) {
-        store
-            .load_current()
-            .unwrap_or_else(|_| Document::new(project_id))
+    let mut document = if project_exists {
+        store.load_current()?
     } else {
         Document::new(project_id)
     };
-    if store.load_current().is_err() {
+    if project_exists {
+        // Existing projects are already persisted.
+    } else if let Some(fixture) = fixture {
+        seed_fixture(&mut document, root, fixture)?;
+        store.write_snapshot(&document)?;
+    } else {
         store.write_snapshot(&document)?;
     }
     let (events, _) = broadcast::channel(64);
@@ -250,7 +275,7 @@ async fn initialize_state(
         })),
     };
     let listener =
-        tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).await?;
+        tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, port))).await?;
     Ok((state, listener))
 }
 
@@ -264,6 +289,7 @@ fn build_router(state: AppState) -> Router {
         .route("/rpc", post(rpc))
         .route("/ws", get(websocket))
         .route("/schemas/{name}", get(schema_file))
+        .route("/previews/{revision}", get(preview_file))
         .with_state(state)
 }
 
@@ -541,6 +567,62 @@ async fn schema_file(AxumPath(name): AxumPath<String>) -> Response {
         Ok(body) => (StatusCode::OK, body).into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+async fn preview_file(
+    State(state): State<AppState>,
+    AxumPath(revision): AxumPath<u64>,
+) -> Response {
+    let path = {
+        let session = state.session.lock().expect("session lock");
+        session
+            .store
+            .project_dir()
+            .join("cache/preview")
+            .join(format!("{revision:08}.glb"))
+    };
+    match tokio::fs::read(path).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "model/gltf-binary")],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+fn seed_fixture(
+    document: &mut Document,
+    workspace_root: &Path,
+    fixture: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let root = workspace_root.canonicalize()?;
+    let fixture = if fixture.is_dir() {
+        fixture.join("ai-plan.json")
+    } else {
+        fixture.to_path_buf()
+    }
+    .canonicalize()?;
+    if !fixture.starts_with(&root) {
+        return Err("fixture must be inside the configured workspace".into());
+    }
+    let plan: FixturePlan = serde_json::from_slice(&std::fs::read(fixture)?)?;
+    for request in plan.transactions {
+        let dry_run = request.dry_run;
+        match apply_transaction(document, request) {
+            Ok(_) if dry_run => {}
+            Ok(_) => {}
+            Err(_) if dry_run => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct FixturePlan {
+    transactions: Vec<ApplyRequest>,
 }
 
 #[derive(Debug, Default, Deserialize)]

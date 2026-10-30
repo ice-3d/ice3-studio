@@ -55,3 +55,16 @@ fn undo_and_redo_restore_document_content() {
         Some("built")
     );
 }
+
+#[test]
+fn recovers_a_lock_left_by_a_dead_process() {
+    let root = tempfile::tempdir().unwrap();
+    let path = WorkspacePath::new(root.path(), "stale-lock").unwrap();
+    let store = ProjectStore::create(path.clone()).unwrap();
+    store.write_snapshot(&Document::new("stale-lock")).unwrap();
+    drop(store);
+    std::fs::write(root.path().join("stale-lock/.lock"), "pid=999999999\n").unwrap();
+
+    let reopened = ProjectStore::open(path);
+    assert!(reopened.is_ok());
+}
