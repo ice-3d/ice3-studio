@@ -105,10 +105,101 @@ until a project is opened again.
 | `relation.delete` | Delete a relationship |
 | `constraint.upsert` | Create or update a spatial constraint |
 | `constraint.delete` | Delete a spatial constraint |
+| `component.define` | Create an unreferenced component definition |
+| `component.update` | Replace an existing component definition |
+| `component.delete` | Delete a component definition with no live references |
+| `instance.create` | Create an explicit component-instance Node |
+| `instance.update` | Replace instance parameters and supported overrides |
+| `instance.delete` | Delete an instance with no live connection references |
+| `instanceSet.create` | Create a deterministic repeated component placement |
+| `instanceSet.update` | Replace an instance-set layout and parameter overrides |
+| `instanceSet.delete` | Delete an unreferenced instance set |
+| `connection.create` | Create a routed connection for an existing Relation |
+| `connection.update` | Replace connection endpoints or routing policy |
+| `connection.delete` | Delete a connection and its linked Relation |
 
 IDs, node order, material order, relation order, and diagnostic order are deterministic.
 Lengths are meters, angles are radians, coordinates are right-handed Y-up, and material colors
 are sRGB.
+
+## Large-Scene Authoring
+
+Component parameters support finite Number, Vector3, Color, and Enumeration values. A Number may
+declare inclusive minimum and maximum values; Colors require four components in `0.0..=1.0`.
+Initial safety limits are a 16-level component-reference depth, 4096 parts per component, and
+100,000 items in one instance set.
+
+Instances may override typed parameters plus part material, visibility, and metadata. They cannot
+replace arbitrary shared internal geometry. Definitions form an acyclic graph and cannot be
+deleted while an instance or nested definition still references them.
+
+Derived identities are deterministic:
+
+```text
+<instance-id>/<part-id>
+<instance-set-id>/<six-digit-ordinal>/<part-id>
+<connection-id>/route
+```
+
+These identities appear in `evaluation.evaluate`, `scene.bounds`, GLB extras, and Runtime
+Selection. Component definitions and internal parts remain Document source data.
+
+Example Operations:
+
+```json
+[
+  {
+    "type": "component.define",
+    "definition": {
+      "id": "component-000001",
+      "name": "Equipment",
+      "parameters": [],
+      "parts": [{
+        "id": "body",
+        "parentId": null,
+        "transform": {
+          "translation": { "kind": "literal", "value": { "x": 0, "y": 0, "z": 0 } },
+          "rotation": [0, 0, 0, 1],
+          "scale": { "kind": "literal", "value": { "x": 1, "y": 1, "z": 1 } }
+        },
+        "content": {
+          "kind": "box",
+          "width": { "kind": "literal", "value": 1 },
+          "height": { "kind": "literal", "value": 1 },
+          "depth": { "kind": "literal", "value": 1 }
+        },
+        "materialRole": null,
+        "metadata": {},
+        "visible": true
+      }],
+      "ports": [],
+      "metadata": {}
+    }
+  },
+  {
+    "type": "instance.create",
+    "node_id": "node-000001",
+    "parent_id": null,
+    "name": "Equipment A",
+    "transform": {
+      "translation": { "x": 0, "y": 0, "z": 0 },
+      "rotation": [0, 0, 0, 1],
+      "scale": { "x": 1, "y": 1, "z": 1 }
+    },
+    "instance": {
+      "definitionId": "component-000001",
+      "parameters": {},
+      "overrides": {},
+      "metadata": {}
+    },
+    "material_id": null,
+    "metadata": {}
+  }
+]
+```
+
+Dry-run and committed batches use the same validation, derived identities, and diff. A failed
+dry-run is not the basis for a subsequent partial commit.
 
 ## Scene Queries
 
@@ -171,8 +262,9 @@ the document does not require replacing the canvas or rendering engine instance.
 ## Persistence and Export
 
 `document.apply`, undo, and redo persist revision snapshots atomically. `export.sourceGlb`
-writes a standard glTF 2.0 binary. Runtime optimization, LOD, and spatial partitioning remain
-outside Studio Core and are performed by the configured Toolchain adapter.
+writes a standard glTF 2.0 binary and reuses identical evaluated meshes for equivalent component
+instances. Runtime optimization, LOD, and spatial partitioning remain outside Studio Core and are
+performed by the configured Toolchain adapter.
 
 See [Diagnostics](diagnostics.md) for stable failure codes.
 

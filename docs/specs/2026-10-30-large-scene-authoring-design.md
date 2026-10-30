@@ -6,6 +6,15 @@
 >
 > Owner: ICE3 Studio maintainers
 
+## Implementation Status
+
+M1 scale-out authoring is implemented: Document schema v2 migration, validated parameterized
+components, explicit instances, deterministic instance sets, typed connections, shared CPU
+evaluation, persistent geometry caching, GLB mesh sharing, API projections, and parameter forms.
+
+M2 large-scene acceptance, M3 native GPU evaluation, and M4 Runtime publication remain pending.
+The system therefore remains `Proposed` as a whole.
+
 ## 1. Summary
 
 ICE3 Studio needs a scale-out authoring model for large industrial scenes rather than a larger

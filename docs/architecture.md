@@ -48,17 +48,23 @@ Owns stable types, generic modeling operations, primitive and sweep evaluation, 
 relations, constraints, diagnostics, document diffs, and standard GLB serialization. It has no
 file, process, network, or UI access.
 
+The `large_scene` module owns generic component definitions, instances, deterministic instance
+sets, typed parameter resolution, port-aware connections, and CPU reference expansion. It emits
+shared evaluated meshes and stable derived identities without becoming industry-specific.
+
 ### `studio-project`
 
 Owns project paths, writer locks, atomic snapshots, revision history, undo/redo, and snapshot
-integrity. A snapshot is persisted before the new revision becomes externally visible.
+integrity. It also owns the bounded content-addressed geometry cache under
+`cache/geometry/`. A snapshot is persisted before the new revision becomes externally visible.
 
 ### `studio-server`
 
 Owns the local HTTP and WebSocket boundary. It validates authentication and parameters, applies
 one transaction at a time, persists accepted revisions, and publishes revision events. Blocking
 filesystem and Toolchain work runs on Tokio blocking workers so health and event delivery remain
-responsive.
+responsive. Scene bounds and evaluation read from the same cached derived scene so a request does
+not evaluate equivalent component instances twice.
 
 ### `studio-toolchain-client` and Toolchain sidecar
 
@@ -77,9 +83,10 @@ and validation state. It does not mutate the document directly.
 
 ## Source of Truth
 
-The serializable `Document` plus its operation history is durable truth. Triangle meshes,
-world bounds, diagnostics, GLB buffers, and Toolchain previews are derived values. This keeps
-AI operations explainable, replayable, and diffable.
+The serializable `Document` plus its operation history is durable truth. Component definitions,
+instances, instance-set rules, and connection intents are source data. Triangle meshes, derived
+part identities, world bounds, diagnostics, GLB buffers, and Toolchain previews are derived
+values. This keeps AI operations explainable, replayable, and diffable.
 
 Every committed transaction increments the revision once. Stable object IDs survive renames,
 reloads, undo, and redo. Atomic snapshots and idempotency records make retries safe within the
