@@ -38,8 +38,8 @@ const steps = [
   },
   {
     label: 'Viewer unit tests',
-    command: 'node',
-    args: ['--test', 'apps/viewer/tests/*.test.mjs'],
+    command: 'npm',
+    args: ['--prefix', 'apps/viewer', 'test'],
   },
   {
     label: 'Viewer typecheck',

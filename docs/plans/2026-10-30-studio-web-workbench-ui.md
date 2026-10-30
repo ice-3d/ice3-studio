@@ -4,7 +4,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-003
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 

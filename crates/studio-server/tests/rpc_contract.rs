@@ -519,7 +519,11 @@ async fn serves_built_workbench_and_api_from_one_origin() {
         "<!doctype html><script src=\"/assets/main.js\"></script>",
     )
     .unwrap();
-    std::fs::write(root.path().join("assets/main.js"), "console.log('workbench')").unwrap();
+    std::fs::write(
+        root.path().join("assets/main.js"),
+        "console.log('workbench')",
+    )
+    .unwrap();
     let server = start_test_server(ServerConfig {
         viewer_dir: Some(root.path().to_path_buf()),
         ..ServerConfig::for_tests("generic-project")

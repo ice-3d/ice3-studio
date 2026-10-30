@@ -27,32 +27,36 @@ npm --prefix apps/viewer ci
 From the repository root:
 
 ```bash
+npm --prefix apps/viewer run build
+```
+
+Then start the server:
+
+```bash
 STUDIO_TOOLCHAIN_CLI=scripts/preview-example.mjs \
 ICE3_TOOLCHAIN_CLI=../ice3-toolchain/packages/cli/dist/main.js \
+STUDIO_VIEWER_DIR=apps/viewer/dist \
 cargo run -p studio-cli -- serve \
   --workspace . \
   --project wastewater-mini \
   --fixture fixtures/wastewater-mini
 ```
 
-The server listens only on `127.0.0.1`, defaults to port `8120`, and prints its address and
-short-lived session token. The fixture is seeded at revision 2.
+The server listens only on `127.0.0.1`, defaults to port `8120`, and prints its address, proposal
+token, and a one-time browser bootstrap URL. The fixture is seeded at revision 2.
 
-Build the local Engine and Toolchain, then start the Viewer:
+For iterative frontend work, keep the server running and start watch output in another terminal:
 
 ```bash
 npm --prefix apps/viewer run dev
 ```
 
-Open `http://127.0.0.1:5173` and append the printed token:
+The watch build updates `apps/viewer/dist`; open the printed bootstrap URL to establish the
+human approval cookie. The Workbench and API share `http://127.0.0.1:8120`.
 
-```text
-http://127.0.0.1:5173/?token=<printed-token>
-```
-
-The Viewer shows the current revision, scene tree, validation diagnostics, selection details,
-and the prepared preview. A revision event triggers a fresh document read and preview load
-without replacing the canvas.
+The Workbench shows the current revision, generic object tree, validation diagnostics, form
+inspection, and the prepared preview. A revision event triggers a fresh document read and preview
+load without replacing the canvas.
 
 ## Model Through the API
 

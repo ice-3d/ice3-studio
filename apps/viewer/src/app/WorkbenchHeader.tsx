@@ -5,7 +5,8 @@ export function WorkbenchHeader() {
   return (
     <header className="workbench__header">
       <strong>ICE3 / STUDIO</strong>
-      <span>{session.projectId || 'Loading project'} · Revision {session.revision}</span>
+      <h1>{session.projectId || 'Loading project'}</h1>
+      <span role="status">Revision {session.revision}</span>
     </header>
   );
 }

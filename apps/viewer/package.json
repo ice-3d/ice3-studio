@@ -13,7 +13,7 @@
     "pretypecheck": "npm --prefix ../../../ice3-engine run build",
     "typecheck": "tsc --noEmit",
     "test": "node esbuild-tests.mjs && node --test test-dist/*.test.js",
-    "pretest:e2e": "npm --prefix ../../../ice3-engine run build && npm --prefix ../../../ice3-toolchain run build && npm run build",
+    "pretest:e2e": "npm --prefix ../../../ice3-engine run build && npm --prefix ../../../ice3-toolchain run build && STUDIO_SESSION_TOKEN=studio-e2e npm run build",
     "test:e2e": "playwright test",
     "verify": "npm run typecheck && npm test && npm run build"
   },

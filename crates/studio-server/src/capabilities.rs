@@ -58,7 +58,9 @@ pub fn authorize_write(
 
     match mode {
         WriteMode::ReviewRequired if proposal_method && agent_valid => Some(Capability::Propose),
-        WriteMode::ReviewRequired if approval_method && approval_valid => Some(Capability::Approve),
+        WriteMode::ReviewRequired if (proposal_method || approval_method) && approval_valid => {
+            Some(Capability::Approve)
+        }
         WriteMode::Autonomous if agent_valid => Some(Capability::AutonomousWrite),
         _ => None,
     }
