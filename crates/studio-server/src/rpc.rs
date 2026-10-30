@@ -34,6 +34,7 @@ pub struct ServerConfig {
     pub token: Option<String>,
     pub fixture: Option<PathBuf>,
     pub port: u16,
+    pub toolchain_cli: Option<PathBuf>,
 }
 
 impl ServerConfig {
@@ -44,6 +45,7 @@ impl ServerConfig {
             token: Some("test-session-token".into()),
             fixture: None,
             port: 0,
+            toolchain_cli: None,
         }
     }
 }
@@ -104,6 +106,7 @@ pub(crate) struct Session {
     pub(crate) token: String,
     pub(crate) events: broadcast::Sender<ServerEvent>,
     pub(crate) closed: bool,
+    pub(crate) toolchain_cli: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -126,6 +129,10 @@ impl TestServer {
 
     pub fn rpc_url(&self) -> String {
         format!("{}/rpc", self.base_url)
+    }
+
+    pub fn base_url(&self) -> &str {
+        &self.base_url
     }
 
     pub fn token(&self) -> &str {
@@ -157,6 +164,14 @@ impl TestServer {
             .expect("session lock")
             .events
             .subscribe()
+    }
+
+    pub async fn set_toolchain_cli(&self, path: PathBuf) {
+        self.state
+            .session
+            .lock()
+            .expect("session lock")
+            .toolchain_cli = Some(path);
     }
 
     pub async fn apply_fixture_batch(&self) -> Result<ApplyResult, String> {
@@ -218,6 +233,7 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         token.clone(),
         config.fixture.as_deref(),
         config.port,
+        config.toolchain_cli,
     )
     .await
     .expect("test server state");
@@ -240,12 +256,16 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
         .token
         .or_else(|| std::env::var("STUDIO_SESSION_TOKEN").ok())
         .unwrap_or_else(|| random_hex(32));
+    let toolchain_cli = config
+        .toolchain_cli
+        .or_else(|| std::env::var_os("STUDIO_TOOLCHAIN_CLI").map(PathBuf::from));
     let (state, listener) = initialize_state(
         &config.workspace_root,
         &config.project_id,
         token.clone(),
         config.fixture.as_deref(),
         config.port,
+        toolchain_cli,
     )
     .await?;
     println!("{}", listener.local_addr()?);
@@ -260,6 +280,7 @@ async fn initialize_state(
     token: String,
     fixture: Option<&std::path::Path>,
     port: u16,
+    toolchain_cli: Option<PathBuf>,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
     let path = WorkspacePath::new(root, project_id)?;
@@ -292,6 +313,7 @@ async fn initialize_state(
             token,
             events,
             closed: false,
+            toolchain_cli,
         })),
     };
     let listener =
@@ -310,6 +332,10 @@ fn build_router(state: AppState) -> Router {
         .route("/ws", get(websocket))
         .route("/schemas/{name}", get(schema_file))
         .route("/previews/{revision}", get(preview_file))
+        .route(
+            "/previews/candidates/{digest}",
+            get(candidate_preview_file),
+        )
         .with_state(state)
 }
 
@@ -671,17 +697,21 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             serde_json::to_value(output).map_err(serialize_error)
         }
         "export.runtimePreview" => {
-            let cli = std::env::var_os("STUDIO_TOOLCHAIN_CLI")
-                .map(PathBuf::from)
-                .ok_or_else(|| {
-                    RpcError::with_diagnostic(
-                        -32020,
-                        DiagnosticCode::RuntimePreviewFailed.as_str(),
-                        "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED: STUDIO_TOOLCHAIN_CLI is not configured"
-                            .into(),
-                        None,
-                    )
-                })?;
+            let params: RuntimePreviewParams =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            if let Some(digest) = params.candidate_digest {
+                return crate::changeset::export_candidate_preview(session, &digest)
+                    .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error));
+            }
+            let cli = session.toolchain_cli.clone().ok_or_else(|| {
+                RpcError::with_diagnostic(
+                    -32020,
+                    DiagnosticCode::RuntimePreviewFailed.as_str(),
+                    "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED: STUDIO_TOOLCHAIN_CLI is not configured"
+                        .into(),
+                    None,
+                )
+            })?;
             let adapter =
                 PreviewAdapter::new(&session.workspace_root, cli).map_err(preview_error)?;
             let output = adapter
@@ -801,6 +831,32 @@ async fn preview_file(
     }
 }
 
+async fn candidate_preview_file(
+    State(state): State<AppState>,
+    AxumPath(digest): AxumPath<String>,
+) -> Response {
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = {
+        let session = state.session.lock().expect("session lock");
+        session
+            .store
+            .project_dir()
+            .join("cache/preview")
+            .join(format!("{digest}.glb"))
+    };
+    match tokio::fs::read(path).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "model/gltf-binary")],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 fn seed_fixture(
     document: &mut Document,
     store: &ProjectStore,
@@ -849,6 +905,15 @@ struct HttpToken {
 #[serde(rename_all = "camelCase")]
 struct ProjectParams {
     project_id: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimePreviewParams {
+    #[serde(default)]
+    #[serde(rename = "revision")]
+    _revision: Option<u64>,
+    candidate_digest: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]

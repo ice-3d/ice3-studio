@@ -7,12 +7,14 @@ use studio_core::changeset::{candidate_digest, evaluate_operations};
 use studio_core::diff::DocumentDiff;
 use studio_core::ids::Revision;
 use studio_core::operation::Operation;
+use studio_core::validation::{Diagnostic, DiagnosticCode};
 use studio_project::changeset::{
     ChangeSet, ChangeSetEntry, ChangeSetEvaluation, ChangeSetId, ChangeSetSource, ChangeSetStatus,
     EntryId,
 };
 
 use crate::ServerEvent;
+use crate::preview::{CandidatePreview, PreviewAdapter};
 use crate::rpc::{RpcError, Session, project_error, transaction_error};
 
 #[derive(Debug, Deserialize)]
@@ -85,6 +87,51 @@ pub(crate) fn dispatch(
         "changeset.commit" => commit(session, parse(params)?),
         "changeset.discard" => discard(session, parse(params)?),
         _ => unreachable!("filtered change set method"),
+    }
+}
+
+pub(crate) fn export_candidate_preview(
+    session: &mut Session,
+    digest: &str,
+) -> Result<CandidatePreview, RpcError> {
+    let store = session.store.change_set_store();
+    let mut change_set = store
+        .list()
+        .map_err(project_error)?
+        .into_iter()
+        .find(|change_set| change_set.candidate_digest.as_deref() == Some(digest))
+        .ok_or_else(|| operation_error("candidate digest is not registered"))?;
+    let base = session
+        .store
+        .load_revision(change_set.base_revision)
+        .map_err(project_error)?;
+    let operations = change_set.operations();
+    let candidate = evaluate_operations(&base, &operations).map_err(transaction_error)?;
+    let current_digest = candidate_digest(&base, &operations).map_err(transaction_error)?;
+    if current_digest != digest || !candidate.diagnostics.is_empty() {
+        return Err(operation_error("candidate digest is stale or blocked"));
+    }
+    let toolchain = session
+        .toolchain_cli
+        .clone()
+        .ok_or_else(|| preview_error("STUDIO_TOOLCHAIN_CLI is not configured"))?;
+    let adapter =
+        PreviewAdapter::new(&session.workspace_root, toolchain).map_err(preview_error)?;
+    match adapter.generate_candidate(&candidate.document, session.store.project_dir(), digest) {
+        Ok(preview) => Ok(preview),
+        Err(error) => {
+            change_set.status = ChangeSetStatus::Blocked;
+            change_set.diagnostics.push(Diagnostic {
+                code: DiagnosticCode::RuntimePreviewFailed,
+                operation_index: None,
+                object_id: None,
+                pointer: "/candidate/preview".into(),
+                message: error.to_string(),
+            });
+            change_set.updated_at = now_ms();
+            store.save(&change_set).map_err(project_error)?;
+            Err(preview_error(error))
+        }
     }
 }
 
@@ -389,6 +436,15 @@ fn operation_error(message: &str) -> RpcError {
         -32010,
         "ICE3_STUDIO_OPERATION_INVALID",
         format!("ICE3_STUDIO_OPERATION_INVALID: {message}"),
+        None,
+    )
+}
+
+fn preview_error(error: impl std::fmt::Display) -> RpcError {
+    RpcError::with_diagnostic(
+        -32013,
+        "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
+        format!("ICE3_STUDIO_RUNTIME_PREVIEW_FAILED: {error}"),
         None,
     )
 }

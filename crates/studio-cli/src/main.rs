@@ -48,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 token: None,
                 fixture,
                 port,
+                toolchain_cli: None,
             })
             .await?;
         }

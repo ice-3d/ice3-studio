@@ -956,6 +956,27 @@
       "title": "ApplyResult",
       "type": "object"
     },
+    "CandidatePreview": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId",
+        "digest",
+        "url"
+      ],
+      "title": "CandidatePreview",
+      "type": "object"
+    },
     "Capabilities": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {

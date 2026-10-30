@@ -28,6 +28,15 @@ pub struct SourceExport {
     pub source_path: PathBuf,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CandidatePreview {
+    pub asset_id: String,
+    pub digest: String,
+    pub url: String,
+}
+
 pub fn export_source(
     document: &Document,
     project_dir: &Path,
@@ -130,4 +139,64 @@ impl PreviewAdapter {
             preview_path,
         })
     }
+
+    pub fn generate_candidate(
+        &self,
+        document: &Document,
+        project_dir: &Path,
+        digest: &str,
+    ) -> Result<CandidatePreview, PreviewError> {
+        let candidate_dir = project_dir.join("cache/candidates");
+        let preview_dir = project_dir.join("cache/preview");
+        std::fs::create_dir_all(&candidate_dir).map_err(PreviewError::Io)?;
+        std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
+        let preview_path = preview_dir.join(format!("{digest}.glb"));
+        if valid_glb(&preview_path) {
+            return Ok(CandidatePreview {
+                asset_id: digest.into(),
+                digest: digest.into(),
+                url: format!("/previews/candidates/{digest}"),
+            });
+        }
+        let source = export_glb(document)?;
+        let source_digest = format!("{:x}", Sha256::digest(&source));
+        let source_path = candidate_dir.join(format!("{digest}-source.glb"));
+        std::fs::write(&source_path, source).map_err(PreviewError::Io)?;
+        let temporary = preview_dir.join(format!("{digest}.glb.tmp"));
+        let status = std::process::Command::new(&self.node_binary)
+            .arg(&self.toolchain_cli)
+            .arg("build")
+            .arg(&source_path)
+            .arg("--output")
+            .arg(&temporary)
+            .arg("--asset-id")
+            .arg(format!("candidate-{source_digest}"))
+            .arg("--budget")
+            .arg("unrestricted")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .status()
+            .map_err(PreviewError::Io)?;
+        if !status.success() {
+            let _ = std::fs::remove_file(&temporary);
+            return Err(PreviewError::AdapterFailed(status));
+        }
+        if !valid_glb(&temporary) {
+            let _ = std::fs::remove_file(&temporary);
+            return Err(PreviewError::InvalidOutput);
+        }
+        std::fs::rename(&temporary, &preview_path).map_err(PreviewError::Io)?;
+        Ok(CandidatePreview {
+            asset_id: digest.into(),
+            digest: digest.into(),
+            url: format!("/previews/candidates/{digest}"),
+        })
+    }
+}
+
+fn valid_glb(path: &Path) -> bool {
+    std::fs::read(path)
+        .map(|bytes| bytes.len() >= 12 && &bytes[0..4] == b"glTF")
+        .unwrap_or(false)
 }

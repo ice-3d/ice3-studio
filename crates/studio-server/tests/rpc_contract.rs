@@ -93,11 +93,7 @@ async fn health_stays_responsive_while_preview_processing_blocks() {
     )
     .unwrap();
 
-    // This test process has no other environment readers; the server reads the
-    // adapter from its configured environment when handling the request.
-    unsafe {
-        std::env::set_var("STUDIO_TOOLCHAIN_CLI", &adapter);
-    }
+    server.set_toolchain_cli(adapter).await;
 
     let health_url = server.health_url();
     let health_probe = std::thread::spawn(move || {

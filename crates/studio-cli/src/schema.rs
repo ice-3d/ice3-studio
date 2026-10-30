@@ -11,6 +11,7 @@ use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_project::changeset::{
     ChangeSet, ChangeSetEntry, ChangeSetEvaluation, ChangeSetId, ChangeSetSource, ChangeSetStatus,
 };
+use studio_server::preview::CandidatePreview;
 use studio_server::{Capabilities, RpcRequest, RpcResponse, ServerEvent};
 use thiserror::Error;
 
@@ -74,7 +75,8 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "ChangeSetStatus": schema_for!(ChangeSetStatus),
             "ChangeSetSource": schema_for!(ChangeSetSource),
             "ChangeSetEntry": schema_for!(ChangeSetEntry),
-            "ChangeSetEvaluation": schema_for!(ChangeSetEvaluation)
+            "ChangeSetEvaluation": schema_for!(ChangeSetEvaluation),
+            "CandidatePreview": schema_for!(CandidatePreview)
         }
     });
     let mut api_bytes = serde_json::to_vec_pretty(&api).map_err(SchemaError::Json)?;
