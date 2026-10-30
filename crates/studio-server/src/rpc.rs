@@ -23,7 +23,7 @@ use studio_project::{ProjectStore, WorkspacePath};
 use tokio::sync::broadcast;
 use ts_rs::TS;
 
-use crate::RevisionEvent;
+use crate::ServerEvent;
 use crate::auth::has_valid_token;
 use crate::preview::{PreviewAdapter, export_source};
 
@@ -96,14 +96,14 @@ pub struct Capabilities {
     pub methods: Vec<String>,
 }
 
-struct Session {
-    workspace_root: PathBuf,
-    project_id: String,
-    store: ProjectStore,
-    document: Document,
-    token: String,
-    events: broadcast::Sender<RevisionEvent>,
-    closed: bool,
+pub(crate) struct Session {
+    pub(crate) workspace_root: PathBuf,
+    pub(crate) project_id: String,
+    pub(crate) store: ProjectStore,
+    pub(crate) document: Document,
+    pub(crate) token: String,
+    pub(crate) events: broadcast::Sender<ServerEvent>,
+    pub(crate) closed: bool,
 }
 
 #[derive(Clone)]
@@ -150,7 +150,7 @@ impl TestServer {
             .expect("test server workspace should exist")
     }
 
-    pub async fn subscribe(&self) -> broadcast::Receiver<RevisionEvent> {
+    pub async fn subscribe(&self) -> broadcast::Receiver<ServerEvent> {
         self.state
             .session
             .lock()
@@ -189,8 +189,7 @@ impl TestServer {
             session.document = previous;
             return Err(error.to_string());
         }
-        let _ = session.events.send(RevisionEvent {
-            event: "revision.committed".into(),
+        let _ = session.events.send(ServerEvent::RevisionCommitted {
             revision: result.revision,
         });
         Ok(result)
@@ -461,6 +460,15 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "evaluation.evaluate".into(),
                 "export.sourceGlb".into(),
                 "export.runtimePreview".into(),
+                "changeset.create".into(),
+                "changeset.list".into(),
+                "changeset.get".into(),
+                "changeset.addOperations".into(),
+                "changeset.removeOperations".into(),
+                "changeset.evaluate".into(),
+                "changeset.getCandidate".into(),
+                "changeset.commit".into(),
+                "changeset.discard".into(),
             ],
         })
         .expect("serializable capabilities")),
@@ -485,8 +493,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                     session.document = previous;
                     return Err(project_error(error));
                 }
-                let _ = session.events.send(RevisionEvent {
-                    event: "revision.committed".into(),
+                let _ = session.events.send(ServerEvent::RevisionCommitted {
                     revision: result.revision,
                 });
             }
@@ -494,8 +501,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         }
         "document.undo" => {
             session.document = session.store.undo().map_err(project_error)?;
-            let event = RevisionEvent {
-                event: "revision.committed".into(),
+            let event = ServerEvent::RevisionCommitted {
                 revision: session.document.revision,
             };
             let _ = session.events.send(event);
@@ -503,8 +509,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         }
         "document.redo" => {
             session.document = session.store.redo().map_err(project_error)?;
-            let event = RevisionEvent {
-                event: "revision.committed".into(),
+            let event = ServerEvent::RevisionCommitted {
                 revision: session.document.revision,
             };
             let _ = session.events.send(event);
@@ -688,6 +693,22 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 .map_err(preview_error)?;
             serde_json::to_value(output).map_err(serialize_error)
         }
+        method
+            if matches!(
+                method,
+                "changeset.create"
+                    | "changeset.list"
+                    | "changeset.get"
+                    | "changeset.addOperations"
+                    | "changeset.removeOperations"
+                    | "changeset.evaluate"
+                    | "changeset.getCandidate"
+                    | "changeset.commit"
+                    | "changeset.discard"
+            ) =>
+        {
+            crate::changeset::dispatch(session, method, request.params.clone())
+        }
         method => Err(RpcError::with_diagnostic(
             -32601,
             DiagnosticCode::ApiInvalid.as_str(),
@@ -717,7 +738,7 @@ async fn websocket(
     upgrade.on_upgrade(move |socket| websocket_loop(socket, events))
 }
 
-async fn websocket_loop(mut socket: WebSocket, mut events: broadcast::Receiver<RevisionEvent>) {
+async fn websocket_loop(mut socket: WebSocket, mut events: broadcast::Receiver<ServerEvent>) {
     loop {
         tokio::select! {
             incoming = socket.recv() => {
@@ -863,6 +884,13 @@ fn mutating(method: &str) -> bool {
             | "document.redo"
             | "export.sourceGlb"
             | "export.runtimePreview"
+            | "changeset.create"
+            | "changeset.addOperations"
+            | "changeset.removeOperations"
+            | "changeset.evaluate"
+            | "changeset.getCandidate"
+            | "changeset.commit"
+            | "changeset.discard"
     )
 }
 
@@ -872,7 +900,7 @@ fn random_hex(bytes: usize) -> String {
     data.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn invalid_params(error: serde_json::Error) -> RpcError {
+pub(crate) fn invalid_params(error: serde_json::Error) -> RpcError {
     RpcError::with_diagnostic(
         -32602,
         "ICE3_STUDIO_API_INVALID",
@@ -890,7 +918,7 @@ fn serialize_error(error: serde_json::Error) -> RpcError {
     )
 }
 
-fn transaction_error(error: studio_core::apply::TransactionError) -> RpcError {
+pub(crate) fn transaction_error(error: studio_core::apply::TransactionError) -> RpcError {
     let (diagnostic_code, data) = match &error {
         studio_core::apply::TransactionError::RevisionConflict { .. } => {
             (DiagnosticCode::RevisionConflict, None)
@@ -933,7 +961,7 @@ fn transaction_error(error: studio_core::apply::TransactionError) -> RpcError {
     )
 }
 
-fn project_error(error: studio_project::ProjectError) -> RpcError {
+pub(crate) fn project_error(error: studio_project::ProjectError) -> RpcError {
     let (code, diagnostic) = match &error {
         studio_project::ProjectError::Missing => (-32010, DiagnosticCode::ProjectNotFound),
         studio_project::ProjectError::Locked => (-32011, DiagnosticCode::ProjectLocked),
@@ -970,7 +998,7 @@ fn preview_error(error: crate::preview::PreviewError) -> RpcError {
 }
 
 impl RpcError {
-    fn with_diagnostic(
+    pub(crate) fn with_diagnostic(
         code: i64,
         diagnostic_code: &str,
         message: String,
