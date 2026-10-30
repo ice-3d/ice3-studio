@@ -60,8 +60,8 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 ## Execution Setup
 
 - Use branch `feat/toolchain-sidecar-contract` in `ice3-doc`.
-- Create a separate worktree and branch `feat/studio-sidecar` for `ice3-toolchain`; its current
-  checkout has unrelated uncommitted work that must not be switched, staged, or copied.
+- Use `ice3-toolchain`'s committed `d4a4796` baseline and create branch `feat/studio-sidecar` in
+  the same checkout; the earlier large-plant work is now a clean prerequisite.
 - Use the existing `feat/toolchain-sidecar` branch in `ice3-studio`.
 - Record the exact base commit of each repository in the execution ledger before Task 1.
 - Stage only files named by the active task; never use repository-wide staging from the shared
