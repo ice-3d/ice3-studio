@@ -29,7 +29,8 @@
 - 在功能分支开发，适用验证门禁通过后才可合入 `main`。
 - 实施开始后必须提供文档检查、Rust format、typecheck、test、API integration 和 E2E
   verification command。
-- 当前只允许文档修改；文档变更必须保持 Proposed 与 Implemented 状态准确。
+- 实施必须逐步遵循 `ICE3-STUDIO-SPEC-001` 与
+  `ICE3-STUDIO-PLAN-001`，并以失败测试、通过验证和独立 commit 记录每项交付。
 
 ## 提交身份
 

@@ -1,0 +1,11 @@
+[package]
+name = "studio-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+studio-core = { path = "../studio-core" }
+studio-project = { path = "../studio-project" }
+studio-server = { path = "../studio-server" }
