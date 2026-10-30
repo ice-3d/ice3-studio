@@ -138,6 +138,12 @@ impl TestServer {
         format!("{}/schemas/{name}", self.base_url)
     }
 
+    pub fn workspace_root(&self) -> &Path {
+        self.cleanup_root
+            .as_deref()
+            .expect("test server workspace should exist")
+    }
+
     pub async fn subscribe(&self) -> broadcast::Receiver<RevisionEvent> {
         self.state
             .session
@@ -306,8 +312,11 @@ async fn rpc(
     headers: HeaderMap,
     Json(request): Json<RpcRequest>,
 ) -> Response {
-    let mut session = state.session.lock().expect("session lock");
-    if mutating(&request.method) && !has_valid_token(&headers, &session.token) {
+    let authorized = {
+        let session = state.session.lock().expect("session lock");
+        !mutating(&request.method) || has_valid_token(&headers, &session.token)
+    };
+    if !authorized {
         return (
             StatusCode::UNAUTHORIZED,
             Json(serde_json::json!({
@@ -321,18 +330,33 @@ async fn rpc(
         )
             .into_response();
     }
-    let response = match dispatch(&mut session, &request) {
-        Ok(result) => RpcResponse {
+    let request_id = request.id.clone();
+    let response = match tokio::task::spawn_blocking(move || {
+        let mut session = state.session.lock().expect("session lock");
+        dispatch(&mut session, &request)
+    })
+    .await
+    {
+        Ok(Ok(result)) => RpcResponse {
             jsonrpc: "2.0".into(),
-            id: request.id,
+            id: request_id,
             result: Some(result),
             error: None,
         },
-        Err(error) => RpcResponse {
+        Ok(Err(error)) => RpcResponse {
             jsonrpc: "2.0".into(),
-            id: request.id,
+            id: request_id,
             result: None,
             error: Some(error),
+        },
+        Err(error) => RpcResponse {
+            jsonrpc: "2.0".into(),
+            id: request_id,
+            result: None,
+            error: Some(RpcError::application(
+                -32603,
+                format!("request worker failed: {error}"),
+            )),
         },
     };
     (StatusCode::OK, Json(response)).into_response()

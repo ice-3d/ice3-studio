@@ -7,4 +7,5 @@
 /wastewater-mini/
 /apps/viewer/playwright-report/
 /apps/viewer/test-results/
+/output/
 *.tmp

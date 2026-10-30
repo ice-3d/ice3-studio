@@ -53,7 +53,7 @@ window.__studioTest = {
     setReady('wastewater-mini', revision);
   },
 };
-client.subscribe((revision) => {
-  setReady(document.querySelector('[data-role="project-name"]')?.textContent ?? '', revision);
+client.subscribe(() => {
+  void refresh();
 });
 await refresh();

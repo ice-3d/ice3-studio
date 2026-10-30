@@ -80,3 +80,64 @@ async fn publishes_generated_api_schemas() {
     assert!(schema.contains("\"apiVersion\": \"1.0\""));
     assert!(schema.contains("node.create"));
 }
+
+#[tokio::test]
+async fn health_stays_responsive_while_preview_processing_blocks() {
+    let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;
+    let adapter = server.workspace_root().join("slow-toolchain.mjs");
+    std::fs::write(
+        &adapter,
+        "import fs from 'node:fs'; import { setTimeout as delay } from 'node:timers/promises'; const args=process.argv.slice(2); await delay(600); fs.copyFileSync(args[1], args[args.indexOf('--output')+1]);",
+    )
+    .unwrap();
+
+    // This test process has no other environment readers; the server reads the
+    // adapter from its configured environment when handling the request.
+    unsafe {
+        std::env::set_var("STUDIO_TOOLCHAIN_CLI", &adapter);
+    }
+
+    let health_url = server.health_url();
+    let health_probe = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let response = tokio::time::timeout(
+                std::time::Duration::from_millis(250),
+                reqwest::get(health_url),
+            )
+            .await;
+            matches!(response, Ok(Ok(response)) if response.status().is_success())
+        })
+    });
+
+    let preview = tokio::spawn({
+        let rpc_url = server.rpc_url();
+        let token = server.token().to_owned();
+        async move {
+            reqwest::Client::new()
+                .post(rpc_url)
+                .bearer_auth(token)
+                .json(&serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "export.runtimePreview",
+                    "params": {}
+                }))
+                .send()
+                .await
+                .unwrap()
+                .json::<serde_json::Value>()
+                .await
+                .unwrap()
+        }
+    });
+
+    tokio::task::yield_now().await;
+    let preview = preview.await.unwrap();
+    assert!(health_probe.join().unwrap(), "health endpoint was blocked");
+    assert!(preview["result"]["previewPath"].is_string());
+}

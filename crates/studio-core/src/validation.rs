@@ -10,6 +10,27 @@ use crate::geometry::{Bounds, evaluate_node_content};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[ts(export)]
 pub enum DiagnosticCode {
+    #[serde(rename = "ICE3_STUDIO_API_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_API_INVALID")]
+    ApiInvalid,
+    #[serde(rename = "ICE3_STUDIO_API_VERSION_UNSUPPORTED")]
+    #[ts(rename = "ICE3_STUDIO_API_VERSION_UNSUPPORTED")]
+    ApiVersionUnsupported,
+    #[serde(rename = "ICE3_STUDIO_AUTH_REQUIRED")]
+    #[ts(rename = "ICE3_STUDIO_AUTH_REQUIRED")]
+    AuthRequired,
+    #[serde(rename = "ICE3_STUDIO_PROJECT_NOT_FOUND")]
+    #[ts(rename = "ICE3_STUDIO_PROJECT_NOT_FOUND")]
+    ProjectNotFound,
+    #[serde(rename = "ICE3_STUDIO_PROJECT_LOCKED")]
+    #[ts(rename = "ICE3_STUDIO_PROJECT_LOCKED")]
+    ProjectLocked,
+    #[serde(rename = "ICE3_STUDIO_REVISION_CONFLICT")]
+    #[ts(rename = "ICE3_STUDIO_REVISION_CONFLICT")]
+    RevisionConflict,
+    #[serde(rename = "ICE3_STUDIO_OPERATION_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_OPERATION_INVALID")]
+    OperationInvalid,
     #[serde(rename = "ICE3_STUDIO_REFERENCE_INVALID")]
     #[ts(rename = "ICE3_STUDIO_REFERENCE_INVALID")]
     ReferenceInvalid,
@@ -19,14 +40,54 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_CONSTRAINT_FAILED")]
     #[ts(rename = "ICE3_STUDIO_CONSTRAINT_FAILED")]
     ConstraintFailed,
+    #[serde(rename = "ICE3_STUDIO_BUDGET_EXCEEDED")]
+    #[ts(rename = "ICE3_STUDIO_BUDGET_EXCEEDED")]
+    BudgetExceeded,
+    #[serde(rename = "ICE3_STUDIO_EXPORT_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_EXPORT_FAILED")]
+    ExportFailed,
+    #[serde(rename = "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED")]
+    RuntimePreviewFailed,
+    #[serde(rename = "ICE3_STUDIO_PERSISTENCE_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_PERSISTENCE_FAILED")]
+    PersistenceFailed,
 }
+
+pub const DIAGNOSTIC_CODES: [&str; 14] = [
+    "ICE3_STUDIO_API_INVALID",
+    "ICE3_STUDIO_API_VERSION_UNSUPPORTED",
+    "ICE3_STUDIO_AUTH_REQUIRED",
+    "ICE3_STUDIO_PROJECT_NOT_FOUND",
+    "ICE3_STUDIO_PROJECT_LOCKED",
+    "ICE3_STUDIO_REVISION_CONFLICT",
+    "ICE3_STUDIO_OPERATION_INVALID",
+    "ICE3_STUDIO_REFERENCE_INVALID",
+    "ICE3_STUDIO_GEOMETRY_INVALID",
+    "ICE3_STUDIO_CONSTRAINT_FAILED",
+    "ICE3_STUDIO_BUDGET_EXCEEDED",
+    "ICE3_STUDIO_EXPORT_FAILED",
+    "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
+    "ICE3_STUDIO_PERSISTENCE_FAILED",
+];
 
 impl DiagnosticCode {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::ApiInvalid => "ICE3_STUDIO_API_INVALID",
+            Self::ApiVersionUnsupported => "ICE3_STUDIO_API_VERSION_UNSUPPORTED",
+            Self::AuthRequired => "ICE3_STUDIO_AUTH_REQUIRED",
+            Self::ProjectNotFound => "ICE3_STUDIO_PROJECT_NOT_FOUND",
+            Self::ProjectLocked => "ICE3_STUDIO_PROJECT_LOCKED",
+            Self::RevisionConflict => "ICE3_STUDIO_REVISION_CONFLICT",
+            Self::OperationInvalid => "ICE3_STUDIO_OPERATION_INVALID",
             Self::ReferenceInvalid => "ICE3_STUDIO_REFERENCE_INVALID",
             Self::GeometryInvalid => "ICE3_STUDIO_GEOMETRY_INVALID",
             Self::ConstraintFailed => "ICE3_STUDIO_CONSTRAINT_FAILED",
+            Self::BudgetExceeded => "ICE3_STUDIO_BUDGET_EXCEEDED",
+            Self::ExportFailed => "ICE3_STUDIO_EXPORT_FAILED",
+            Self::RuntimePreviewFailed => "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
+            Self::PersistenceFailed => "ICE3_STUDIO_PERSISTENCE_FAILED",
         }
     }
 }
