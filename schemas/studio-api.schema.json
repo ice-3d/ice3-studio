@@ -1,0 +1,2444 @@
+{
+  "apiVersion": "1.0",
+  "methods": [
+    "system.health",
+    "system.capabilities",
+    "project.create",
+    "project.open",
+    "project.get",
+    "project.save",
+    "project.close",
+    "document.get",
+    "document.apply",
+    "document.undo",
+    "document.redo",
+    "document.history",
+    "scene.get",
+    "scene.query",
+    "scene.bounds",
+    "validation.run",
+    "evaluation.evaluate",
+    "export.sourceGlb",
+    "export.runtimePreview"
+  ],
+  "schemaVersion": 1,
+  "title": "ICE3 Studio API",
+  "types": {
+    "ApplyRequest": {
+      "$defs": {
+        "Constraint": {
+          "properties": {
+            "constraintType": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "nodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "constraintType",
+            "nodeIds",
+            "metadata"
+          ],
+          "type": "object"
+        },
+        "NodeContent": {
+          "oneOf": [
+            {
+              "properties": {
+                "type": {
+                  "const": "group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/Primitive",
+              "properties": {
+                "type": {
+                  "const": "primitive",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/TriangleMesh",
+              "properties": {
+                "type": {
+                  "const": "custom_mesh",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "points": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 3,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "type": "array"
+                },
+                "radial_segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "type": {
+                  "const": "sweep",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "points",
+                "radius",
+                "radial_segments"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Operation": {
+          "oneOf": [
+            {
+              "properties": {
+                "content": {
+                  "$ref": "#/$defs/NodeContent"
+                },
+                "material_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "parent_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "transform": {
+                  "$ref": "#/$defs/Transform"
+                },
+                "type": {
+                  "const": "node.create",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "node_id",
+                "name",
+                "transform",
+                "content"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "metadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "transform": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Transform"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "const": "node.update",
+                  "type": "string"
+                },
+                "visible": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "node_id"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "node_id": {
+                  "type": "string"
+                },
+                "parent_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "type": {
+                  "const": "node.reparent",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "node_id"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "node_id": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "node.delete",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "node_id"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "node_id": {
+                  "type": "string"
+                },
+                "primitive": {
+                  "$ref": "#/$defs/Primitive"
+                },
+                "type": {
+                  "const": "primitive.update",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "node_id",
+                "primitive"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "mesh": {
+                  "$ref": "#/$defs/TriangleMesh"
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "mesh.replace",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "node_id",
+                "mesh"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "base_color": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                },
+                "edge_color": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "material_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "opacity": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "type": {
+                  "const": "material.upsert",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "material_id",
+                "name",
+                "base_color",
+                "opacity"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "material_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "node_id": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "material.assign",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "node_id"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "relation": {
+                  "$ref": "#/$defs/Relation"
+                },
+                "type": {
+                  "const": "relation.create",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "relation"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "from_node_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "metadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": [
+                    "object",
+                    "null"
+                  ]
+                },
+                "relation_id": {
+                  "type": "string"
+                },
+                "relation_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "to_node_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "type": {
+                  "const": "relation.update",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "relation_id"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "relation_id": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "relation.delete",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "relation_id"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "constraint": {
+                  "$ref": "#/$defs/Constraint"
+                },
+                "type": {
+                  "const": "constraint.upsert",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "constraint"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "constraint_id": {
+                  "type": "string"
+                },
+                "type": {
+                  "const": "constraint.delete",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "constraint_id"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Primitive": {
+          "oneOf": [
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "height": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "box",
+                  "type": "string"
+                },
+                "width": {
+                  "format": "float",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "plane",
+                  "type": "string"
+                },
+                "width": {
+                  "format": "float",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "height": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "cylinder",
+                  "type": "string"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "radius",
+                "height",
+                "segments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "sphere",
+                  "type": "string"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "rings": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "radius",
+                "segments",
+                "rings"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Relation": {
+          "properties": {
+            "fromNodeId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "relationType": {
+              "type": "string"
+            },
+            "toNodeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "relationType",
+            "fromNodeId",
+            "toNodeId",
+            "metadata"
+          ],
+          "type": "object"
+        },
+        "Transform": {
+          "properties": {
+            "rotation": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "scale": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "translation": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "translation",
+            "rotation",
+            "scale"
+          ],
+          "type": "object"
+        },
+        "TriangleMesh": {
+          "properties": {
+            "indices": {
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "positions": {
+              "items": {
+                "items": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "positions",
+            "indices"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "dryRun": {
+          "default": false,
+          "type": "boolean"
+        },
+        "expectedRevision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "idempotencyKey": {
+          "type": "string"
+        },
+        "operations": {
+          "items": {
+            "$ref": "#/$defs/Operation"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "expectedRevision",
+        "idempotencyKey",
+        "operations"
+      ],
+      "title": "ApplyRequest",
+      "type": "object"
+    },
+    "ApplyResult": {
+      "$defs": {
+        "Diagnostic": {
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/DiagnosticCode"
+            },
+            "message": {
+              "type": "string"
+            },
+            "objectId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "operationIndex": {
+              "format": "uint",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "pointer": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "pointer",
+            "message"
+          ],
+          "type": "object"
+        },
+        "DiagnosticCode": {
+          "enum": [
+            "ICE3_STUDIO_REFERENCE_INVALID",
+            "ICE3_STUDIO_GEOMETRY_INVALID",
+            "ICE3_STUDIO_CONSTRAINT_FAILED"
+          ],
+          "type": "string"
+        },
+        "DocumentDiff": {
+          "properties": {
+            "addedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "addedNodeIds",
+            "updatedNodeIds",
+            "removedNodeIds",
+            "addedMaterialIds",
+            "updatedMaterialIds",
+            "removedMaterialIds",
+            "addedRelationIds",
+            "updatedRelationIds",
+            "removedRelationIds",
+            "addedConstraintIds",
+            "updatedConstraintIds",
+            "removedConstraintIds"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "changedMaterialIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "changedNodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "changedRelationIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "diagnostics": {
+          "items": {
+            "$ref": "#/$defs/Diagnostic"
+          },
+          "type": "array"
+        },
+        "diff": {
+          "$ref": "#/$defs/DocumentDiff"
+        },
+        "dryRun": {
+          "type": "boolean"
+        },
+        "previousRevision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "previousRevision",
+        "revision",
+        "changedNodeIds",
+        "changedMaterialIds",
+        "changedRelationIds",
+        "diff",
+        "diagnostics",
+        "dryRun"
+      ],
+      "title": "ApplyResult",
+      "type": "object"
+    },
+    "Capabilities": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "apiVersion": {
+          "type": "string"
+        },
+        "methods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "schemaVersion": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "schemaVersion",
+        "methods"
+      ],
+      "title": "Capabilities",
+      "type": "object"
+    },
+    "Diagnostic": {
+      "$defs": {
+        "DiagnosticCode": {
+          "enum": [
+            "ICE3_STUDIO_REFERENCE_INVALID",
+            "ICE3_STUDIO_GEOMETRY_INVALID",
+            "ICE3_STUDIO_CONSTRAINT_FAILED"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/DiagnosticCode"
+        },
+        "message": {
+          "type": "string"
+        },
+        "objectId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "operationIndex": {
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pointer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "pointer",
+        "message"
+      ],
+      "title": "Diagnostic",
+      "type": "object"
+    },
+    "Document": {
+      "$defs": {
+        "ApplyResult": {
+          "properties": {
+            "changedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "changedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "changedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "diagnostics": {
+              "items": {
+                "$ref": "#/$defs/Diagnostic"
+              },
+              "type": "array"
+            },
+            "diff": {
+              "$ref": "#/$defs/DocumentDiff"
+            },
+            "dryRun": {
+              "type": "boolean"
+            },
+            "previousRevision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "revision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "previousRevision",
+            "revision",
+            "changedNodeIds",
+            "changedMaterialIds",
+            "changedRelationIds",
+            "diff",
+            "diagnostics",
+            "dryRun"
+          ],
+          "type": "object"
+        },
+        "Constraint": {
+          "properties": {
+            "constraintType": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "nodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "constraintType",
+            "nodeIds",
+            "metadata"
+          ],
+          "type": "object"
+        },
+        "Diagnostic": {
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/DiagnosticCode"
+            },
+            "message": {
+              "type": "string"
+            },
+            "objectId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "operationIndex": {
+              "format": "uint",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "pointer": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "pointer",
+            "message"
+          ],
+          "type": "object"
+        },
+        "DiagnosticCode": {
+          "enum": [
+            "ICE3_STUDIO_REFERENCE_INVALID",
+            "ICE3_STUDIO_GEOMETRY_INVALID",
+            "ICE3_STUDIO_CONSTRAINT_FAILED"
+          ],
+          "type": "string"
+        },
+        "DocumentDiff": {
+          "properties": {
+            "addedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "addedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedConstraintIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedMaterialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedNodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "updatedRelationIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "addedNodeIds",
+            "updatedNodeIds",
+            "removedNodeIds",
+            "addedMaterialIds",
+            "updatedMaterialIds",
+            "removedMaterialIds",
+            "addedRelationIds",
+            "updatedRelationIds",
+            "removedRelationIds",
+            "addedConstraintIds",
+            "updatedConstraintIds",
+            "removedConstraintIds"
+          ],
+          "type": "object"
+        },
+        "IdempotencyRecord": {
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "requestDigest": {
+              "type": "string"
+            },
+            "result": {
+              "$ref": "#/$defs/ApplyResult"
+            }
+          },
+          "required": [
+            "key",
+            "requestDigest",
+            "result"
+          ],
+          "type": "object"
+        },
+        "Material": {
+          "properties": {
+            "baseColor": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "edgeColor": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "opacity": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "baseColor",
+            "opacity"
+          ],
+          "type": "object"
+        },
+        "NodeContent": {
+          "oneOf": [
+            {
+              "properties": {
+                "type": {
+                  "const": "group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/Primitive",
+              "properties": {
+                "type": {
+                  "const": "primitive",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/TriangleMesh",
+              "properties": {
+                "type": {
+                  "const": "custom_mesh",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "points": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 3,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "type": "array"
+                },
+                "radial_segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "type": {
+                  "const": "sweep",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "points",
+                "radius",
+                "radial_segments"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Primitive": {
+          "oneOf": [
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "height": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "box",
+                  "type": "string"
+                },
+                "width": {
+                  "format": "float",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "plane",
+                  "type": "string"
+                },
+                "width": {
+                  "format": "float",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "height": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "cylinder",
+                  "type": "string"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "radius",
+                "height",
+                "segments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "sphere",
+                  "type": "string"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "rings": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "radius",
+                "segments",
+                "rings"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Relation": {
+          "properties": {
+            "fromNodeId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "relationType": {
+              "type": "string"
+            },
+            "toNodeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "relationType",
+            "fromNodeId",
+            "toNodeId",
+            "metadata"
+          ],
+          "type": "object"
+        },
+        "Scene": {
+          "properties": {
+            "nodes": {
+              "items": {
+                "$ref": "#/$defs/SceneNode"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "nodes"
+          ],
+          "type": "object"
+        },
+        "SceneNode": {
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/NodeContent"
+            },
+            "id": {
+              "type": "string"
+            },
+            "materialId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "name": {
+              "type": "string"
+            },
+            "parentId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "transform": {
+              "$ref": "#/$defs/Transform"
+            },
+            "visible": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "transform",
+            "content",
+            "metadata",
+            "visible"
+          ],
+          "type": "object"
+        },
+        "Transform": {
+          "properties": {
+            "rotation": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "scale": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "translation": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "translation",
+            "rotation",
+            "scale"
+          ],
+          "type": "object"
+        },
+        "TriangleMesh": {
+          "properties": {
+            "indices": {
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "positions": {
+              "items": {
+                "items": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "positions",
+            "indices"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "constraints": {
+          "items": {
+            "$ref": "#/$defs/Constraint"
+          },
+          "type": "array"
+        },
+        "idempotencyKeys": {
+          "items": {
+            "$ref": "#/$defs/IdempotencyRecord"
+          },
+          "type": "array"
+        },
+        "materials": {
+          "items": {
+            "$ref": "#/$defs/Material"
+          },
+          "type": "array"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "relations": {
+          "items": {
+            "$ref": "#/$defs/Relation"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scene": {
+          "$ref": "#/$defs/Scene"
+        },
+        "schemaVersion": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "revision",
+        "projectId",
+        "scene",
+        "materials",
+        "relations",
+        "constraints",
+        "metadata",
+        "idempotencyKeys"
+      ],
+      "title": "Document",
+      "type": "object"
+    },
+    "Operation": {
+      "$defs": {
+        "Constraint": {
+          "properties": {
+            "constraintType": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "nodeIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "constraintType",
+            "nodeIds",
+            "metadata"
+          ],
+          "type": "object"
+        },
+        "NodeContent": {
+          "oneOf": [
+            {
+              "properties": {
+                "type": {
+                  "const": "group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/Primitive",
+              "properties": {
+                "type": {
+                  "const": "primitive",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/TriangleMesh",
+              "properties": {
+                "type": {
+                  "const": "custom_mesh",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "points": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 3,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "type": "array"
+                },
+                "radial_segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "type": {
+                  "const": "sweep",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "points",
+                "radius",
+                "radial_segments"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Primitive": {
+          "oneOf": [
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "height": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "box",
+                  "type": "string"
+                },
+                "width": {
+                  "format": "float",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "plane",
+                  "type": "string"
+                },
+                "width": {
+                  "format": "float",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "height": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "cylinder",
+                  "type": "string"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "radius",
+                "height",
+                "segments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "sphere",
+                  "type": "string"
+                },
+                "radius": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "rings": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "radius",
+                "segments",
+                "rings"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Relation": {
+          "properties": {
+            "fromNodeId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "relationType": {
+              "type": "string"
+            },
+            "toNodeId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "relationType",
+            "fromNodeId",
+            "toNodeId",
+            "metadata"
+          ],
+          "type": "object"
+        },
+        "Transform": {
+          "properties": {
+            "rotation": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "scale": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "translation": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "translation",
+            "rotation",
+            "scale"
+          ],
+          "type": "object"
+        },
+        "TriangleMesh": {
+          "properties": {
+            "indices": {
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "positions": {
+              "items": {
+                "items": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "positions",
+            "indices"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "oneOf": [
+        {
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/NodeContent"
+            },
+            "material_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": "string"
+            },
+            "node_id": {
+              "type": "string"
+            },
+            "parent_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "transform": {
+              "$ref": "#/$defs/Transform"
+            },
+            "type": {
+              "const": "node.create",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node_id",
+            "name",
+            "transform",
+            "content"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "node_id": {
+              "type": "string"
+            },
+            "transform": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Transform"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "const": "node.update",
+              "type": "string"
+            },
+            "visible": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "node_id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "node_id": {
+              "type": "string"
+            },
+            "parent_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "node.reparent",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node_id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "node_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "node.delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node_id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "node_id": {
+              "type": "string"
+            },
+            "primitive": {
+              "$ref": "#/$defs/Primitive"
+            },
+            "type": {
+              "const": "primitive.update",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node_id",
+            "primitive"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "mesh": {
+              "$ref": "#/$defs/TriangleMesh"
+            },
+            "node_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "mesh.replace",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node_id",
+            "mesh"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "base_color": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "edge_color": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "material_id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "opacity": {
+              "format": "float",
+              "type": "number"
+            },
+            "type": {
+              "const": "material.upsert",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "material_id",
+            "name",
+            "base_color",
+            "opacity"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "material_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "node_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "material.assign",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "node_id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "relation": {
+              "$ref": "#/$defs/Relation"
+            },
+            "type": {
+              "const": "relation.create",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "relation"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "from_node_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "relation_id": {
+              "type": "string"
+            },
+            "relation_type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "to_node_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "relation.update",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "relation_id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "relation_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "relation.delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "relation_id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "constraint": {
+              "$ref": "#/$defs/Constraint"
+            },
+            "type": {
+              "const": "constraint.upsert",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "constraint"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "constraint_id": {
+              "type": "string"
+            },
+            "type": {
+              "const": "constraint.delete",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "constraint_id"
+          ],
+          "type": "object"
+        }
+      ],
+      "title": "Operation"
+    },
+    "RevisionEvent": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "event": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "event",
+        "revision"
+      ],
+      "title": "RevisionEvent",
+      "type": "object"
+    },
+    "RpcRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "id": true,
+        "jsonrpc": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": true
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "RpcRequest",
+      "type": "object"
+    },
+    "RpcResponse": {
+      "$defs": {
+        "RpcError": {
+          "properties": {
+            "code": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "data": true,
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RpcError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": true,
+        "jsonrpc": {
+          "type": "string"
+        },
+        "result": true
+      },
+      "required": [
+        "jsonrpc",
+        "id"
+      ],
+      "title": "RpcResponse",
+      "type": "object"
+    }
+  }
+}

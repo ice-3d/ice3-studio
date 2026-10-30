@@ -104,3 +104,9 @@ impl Revision {
         Self(self.0 + 1)
     }
 }
+
+impl PartialEq<u64> for Revision {
+    fn eq(&self, other: &u64) -> bool {
+        self.0 == *other
+    }
+}
