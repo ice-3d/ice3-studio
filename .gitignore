@@ -3,6 +3,7 @@
 /apps/viewer/node_modules/
 /apps/viewer/dist/
 /.studio/
+/.superpowers/
 /wwtp-mini/
 /wastewater-mini/
 /apps/viewer/playwright-report/

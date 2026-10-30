@@ -17,6 +17,7 @@
 | `ICE3-STUDIO-REF-DIAG-001` | [Diagnostics](reference/diagnostics.md) | Implemented | 稳定错误码和恢复规则 |
 | `ICE3-STUDIO-ADR-0001` | [Document as Source of Truth](decisions/0001-document-as-source-of-truth.md) | Implemented | Document 与派生 Geometry 的决策 |
 | `ICE3-STUDIO-ADR-0002` | [Local API Boundary](decisions/0002-local-api-boundary.md) | Implemented | 本地 API 与 Viewer 边界决策 |
+| `ICE3-STUDIO-SPEC-002` | [Studio Web Workbench 设计](specs/2026-10-30-studio-web-workbench-design.md) | Proposed | AI-native 审查、表单编辑、ChangeSet 和通用工作台设计 |
 | `ICE3-STUDIO-SPEC-001` | [AI-Native Modeling MVP 设计](specs/2026-10-30-ai-native-studio-mvp-design.md) | Implemented | Rust Core、API、数据模型、Viewer 和验收设计 |
 | `ICE3-STUDIO-PLAN-001` | [AI-Native Modeling MVP 实施计划](plans/2026-10-30-ai-native-studio-mvp.md) | Implemented | Rust Core、API、Viewer、AI 验收和性能的实施步骤 |
 | `ICE3-STUDIO-POL-001` | [仓库规则](../AGENTS.md) | Implemented | 架构、交付和命名边界 |
