@@ -85,6 +85,7 @@ async fn publishes_generated_api_schemas() {
         .unwrap();
     assert!(schema.contains("\"apiVersion\": \"1.0\""));
     assert!(schema.contains("node.create"));
+    assert!(schema.contains("evaluation.stats"));
 }
 
 #[tokio::test]

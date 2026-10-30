@@ -121,6 +121,20 @@ pub struct Capabilities {
     pub toolchain: ToolchainStatus,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EvaluatedSceneStats {
+    pub source_nodes: usize,
+    pub expanded_nodes: usize,
+    pub unique_meshes: usize,
+    pub effective_triangles: usize,
+    pub unique_triangles: usize,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+    pub generated_meshes: usize,
+}
+
 pub(crate) struct Session {
     pub(crate) workspace_root: PathBuf,
     pub(crate) project_id: String,
@@ -720,6 +734,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "scene.bounds".into(),
                 "validation.run".into(),
                 "evaluation.evaluate".into(),
+                "evaluation.stats".into(),
                 "export.sourceGlb".into(),
                 "export.runtimePreview".into(),
                 "changeset.create".into(),
@@ -927,6 +942,20 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 }
             }
             serde_json::to_value(output).map_err(serialize_error)
+        }
+        "evaluation.stats" => {
+            let (evaluated, _) = evaluate_session_scene(session)?;
+            serde_json::to_value(EvaluatedSceneStats {
+                source_nodes: evaluated.stats.source_nodes,
+                expanded_nodes: evaluated.stats.expanded_nodes,
+                unique_meshes: evaluated.stats.unique_meshes,
+                effective_triangles: evaluated.stats.effective_triangles,
+                unique_triangles: evaluated.stats.unique_triangles,
+                cache_hits: evaluated.stats.cache_hits,
+                cache_misses: evaluated.stats.cache_misses,
+                generated_meshes: evaluated.stats.generated_meshes,
+            })
+            .map_err(serialize_error)
         }
         "export.sourceGlb" => {
             let output = export_source(&session.document, session.store.project_dir())

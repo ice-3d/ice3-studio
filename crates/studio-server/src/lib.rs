@@ -10,6 +10,6 @@ pub mod toolchain;
 
 pub use events::ServerEvent;
 pub use rpc::{
-    Capabilities, RpcError, RpcRequest, RpcResponse, ServerConfig, TestServer, serve,
-    start_test_server, start_test_server_at,
+    Capabilities, EvaluatedSceneStats, RpcError, RpcRequest, RpcResponse, ServerConfig, TestServer,
+    serve, start_test_server, start_test_server_at,
 };

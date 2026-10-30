@@ -18,6 +18,7 @@
     "scene.bounds",
     "validation.run",
     "evaluation.evaluate",
+    "evaluation.stats",
     "export.sourceGlb",
     "export.runtimePreview",
     "changeset.create",
@@ -11038,6 +11039,63 @@
         "idempotencyKeys"
       ],
       "title": "Document",
+      "type": "object"
+    },
+    "EvaluatedSceneStats": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "cacheHits": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cacheMisses": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "effectiveTriangles": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "expandedNodes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "generatedMeshes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sourceNodes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "uniqueMeshes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "uniqueTriangles": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sourceNodes",
+        "expandedNodes",
+        "uniqueMeshes",
+        "effectiveTriangles",
+        "uniqueTriangles",
+        "cacheHits",
+        "cacheMisses",
+        "generatedMeshes"
+      ],
+      "title": "EvaluatedSceneStats",
       "type": "object"
     },
     "Operation": {
