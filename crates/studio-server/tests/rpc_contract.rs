@@ -16,7 +16,7 @@ async fn health_reports_api_and_schema_versions() {
         .unwrap();
     assert_eq!(body["status"], "ok");
     assert_eq!(body["apiVersion"], "1.0");
-    assert_eq!(body["schemaVersion"], 1);
+    assert_eq!(body["schemaVersion"], 2);
 }
 
 #[tokio::test]

@@ -1,12 +1,12 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use glam::{Mat4, Quat, Vec3};
 use serde_json::{Value, json};
 use thiserror::Error;
 
-use crate::document::{Document, NodeContent, SceneNode};
-use crate::geometry::{EvaluatedMesh, evaluate_node_content};
-use crate::ids::NodeId;
+use crate::document::Document;
+use crate::geometry::EvaluatedMesh;
+use crate::large_scene::evaluate::{EvaluatedScene, EvaluatedSceneNode, evaluate_large_scene};
 use crate::validation::validate_document;
 
 const GLB_MAGIC: u32 = 0x4654_6C67;
@@ -20,6 +20,10 @@ pub enum ExportError {
     Validation,
     #[error("geometry evaluation failed: {0}")]
     Geometry(#[from] crate::geometry::GeometryError),
+    #[error("derived scene hierarchy is invalid")]
+    InvalidHierarchy,
+    #[error("derived scene evaluation failed: {0}")]
+    LargeScene(#[from] crate::large_scene::evaluate::LargeSceneError),
     #[error("GLB JSON encoding failed")]
     Json(#[source] serde_json::Error),
 }
@@ -28,6 +32,14 @@ pub fn export_glb(document: &Document) -> Result<Vec<u8>, ExportError> {
     if !validate_document(document).is_empty() {
         return Err(ExportError::Validation);
     }
+    let evaluated = evaluate_large_scene(document)?;
+    export_glb_from_scene(document, &evaluated)
+}
+
+pub fn export_glb_from_scene(
+    document: &Document,
+    evaluated: &EvaluatedScene,
+) -> Result<Vec<u8>, ExportError> {
     let mut binary = Vec::new();
     let mut buffer_views = Vec::<Value>::new();
     let mut accessors = Vec::<Value>::new();
@@ -54,50 +66,64 @@ pub fn export_glb(document: &Document) -> Result<Vec<u8>, ExportError> {
             })
         })
         .collect::<Vec<_>>();
-    let mut meshes = Vec::new();
-    let mut mesh_index_by_node = BTreeMap::<NodeId, usize>::new();
-    for node in document.scene.nodes() {
-        if matches!(node.content, NodeContent::Group) {
-            continue;
-        }
-        let evaluated = evaluate_node_content(&node.content)?;
-        let mesh_index = meshes.len();
-        mesh_index_by_node.insert(node.id.clone(), mesh_index);
-        meshes.push(export_mesh(
-            node,
-            &evaluated,
-            material_indices
-                .get(
-                    &node
-                        .material_id
-                        .clone()
-                        .unwrap_or_else(|| crate::ids::MaterialId::from("missing-000000")),
-                )
-                .copied(),
-            &mut binary,
-            &mut buffer_views,
-            &mut accessors,
-        ));
+    let mut primitive_by_key = BTreeMap::new();
+    for (key, mesh) in &evaluated.meshes {
+        primitive_by_key.insert(
+            key.clone(),
+            export_geometry(mesh, &mut binary, &mut buffer_views, &mut accessors),
+        );
     }
 
-    let mut child_indices: BTreeMap<NodeId, Vec<usize>> = BTreeMap::new();
-    for (index, node) in document.scene.nodes().iter().enumerate() {
+    let node_index_by_id: BTreeMap<_, _> = evaluated
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| (node.id.clone(), index))
+        .collect();
+    let mut variant_keys = BTreeSet::<(String, Option<usize>)>::new();
+    for node in &evaluated.nodes {
+        let Some(mesh_key) = &node.mesh_key else {
+            continue;
+        };
+        let material = node
+            .material_id
+            .as_ref()
+            .and_then(|id| material_indices.get(id))
+            .copied();
+        variant_keys.insert((mesh_key.clone(), material));
+    }
+    let variant_keys = variant_keys.into_iter().collect::<Vec<_>>();
+    let mut meshes = Vec::with_capacity(variant_keys.len());
+    let mut mesh_variants = BTreeMap::new();
+    for (variant, (mesh_key, material)) in variant_keys.into_iter().enumerate() {
+        let primitive = primitive_by_key
+            .get(&mesh_key)
+            .ok_or(ExportError::InvalidHierarchy)?;
+        meshes.push(mesh_json(&mesh_key, primitive, material));
+        mesh_variants.insert((mesh_key, material), variant);
+    }
+
+    let mut child_indices: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    for (index, node) in evaluated.nodes.iter().enumerate() {
         if let Some(parent) = &node.parent_id {
+            if !node_index_by_id.contains_key(parent) {
+                return Err(ExportError::InvalidHierarchy);
+            }
             child_indices.entry(parent.clone()).or_default().push(index);
         }
     }
-    let nodes = document
-        .scene
-        .nodes()
+    let nodes = evaluated
+        .nodes
         .iter()
-        .enumerate()
-        .map(|(index, node)| {
+        .map(|node| {
+            let id = node.id.as_str();
             let mut value = json!({
-                "name": node.id.as_str(),
+                "name": id,
                 "matrix": node_matrix(node),
                 "extras": {
                     "ice3": {
-                        "id": node.id.as_str(),
+                        "id": id,
+                        "ownerId": node.owner_id,
                         "displayName": node.name,
                         "metadata": node.metadata
                     }
@@ -106,19 +132,25 @@ pub fn export_glb(document: &Document) -> Result<Vec<u8>, ExportError> {
             if !node.visible {
                 value["extras"]["ice3"]["visible"] = Value::Bool(false);
             }
-            if let Some(mesh) = mesh_index_by_node.get(&node.id) {
+            if let Some(mesh_key) = &node.mesh_key {
+                let material = node
+                    .material_id
+                    .as_ref()
+                    .and_then(|id| material_indices.get(id))
+                    .copied();
+                let mesh = mesh_variants
+                    .get(&(mesh_key.clone(), material))
+                    .ok_or(ExportError::InvalidHierarchy)?;
                 value["mesh"] = json!(mesh);
             }
-            if let Some(children) = child_indices.get(&node.id) {
+            if let Some(children) = child_indices.get(id) {
                 value["children"] = json!(children);
             }
-            let _ = index;
-            value
+            Ok(value)
         })
-        .collect::<Vec<_>>();
-    let roots = document
-        .scene
-        .nodes()
+        .collect::<Result<Vec<_>, ExportError>>()?;
+    let roots = evaluated
+        .nodes
         .iter()
         .enumerate()
         .filter_map(|(index, node)| node.parent_id.is_none().then_some(index))
@@ -152,14 +184,18 @@ pub fn export_glb(document: &Document) -> Result<Vec<u8>, ExportError> {
     Ok(pack_glb(json, binary))
 }
 
-fn export_mesh(
-    node: &SceneNode,
+struct ExportedPrimitive {
+    position_accessor: usize,
+    normal_accessor: usize,
+    index_accessor: usize,
+}
+
+fn export_geometry(
     mesh: &EvaluatedMesh,
-    material: Option<usize>,
     binary: &mut Vec<u8>,
     buffer_views: &mut Vec<Value>,
     accessors: &mut Vec<Value>,
-) -> Value {
+) -> ExportedPrimitive {
     let positions = mesh
         .vertices
         .iter()
@@ -209,20 +245,28 @@ fn export_mesh(
         "count": mesh.indices.len(),
         "type": "SCALAR"
     }));
-    let mut primitive = json!({
+    ExportedPrimitive {
+        position_accessor,
+        normal_accessor,
+        index_accessor,
+    }
+}
+
+fn mesh_json(key: &str, primitive: &ExportedPrimitive, material: Option<usize>) -> Value {
+    let mut value = json!({
         "attributes": {
-            "POSITION": position_accessor,
-            "NORMAL": normal_accessor
+            "POSITION": primitive.position_accessor,
+            "NORMAL": primitive.normal_accessor
         },
-        "indices": index_accessor,
+        "indices": primitive.index_accessor,
         "mode": 4
     });
     if let Some(material) = material {
-        primitive["material"] = json!(material);
+        value["material"] = json!(material);
     }
     json!({
-        "name": node.id.as_str(),
-        "primitives": [primitive]
+        "name": key,
+        "primitives": [value]
     })
 }
 
@@ -280,7 +324,7 @@ fn pack_glb(mut json: Vec<u8>, mut binary: Vec<u8>) -> Vec<u8> {
     output
 }
 
-fn node_matrix(node: &SceneNode) -> [f32; 16] {
+fn node_matrix(node: &EvaluatedSceneNode) -> [f32; 16] {
     Mat4::from_scale_rotation_translation(
         Vec3::new(
             node.transform.scale.x,

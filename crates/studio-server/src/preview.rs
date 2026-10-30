@@ -5,7 +5,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use studio_core::document::Document;
-use studio_core::export::glb::export_glb;
+use studio_core::export::glb::{export_glb, export_glb_from_scene};
+use studio_core::large_scene::evaluate::{LargeSceneError, evaluate_large_scene_with_cache};
+use studio_project::geometry_cache::{GeometryCacheError, GeometryDiskCache};
 use thiserror::Error;
 use ts_rs::TS;
 
@@ -48,7 +50,9 @@ pub fn export_source(
 ) -> Result<SourceExport, PreviewError> {
     let preview_dir = project_dir.join("cache/preview");
     std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
-    let source = export_glb(document)?;
+    let mut cache = GeometryDiskCache::new(project_dir)?;
+    let evaluated = evaluate_large_scene_with_cache(document, &mut cache)?;
+    let source = export_glb_from_scene(document, &evaluated)?;
     let digest = format!("{:x}", Sha256::digest(&source));
     let source_path = preview_dir.join(format!("{:08}-source.glb", document.revision.as_u64()));
     std::fs::write(&source_path, source).map_err(PreviewError::Io)?;
@@ -73,6 +77,10 @@ pub enum PreviewError {
     InvalidOutput,
     #[error("Toolchain sidecar failed: {0}")]
     Toolchain(#[from] studio_toolchain_client::ToolchainClientError),
+    #[error("geometry cache failed: {0}")]
+    GeometryCache(#[from] GeometryCacheError),
+    #[error("derived scene evaluation failed: {0}")]
+    LargeScene(#[from] LargeSceneError),
 }
 
 pub struct PreviewAdapter {

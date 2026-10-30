@@ -4,7 +4,7 @@ use glam::{Mat4, Quat, Vec3 as GlamVec3};
 use sha2::{Digest, Sha256};
 
 use crate::document::{Document, NodeContent, SceneNode};
-use crate::geometry::{EvaluatedMesh, GeometryError, Primitive};
+use crate::geometry::{Bounds, EvaluatedMesh, GeometryError, Primitive};
 use crate::ids::{ComponentId, MaterialId};
 use crate::large_scene::cache::{GeometryStore, MemoryGeometryStore};
 use crate::large_scene::component::{
@@ -139,6 +139,73 @@ pub fn resolved_part_geometry_key(
     ))
     .map_err(|_| LargeSceneError::InvalidComponentReference)?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
+pub fn evaluated_scene_bounds(scene: &EvaluatedScene) -> BTreeMap<String, Bounds> {
+    let by_id = scene
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect::<BTreeMap<_, _>>();
+    let mut output = BTreeMap::new();
+    for node in &scene.nodes {
+        let Some(mesh_key) = &node.mesh_key else {
+            continue;
+        };
+        let Some(mesh) = scene.meshes.get(mesh_key) else {
+            continue;
+        };
+        let mut transforms = Vec::new();
+        let mut current = Some(node);
+        while let Some(candidate) = current {
+            transforms.push(candidate.transform);
+            current = candidate
+                .parent_id
+                .as_deref()
+                .and_then(|parent| by_id.get(parent).copied());
+        }
+        let matrix = transforms
+            .iter()
+            .rev()
+            .fold(Mat4::IDENTITY, |parent, child| {
+                parent * transform_matrix(*child)
+            });
+        let mut minimum = [f32::INFINITY; 3];
+        let mut maximum = [f32::NEG_INFINITY; 3];
+        for x in [mesh.bounds.min.x, mesh.bounds.max.x] {
+            for y in [mesh.bounds.min.y, mesh.bounds.max.y] {
+                for z in [mesh.bounds.min.z, mesh.bounds.max.z] {
+                    let point = matrix.transform_point3(GlamVec3::new(x, y, z));
+                    minimum = [
+                        minimum[0].min(point.x),
+                        minimum[1].min(point.y),
+                        minimum[2].min(point.z),
+                    ];
+                    maximum = [
+                        maximum[0].max(point.x),
+                        maximum[1].max(point.y),
+                        maximum[2].max(point.z),
+                    ];
+                }
+            }
+        }
+        output.insert(
+            node.id.clone(),
+            Bounds {
+                min: Vec3 {
+                    x: minimum[0],
+                    y: minimum[1],
+                    z: minimum[2],
+                },
+                max: Vec3 {
+                    x: maximum[0],
+                    y: maximum[1],
+                    z: maximum[2],
+                },
+            },
+        );
+    }
+    output
 }
 
 pub fn expand_instance_layout(layout: &InstanceLayout) -> Result<Vec<Transform>, LayoutError> {

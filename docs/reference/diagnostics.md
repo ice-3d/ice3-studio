@@ -46,6 +46,12 @@ same value as `code`.
 | `ICE3_STUDIO_TOOLCHAIN_TIMEOUT` | A Toolchain operation exceeded its host timeout |
 | `ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID` | Sidecar stdout violated the JSON-RPC contract or the process crashed |
 | `ICE3_STUDIO_TOOLCHAIN_JOB_FAILED` | Toolchain rejected or failed an asset job |
+| `ICE3_STUDIO_COMPONENT_INVALID` | A component definition, part graph, binding, or reference is invalid |
+| `ICE3_STUDIO_PARAMETER_INVALID` | A component parameter or override is missing, mistyped, or out of range |
+| `ICE3_STUDIO_INSTANCE_INVALID` | A component instance or part override is invalid |
+| `ICE3_STUDIO_INSTANCE_SET_INVALID` | An instance layout, count, placement, or item override is invalid |
+| `ICE3_STUDIO_CONNECTION_INVALID` | A connection endpoint, port, medium, relation, or route is invalid |
+| `ICE3_STUDIO_GEOMETRY_CACHE_FAILED` | Derived geometry cache access or recovery failed |
 
 ## Recovery Rules
 

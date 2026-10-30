@@ -15,10 +15,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction};
 use studio_core::document::Document;
-use studio_core::geometry::{Bounds, evaluate_node_content, world_bounds};
+use studio_core::geometry::Bounds;
 use studio_core::ids::NodeId;
+use studio_core::large_scene::evaluate::{
+    EvaluatedScene, evaluate_large_scene_with_cache, evaluated_scene_bounds,
+};
 use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
+use studio_project::geometry_cache::GeometryDiskCache;
 use studio_project::{ProjectStore, WorkspacePath};
 use tokio::sync::broadcast;
 use tower_http::services::{ServeDir, ServeFile};
@@ -838,6 +842,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         "scene.query" => {
             let query: SceneQuery =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let (_, bounds_by_id) = evaluate_session_scene(session)?;
             let relation_nodes = if query.relation_type.is_some() || query.related_node_id.is_some()
             {
                 let mut nodes = HashSet::new();
@@ -891,9 +896,9 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 })
                 .filter(|node| {
                     query.bounds.is_none_or(|bounds| {
-                        world_bounds(&session.document, node)
-                            .ok()
-                            .flatten()
+                        bounds_by_id
+                            .get(node.id.as_str())
+                            .copied()
                             .is_some_and(|candidate| bounds_intersect(candidate, bounds))
                     })
                 })
@@ -901,22 +906,21 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             serde_json::to_value(nodes).map_err(serialize_error)
         }
         "scene.bounds" => {
-            let mut output = BTreeMap::new();
-            for node in session.document.scene.nodes() {
-                if let Ok(Some(bounds)) = world_bounds(&session.document, node) {
-                    output.insert(node.id.as_str().to_owned(), bounds);
-                }
-            }
+            let (_, output) = evaluate_session_scene(session)?;
             serde_json::to_value(output).map_err(serialize_error)
         }
         "validation.run" => {
             serde_json::to_value(validate_document(&session.document)).map_err(serialize_error)
         }
         "evaluation.evaluate" => {
+            let (evaluated, _) = evaluate_session_scene(session)?;
             let mut output = BTreeMap::new();
-            for node in session.document.scene.nodes() {
-                let mesh = evaluate_node_content(&node.content).map_err(geometry_error)?;
-                output.insert(node.id.as_str().to_owned(), mesh);
+            for node in evaluated.nodes {
+                if let Some(mesh_key) = node.mesh_key
+                    && let Some(mesh) = evaluated.meshes.get(&mesh_key)
+                {
+                    output.insert(node.id, mesh.clone());
+                }
             }
             serde_json::to_value(output).map_err(serialize_error)
         }
@@ -1161,6 +1165,23 @@ fn bounds_intersect(left: Bounds, right: Bounds) -> bool {
         && left.max.z >= right.min.z
 }
 
+fn evaluate_session_scene(
+    session: &Session,
+) -> Result<(EvaluatedScene, BTreeMap<String, Bounds>), RpcError> {
+    let mut cache = GeometryDiskCache::new(session.store.project_dir()).map_err(|error| {
+        RpcError::with_diagnostic(
+            -32012,
+            DiagnosticCode::GeometryCacheFailed.as_str(),
+            format!("{}: {error}", DiagnosticCode::GeometryCacheFailed.as_str()),
+            None,
+        )
+    })?;
+    let evaluated = evaluate_large_scene_with_cache(&session.document, &mut cache)
+        .map_err(large_scene_error)?;
+    let bounds = evaluated_scene_bounds(&evaluated);
+    Ok((evaluated, bounds))
+}
+
 fn mutating(method: &str) -> bool {
     matches!(
         method,
@@ -1271,11 +1292,20 @@ pub(crate) fn project_error(error: studio_project::ProjectError) -> RpcError {
     )
 }
 
-fn geometry_error(error: studio_core::geometry::GeometryError) -> RpcError {
+fn large_scene_error(error: studio_core::large_scene::evaluate::LargeSceneError) -> RpcError {
+    use studio_core::large_scene::evaluate::LargeSceneError;
+
+    let code = match &error {
+        LargeSceneError::Parameter(_) => DiagnosticCode::ParameterInvalid,
+        LargeSceneError::Connection(_) => DiagnosticCode::ConnectionInvalid,
+        LargeSceneError::Layout(_) => DiagnosticCode::InstanceSetInvalid,
+        LargeSceneError::Geometry(_) => DiagnosticCode::GeometryInvalid,
+        LargeSceneError::InvalidComponentReference => DiagnosticCode::ComponentInvalid,
+    };
     RpcError::with_diagnostic(
         -32012,
-        DiagnosticCode::GeometryInvalid.as_str(),
-        format!("{}: {error}", DiagnosticCode::GeometryInvalid.as_str()),
+        code.as_str(),
+        format!("{}: {error}", code.as_str()),
         None,
     )
 }
