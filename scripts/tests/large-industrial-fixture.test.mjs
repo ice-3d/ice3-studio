@@ -11,6 +11,7 @@ import {
   TEMPLATE_TRIANGLE_BUDGETS,
   buildComponentDefinitions,
 } from '../../fixtures/large-industrial-site/templates.mjs';
+import { buildIndustrialScenePlan } from '../../fixtures/large-industrial-site/operations.mjs';
 
 test('catalogue preserves the accepted large-scene scale', () => {
   const counts = validateCatalogue({
@@ -54,4 +55,51 @@ test('catalogue weighted template budget targets the large scene band', () => {
   );
   assert.ok(weighted >= 5_500_000, `weighted triangles: ${weighted}`);
   assert.ok(weighted <= 7_500_000, `weighted triangles: ${weighted}`);
+});
+
+test('builds a deterministic high-level operation plan', () => {
+  const first = buildIndustrialScenePlan();
+  const second = buildIndustrialScenePlan();
+  assert.deepEqual(first, second);
+  const operations = first.transactions.flatMap((transaction) => transaction.operations);
+  assert.equal(first.expected.primaryObjects, 216);
+  assert.equal(
+    operations.filter((operation) => operation.type === 'instance.create').length,
+    216,
+  );
+  assert.equal(first.expected.facilityObjects, 12);
+  assert.equal(
+    operations.filter((operation) => operation.type === 'component.define').length,
+    23,
+  );
+  assert.equal(operations.some((operation) => (
+    ![
+      'component.define',
+      'instance.create',
+      'instanceSet.create',
+      'relation.create',
+      'connection.create',
+    ].includes(operation.type)
+  )), false);
+});
+
+test('keeps operation batches and source node references valid', () => {
+  const plan = buildIndustrialScenePlan();
+  const nodeIds = new Set();
+  for (const transaction of plan.transactions) {
+    assert.ok(transaction.operations.length <= 80);
+    for (const operation of transaction.operations) {
+      if (operation.type === 'instance.create') {
+        if (operation.parent_id !== null) {
+          assert.ok(nodeIds.has(operation.parent_id));
+        }
+        const { x, y, z } = operation.transform.translation;
+        assert.ok(x >= 0 && x <= 1000);
+        assert.ok(y >= 0 && y <= 100);
+        assert.ok(z >= 0 && z <= 550);
+        nodeIds.add(operation.node_id);
+      }
+    }
+  }
+  assert.equal(nodeIds.size, 216);
 });
