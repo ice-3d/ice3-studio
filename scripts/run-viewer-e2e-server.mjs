@@ -42,6 +42,8 @@ const server = spawn(
     'wastewater-mini',
     '--fixture',
     fixture,
+    '--write-mode',
+    'autonomous',
   ],
   {
     cwd: repositoryRoot,

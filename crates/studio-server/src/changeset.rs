@@ -115,8 +115,7 @@ pub(crate) fn export_candidate_preview(
         .toolchain_cli
         .clone()
         .ok_or_else(|| preview_error("STUDIO_TOOLCHAIN_CLI is not configured"))?;
-    let adapter =
-        PreviewAdapter::new(&session.workspace_root, toolchain).map_err(preview_error)?;
+    let adapter = PreviewAdapter::new(&session.workspace_root, toolchain).map_err(preview_error)?;
     match adapter.generate_candidate(&candidate.document, session.store.project_dir(), digest) {
         Ok(preview) => Ok(preview),
         Err(error) => {

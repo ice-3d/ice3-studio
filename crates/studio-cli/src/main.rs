@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use studio_cli::schema;
+use studio_server::capabilities::WriteMode;
 use studio_server::{ServerConfig, serve};
 
 #[derive(Debug, Parser)]
@@ -28,6 +29,8 @@ enum Command {
         fixture: Option<PathBuf>,
         #[arg(long, default_value_t = 8120)]
         port: u16,
+        #[arg(long, default_value = "review-required")]
+        write_mode: String,
     },
 }
 
@@ -41,7 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             project,
             fixture,
             port,
+            write_mode,
         } => {
+            let write_mode = WriteMode::parse(&write_mode)?;
             serve(ServerConfig {
                 workspace_root: workspace,
                 project_id: project,
@@ -49,6 +54,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 fixture,
                 port,
                 toolchain_cli: None,
+                approval_token: None,
+                write_mode,
             })
             .await?;
         }

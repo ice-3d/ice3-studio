@@ -13,7 +13,7 @@ if (!fixture) {
 const workspace = await mkdtemp(join(tmpdir(), 'ice3-studio-ai-'));
 const server = spawn(
   'cargo',
-  ['run', '-q', '-p', 'studio-cli', '--', 'serve', '--workspace', workspace, '--project', 'wwtp-mini', '--port', '0'],
+  ['run', '-q', '-p', 'studio-cli', '--', 'serve', '--workspace', workspace, '--project', 'wwtp-mini', '--port', '0', '--write-mode', 'autonomous'],
   { stdio: ['ignore', 'pipe', 'inherit'] },
 );
 const lines = createInterface({ input: server.stdout });

@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 use axum::extract::rejection::JsonRejection;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path as AxumPath, Query, State};
-use axum::http::{HeaderMap, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
+use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use rand::RngCore;
@@ -24,7 +24,8 @@ use tokio::sync::broadcast;
 use ts_rs::TS;
 
 use crate::ServerEvent;
-use crate::auth::has_valid_token;
+use crate::auth::{approval_cookie, bearer_token};
+use crate::capabilities::{WriteMode, authorize_write};
 use crate::preview::{PreviewAdapter, export_source};
 
 #[derive(Debug, Clone)]
@@ -35,6 +36,8 @@ pub struct ServerConfig {
     pub fixture: Option<PathBuf>,
     pub port: u16,
     pub toolchain_cli: Option<PathBuf>,
+    pub approval_token: Option<String>,
+    pub write_mode: WriteMode,
 }
 
 impl ServerConfig {
@@ -46,6 +49,17 @@ impl ServerConfig {
             fixture: None,
             port: 0,
             toolchain_cli: None,
+            approval_token: None,
+            write_mode: WriteMode::Autonomous,
+        }
+    }
+
+    pub fn review_required(project_id: &str) -> Self {
+        Self {
+            token: Some("test-agent-token".into()),
+            approval_token: Some("test-approval-token".into()),
+            write_mode: WriteMode::ReviewRequired,
+            ..Self::for_tests(project_id)
         }
     }
 }
@@ -107,6 +121,10 @@ pub(crate) struct Session {
     pub(crate) events: broadcast::Sender<ServerEvent>,
     pub(crate) closed: bool,
     pub(crate) toolchain_cli: Option<PathBuf>,
+    pub(crate) approval_token: String,
+    pub(crate) write_mode: WriteMode,
+    pub(crate) bootstrap_token: Option<String>,
+    pub(crate) bootstrap_consumed: bool,
 }
 
 #[derive(Clone)]
@@ -120,6 +138,7 @@ pub struct TestServer {
     state: AppState,
     task: tokio::task::JoinHandle<()>,
     cleanup_root: Option<PathBuf>,
+    approval_token: String,
 }
 
 impl TestServer {
@@ -137,6 +156,14 @@ impl TestServer {
 
     pub fn token(&self) -> &str {
         &self.token
+    }
+
+    pub fn agent_token(&self) -> &str {
+        &self.token
+    }
+
+    pub fn approval_token(&self) -> &str {
+        &self.approval_token
     }
 
     pub fn websocket_url(&self) -> String {
@@ -227,6 +254,13 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         .join(format!("ice3-studio-test-{unique}"));
     std::fs::create_dir_all(&cleanup_root).expect("test workspace");
     let token = config.token.unwrap_or_else(|| random_hex(32));
+    let approval_token = match config.write_mode {
+        WriteMode::Autonomous => token.clone(),
+        WriteMode::ReviewRequired => config
+            .approval_token
+            .unwrap_or_else(|| "test-approval-token".into()),
+    };
+    let bootstrap_token = Some("test-bootstrap-token".into());
     let (state, listener) = initialize_state(
         &cleanup_root,
         &config.project_id,
@@ -234,6 +268,9 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         config.fixture.as_deref(),
         config.port,
         config.toolchain_cli,
+        approval_token.clone(),
+        config.write_mode,
+        bootstrap_token,
     )
     .await
     .expect("test server state");
@@ -245,6 +282,7 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
     TestServer {
         base_url: format!("http://{address}"),
         token,
+        approval_token,
         state,
         task,
         cleanup_root: Some(cleanup_root),
@@ -255,7 +293,13 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
     let token = config
         .token
         .or_else(|| std::env::var("STUDIO_SESSION_TOKEN").ok())
+        .or_else(|| std::env::var("STUDIO_AGENT_TOKEN").ok())
         .unwrap_or_else(|| random_hex(32));
+    let approval_token = config
+        .approval_token
+        .or_else(|| std::env::var("STUDIO_APPROVAL_TOKEN").ok())
+        .unwrap_or_else(|| random_hex(32));
+    let bootstrap_token = (config.write_mode == WriteMode::ReviewRequired).then(|| random_hex(32));
     let toolchain_cli = config
         .toolchain_cli
         .or_else(|| std::env::var_os("STUDIO_TOOLCHAIN_CLI").map(PathBuf::from));
@@ -266,10 +310,19 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
         config.fixture.as_deref(),
         config.port,
         toolchain_cli,
+        approval_token,
+        config.write_mode,
+        bootstrap_token.clone(),
     )
     .await?;
     println!("{}", listener.local_addr()?);
     println!("{token}");
+    if let Some(bootstrap) = bootstrap_token {
+        println!(
+            "http://{}/session/bootstrap?token={bootstrap}",
+            listener.local_addr()?
+        );
+    }
     axum::serve(listener, build_router(state)).await?;
     Ok(())
 }
@@ -281,6 +334,9 @@ async fn initialize_state(
     fixture: Option<&std::path::Path>,
     port: u16,
     toolchain_cli: Option<PathBuf>,
+    approval_token: String,
+    write_mode: WriteMode,
+    bootstrap_token: Option<String>,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
     let path = WorkspacePath::new(root, project_id)?;
@@ -314,6 +370,10 @@ async fn initialize_state(
             events,
             closed: false,
             toolchain_cli,
+            approval_token,
+            write_mode,
+            bootstrap_token,
+            bootstrap_consumed: false,
         })),
     };
     let listener =
@@ -328,14 +388,12 @@ fn path_project_exists(root: &std::path::Path, project_id: &str) -> bool {
 fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/session/bootstrap", get(bootstrap_session))
         .route("/rpc", post(rpc))
         .route("/ws", get(websocket))
         .route("/schemas/{name}", get(schema_file))
         .route("/previews/{revision}", get(preview_file))
-        .route(
-            "/previews/candidates/{digest}",
-            get(candidate_preview_file),
-        )
+        .route("/previews/candidates/{digest}", get(candidate_preview_file))
         .with_state(state)
 }
 
@@ -345,6 +403,32 @@ async fn health() -> Json<serde_json::Value> {
         "apiVersion": API_VERSION,
         "schemaVersion": PROJECT_SCHEMA_VERSION
     }))
+}
+
+async fn bootstrap_session(
+    State(state): State<AppState>,
+    Query(query): Query<BootstrapQuery>,
+) -> Response {
+    let cookie = {
+        let mut session = state.session.lock().expect("session lock");
+        let valid = !session.bootstrap_consumed
+            && query.token.as_deref() == session.bootstrap_token.as_deref()
+            && session.write_mode == WriteMode::ReviewRequired;
+        if !valid {
+            return StatusCode::FORBIDDEN.into_response();
+        }
+        session.bootstrap_consumed = true;
+        format!(
+            "ice3_studio_approval={}; HttpOnly; SameSite=Strict; Path=/",
+            session.approval_token
+        )
+    };
+    let mut response = Redirect::to("/").into_response();
+    response.headers_mut().insert(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&cookie).expect("valid cookie header"),
+    );
+    response
 }
 
 async fn rpc(
@@ -390,13 +474,23 @@ async fn rpc(
         )
             .into_response();
     }
-    let authorized = {
+    let authorized = if mutating(&request.method) {
         let session = state.session.lock().expect("session lock");
-        !mutating(&request.method) || has_valid_token(&headers, &session.token)
+        authorize_write(
+            session.write_mode,
+            &request.method,
+            bearer_token(&headers),
+            approval_cookie(&headers),
+            &session.token,
+            &session.approval_token,
+        )
+        .is_some()
+    } else {
+        true
     };
     if !authorized {
         return (
-            StatusCode::UNAUTHORIZED,
+            StatusCode::FORBIDDEN,
             Json(serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": request.id,
@@ -758,7 +852,7 @@ async fn websocket(
         let session = state.session.lock().expect("session lock");
         (
             query.token.as_deref() == Some(session.token.as_str())
-                || has_valid_token(&headers, &session.token),
+                || bearer_token(&headers) == Some(session.token.as_str()),
             session.events.subscribe(),
         )
     };
@@ -898,6 +992,11 @@ struct FixturePlan {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct HttpToken {
+    token: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct BootstrapQuery {
     token: Option<String>,
 }
 

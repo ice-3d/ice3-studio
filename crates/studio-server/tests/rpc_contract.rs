@@ -29,7 +29,7 @@ async fn write_requires_the_local_session_token() {
         .send()
         .await
         .unwrap();
-    assert_eq!(response.status(), 401);
+    assert_eq!(response.status(), 403);
     let body: serde_json::Value = response.json().await.unwrap();
     assert_eq!(body["error"]["diagnosticCode"], "ICE3_STUDIO_AUTH_REQUIRED");
 }
@@ -486,4 +486,26 @@ async fn scene_query_filters_by_metadata_and_node_id() {
         .unwrap();
     assert_eq!(by_id["result"].as_array().unwrap().len(), 1);
     assert_eq!(by_id["result"][0]["id"], "node-000002");
+}
+
+#[tokio::test]
+async fn bootstrap_sets_an_http_only_approval_cookie_once() {
+    let server = start_test_server(ServerConfig::review_required("secure-project")).await;
+    let url = format!(
+        "{}/session/bootstrap?token=test-bootstrap-token",
+        server.base_url()
+    );
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let first = client.get(&url).send().await.unwrap();
+    assert_eq!(first.status(), 303);
+    let cookie = first.headers()["set-cookie"].to_str().unwrap();
+    assert!(cookie.contains("ice3_studio_approval=test-approval-token"));
+    assert!(cookie.contains("HttpOnly"));
+    assert!(cookie.contains("SameSite=Strict"));
+
+    let second = client.get(&url).send().await.unwrap();
+    assert_eq!(second.status(), 403);
 }

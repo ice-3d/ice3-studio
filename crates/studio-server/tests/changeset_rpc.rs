@@ -3,7 +3,8 @@ mod common;
 use studio_server::{ServerConfig, TestServer, start_test_server};
 
 use common::{
-    FAILED_TOOLCHAIN, SUCCESS_TOOLCHAIN, replace_toolchain_body, start_with_toolchain,
+    FAILED_TOOLCHAIN, SUCCESS_TOOLCHAIN, replace_toolchain_body, rpc_with_approval_cookie,
+    rpc_with_bearer, start_with_toolchain,
 };
 
 async fn rpc(server: &TestServer, method: &str, params: serde_json::Value) -> serde_json::Value {
@@ -211,4 +212,111 @@ async fn failed_candidate_preview_preserves_previous_candidate() {
     .await
     .unwrap();
     assert!(previous.status().is_success());
+}
+
+async fn create_and_evaluate_with_token(server: &TestServer, token: &str) -> serde_json::Value {
+    let created = rpc_with_bearer(
+        server,
+        token,
+        "changeset.create",
+        serde_json::json!({ "baseRevision": 0, "title": "Protected proposal" }),
+    )
+    .await;
+    let change_set_id = created["result"]["id"].as_str().unwrap();
+    let added = rpc_with_bearer(
+        server,
+        token,
+        "changeset.addOperations",
+        serde_json::json!({
+            "changeSetId": change_set_id,
+            "expectedVersion": 0,
+            "entries": [{
+                "source": { "kind": "agent" },
+                "operation": {
+                    "type": "node.create",
+                    "node_id": "node-000001",
+                    "parent_id": null,
+                    "name": "Protected",
+                    "transform": {
+                        "translation": { "x": 0, "y": 0, "z": 0 },
+                        "rotation": [0, 0, 0, 1],
+                        "scale": { "x": 1, "y": 1, "z": 1 }
+                    },
+                    "content": { "type": "group" },
+                    "material_id": null,
+                    "metadata": {}
+                }
+            }]
+        }),
+    )
+    .await;
+    assert_eq!(added["result"]["version"], 1);
+    let evaluated = rpc_with_bearer(
+        server,
+        token,
+        "changeset.evaluate",
+        serde_json::json!({
+            "changeSetId": change_set_id,
+            "expectedVersion": 1,
+            "includeCandidate": false
+        }),
+    )
+    .await;
+    evaluated["result"].clone()
+}
+
+fn commit_params(evaluated: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "changeSetId": evaluated["changeSetId"],
+        "expectedVersion": evaluated["version"],
+        "approvedDigest": evaluated["candidateDigest"],
+        "idempotencyKey": "approval"
+    })
+}
+
+#[tokio::test]
+async fn proposal_token_cannot_commit_or_apply_directly() {
+    let server = start_test_server(ServerConfig::review_required("protected-project")).await;
+    let evaluated = create_and_evaluate_with_token(&server, server.agent_token()).await;
+
+    let commit = rpc_with_bearer(
+        &server,
+        server.agent_token(),
+        "changeset.commit",
+        commit_params(&evaluated),
+    )
+    .await;
+    assert_eq!(
+        commit["error"]["diagnosticCode"],
+        "ICE3_STUDIO_AUTH_REQUIRED"
+    );
+
+    let direct = rpc_with_bearer(
+        &server,
+        server.agent_token(),
+        "document.apply",
+        serde_json::json!({
+            "expectedRevision": 0,
+            "dryRun": false,
+            "idempotencyKey": "direct",
+            "operations": [{
+                "type": "node.delete",
+                "node_id": "node-000001"
+            }]
+        }),
+    )
+    .await;
+    assert_eq!(
+        direct["error"]["diagnosticCode"],
+        "ICE3_STUDIO_AUTH_REQUIRED"
+    );
+}
+
+#[tokio::test]
+async fn approval_cookie_commits_the_exact_candidate() {
+    let server = start_test_server(ServerConfig::review_required("approved-project")).await;
+    let evaluated = create_and_evaluate_with_token(&server, server.agent_token()).await;
+    let committed =
+        rpc_with_approval_cookie(&server, "changeset.commit", commit_params(&evaluated)).await;
+    assert_eq!(committed["result"]["revision"], 1, "{committed}");
 }

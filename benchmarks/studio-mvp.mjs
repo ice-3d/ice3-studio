@@ -98,6 +98,8 @@ try {
       fixture,
       '--port',
       '0',
+      '--write-mode',
+      'autonomous',
     ],
     {
       cwd: process.cwd(),

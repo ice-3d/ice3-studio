@@ -1,6 +1,7 @@
 //! Local API server for ICE3 Studio.
 
 mod auth;
+pub mod capabilities;
 mod changeset;
 mod events;
 pub mod preview;
