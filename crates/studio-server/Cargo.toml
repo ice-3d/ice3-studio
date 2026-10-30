@@ -16,6 +16,7 @@ studio-core = { path = "../studio-core" }
 studio-project = { path = "../studio-project" }
 thiserror.workspace = true
 tokio.workspace = true
+tower-http.workspace = true
 ts-rs.workspace = true
 
 [dev-dependencies]

@@ -51,6 +51,7 @@ const server = spawn(
       ...process.env,
       STUDIO_SESSION_TOKEN: 'studio-e2e',
       STUDIO_TOOLCHAIN_CLI: toolchain,
+      STUDIO_VIEWER_DIR: join(repositoryRoot, 'apps/viewer/dist'),
       ICE3_TOOLCHAIN_CLI:
         process.env.ICE3_TOOLCHAIN_CLI
         ?? resolve(repositoryRoot, '../ice3-toolchain/packages/cli/dist/main.js'),

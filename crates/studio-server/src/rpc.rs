@@ -21,6 +21,7 @@ use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_project::{ProjectStore, WorkspacePath};
 use tokio::sync::broadcast;
+use tower_http::services::{ServeDir, ServeFile};
 use ts_rs::TS;
 
 use crate::ServerEvent;
@@ -38,6 +39,7 @@ pub struct ServerConfig {
     pub toolchain_cli: Option<PathBuf>,
     pub approval_token: Option<String>,
     pub write_mode: WriteMode,
+    pub viewer_dir: Option<PathBuf>,
 }
 
 impl ServerConfig {
@@ -51,6 +53,7 @@ impl ServerConfig {
             toolchain_cli: None,
             approval_token: None,
             write_mode: WriteMode::Autonomous,
+            viewer_dir: None,
         }
     }
 
@@ -275,6 +278,7 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
             .unwrap_or_else(|| "test-approval-token".into()),
     };
     let bootstrap_token = Some("test-bootstrap-token".into());
+    let viewer_dir = config.viewer_dir.clone();
     let (state, listener) = initialize_state(
         &cleanup_root,
         &config.project_id,
@@ -291,7 +295,7 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
     .await
     .expect("test server state");
     let address = listener.local_addr().expect("listener address");
-    let router = build_router(state.clone());
+    let router = build_router(state.clone(), viewer_dir);
     let task = tokio::spawn(async move {
         let _ = axum::serve(listener, router).await;
     });
@@ -328,7 +332,7 @@ pub async fn start_test_server_at(root: &Path) -> TestServer {
     let address = listener.local_addr().expect("listener address");
     let task_state = state.clone();
     let task = tokio::spawn(async move {
-        let _ = axum::serve(listener, build_router(task_state)).await;
+        let _ = axum::serve(listener, build_router(task_state, None)).await;
     });
     TestServer {
         base_url: format!("http://{address}"),
@@ -354,6 +358,9 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
     let toolchain_cli = config
         .toolchain_cli
         .or_else(|| std::env::var_os("STUDIO_TOOLCHAIN_CLI").map(PathBuf::from));
+    let viewer_dir = config
+        .viewer_dir
+        .or_else(|| std::env::var_os("STUDIO_VIEWER_DIR").map(PathBuf::from));
     let (state, listener) = initialize_state(
         &config.workspace_root,
         &config.project_id,
@@ -376,7 +383,7 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
             listener.local_addr()?
         );
     }
-    axum::serve(listener, build_router(state)).await?;
+    axum::serve(listener, build_router(state, viewer_dir)).await?;
     Ok(())
 }
 
@@ -436,8 +443,8 @@ fn path_project_exists(root: &std::path::Path, project_id: &str) -> bool {
     root.join(project_id).join("project.json").is_file()
 }
 
-fn build_router(state: AppState) -> Router {
-    Router::new()
+fn build_router(state: AppState, viewer_dir: Option<PathBuf>) -> Router {
+    let router = Router::new()
         .route("/health", get(health))
         .route("/session/bootstrap", get(bootstrap_session))
         .route("/rpc", post(rpc))
@@ -445,7 +452,14 @@ fn build_router(state: AppState) -> Router {
         .route("/schemas/{name}", get(schema_file))
         .route("/previews/{revision}", get(preview_file))
         .route("/previews/candidates/{digest}", get(candidate_preview_file))
-        .with_state(state)
+        .with_state(state);
+    if let Some(viewer_dir) = viewer_dir {
+        router
+            .nest_service("/assets", ServeDir::new(viewer_dir.join("assets")))
+            .fallback_service(ServeFile::new(viewer_dir.join("index.html")))
+    } else {
+        router
+    }
 }
 
 async fn health() -> Json<serde_json::Value> {

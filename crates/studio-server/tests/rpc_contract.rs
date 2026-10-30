@@ -509,3 +509,27 @@ async fn bootstrap_sets_an_http_only_approval_cookie_once() {
     let second = client.get(&url).send().await.unwrap();
     assert_eq!(second.status(), 403);
 }
+
+#[tokio::test]
+async fn serves_built_workbench_and_api_from_one_origin() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join("assets")).unwrap();
+    std::fs::write(
+        root.path().join("index.html"),
+        "<!doctype html><script src=\"/assets/main.js\"></script>",
+    )
+    .unwrap();
+    std::fs::write(root.path().join("assets/main.js"), "console.log('workbench')").unwrap();
+    let server = start_test_server(ServerConfig {
+        viewer_dir: Some(root.path().to_path_buf()),
+        ..ServerConfig::for_tests("generic-project")
+    })
+    .await;
+
+    let index = reqwest::get(server.base_url()).await.unwrap();
+    assert!(index.text().await.unwrap().contains("/assets/main.js"));
+    let asset = reqwest::get(format!("{}/assets/main.js", server.base_url()))
+        .await
+        .unwrap();
+    assert!(asset.text().await.unwrap().contains("workbench"));
+}
