@@ -4,12 +4,15 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::ids::{ConstraintId, MaterialId, NodeId, RelationId};
+use crate::ids::{ComponentId, ConstraintId, MaterialId, NodeId, RelationId};
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct DocumentDiff {
+    pub added_component_ids: Vec<ComponentId>,
+    pub updated_component_ids: Vec<ComponentId>,
+    pub removed_component_ids: Vec<ComponentId>,
     pub added_node_ids: Vec<NodeId>,
     pub updated_node_ids: Vec<NodeId>,
     pub removed_node_ids: Vec<NodeId>,
@@ -26,6 +29,9 @@ pub struct DocumentDiff {
 
 #[derive(Debug, Default)]
 pub(crate) struct DiffBuilder {
+    added_components: BTreeSet<ComponentId>,
+    updated_components: BTreeSet<ComponentId>,
+    removed_components: BTreeSet<ComponentId>,
     added_nodes: BTreeSet<NodeId>,
     updated_nodes: BTreeSet<NodeId>,
     removed_nodes: BTreeSet<NodeId>,
@@ -41,6 +47,18 @@ pub(crate) struct DiffBuilder {
 }
 
 impl DiffBuilder {
+    pub(crate) fn component_added(&mut self, id: ComponentId) {
+        self.added_components.insert(id);
+    }
+
+    pub(crate) fn component_updated(&mut self, id: ComponentId) {
+        self.updated_components.insert(id);
+    }
+
+    pub(crate) fn component_removed(&mut self, id: ComponentId) {
+        self.removed_components.insert(id);
+    }
+
     pub(crate) fn node_added(&mut self, id: NodeId) {
         self.added_nodes.insert(id);
     }
@@ -87,6 +105,9 @@ impl DiffBuilder {
 
     pub(crate) fn finish(self) -> DocumentDiff {
         DocumentDiff {
+            added_component_ids: self.added_components.into_iter().collect(),
+            updated_component_ids: self.updated_components.into_iter().collect(),
+            removed_component_ids: self.removed_components.into_iter().collect(),
             added_node_ids: self.added_nodes.into_iter().collect(),
             updated_node_ids: self.updated_nodes.into_iter().collect(),
             removed_node_ids: self.removed_nodes.into_iter().collect(),
