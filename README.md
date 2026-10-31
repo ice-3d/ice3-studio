@@ -73,13 +73,15 @@ handle 测量的是无哈希、无上传、无 fence 的缓存命中，不代表
 `STUDIO_GPU_SCENE_SESSIONS=1` 配合 `--native-gpu gpu` 可启用实验性 revision-scoped GPU
 场景会话，`npm run benchmark:gpu-scene` 会输出大型工业场景对照。精确尺寸 buffer 分配后，
 完整 6.1M 有效三角形的 233 个共享几何和 1,938 个实例约占用 46 MiB GPU 内存。
-transform-only revision 的 p50 已从默认 CPU 路径约 1.28 s 降到约 117 ms，达到 5×
-目标；初始 GPU 场景构建已从约 24.8 s 降到约 3.8–4.6 s，仍保持实验性和默认关闭。
+CPU incremental scene session 默认开启，transform-only revision 的 p50 已从全量路径
+约 1.28 s 降到约 116 ms，获得约 11× 提升。GPU incremental 路径约 119 ms，相对 CPU
+增量路径没有额外优势，因此 GPU scene session 仍保持实验性和默认关闭。
 生产 preview 路径会在上一 revision packet 可用时写入增量 packet；transform-only 更新不包含
 geometry payload，geometry 更新只回读受影响的 scene geometry。失败不会回滚已提交 Document。
 
-同场 CPU/GPU benchmark 当前测得 transform、参数更新和拓扑更新分别约快 11.0×、12.0×
-和 11.6×。实例 transform 只上传变化的 64-byte matrix range。实验
+三方同场 benchmark 显示：CPU 增量相对 CPU 全量的 transform 提升约 11.0×；GPU 相对
+CPU 增量约为 0.97×。实例 transform 在 GPU 实验路径中只上传变化的 64-byte matrix
+range。实验
 `evaluation.visibleInstances` 使用 resident instance bounds 和 GPU compute 生成可见实例索引；
 完整大型场景的宽视锥查询返回全部 1,938 个实例，p50 约 0.9 ms。该接口和场景会话一起
 保持显式实验状态。

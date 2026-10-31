@@ -2519,6 +2519,9 @@
             "health": {
               "type": "string"
             },
+            "incrementalSceneCache": {
+              "type": "boolean"
+            },
             "lastCacheHits": {
               "format": "uint",
               "minimum": 0,
@@ -2627,6 +2630,7 @@
           },
           "required": [
             "mode",
+            "incrementalSceneCache",
             "selectedBackend",
             "adapter",
             "tier",

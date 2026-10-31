@@ -59,19 +59,26 @@ export function evaluateBenchmarkGate(result) {
   return failures;
 }
 
-export function evaluateSceneComparison(cpu, gpu) {
+export function evaluateSceneComparison(fullCpu, incrementalCpu, gpu) {
   const failures = [];
   const transformSpeedup =
-    cpu.measurements.incrementalUpdateMs.p50
+    fullCpu.measurements.incrementalUpdateMs.p50
     / gpu.measurements.incrementalUpdateMs.p50;
+  const cpuIncrementalSpeedup =
+    fullCpu.measurements.incrementalUpdateMs.p50
+    / incrementalCpu.measurements.incrementalUpdateMs.p50;
+  const gpuOverIncrementalSpeedup =
+    incrementalCpu.measurements.incrementalUpdateMs.p50
+    / gpu.measurements.incrementalUpdateMs.p50;
+  const gpuTotalSpeedup = transformSpeedup;
   const warmStatsRatio =
     gpu.measurements.warmStatsMs.p50
-    / cpu.measurements.warmStatsMs.p50;
+    / incrementalCpu.measurements.warmStatsMs.p50;
   const parameterSpeedup =
-    cpu.measurements.parameterUpdateMs.p50
+    fullCpu.measurements.parameterUpdateMs.p50
     / gpu.measurements.parameterUpdateMs.p50;
   const topologySpeedup =
-    cpu.measurements.topologyUpdateMs.p50
+    fullCpu.measurements.topologyUpdateMs.p50
     / gpu.measurements.topologyUpdateMs.p50;
   if (transformSpeedup < 5) failures.push('transformBelowFivefold');
   if (warmStatsRatio > 1.1) failures.push('warmStatsRegression');
@@ -79,6 +86,9 @@ export function evaluateSceneComparison(cpu, gpu) {
   return {
     failures,
     transformSpeedup,
+    cpuIncrementalSpeedup,
+    gpuOverIncrementalSpeedup,
+    gpuTotalSpeedup,
     warmStatsRatio,
     parameterSpeedup,
     topologySpeedup,

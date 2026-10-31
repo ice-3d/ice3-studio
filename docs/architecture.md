@@ -110,12 +110,11 @@ unchanged buffers. Native residency, browser WebGPU, and preview packets are exp
 the measured resident performance gate has not passed; the default remains CPU compute plus
 WebGL2 rendering.
 
-An opt-in revision-scoped GPU scene session retains shared topology, replaceable attributes, and
-an instance table across committed revisions. The large industrial scene fits its 233 shared
-geometries and 1,938 instances in about 46 MiB, and its transform revision is about 11× faster
-than the retained CPU baseline. Incremental relation/connection revisions avoid a full scene
-rebuild, reducing initial GPU construction to roughly 4 seconds. The experimental session remains
-default-off and leaves CPU/WebGL2 active.
+A revision-scoped CPU scene cache is the default. It retains the resolved scene index across
+committed revisions and reduces large-scene transform updates from about 1.28 seconds to about
+116 milliseconds. The experimental native GPU layer adds resident topology and instance buffers,
+but measured GPU incremental latency is not faster than the CPU incremental baseline, so native
+GPU remains default-off.
 
 When preview packets are enabled, the production runtime-preview path reuses the previous packet
 for transform-only revisions and reads back only scene geometries affected by attribute or topology

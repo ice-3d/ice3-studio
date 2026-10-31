@@ -36,8 +36,8 @@ test('GPU scene report fails closed when the scene session failed', () => {
   ]);
 });
 
-test('scene comparison uses same-run CPU and GPU measurements', () => {
-  const cpu = {
+test('scene comparison separates CPU incrementality from GPU acceleration', () => {
+  const fullCpu = {
     measurements: {
       incrementalUpdateMs: { p50: 1200 },
       parameterUpdateMs: { p50: 300 },
@@ -45,22 +45,37 @@ test('scene comparison uses same-run CPU and GPU measurements', () => {
       warmStatsMs: { p50: 2 },
     },
   };
-  const gpu = {
+  const incrementalCpu = {
     measurements: {
-      incrementalUpdateMs: { p50: 200 },
-      parameterUpdateMs: { p50: 100 },
-      topologyUpdateMs: { p50: 200 },
+      incrementalUpdateMs: { p50: 400 },
+      parameterUpdateMs: { p50: 200 },
+      topologyUpdateMs: { p50: 250 },
       warmStatsMs: { p50: 2.1 },
     },
     compute: { sceneSession: { state: 'idle' } },
   };
+  const gpuIncremental = {
+    measurements: {
+      incrementalUpdateMs: { p50: 200 },
+      parameterUpdateMs: { p50: 100 },
+      topologyUpdateMs: { p50: 200 },
+      warmStatsMs: { p50: 2.2 },
+    },
+    compute: { sceneSession: { state: 'idle' } },
+  };
 
-  assert.deepEqual(evaluateSceneComparison(cpu, gpu), {
+  assert.deepEqual(
+    evaluateSceneComparison(fullCpu, incrementalCpu, gpuIncremental),
+    {
     failures: [],
     transformSpeedup: 6,
-    warmStatsRatio: 1.05,
+    cpuIncrementalSpeedup: 3,
+    gpuOverIncrementalSpeedup: 2,
+    gpuTotalSpeedup: 6,
+    warmStatsRatio: 1.1,
     parameterSpeedup: 3,
     topologySpeedup: 2,
     passed: true,
-  });
+    },
+  );
 });

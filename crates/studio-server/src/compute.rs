@@ -69,6 +69,7 @@ pub struct ComputePolicy {
     pub resident_enabled: bool,
     pub preview_packet_enabled: bool,
     pub scene_sessions_enabled: bool,
+    pub incremental_scene_cache: bool,
 }
 
 impl Default for ComputePolicy {
@@ -81,6 +82,7 @@ impl Default for ComputePolicy {
             resident_enabled: false,
             preview_packet_enabled: false,
             scene_sessions_enabled: false,
+            incremental_scene_cache: true,
         }
     }
 }
@@ -103,6 +105,7 @@ pub struct ResidentGeometryStatus {
 #[ts(export)]
 pub struct ComputeStatus {
     pub mode: GeometryBackendMode,
+    pub incremental_scene_cache: bool,
     pub selected_backend: GeometryBackendKind,
     pub adapter: String,
     pub tier: String,
@@ -1160,6 +1163,7 @@ impl ComputeService {
             .clone();
         ComputeStatus {
             mode: self.policy.mode,
+            incremental_scene_cache: self.policy.incremental_scene_cache,
             selected_backend: if !cpu_forced && self.last_backend.load(Ordering::Acquire) == 1 {
                 GeometryBackendKind::Gpu
             } else {

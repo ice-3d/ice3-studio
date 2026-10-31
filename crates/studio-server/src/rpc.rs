@@ -59,6 +59,7 @@ pub struct ServerConfig {
     pub compute_mode: GeometryBackendMode,
     pub preview_packet_enabled: bool,
     pub scene_sessions_enabled: bool,
+    pub incremental_scene_cache: bool,
 }
 
 impl ServerConfig {
@@ -76,6 +77,7 @@ impl ServerConfig {
             compute_mode: GeometryBackendMode::Cpu,
             preview_packet_enabled: false,
             scene_sessions_enabled: false,
+            incremental_scene_cache: true,
         }
     }
 
@@ -193,6 +195,7 @@ struct ComputeOptions {
     mode: GeometryBackendMode,
     preview_packet_enabled: bool,
     scene_sessions_enabled: bool,
+    incremental_scene_cache: bool,
 }
 
 pub struct TestServer {
@@ -345,6 +348,7 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
             scene_sessions_enabled: config.scene_sessions_enabled,
+            incremental_scene_cache: config.incremental_scene_cache,
         },
     )
     .await
@@ -385,6 +389,7 @@ pub async fn start_test_server_at(root: &Path) -> TestServer {
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
             scene_sessions_enabled: config.scene_sessions_enabled,
+            incremental_scene_cache: config.incremental_scene_cache,
         },
     )
     .await
@@ -437,6 +442,7 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
             scene_sessions_enabled: config.scene_sessions_enabled,
+            incremental_scene_cache: config.incremental_scene_cache,
         },
     )
     .await?;
@@ -494,6 +500,7 @@ async fn initialize_state(
             mode: compute.mode,
             preview_packet_enabled: compute.preview_packet_enabled,
             scene_sessions_enabled: compute.scene_sessions_enabled,
+            incremental_scene_cache: compute.incremental_scene_cache,
             ..crate::compute::ComputePolicy::default()
         },
         (compute.mode != GeometryBackendMode::Cpu).then_some(gpu),
@@ -911,7 +918,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         "document.apply" => {
             let apply: ApplyRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
-            if session.compute.policy().scene_sessions_enabled {
+            if session.compute.policy().incremental_scene_cache {
                 let _ = ensure_scene_snapshot(session);
             }
             let history_event = serde_json::json!({
@@ -937,7 +944,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             serde_json::to_value(result).map_err(serialize_error)
         }
         "document.undo" => {
-            if session.compute.policy().scene_sessions_enabled {
+            if session.compute.policy().incremental_scene_cache {
                 let _ = ensure_scene_snapshot(session);
             }
             session.document = session.store.undo().map_err(project_error)?;
@@ -949,7 +956,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             serde_json::to_value(&session.document).map_err(serialize_error)
         }
         "document.redo" => {
-            if session.compute.policy().scene_sessions_enabled {
+            if session.compute.policy().incremental_scene_cache {
                 let _ = ensure_scene_snapshot(session);
             }
             session.document = session.store.redo().map_err(project_error)?;
@@ -1540,7 +1547,7 @@ fn reset_scene_session(session: &mut Session) {
 }
 
 pub(crate) fn stage_committed_scene(session: &mut Session, diff: &studio_core::diff::DocumentDiff) {
-    if !session.compute.policy().scene_sessions_enabled {
+    if !session.compute.policy().incremental_scene_cache {
         return;
     }
     let (Some(previous_scene), Some(index)) = (
@@ -1559,7 +1566,11 @@ pub(crate) fn stage_committed_scene(session: &mut Session, diff: &studio_core::d
         Some(&evaluator),
     ) {
         Ok(built) => {
-            let _ = pollster::block_on(session.compute.apply_scene_patch(built.patch.clone()));
+            if session.compute.policy().scene_sessions_enabled {
+                let _ = pollster::block_on(
+                    session.compute.apply_scene_patch(built.patch.clone()),
+                );
+            }
             merge_scene_snapshot(session, &built);
             session.last_scene_patch = Some(built.patch);
         }
@@ -1634,7 +1645,7 @@ fn merge_scene_snapshot(session: &mut Session, built: &crate::scene_session::Bui
 }
 
 fn stage_scene_full_rebuild(session: &mut Session) {
-    if !session.compute.policy().scene_sessions_enabled {
+    if !session.compute.policy().incremental_scene_cache {
         return;
     }
     let evaluator = ComputeEvaluator::new(&session.compute);
@@ -1646,16 +1657,21 @@ fn stage_scene_full_rebuild(session: &mut Session) {
     match evaluated {
         Ok(scene) => match build_full_scene_patch(&session.document, &scene, Some(&evaluator)) {
             Ok(patch) => {
-                let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
+                if session.compute.policy().scene_sessions_enabled {
+                    let _ = pollster::block_on(
+                        session.compute.apply_scene_patch(patch.clone()),
+                    );
+                }
+                session.scene_snapshot = Some(scene.clone());
+                session.scene_snapshot_revision = Some(patch.target_revision);
+                session.scene_source_index =
+                    SceneSourceIndex::capture(&session.document, &scene, Some(&evaluator)).ok();
                 session.last_scene_patch = Some(patch);
             }
             Err(error) => session.compute.record_scene_failure(error.to_string()),
         },
         Err(error) => session.compute.record_scene_failure(error.to_string()),
     }
-    session.scene_snapshot = None;
-    session.scene_snapshot_revision = None;
-    session.scene_source_index = None;
 }
 
 fn mutating(method: &str) -> bool {

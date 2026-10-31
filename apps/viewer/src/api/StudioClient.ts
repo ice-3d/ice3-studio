@@ -70,6 +70,7 @@ export type ToolchainStatus = {
 
 export type ComputeStatus = {
   mode: 'auto' | 'cpu' | 'gpu';
+  incrementalSceneCache?: boolean;
   selectedBackend: 'cpu' | 'gpu';
   adapter: string;
   tier: string;

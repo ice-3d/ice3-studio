@@ -24,7 +24,7 @@ test('summarizes ready native GPU evidence', () => {
     detail: 'cold · full · kernel 12.4 ms · readback 5 MiB',
     state: 'ready',
     fallbackReason: null,
-    metrics: '2 GiB budget · 2 KiB upload · 3 cache hits · queue 0/2 · resident 0 B · peak 0 B · topology 0 · resident hits 0 · evictions 0 · packet 0 B · browser upload 0 B · snapshot 0 B · lookup 0 ms · kernel 12.4 ms · wait 0 ms · 0 hot-path hashes',
+    metrics: '2 GiB budget · 2 KiB upload · 3 cache hits · queue 0/2 · resident 0 B · peak 0 B · topology 0 · resident hits 0 · evictions 0 · packet 0 B · browser upload 0 B · snapshot 0 B · lookup 0 ms · kernel 12.4 ms · wait 0 ms · 0 hot-path hashes · incremental scene on',
   });
 });
 

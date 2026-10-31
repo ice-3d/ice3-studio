@@ -66,6 +66,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .is_ok_and(|value| value == "1"),
                 scene_sessions_enabled: std::env::var("STUDIO_GPU_SCENE_SESSIONS")
                     .is_ok_and(|value| value == "1"),
+                incremental_scene_cache: std::env::var("STUDIO_INCREMENTAL_SCENE_CACHE")
+                    .map_or(true, |value| value != "0"),
             })
             .await?;
         }

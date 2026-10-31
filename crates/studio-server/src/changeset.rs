@@ -312,7 +312,7 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
         return Err(operation_error("blocked ChangeSet cannot be committed"));
     }
     let previous = session.document.clone();
-    if session.compute.policy().scene_sessions_enabled {
+    if session.compute.policy().incremental_scene_cache {
         let _ = crate::rpc::evaluate_session_scene(session);
     }
     let commit_key = params.idempotency_key.clone();

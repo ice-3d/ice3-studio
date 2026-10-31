@@ -71,6 +71,7 @@ export function formatComputeStatus(status: ComputeStatus | null): {
           `${scene.pendingPatches} pending patches`,
         ]
       : []),
+    `incremental scene ${status.incrementalSceneCache === false ? 'off' : 'on'}`,
   ].join(' · ');
   return {
     title: `Native compute · ${backend}`,

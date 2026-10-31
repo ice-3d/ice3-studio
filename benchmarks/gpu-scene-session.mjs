@@ -3,12 +3,14 @@ import { mkdir, writeFile } from 'node:fs/promises';
 
 import { evaluateSceneComparison } from './large-industrial-scene.mjs';
 
-const cpu = await runMode(false);
-const gpu = await runMode(true);
-const comparison = evaluateSceneComparison(cpu, gpu);
+const fullCpu = await runMode({ gpuEnabled: false, incrementalCache: false });
+const incrementalCpu = await runMode({ gpuEnabled: false, incrementalCache: true });
+const gpu = await runMode({ gpuEnabled: true, incrementalCache: true });
+const comparison = evaluateSceneComparison(fullCpu, incrementalCpu, gpu);
 const report = {
   suite: 'gpu-scene-session-comparison',
-  cpu,
+  fullCpu,
+  incrementalCpu,
   gpu,
   comparison,
 };
@@ -20,6 +22,9 @@ await writeFile(
 );
 console.log(JSON.stringify({
   transformSpeedup: comparison.transformSpeedup,
+  cpuIncrementalSpeedup: comparison.cpuIncrementalSpeedup,
+  gpuOverIncrementalSpeedup: comparison.gpuOverIncrementalSpeedup,
+  gpuTotalSpeedup: comparison.gpuTotalSpeedup,
   warmStatsRatio: comparison.warmStatsRatio,
   parameterSpeedup: comparison.parameterSpeedup,
   topologySpeedup: comparison.topologySpeedup,
@@ -30,7 +35,7 @@ if (!comparison.passed) {
   process.exitCode = 1;
 }
 
-function runMode(gpuEnabled) {
+function runMode({ gpuEnabled, incrementalCache }) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
@@ -40,6 +45,7 @@ function runMode(gpuEnabled) {
         env: {
           ...process.env,
           STUDIO_GPU_SCENE_SESSIONS: gpuEnabled ? '1' : '0',
+          STUDIO_INCREMENTAL_SCENE_CACHE: incrementalCache ? '1' : '0',
         },
         stdio: ['ignore', 'pipe', 'inherit'],
       },
@@ -52,7 +58,9 @@ function runMode(gpuEnabled) {
     child.once('error', reject);
     child.once('exit', (code, signal) => {
       if (code !== 0) {
-        reject(new Error(`benchmark ${gpuEnabled ? 'gpu' : 'cpu'} exited with ${signal ?? code}`));
+        reject(new Error(
+          `benchmark ${gpuEnabled ? 'gpu' : incrementalCache ? 'cpu-incremental' : 'cpu-full'} exited with ${signal ?? code}`,
+        ));
         return;
       }
       const marker = 'BENCHMARK_JSON:';
