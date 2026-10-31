@@ -13,6 +13,7 @@ use axum::{Json, Router};
 use rand::RngCore;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use studio_core::agent_contract::{AgentAccess, AgentLimits};
 use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction};
 use studio_core::document::Document;
 use studio_core::geometry::Bounds;
@@ -36,7 +37,9 @@ use ts_rs::TS;
 
 use crate::ServerEvent;
 use crate::auth::{approval_cookie, bearer_token};
-use crate::capabilities::{WriteMode, authorize_write};
+use crate::capabilities::{
+    RequestAuthority, WriteMode, agent_access, authorize_write, classify_request_authority,
+};
 use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
 use crate::preview::{PreviewAdapter, export_source};
 use crate::preview_packet::PACKET_MEDIA_TYPE;
@@ -141,6 +144,8 @@ pub struct Capabilities {
     pub methods: Vec<String>,
     pub toolchain: ToolchainStatus,
     pub compute: ComputeStatus,
+    pub access: AgentAccess,
+    pub limits: AgentLimits,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
@@ -647,19 +652,26 @@ async fn rpc(
         )
             .into_response();
     }
-    let authorized = if mutating(&request.method) {
+    let (authorized, authority) = {
         let session = state.session.lock().expect("session lock");
-        authorize_write(
+        let authority = classify_request_authority(
             session.write_mode,
-            &request.method,
             bearer_token(&headers),
             approval_cookie(&headers),
             &session.token,
             &session.approval_token,
-        )
-        .is_some()
-    } else {
-        true
+        );
+        let authorized = !mutating(&request.method)
+            || authorize_write(
+                session.write_mode,
+                &request.method,
+                bearer_token(&headers),
+                approval_cookie(&headers),
+                &session.token,
+                &session.approval_token,
+            )
+            .is_some();
+        (authorized, authority)
     };
     if !authorized {
         return (
@@ -696,7 +708,7 @@ async fn rpc(
     }
     let response = match tokio::task::spawn_blocking(move || {
         let mut session = state.session.lock().expect("session lock");
-        dispatch(&mut session, &request)
+        dispatch(&mut session, &request, authority)
     })
     .await
     {
@@ -854,7 +866,11 @@ async fn dispatch_unlocked_preview(
     )
 }
 
-fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::Value, RpcError> {
+fn dispatch(
+    session: &mut Session,
+    request: &RpcRequest,
+    authority: RequestAuthority,
+) -> Result<serde_json::Value, RpcError> {
     if session.closed
         && !matches!(
             request.method.as_str(),
@@ -874,12 +890,16 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             "apiVersion": API_VERSION,
             "schemaVersion": PROJECT_SCHEMA_VERSION
         })),
+        "system.agentManifest" => {
+            serde_json::to_value(crate::agent::manifest(authority)).map_err(serialize_error)
+        }
         "system.capabilities" => Ok(serde_json::to_value(Capabilities {
             api_version: API_VERSION.into(),
             schema_version: PROJECT_SCHEMA_VERSION,
             methods: vec![
                 "system.health".into(),
                 "system.capabilities".into(),
+                "system.agentManifest".into(),
                 "project.create".into(),
                 "project.open".into(),
                 "project.get".into(),
@@ -912,6 +932,8 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             ],
             toolchain: session.toolchain.status(),
             compute: session.compute.status(),
+            access: agent_access(authority),
+            limits: AgentLimits::default(),
         })
         .expect("serializable capabilities")),
         "project.get" | "document.get" => {

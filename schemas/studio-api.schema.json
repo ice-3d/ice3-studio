@@ -3,6 +3,7 @@
   "methods": [
     "system.health",
     "system.capabilities",
+    "system.agentManifest",
     "project.create",
     "project.open",
     "project.get",
@@ -16,9 +17,12 @@
     "scene.get",
     "scene.query",
     "scene.bounds",
+    "scene.context",
+    "scene.search",
     "validation.run",
     "evaluation.evaluate",
     "evaluation.stats",
+    "evaluation.query",
     "export.sourceGlb",
     "export.runtimePreview",
     "changeset.create",
@@ -34,6 +38,194 @@
   "schemaVersion": 2,
   "title": "ICE3 Studio API",
   "types": {
+    "AgentManifest": {
+      "$defs": {
+        "AgentAccess": {
+          "properties": {
+            "canApplyDirectly": {
+              "type": "boolean"
+            },
+            "canCommit": {
+              "type": "boolean"
+            },
+            "canDiscard": {
+              "type": "boolean"
+            },
+            "canPropose": {
+              "type": "boolean"
+            },
+            "canRead": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "canRead",
+            "canPropose",
+            "canCommit",
+            "canApplyDirectly",
+            "canDiscard"
+          ],
+          "type": "object"
+        },
+        "AgentIdempotency": {
+          "enum": [
+            "none",
+            "required"
+          ],
+          "type": "string"
+        },
+        "AgentLimits": {
+          "properties": {
+            "evaluationMaxNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxRpcBodyBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "searchDefaultLimit": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "searchMaxLimit": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "searchDefaultLimit",
+            "searchMaxLimit",
+            "evaluationMaxNodes",
+            "maxRpcBodyBytes"
+          ],
+          "type": "object"
+        },
+        "AgentSideEffect": {
+          "enum": [
+            "read",
+            "proposal",
+            "commit",
+            "direct_write"
+          ],
+          "type": "string"
+        },
+        "AgentTool": {
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "idempotency": {
+              "$ref": "#/$defs/AgentIdempotency"
+            },
+            "inputSchemaRef": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "outputSchemaRef": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requiresApproval": {
+              "type": "boolean"
+            },
+            "sideEffect": {
+              "$ref": "#/$defs/AgentSideEffect"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "unavailableReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "summary",
+            "sideEffect",
+            "requiresApproval",
+            "idempotency",
+            "available",
+            "inputSchemaRef"
+          ],
+          "type": "object"
+        },
+        "AgentWorkflow": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "steps": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "steps"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/AgentAccess"
+        },
+        "apiVersion": {
+          "type": "string"
+        },
+        "contractVersion": {
+          "type": "string"
+        },
+        "limits": {
+          "$ref": "#/$defs/AgentLimits"
+        },
+        "schemaUrl": {
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/AgentTool"
+          },
+          "type": "array"
+        },
+        "typesUrl": {
+          "type": "string"
+        },
+        "workflows": {
+          "items": {
+            "$ref": "#/$defs/AgentWorkflow"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "contractVersion",
+        "schemaUrl",
+        "typesUrl",
+        "access",
+        "limits",
+        "tools",
+        "workflows"
+      ],
+      "title": "AgentManifest",
+      "type": "object"
+    },
     "ApplyRequest": {
       "$defs": {
         "ComponentDefinition": {
@@ -2736,6 +2928,64 @@
     },
     "Capabilities": {
       "$defs": {
+        "AgentAccess": {
+          "properties": {
+            "canApplyDirectly": {
+              "type": "boolean"
+            },
+            "canCommit": {
+              "type": "boolean"
+            },
+            "canDiscard": {
+              "type": "boolean"
+            },
+            "canPropose": {
+              "type": "boolean"
+            },
+            "canRead": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "canRead",
+            "canPropose",
+            "canCommit",
+            "canApplyDirectly",
+            "canDiscard"
+          ],
+          "type": "object"
+        },
+        "AgentLimits": {
+          "properties": {
+            "evaluationMaxNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxRpcBodyBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "searchDefaultLimit": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "searchMaxLimit": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "searchDefaultLimit",
+            "searchMaxLimit",
+            "evaluationMaxNodes",
+            "maxRpcBodyBytes"
+          ],
+          "type": "object"
+        },
         "ComputeStatus": {
           "properties": {
             "adapter": {
@@ -3206,11 +3456,17 @@
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "access": {
+          "$ref": "#/$defs/AgentAccess"
+        },
         "apiVersion": {
           "type": "string"
         },
         "compute": {
           "$ref": "#/$defs/ComputeStatus"
+        },
+        "limits": {
+          "$ref": "#/$defs/AgentLimits"
         },
         "methods": {
           "items": {
@@ -3232,7 +3488,9 @@
         "schemaVersion",
         "methods",
         "toolchain",
-        "compute"
+        "compute",
+        "access",
+        "limits"
       ],
       "title": "Capabilities",
       "type": "object"
@@ -10386,6 +10644,326 @@
       "title": "ChangeSetStatus",
       "type": "string"
     },
+    "ComponentPatch": {
+      "$defs": {
+        "ParameterValue": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "number",
+                  "type": "string"
+                },
+                "value": {
+                  "format": "float",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "vector3",
+                  "type": "string"
+                },
+                "value": {
+                  "$ref": "#/$defs/Vec3"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "color",
+                  "type": "string"
+                },
+                "value": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "enumeration",
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "componentId": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "removeMetadataKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "setMetadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "setParameterDefaults": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterValue"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "componentId"
+      ],
+      "title": "ComponentPatch",
+      "type": "object"
+    },
+    "ConnectionPatch": {
+      "$defs": {
+        "InstancePortRef": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "instance",
+                  "type": "string"
+                },
+                "nodeId": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "nodeId",
+                "port"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "set_item",
+                  "type": "string"
+                },
+                "ordinal": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "port": {
+                  "type": "string"
+                },
+                "setNodeId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "setNodeId",
+                "ordinal",
+                "port"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "RoutePolicy": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "direct",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "orthogonal",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "buried",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "elevation": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "rack",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "elevation"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "diameter": {
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstancePortRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "medium": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "removeMetadataKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "routePolicy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "setMetadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstancePortRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "nodeId"
+      ],
+      "title": "ConnectionPatch",
+      "type": "object"
+    },
     "Diagnostic": {
       "$defs": {
         "DiagnosticCode": {
@@ -12306,6 +12884,435 @@
         "generatedMeshes"
       ],
       "title": "EvaluatedSceneStats",
+      "type": "object"
+    },
+    "EvaluationQueryRequest": {
+      "$defs": {
+        "EvaluationInclude": {
+          "enum": [
+            "summary",
+            "positions",
+            "indices"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "default": [
+            "summary"
+          ],
+          "items": {
+            "$ref": "#/$defs/EvaluationInclude"
+          },
+          "type": "array"
+        },
+        "nodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "nodeIds"
+      ],
+      "title": "EvaluationQueryRequest",
+      "type": "object"
+    },
+    "EvaluationQueryResult": {
+      "$defs": {
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "EvaluationQueryItem": {
+          "properties": {
+            "attributeDigest": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bounds": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Bounds"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "geometryId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "indexCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "indices": {
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "positions": {
+              "items": {
+                "items": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "topologyDigest": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "vertexCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "nodeId",
+            "vertexCount",
+            "indexCount"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/EvaluationQueryItem"
+          },
+          "type": "array"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "items"
+      ],
+      "title": "EvaluationQueryResult",
+      "type": "object"
+    },
+    "InstancePatch": {
+      "$defs": {
+        "ParameterValue": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "number",
+                  "type": "string"
+                },
+                "value": {
+                  "format": "float",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "vector3",
+                  "type": "string"
+                },
+                "value": {
+                  "$ref": "#/$defs/Vec3"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "color",
+                  "type": "string"
+                },
+                "value": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "enumeration",
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "value"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Transform": {
+          "properties": {
+            "rotation": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "scale": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "translation": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "translation",
+            "rotation",
+            "scale"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "clearMaterial": {
+          "default": false,
+          "type": "boolean"
+        },
+        "definitionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "materialId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "removeMetadataKeys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "removeParameters": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "setMetadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "setParameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ParameterValue"
+          },
+          "type": "object"
+        },
+        "transform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Transform"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "visible": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "nodeId"
+      ],
+      "title": "InstancePatch",
+      "type": "object"
+    },
+    "MaterialPatch": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "baseColor": {
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "clearEdgeColor": {
+          "default": false,
+          "type": "boolean"
+        },
+        "edgeColor": {
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "materialId": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "opacity": {
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "materialId"
+      ],
+      "title": "MaterialPatch",
       "type": "object"
     },
     "Operation": {
@@ -14771,6 +15778,677 @@
         "id"
       ],
       "title": "RpcResponse",
+      "type": "object"
+    },
+    "SceneContext": {
+      "$defs": {
+        "AgentAccess": {
+          "properties": {
+            "canApplyDirectly": {
+              "type": "boolean"
+            },
+            "canCommit": {
+              "type": "boolean"
+            },
+            "canDiscard": {
+              "type": "boolean"
+            },
+            "canPropose": {
+              "type": "boolean"
+            },
+            "canRead": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "canRead",
+            "canPropose",
+            "canCommit",
+            "canApplyDirectly",
+            "canDiscard"
+          ],
+          "type": "object"
+        },
+        "AgentLimits": {
+          "properties": {
+            "evaluationMaxNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxRpcBodyBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "searchDefaultLimit": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "searchMaxLimit": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "searchDefaultLimit",
+            "searchMaxLimit",
+            "evaluationMaxNodes",
+            "maxRpcBodyBytes"
+          ],
+          "type": "object"
+        },
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "RelationTypeCount": {
+          "properties": {
+            "count": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "relationType": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "relationType",
+            "count"
+          ],
+          "type": "object"
+        },
+        "SceneContentKind": {
+          "enum": [
+            "group",
+            "primitive",
+            "mesh",
+            "sweep",
+            "component_instance",
+            "instance_set",
+            "connection"
+          ],
+          "type": "string"
+        },
+        "SceneContentKindCount": {
+          "properties": {
+            "count": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "$ref": "#/$defs/SceneContentKind"
+            }
+          },
+          "required": [
+            "kind",
+            "count"
+          ],
+          "type": "object"
+        },
+        "SceneCoordinateSystem": {
+          "properties": {
+            "handedness": {
+              "type": "string"
+            },
+            "upAxis": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "handedness",
+            "upAxis"
+          ],
+          "type": "object"
+        },
+        "SceneCounts": {
+          "properties": {
+            "componentDefinitions": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "constraints": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "derivedNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "instanceSets": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "instances": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "materials": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "relations": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sourceNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "sourceNodes",
+            "derivedNodes",
+            "componentDefinitions",
+            "instances",
+            "instanceSets",
+            "relations",
+            "materials",
+            "constraints"
+          ],
+          "type": "object"
+        },
+        "SceneFacets": {
+          "properties": {
+            "contentKinds": {
+              "items": {
+                "$ref": "#/$defs/SceneContentKindCount"
+              },
+              "type": "array"
+            },
+            "relationTypes": {
+              "items": {
+                "$ref": "#/$defs/RelationTypeCount"
+              },
+              "type": "array"
+            },
+            "relationTypesTruncated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "contentKinds",
+            "relationTypes",
+            "relationTypesTruncated"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/AgentAccess"
+        },
+        "apiVersion": {
+          "type": "string"
+        },
+        "bounds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Bounds"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coordinateSystem": {
+          "$ref": "#/$defs/SceneCoordinateSystem"
+        },
+        "counts": {
+          "$ref": "#/$defs/SceneCounts"
+        },
+        "facets": {
+          "$ref": "#/$defs/SceneFacets"
+        },
+        "limits": {
+          "$ref": "#/$defs/AgentLimits"
+        },
+        "projectId": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "units": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "projectId",
+        "revision",
+        "apiVersion",
+        "schemaVersion",
+        "units",
+        "coordinateSystem",
+        "counts",
+        "facets",
+        "access",
+        "limits"
+      ],
+      "title": "SceneContext",
+      "type": "object"
+    },
+    "SceneSearchRequest": {
+      "$defs": {
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "SceneContentKind": {
+          "enum": [
+            "group",
+            "primitive",
+            "mesh",
+            "sweep",
+            "component_instance",
+            "instance_set",
+            "connection"
+          ],
+          "type": "string"
+        },
+        "SceneSearchField": {
+          "enum": [
+            "id",
+            "scope",
+            "kind",
+            "name",
+            "parentId",
+            "ownerId",
+            "visible",
+            "componentDefinitionId",
+            "materialId",
+            "geometryId",
+            "bounds",
+            "metadata"
+          ],
+          "type": "string"
+        },
+        "SceneSearchScope": {
+          "enum": [
+            "source",
+            "derived",
+            "both"
+          ],
+          "type": "string"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Bounds"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "componentDefinitionId": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contentKind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SceneContentKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cursor": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fields": {
+          "default": null,
+          "items": {
+            "$ref": "#/$defs/SceneSearchField"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 25,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "materialId": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "type": "object"
+        },
+        "nodeId": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ownerId": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parentId": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "query": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relatedNodeId": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relationType": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "$ref": "#/$defs/SceneSearchScope",
+          "default": "source"
+        },
+        "visible": {
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "title": "SceneSearchRequest",
+      "type": "object"
+    },
+    "SceneSearchResult": {
+      "$defs": {
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "SceneContentKind": {
+          "enum": [
+            "group",
+            "primitive",
+            "mesh",
+            "sweep",
+            "component_instance",
+            "instance_set",
+            "connection"
+          ],
+          "type": "string"
+        },
+        "SceneSearchItem": {
+          "properties": {
+            "bounds": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Bounds"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "componentDefinitionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "geometryId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/SceneContentKind"
+            },
+            "materialId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ownerId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parentId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "scope": {
+              "$ref": "#/$defs/SceneSearchScope"
+            },
+            "visible": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "scope",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "SceneSearchScope": {
+          "enum": [
+            "source",
+            "derived",
+            "both"
+          ],
+          "type": "string"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SceneSearchItem"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "items"
+      ],
+      "title": "SceneSearchResult",
       "type": "object"
     },
     "ServerEvent": {

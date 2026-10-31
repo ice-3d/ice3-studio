@@ -3,9 +3,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use schemars::schema_for;
+use studio_core::agent_contract::{
+    AgentManifest, EvaluationQueryRequest, EvaluationQueryResult, SceneContext, SceneSearchRequest,
+    SceneSearchResult,
+};
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
 use studio_core::operation::Operation;
+use studio_core::patch::{ComponentPatch, ConnectionPatch, InstancePatch, MaterialPatch};
 use studio_core::validation::Diagnostic;
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_project::changeset::{
@@ -33,6 +38,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
         "methods": [
             "system.health",
             "system.capabilities",
+            "system.agentManifest",
             "project.create",
             "project.open",
             "project.get",
@@ -46,9 +52,12 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "scene.get",
             "scene.query",
             "scene.bounds",
+            "scene.context",
+            "scene.search",
             "validation.run",
             "evaluation.evaluate",
             "evaluation.stats",
+            "evaluation.query",
             "export.sourceGlb",
             "export.runtimePreview",
             "changeset.create",
@@ -79,6 +88,18 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "ChangeSetEntry": schema_for!(ChangeSetEntry),
             "ChangeSetEvaluation": schema_for!(ChangeSetEvaluation),
             "CandidatePreview": schema_for!(CandidatePreview)
+            ,
+            "AgentManifest": schema_for!(AgentManifest),
+            "SceneContext": schema_for!(SceneContext),
+            "SceneSearchRequest": schema_for!(SceneSearchRequest),
+            "SceneSearchResult": schema_for!(SceneSearchResult),
+            "EvaluationQueryRequest": schema_for!(EvaluationQueryRequest),
+            "EvaluationQueryResult": schema_for!(EvaluationQueryResult)
+            ,
+            "InstancePatch": schema_for!(InstancePatch),
+            "ComponentPatch": schema_for!(ComponentPatch),
+            "ConnectionPatch": schema_for!(ConnectionPatch),
+            "MaterialPatch": schema_for!(MaterialPatch)
         }
     });
     let mut api_bytes = serde_json::to_vec_pretty(&api).map_err(SchemaError::Json)?;

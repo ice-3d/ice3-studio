@@ -1,5 +1,6 @@
 //! Local API server for ICE3 Studio.
 
+mod agent;
 mod auth;
 pub mod capabilities;
 mod changeset;
