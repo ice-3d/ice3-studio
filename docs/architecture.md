@@ -114,7 +114,7 @@ An opt-in revision-scoped GPU scene session retains shared topology, replaceable
 an instance table across committed revisions. The large industrial scene fits its 233 shared
 geometries and 1,938 instances in about 46 MiB, and its transform revision is about 11× faster
 than the retained CPU baseline. Incremental relation/connection revisions avoid a full scene
-rebuild, reducing initial GPU construction to about 3.8 seconds. The experimental session remains
+rebuild, reducing initial GPU construction to roughly 4 seconds. The experimental session remains
 default-off and leaves CPU/WebGL2 active.
 
 When preview packets are enabled, the production runtime-preview path reuses the previous packet
@@ -123,9 +123,8 @@ changes. Missing scene state or a missing base packet selects the existing CPU f
 
 The experimental scene session also keeps per-instance bounds resident and exposes a compute-based
 visibility query that consumes the uploaded matrices and bounds. Instance transforms update only
-their changed matrix ranges instead of re-uploading the complete instance table. The controlled
-visibility test passes, while the large-scene visibility path remains gated because it currently
-returns an empty candidate set.
+their changed matrix ranges instead of re-uploading the complete instance table. The large-scene
+wide-frustum query returns all 1,938 resident instances; the API remains experimental.
 
 ## Industry Layering
 

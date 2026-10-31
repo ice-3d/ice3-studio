@@ -278,14 +278,18 @@ pub fn build_scene_patch_with_scene<S: GeometryStore>(
                 .expect("valid scene content");
             prior.is_none_or(|prior| prior.content_digest != key.attribute)
         });
-        for expanded in index.expanded_node_ids(source) {
-            if let Some(node) = scene_by_id.get(expanded) {
+        for node in scene
+            .nodes
+            .iter()
+            .filter(|node| node_belongs_to_source(node, source))
+        {
+            if let Some(node) = scene_by_id.get(node.id.as_str()) {
                 if force_geometry || content_changed {
                     append_geometry(
                         &scene,
                         previous_scene,
                         node,
-                        previous_by_id.get(expanded).copied(),
+                        previous_by_id.get(node.id.as_str()).copied(),
                         &mut geometry,
                     )?;
                 }
@@ -403,6 +407,15 @@ fn instance_change(node: &EvaluatedSceneNode) -> SceneInstanceChange {
         material_id: node.material_id.as_ref().map(ToString::to_string),
         visible: node.visible,
     }
+}
+
+fn node_belongs_to_source(node: &EvaluatedSceneNode, source: &NodeId) -> bool {
+    node.id.as_str() == source.as_str()
+        || node
+            .id
+            .strip_prefix(source.as_str())
+            .is_some_and(|suffix| suffix.starts_with('/'))
+        || node.owner_id == source.as_str()
 }
 
 fn transform_matrix(transform: Transform) -> [f32; 16] {

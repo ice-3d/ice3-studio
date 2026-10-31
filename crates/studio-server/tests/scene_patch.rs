@@ -102,6 +102,23 @@ fn initial_patch_contains_every_derived_identity() {
 }
 
 #[test]
+fn newly_added_source_node_emits_geometry_and_instance_changes() {
+    let document = one_box_document();
+    let previous_scene = studio_core::large_scene::evaluate::EvaluatedScene::default();
+    let index = SceneSourceIndex::capture(&Document::new("empty"), &previous_scene, None).unwrap();
+    let diff = studio_core::diff::DocumentDiff {
+        added_node_ids: vec![NodeId::from("node-000001")],
+        ..Default::default()
+    };
+    let mut store = MemoryGeometryStore::default();
+    let patch =
+        build_scene_patch(&document, &diff, &previous_scene, &index, &mut store, None).unwrap();
+
+    assert_eq!(patch.geometry.len(), 1);
+    assert_eq!(patch.instances.len(), 1);
+}
+
+#[test]
 fn unsupported_diff_requests_a_conservative_rebuild() {
     let document = one_box_document();
     let scene = evaluate_large_scene(&document).unwrap();
