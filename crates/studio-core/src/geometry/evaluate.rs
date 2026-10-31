@@ -16,6 +16,7 @@ pub fn evaluate_node_content(content: &NodeContent) -> Result<EvaluatedMesh, Geo
         } => evaluate_sweep(points, *radius, *radial_segments),
         NodeContent::ComponentInstance(_)
         | NodeContent::InstanceSet(_)
-        | NodeContent::Connection(_) => Ok(EvaluatedMesh::empty()),
+        | NodeContent::Connection(_)
+        | NodeContent::ReferenceInstance(_) => Ok(EvaluatedMesh::empty()),
     }
 }

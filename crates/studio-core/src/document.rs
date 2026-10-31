@@ -10,6 +10,7 @@ use crate::ids::{ConstraintId, MaterialId, NodeId, RelationId, Revision};
 use crate::large_scene::component::{ComponentDefinition, ComponentInstance, InstanceSet};
 use crate::large_scene::connection::ConnectionIntent;
 use crate::math::Transform;
+use crate::reference_asset::ReferenceInstanceContent;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
@@ -128,6 +129,8 @@ pub enum NodeContent {
     ComponentInstance(ComponentInstance),
     InstanceSet(InstanceSet),
     Connection(ConnectionIntent),
+    #[serde(rename = "reference_instance")]
+    ReferenceInstance(ReferenceInstanceContent),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
