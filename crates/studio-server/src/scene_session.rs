@@ -372,6 +372,7 @@ fn instance_change(node: &EvaluatedSceneNode) -> SceneInstanceChange {
             .as_ref()
             .map(|id| id.0.clone())
             .or_else(|| node.mesh_key.clone()),
+        transform: node.transform,
         matrix: transform_matrix(node.transform),
         material_id: node.material_id.as_ref().map(ToString::to_string),
         visible: node.visible,

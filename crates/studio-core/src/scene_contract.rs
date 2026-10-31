@@ -7,6 +7,7 @@ use crate::geometry::{Primitive, TriangleMesh};
 use crate::gpu_contract::{
     GeometryDigestSet, GeometryDirtyChannel, GeometryDirtyMask, GeometryPhaseEvidence,
 };
+use crate::math::Transform;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElementRange {
@@ -28,6 +29,7 @@ pub struct SceneGeometryChange {
 pub struct SceneInstanceChange {
     pub node_id: String,
     pub geometry_id: Option<String>,
+    pub transform: Transform,
     pub matrix: [f32; 16],
     pub material_id: Option<String>,
     pub visible: bool,

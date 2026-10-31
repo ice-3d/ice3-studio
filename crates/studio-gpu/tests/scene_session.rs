@@ -92,6 +92,7 @@ fn instance(node_id: &str, x: f32) -> SceneInstanceChange {
     SceneInstanceChange {
         node_id: node_id.into(),
         geometry_id: Some("geometry-1".into()),
+        transform: studio_core::math::Transform::IDENTITY,
         matrix,
         material_id: None,
         visible: true,

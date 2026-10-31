@@ -881,7 +881,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             let apply: ApplyRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
             if session.compute.policy().scene_sessions_enabled {
-                let _ = evaluate_session_scene(session);
+                let _ = ensure_scene_snapshot(session);
             }
             let history_event = serde_json::json!({
                 "kind": "apply",
@@ -907,7 +907,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         }
         "document.undo" => {
             if session.compute.policy().scene_sessions_enabled {
-                let _ = evaluate_session_scene(session);
+                let _ = ensure_scene_snapshot(session);
             }
             session.document = session.store.undo().map_err(project_error)?;
             stage_scene_full_rebuild(session);
@@ -919,7 +919,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         }
         "document.redo" => {
             if session.compute.policy().scene_sessions_enabled {
-                let _ = evaluate_session_scene(session);
+                let _ = ensure_scene_snapshot(session);
             }
             session.document = session.store.redo().map_err(project_error)?;
             stage_scene_full_rebuild(session);
@@ -1423,10 +1423,19 @@ fn bounds_intersect(left: Bounds, right: Bounds) -> bool {
 pub(crate) fn evaluate_session_scene(
     session: &mut Session,
 ) -> Result<(EvaluatedScene, BTreeMap<String, Bounds>), RpcError> {
+    ensure_scene_snapshot(session)?;
+    let scene = session
+        .scene_snapshot
+        .as_ref()
+        .expect("scene snapshot was ensured");
+    Ok((scene.clone(), evaluated_scene_bounds(scene)))
+}
+
+fn ensure_scene_snapshot(session: &mut Session) -> Result<(), RpcError> {
     if session.scene_snapshot_revision == Some(session.document.revision.as_u64())
-        && let Some(scene) = &session.scene_snapshot
+        && session.scene_snapshot.is_some()
     {
-        return Ok((scene.clone(), evaluated_scene_bounds(scene)));
+        return Ok(());
     }
     let evaluator = ComputeEvaluator::new(&session.compute);
     let evaluated = evaluate_large_scene_with_cache_and_evaluator(
@@ -1438,7 +1447,6 @@ pub(crate) fn evaluate_session_scene(
     session
         .compute
         .record_cache_hits(evaluated.stats.cache_hits);
-    let bounds = evaluated_scene_bounds(&evaluated);
     session.scene_snapshot_revision = Some(session.document.revision.as_u64());
     session.scene_snapshot = Some(evaluated.clone());
     if session.scene_source_index.is_none() {
@@ -1453,7 +1461,7 @@ pub(crate) fn evaluate_session_scene(
             session.last_scene_patch = Some(patch);
         }
     }
-    Ok((evaluated, bounds))
+    Ok(())
 }
 
 fn reset_scene_session(session: &mut Session) {
@@ -1488,6 +1496,26 @@ pub(crate) fn stage_committed_scene(session: &mut Session, diff: &studio_core::d
     ) {
         Ok(patch) => {
             let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
+            if patch.geometry.is_empty()
+                && let Some(scene) = session.scene_snapshot.as_mut()
+            {
+                for instance in &patch.instances {
+                    if let Some(node) = scene
+                        .nodes
+                        .iter_mut()
+                        .find(|node| node.id == instance.node_id)
+                    {
+                        node.transform = instance.transform;
+                        node.material_id = instance.material_id.clone().map(Into::into);
+                        node.visible = instance.visible;
+                    }
+                }
+                session.scene_snapshot_revision = Some(patch.target_revision);
+                session.scene_source_index =
+                    SceneSourceIndex::capture(&session.document, scene, Some(&evaluator)).ok();
+                session.last_scene_patch = Some(patch);
+                return;
+            }
             session.last_scene_patch = Some(patch);
         }
         Err(error) => {
