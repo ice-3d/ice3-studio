@@ -72,9 +72,10 @@ handle 测量的是无哈希、无上传、无 fence 的缓存命中，不代表
 
 `STUDIO_GPU_SCENE_SESSIONS=1` 配合 `--native-gpu gpu` 可启用实验性 revision-scoped GPU
 场景会话，`npm run benchmark:gpu-scene` 会输出大型工业场景对照。精确尺寸 buffer 分配后，
-完整 6.1M 有效三角形的 233 个共享几何和 1,938 个实例约占用 46 MiB GPU 内存；但场景仍以
-pending 状态结束对照流程，且默认 transform-only revision 仍约 1.28 s，尚未达到 5× 目标，
-因此场景会话保持默认关闭。失败不会回滚已提交 Document。
+完整 6.1M 有效三角形的 233 个共享几何和 1,938 个实例约占用 46 MiB GPU 内存。
+transform-only revision 的 p50 已从默认 CPU 路径约 1.28 s 降到约 117 ms，达到 5×
+目标；初始 GPU 场景构建仍约 24.8 s，因此场景会话继续保持实验性和默认关闭。
+失败不会回滚已提交 Document。
 
 ## AI 辅助开发
 

@@ -111,9 +111,10 @@ the measured resident performance gate has not passed; the default remains CPU c
 WebGL2 rendering.
 
 An opt-in revision-scoped GPU scene session retains shared topology, replaceable attributes, and
-an instance table across committed revisions. The large industrial scene now fits its 233 shared
-geometries and 1,938 instances in about 46 MiB, but its warm transform target is not yet met, so
-the experimental session remains default-off and leaves CPU/WebGL2 active.
+an instance table across committed revisions. The large industrial scene fits its 233 shared
+geometries and 1,938 instances in about 46 MiB, and its transform revision is about 11× faster
+than the retained CPU baseline. Initial scene construction remains expensive, so the experimental
+session is still default-off and leaves CPU/WebGL2 active.
 
 ## Industry Layering
 

@@ -47,6 +47,12 @@ export function evaluateBenchmarkGate(result) {
   ) {
     failures.push('gpuSceneState');
   }
+  if (
+    result.computeMode === 'gpu'
+    && result.measurements.incrementalUpdateMs.p50 > 250
+  ) {
+    failures.push('gpuTransformBelowFivefold');
+  }
   return failures;
 }
 
@@ -216,6 +222,9 @@ async function main() {
       reopenSamples.push(performance.now() - started);
     }
 
+    if (sceneSessions) {
+      await rpc('evaluation.waitScene', { revision: currentRevision });
+    }
     const capabilities = await rpc('system.capabilities');
     const previewSamples = [];
     if (capabilities.toolchain?.state === 'ready') {
