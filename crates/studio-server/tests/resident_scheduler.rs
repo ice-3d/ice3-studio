@@ -387,10 +387,7 @@ fn compute_evaluator_reuses_registered_handle_without_rehashing() {
     let second = GeometryEvaluator::evaluate(&evaluator, &content).unwrap();
 
     assert_eq!(service.status().resident_hot_path_hashes, hashes);
-    assert_eq!(
-        first.resident_geometry_id,
-        second.resident_geometry_id
-    );
+    assert_eq!(first.resident_geometry_id, second.resident_geometry_id);
     assert_eq!(gpu.snapshot_calls(), 2);
 }
 

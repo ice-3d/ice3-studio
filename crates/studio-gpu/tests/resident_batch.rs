@@ -39,7 +39,10 @@ fn distinct_compatible_meshes_share_one_submission() {
     let handle = backend.resident_handle(&result.entries[0].id).unwrap();
     assert_eq!(handle.state, ResidentGeometryState::Pending);
     let ready = backend.evaluate_resident_handle(&handle.id).unwrap();
-    assert_eq!(ready.mode, studio_core::gpu_contract::GeometryEvaluationMode::Resident);
+    assert_eq!(
+        ready.mode,
+        studio_core::gpu_contract::GeometryEvaluationMode::Resident
+    );
     assert_eq!(
         backend.resident_handle(&handle.id).unwrap().state,
         ResidentGeometryState::Ready
