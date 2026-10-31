@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use studio_core::agent_contract::{
-    AgentLimits, EvaluationInclude, EvaluationQueryItem, EvaluationQueryRequest,
+    AgentLimits, ChangeImpactCounts, EvaluationInclude, EvaluationQueryItem,
+    EvaluationQueryRequest, IterationImpact, IterationImpactReason, IterationImpactScope,
     RuntimePreviewRequest, SceneSearchField, SceneSearchItem, SceneSearchRequest, SceneSearchScope,
 };
 use ts_rs::TS;
@@ -66,4 +67,31 @@ fn agent_request_typescript_marks_omittable_fields_optional() {
     let preview = RuntimePreviewRequest::decl();
     assert!(preview.contains("revision?: bigint | null"));
     assert!(preview.contains("candidateDigest?: string | null"));
+}
+
+#[test]
+fn iteration_impact_serializes_with_counts_and_snake_case_reasons() {
+    let impact = IterationImpact {
+        scope: IterationImpactScope::Local,
+        full_scene_rebuild_required: false,
+        source_nodes: ChangeImpactCounts::default(),
+        derived_nodes: ChangeImpactCounts::default(),
+        relations: ChangeImpactCounts::default(),
+        components: ChangeImpactCounts::default(),
+        materials: ChangeImpactCounts::default(),
+        affected_source_nodes: 1,
+        affected_derived_nodes: 64,
+        reused_geometry: 64,
+        generated_geometry: 0,
+        cache_hits: 64,
+        cache_misses: 0,
+        reasons: vec![IterationImpactReason::InstanceParameters],
+    };
+    let value = serde_json::to_value(impact).unwrap();
+
+    assert_eq!(value["scope"], "local");
+    assert_eq!(value["fullSceneRebuildRequired"], false);
+    assert_eq!(value["affectedSourceNodes"], 1);
+    assert_eq!(value["generatedGeometry"], 0);
+    assert_eq!(value["reasons"][0], "instance_parameters");
 }

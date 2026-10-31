@@ -366,6 +366,67 @@ pub struct AgentManifest {
     pub workflows: Vec<AgentWorkflow>,
 }
 
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS,
+)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeImpactCounts {
+    pub added: usize,
+    pub updated: usize,
+    pub removed: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+#[ts(export)]
+pub enum IterationImpactScope {
+    Local,
+    Targeted,
+    Broad,
+    FullRebuild,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+#[ts(export)]
+pub enum IterationImpactReason {
+    NodeContent,
+    NodeTransform,
+    InstanceParameters,
+    MaterialAssignment,
+    ComponentDefinition,
+    RelationTopology,
+    Constraint,
+    FullRebuild,
+    ValidationBlocked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct IterationImpact {
+    pub scope: IterationImpactScope,
+    pub full_scene_rebuild_required: bool,
+    pub source_nodes: ChangeImpactCounts,
+    pub derived_nodes: ChangeImpactCounts,
+    pub relations: ChangeImpactCounts,
+    pub components: ChangeImpactCounts,
+    pub materials: ChangeImpactCounts,
+    pub affected_source_nodes: usize,
+    pub affected_derived_nodes: usize,
+    pub reused_geometry: usize,
+    pub generated_geometry: usize,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+    pub reasons: Vec<IterationImpactReason>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 #[ts(rename_all = "camelCase", optional_fields = nullable)]
