@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex};
 
 use studio_core::document::NodeContent;
@@ -11,7 +11,8 @@ use studio_core::gpu_contract::{
 use studio_core::ids::NodeId;
 
 use crate::kernels::mesh::{
-    ResidentMeshGpu, create_resident_custom_mesh, snapshot_resident_custom_mesh,
+    ResidentMeshGpu, create_resident_custom_mesh, encode_resident_custom_mesh,
+    prepare_resident_custom_mesh, snapshot_resident_custom_mesh,
 };
 use crate::residency::ResidencyKey;
 use crate::resources::DeviceResources;
@@ -23,6 +24,19 @@ pub struct ResidentPhaseCounters {
     pub full_hashes: u64,
     pub upload_bytes: u64,
     pub fence_waits: u64,
+}
+
+pub(crate) struct ResidentBatchInput {
+    pub node_id: NodeId,
+    pub content: NodeContent,
+    pub mesh: TriangleMesh,
+    pub digests: Option<GeometryDigestSet>,
+}
+
+pub(crate) struct ResidentBatchOutcome {
+    pub entries: Vec<GeometryResidentEntry>,
+    pub submission_count: usize,
+    pub phases: studio_core::gpu_contract::GeometryPhaseEvidence,
 }
 
 pub struct ResidentGeometryRecord {
@@ -130,6 +144,142 @@ impl GpuGeometryResidency {
             self.evaluate_key(device, queue, &node_id, content, evaluated_mesh, key)?;
         entry.node_id = node_id;
         Ok(entry)
+    }
+
+    pub(crate) fn evaluate_batch(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        inputs: Vec<ResidentBatchInput>,
+    ) -> Result<ResidentBatchOutcome, BackendError> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut seen_new = BTreeSet::new();
+        let mut keys = Vec::with_capacity(inputs.len());
+        let mut prepared = Vec::new();
+        let mut phases = studio_core::gpu_contract::GeometryPhaseEvidence::default();
+
+        for input in inputs {
+            let key = match &input.digests {
+                Some(digests) => ResidencyKey::from_digests(digests),
+                None => {
+                    state.phase_counters.full_hashes += 1;
+                    ResidencyKey::for_content(&input.content, "", RESIDENT_KERNEL_VERSION)?
+                }
+            };
+            let result_key = key.result.clone();
+            keys.push((input.node_id.clone(), result_key.clone()));
+            if state.entries.contains_key(&result_key) || !seen_new.insert(result_key.clone()) {
+                continue;
+            }
+            let pending =
+                prepare_resident_custom_mesh(device, queue, &self.resources, &input.mesh)?;
+            let bytes = pending.byte_size();
+            self.evict_for(&mut state, bytes)?;
+            phases.validation_ms += pending.phases().validation_ms;
+            phases.planning_ms += pending.phases().planning_ms;
+            prepared.push((key, input, pending));
+        }
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("ICE3 resident batch encoder"),
+        });
+        for (_, _, pending) in &mut prepared {
+            encode_resident_custom_mesh(&mut encoder, &self.resources, pending);
+            phases.encode_ms += pending.phases().encode_ms;
+        }
+        let submission_count = usize::from(!prepared.is_empty());
+        let submit_started = std::time::Instant::now();
+        if submission_count > 0 {
+            queue.submit([encoder.finish()]);
+        }
+        phases.submit_ms = elapsed_ms(submit_started);
+        phases.wait_ms = 0.0;
+
+        let mut inserted = BTreeSet::new();
+        for (key, input, pending) in prepared {
+            let gpu = pending.finish();
+            let bytes = gpu.byte_size();
+            let bounds = mesh_bounds(&input.mesh)?;
+            let geometry_id = input.node_id.to_string();
+            let record = ResidentGeometryRecord {
+                id: ResidentGeometryId(key.result.clone()),
+                node_id: input.node_id,
+                key: key.clone(),
+                content: input.content,
+                bounds,
+                vertex_count: input.mesh.positions.len(),
+                triangle_count: gpu.triangle_count as usize,
+                handle: ResidentGeometryHandle {
+                    id: ResidentGeometryId(key.result.clone()),
+                    geometry_id,
+                    digests: key.digest_set("", RESIDENT_KERNEL_VERSION),
+                    vertex_count: input.mesh.positions.len(),
+                    triangle_count: gpu.triangle_count as usize,
+                    device_generation: self.device_generation,
+                    state: ResidentGeometryState::Ready,
+                },
+                gpu,
+                source: input.mesh,
+            };
+            state.phase_counters.upload_bytes =
+                state.phase_counters.upload_bytes.saturating_add(bytes);
+            state.resident_bytes = state.resident_bytes.saturating_add(bytes);
+            state.peak_resident_bytes = state.peak_resident_bytes.max(state.resident_bytes);
+            inserted.insert(key.result.clone());
+            let next_generation = state.generation.wrapping_add(1);
+            state.entries.insert(
+                key.result,
+                StoredEntry {
+                    record,
+                    pinned: false,
+                    last_used: next_generation,
+                },
+            );
+            state.generation = next_generation;
+        }
+
+        let mut entries = Vec::with_capacity(keys.len());
+        for (node_id, key) in keys {
+            let stored = state
+                .entries
+                .get(&key)
+                .ok_or_else(|| BackendError::Kernel {
+                    message: "resident batch entry was not published".into(),
+                })?;
+            let mut entry = resident_entry(
+                &stored.record,
+                if inserted.contains(&key) {
+                    GeometryEvaluationMode::Cold
+                } else {
+                    GeometryEvaluationMode::Resident
+                },
+                &state,
+                usize::from(inserted.contains(&key)),
+                &node_id,
+            );
+            entry.evidence.phases = phases.clone();
+            entries.push(entry);
+        }
+        state.topology_hits += entries
+            .iter()
+            .filter(|entry| entry.mode == GeometryEvaluationMode::Resident)
+            .count();
+        state.resident_hits += entries
+            .iter()
+            .filter(|entry| entry.mode == GeometryEvaluationMode::Resident)
+            .count();
+        state.last_evidence = entries
+            .last()
+            .map(|entry| entry.evidence.clone())
+            .unwrap_or_default();
+        Ok(ResidentBatchOutcome {
+            entries,
+            submission_count,
+            phases,
+        })
     }
 
     pub(crate) fn evaluate_handle(

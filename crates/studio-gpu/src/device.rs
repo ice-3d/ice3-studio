@@ -4,7 +4,9 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 use std::time::Instant;
 
-use crate::residency::{GpuGeometryResidency, ResidentBatchPlan, ResidencyKey};
+use crate::residency::{
+    GpuGeometryResidency, ResidentBatchInput, ResidentBatchPlan, ResidencyKey,
+};
 use crate::resources::{DeviceResources, ResourceStats};
 use studio_core::document::NodeContent;
 use studio_core::gpu_contract::{
@@ -384,10 +386,9 @@ impl NativeGpuBackend {
             });
         }
         let ready = self.ready_device()?;
-        let mut entries = Vec::with_capacity(plan.nodes.len());
-        let mut submission_count = 0;
+        let mut inputs = Vec::with_capacity(plan.nodes.len());
         for node in plan.nodes {
-            let source =
+            let mesh =
                 match &node.content {
                     studio_core::document::NodeContent::CustomMesh(mesh) => mesh.clone(),
                     content => {
@@ -405,36 +406,39 @@ impl NativeGpuBackend {
                         }
                     }
                 };
-            let (entry, submitted) = ready.residency.evaluate_content(
-                &ready.device,
-                &ready.queue,
-                &node.node_id,
-                &node.content,
-                &source,
-            )?;
-            submission_count += usize::from(submitted);
-            entries.push(entry);
-            if self.is_cancelled(&plan.job_id) {
-                return Err(BackendError::Kernel {
-                    message: "resident batch was cancelled".into(),
-                });
-            }
+            inputs.push(ResidentBatchInput {
+                node_id: node.node_id,
+                content: node.content,
+                mesh,
+                digests: node.digests,
+            });
         }
-        let mut evidence = entries
+        let outcome =
+            ready
+                .residency
+                .evaluate_batch(&ready.device, &ready.queue, inputs)?;
+        if self.is_cancelled(&plan.job_id) {
+            return Err(BackendError::Kernel {
+                message: "resident batch was cancelled".into(),
+            });
+        }
+        let mut evidence = outcome
+            .entries
             .last()
             .map(|entry| entry.evidence.clone())
             .unwrap_or_default();
-        evidence.mode = if submission_count == 0 {
+        evidence.mode = if outcome.submission_count == 0 {
             GeometryEvaluationMode::Resident
         } else {
             GeometryEvaluationMode::Cold
         };
-        evidence.submission_count = submission_count;
+        evidence.submission_count = outcome.submission_count;
+        evidence.phases = outcome.phases;
         evidence.stats.readback_bytes = 0;
         let result = GeometryResidentBatchResult {
             job_id: plan.job_id.clone(),
             backend: GeometryBackendKind::Gpu,
-            entries,
+            entries: outcome.entries,
             evidence,
         };
         self.state

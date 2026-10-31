@@ -184,6 +184,25 @@ pub(crate) struct ResidentMeshGpu {
     workgroup_count: u32,
 }
 
+pub(crate) struct PendingResidentMesh {
+    gpu: ResidentMeshGpu,
+    bind_group: wgpu::BindGroup,
+}
+
+impl PendingResidentMesh {
+    pub(crate) fn byte_size(&self) -> u64 {
+        self.gpu.byte_size()
+    }
+
+    pub(crate) fn phases(&self) -> &GeometryPhaseEvidence {
+        &self.gpu.phases
+    }
+
+    pub(crate) fn finish(self) -> ResidentMeshGpu {
+        self.gpu
+    }
+}
+
 impl ResidentMeshGpu {
     pub(crate) fn byte_size(&self) -> u64 {
         [
@@ -223,6 +242,33 @@ pub(crate) fn create_resident_custom_mesh(
     resources: &DeviceResources,
     mesh: &TriangleMesh,
 ) -> Result<ResidentMeshGpu, BackendError> {
+    let mut pending = prepare_resident_custom_mesh(device, queue, resources, mesh)?;
+    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+        label: Some("ICE3 resident mesh encoder"),
+    });
+    encode_resident_custom_mesh(&mut encoder, resources, &mut pending);
+    let submit_started = std::time::Instant::now();
+    queue.submit([encoder.finish()]);
+    pending.gpu.phases.submit_ms = elapsed_ms(submit_started);
+    let wait_started = std::time::Instant::now();
+    device
+        .poll(PollType::Wait {
+            submission_index: None,
+            timeout: Some(Duration::from_secs(30)),
+        })
+        .map_err(|error| BackendError::Kernel {
+            message: format!("resident mesh completion failed: {error}"),
+        })?;
+    pending.gpu.phases.wait_ms = elapsed_ms(wait_started);
+    Ok(pending.finish())
+}
+
+pub(crate) fn prepare_resident_custom_mesh(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    resources: &DeviceResources,
+    mesh: &TriangleMesh,
+) -> Result<PendingResidentMesh, BackendError> {
     let validation_started = std::time::Instant::now();
     let geometry = validate_mesh_input(mesh)?;
     let adjacency = build_adjacency(mesh, geometry.vertex_count)?;
@@ -305,9 +351,6 @@ pub(crate) fn create_resident_custom_mesh(
     )?;
     let planning_ms = elapsed_ms(planning_started);
 
-    let face_pipeline = resources.pipelines().get(PipelineKey::MeshFaceNormals)?;
-    let normal_pipeline = resources.pipelines().get(PipelineKey::MeshNormals)?;
-    let bounds_pipeline = resources.pipelines().get(PipelineKey::MeshBounds)?;
     let layout = resources.pipelines().mesh_layout();
     let bind_group = device.create_bind_group(&BindGroupDescriptor {
         label: Some("ICE3 resident mesh bindings"),
@@ -323,60 +366,60 @@ pub(crate) fn create_resident_custom_mesh(
             lease_binding(7, &bounds_lease),
         ],
     });
-    let encode_started = std::time::Instant::now();
-    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
-        label: Some("ICE3 resident mesh encoder"),
-    });
-    {
-        let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
-            label: Some("ICE3 resident mesh compute"),
-            timestamp_writes: None,
-        });
-        pass.set_bind_group(0, &bind_group, &[]);
-        pass.set_pipeline(face_pipeline);
-        pass.dispatch_workgroups(geometry.triangle_count.div_ceil(64), 1, 1);
-        pass.set_pipeline(normal_pipeline);
-        pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
-        pass.set_pipeline(bounds_pipeline);
-        pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
-    }
-    let encode_ms = elapsed_ms(encode_started);
-    let submit_started = std::time::Instant::now();
-    queue.submit([encoder.finish()]);
-    let submit_ms = elapsed_ms(submit_started);
-    let wait_started = std::time::Instant::now();
-    device
-        .poll(PollType::Wait {
-            submission_index: None,
-            timeout: Some(Duration::from_secs(30)),
-        })
-        .map_err(|error| BackendError::Kernel {
-            message: format!("resident mesh completion failed: {error}"),
-        })?;
-    let wait_ms = elapsed_ms(wait_started);
-
-    Ok(ResidentMeshGpu {
-        params: params_lease,
-        positions: position_lease,
-        indices: index_lease,
-        offsets: offset_lease,
-        incidence: incidence_lease,
-        face_normals: face_normal_lease,
-        normals: normal_lease,
-        bounds: bounds_lease,
-        vertex_count: geometry.vertex_count,
-        triangle_count: geometry.triangle_count,
-        phases: GeometryPhaseEvidence {
-            validation_ms,
-            planning_ms,
-            encode_ms,
-            submit_ms,
-            wait_ms,
-            gpu_kernel_ms: None,
-            ..GeometryPhaseEvidence::default()
+    Ok(PendingResidentMesh {
+        gpu: ResidentMeshGpu {
+            params: params_lease,
+            positions: position_lease,
+            indices: index_lease,
+            offsets: offset_lease,
+            incidence: incidence_lease,
+            face_normals: face_normal_lease,
+            normals: normal_lease,
+            bounds: bounds_lease,
+            vertex_count: geometry.vertex_count,
+            triangle_count: geometry.triangle_count,
+            phases: GeometryPhaseEvidence {
+                validation_ms,
+                planning_ms,
+                ..GeometryPhaseEvidence::default()
+            },
+            workgroup_count: geometry.workgroup_count,
         },
-        workgroup_count: geometry.workgroup_count,
+        bind_group,
     })
+}
+
+pub(crate) fn encode_resident_custom_mesh(
+    encoder: &mut wgpu::CommandEncoder,
+    resources: &DeviceResources,
+    pending: &mut PendingResidentMesh,
+) {
+    let encode_started = std::time::Instant::now();
+    let face_pipeline = resources
+        .pipelines()
+        .get(PipelineKey::MeshFaceNormals)
+        .expect("resident face pipeline must be ready");
+    let normal_pipeline = resources
+        .pipelines()
+        .get(PipelineKey::MeshNormals)
+        .expect("resident normal pipeline must be ready");
+    let bounds_pipeline = resources
+        .pipelines()
+        .get(PipelineKey::MeshBounds)
+        .expect("resident bounds pipeline must be ready");
+    let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+        label: Some("ICE3 resident mesh compute"),
+        timestamp_writes: None,
+    });
+    pass.set_bind_group(0, &pending.bind_group, &[]);
+    pass.set_pipeline(face_pipeline);
+    pass.dispatch_workgroups(pending.gpu.triangle_count.div_ceil(64), 1, 1);
+    pass.set_pipeline(normal_pipeline);
+    pass.dispatch_workgroups(pending.gpu.workgroup_count, 1, 1);
+    pass.set_pipeline(bounds_pipeline);
+    pass.dispatch_workgroups(pending.gpu.workgroup_count, 1, 1);
+    drop(pass);
+    pending.gpu.phases.encode_ms = elapsed_ms(encode_started);
 }
 
 fn elapsed_ms(started: std::time::Instant) -> f64 {
