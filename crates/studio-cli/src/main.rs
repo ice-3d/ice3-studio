@@ -27,6 +27,9 @@ enum Command {
         project: PathBuf,
         #[arg(long)]
         output: PathBuf,
+        /// 按指定的 metadata 键分组生成 resources 概览（可选）。
+        #[arg(long)]
+        group_by: Option<String>,
     },
     /// 从 `.ice3` 容器还原工程目录。
     Unpack {
@@ -55,8 +58,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
         Command::Schema { output, check } => schema::generate(&output, check)?,
-        Command::Pack { project, output } => {
-            let manifest = studio_project::archive::pack(&project, &output)?;
+        Command::Pack {
+            project,
+            output,
+            group_by,
+        } => {
+            let manifest = studio_project::archive::pack_with_grouping(
+                &project,
+                &output,
+                group_by.as_deref(),
+            )?;
             println!("{}", serde_json::to_string_pretty(&manifest)?);
         }
         Command::Unpack { archive, into } => {

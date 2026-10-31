@@ -59,6 +59,16 @@ pub struct ArchiveManifest {
 
 /// 把工程目录打成单文件容器，返回写入的 manifest。
 pub fn pack(project_dir: &Path, output: &Path) -> Result<ArchiveManifest, ArchiveError> {
+    pack_with_grouping(project_dir, output, None)
+}
+
+/// 与 [`pack`] 相同，但可按指定 metadata 键分组生成 `resources/` 概览。
+/// 键名由调用方给出，内核不内置任何业务字段。
+pub fn pack_with_grouping(
+    project_dir: &Path,
+    output: &Path,
+    group_by: Option<&str>,
+) -> Result<ArchiveManifest, ArchiveError> {
     let project_json = project_dir.join("project.json");
     if !project_json.is_file() {
         return Err(ArchiveError::NotAProject);
@@ -80,7 +90,7 @@ pub fn pack(project_dir: &Path, output: &Path) -> Result<ArchiveManifest, Archiv
 
     let mut files = collect_files(project_dir)?;
     // 工程摘要与俯视示意图属于派生资源，随容器一起生成，便于不开编辑器时预览。
-    if let Some(resources) = build_resources(project_dir, revision) {
+    if let Some(resources) = build_resources(project_dir, revision, group_by) {
         for (name, body) in resources {
             files.insert(name, body);
         }
@@ -164,33 +174,45 @@ fn collect_files(root: &Path) -> Result<BTreeMap<String, Vec<u8>>, ArchiveError>
 
 /// 生成 `resources/` 下的派生产物：统计摘要与俯视布局示意图。
 /// 两者都是可重建的，不进入工程真相。
-fn build_resources(project_dir: &Path, revision: u64) -> Option<BTreeMap<String, Vec<u8>>> {
+///
+/// `group_by` 是可选的 metadata 键名。内核不假设任何业务字段的含义：不传就不分组，
+/// 传了才按该键的取值着色并统计。
+fn build_resources(
+    project_dir: &Path,
+    revision: u64,
+    group_by: Option<&str>,
+) -> Option<BTreeMap<String, Vec<u8>>> {
     let path = project_dir
         .join("revisions")
         .join(format!("{revision:08}.json"));
     let bytes = fs::read(path).ok()?;
     let document: studio_core::document::Document = serde_json::from_slice(&bytes).ok()?;
 
-    let mut areas: BTreeMap<String, usize> = BTreeMap::new();
-    for node in document.scene.nodes() {
-        let area = node
-            .metadata
-            .get("area")
-            .cloned()
-            .unwrap_or_else(|| "unassigned".to_string());
-        *areas.entry(area).or_default() += 1;
+    let mut groups: BTreeMap<String, usize> = BTreeMap::new();
+    if let Some(key) = group_by {
+        for node in document.scene.nodes() {
+            let value = node
+                .metadata
+                .get(key)
+                .cloned()
+                .unwrap_or_else(|| "unassigned".to_string());
+            *groups.entry(value).or_default() += 1;
+        }
     }
 
-    let summary = serde_json::json!({
+    let mut summary = serde_json::json!({
         "projectId": document.project_id,
         "revision": document.revision.as_u64(),
         "schemaVersion": document.schema_version,
         "nodes": document.scene.nodes().len(),
         "materials": document.materials.len(),
         "relations": document.relations.len(),
-        "areas": areas,
         "generatedAt": now_seconds(),
     });
+    if let Some(key) = group_by {
+        summary["groupBy"] = serde_json::json!(key);
+        summary["groups"] = serde_json::json!(groups);
+    }
 
     let mut resources = BTreeMap::new();
     resources.insert(
@@ -199,32 +221,34 @@ fn build_resources(project_dir: &Path, revision: u64) -> Option<BTreeMap<String,
     );
     resources.insert(
         "resources/layout.svg".to_string(),
-        layout_svg(&document).into_bytes(),
+        layout_svg(&document, group_by).into_bytes(),
     );
     Some(resources)
 }
 
-/// 俯视示意图：每台设备画一个点，按区域着色。用于在不开编辑器的情况下判断布局。
-fn layout_svg(document: &studio_core::document::Document) -> String {
+/// 俯视示意图：每个节点画一个点。`group_by` 给出 metadata 键名时按其取值着色，
+/// 否则统一着色。内核不认识任何业务字段。
+fn layout_svg(document: &studio_core::document::Document, group_by: Option<&str>) -> String {
     const WIDTH: f32 = 960.0;
     const HEIGHT: f32 = 620.0;
     const PADDING: f32 = 48.0;
     const PALETTE: [&str; 6] = [
         "#4f9cf9", "#f2994a", "#27ae60", "#bb6bd9", "#eb5757", "#56ccf2",
     ];
+    const NEUTRAL: &str = "#7d8590";
 
     let points: Vec<(f32, f32, String)> = document
         .scene
         .nodes()
         .iter()
         .map(|node| {
+            let group = group_by
+                .and_then(|key| node.metadata.get(key).cloned())
+                .unwrap_or_default();
             (
                 node.transform.translation.x,
                 node.transform.translation.z,
-                node.metadata
-                    .get("area")
-                    .cloned()
-                    .unwrap_or_else(|| "unassigned".to_string()),
+                group,
             )
         })
         .collect();
@@ -243,38 +267,48 @@ fn layout_svg(document: &studio_core::document::Document) -> String {
     let span_z = (max_z - min_z).max(1.0);
     let scale = ((WIDTH - PADDING * 2.0) / span_x).min((HEIGHT - PADDING * 2.0) / span_z);
 
-    let mut areas: Vec<String> = points.iter().map(|p| p.2.clone()).collect();
-    areas.sort();
-    areas.dedup();
-    let color_of = |area: &str| -> &str {
-        let index = areas.iter().position(|value| value == area).unwrap_or(0);
+    let mut groups: Vec<String> = points.iter().map(|p| p.2.clone()).collect();
+    groups.sort();
+    groups.dedup();
+    groups.retain(|value| !value.is_empty());
+    let color_of = |group: &str| -> &str {
+        if group.is_empty() {
+            return NEUTRAL;
+        }
+        let index = groups.iter().position(|value| value == group).unwrap_or(0);
         PALETTE[index % PALETTE.len()]
     };
 
     let mut body = String::new();
-    for (x, z, area) in &points {
+    for (x, z, group) in &points {
         let px = PADDING + (x - min_x) * scale;
         let py = PADDING + (z - min_z) * scale;
         body.push_str(&format!(
             r##"<circle cx="{px:.1}" cy="{py:.1}" r="4" fill="{}" fill-opacity="0.72"/>"##,
-            color_of(area)
+            color_of(group)
         ));
     }
 
     let mut legend = String::new();
-    for (index, area) in areas.iter().enumerate().take(12) {
-        let x = PADDING + (index % 4) as f32 * 220.0;
-        let y = HEIGHT - 40.0 + (index / 4) as f32 * 16.0;
-        legend.push_str(&format!(
-            r##"<rect x="{x:.0}" y="{y:.0}" width="8" height="8" fill="{}"/><text x="{:.0}" y="{:.0}" fill="#c9d1d9" font-family="sans-serif" font-size="11">{area}</text>"##,
-            color_of(area),
-            x + 14.0,
-            y + 8.0
-        ));
+    if group_by.is_some() {
+        for (index, group) in groups.iter().enumerate().take(12) {
+            let x = PADDING + (index % 4) as f32 * 220.0;
+            let y = HEIGHT - 40.0 + (index / 4) as f32 * 16.0;
+            legend.push_str(&format!(
+                r##"<rect x="{x:.0}" y="{y:.0}" width="8" height="8" fill="{}"/><text x="{:.0}" y="{:.0}" fill="#c9d1d9" font-family="sans-serif" font-size="11">{group}</text>"##,
+                color_of(group),
+                x + 14.0,
+                y + 8.0
+            ));
+        }
     }
 
+    let subtitle = match group_by {
+        Some(key) => format!(" · grouped by {key}"),
+        None => String::new(),
+    };
     format!(
-        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}"><rect width="100%" height="100%" fill="#14181d"/><text x="{PADDING}" y="28" fill="#c9d1d9" font-family="sans-serif" font-size="14">{} · revision {} · {} nodes</text>{body}{legend}</svg>"##,
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}"><rect width="100%" height="100%" fill="#14181d"/><text x="{PADDING}" y="28" fill="#c9d1d9" font-family="sans-serif" font-size="14">{} · revision {} · {} nodes{subtitle}</text>{body}{legend}</svg>"##,
         document.project_id,
         document.revision.as_u64(),
         document.scene.nodes().len()
