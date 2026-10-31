@@ -12,7 +12,7 @@ use studio_core::ids::NodeId;
 
 use crate::kernels::mesh::{
     ResidentMeshGpu, create_resident_custom_mesh, encode_resident_custom_mesh,
-    prepare_resident_custom_mesh, snapshot_resident_custom_mesh,
+    prepare_resident_attribute_update, prepare_resident_custom_mesh, snapshot_resident_custom_mesh,
 };
 use crate::residency::ResidencyKey;
 use crate::resources::DeviceResources;
@@ -47,6 +47,7 @@ pub struct ResidentGeometryRecord {
     pub bounds: Bounds,
     pub vertex_count: usize,
     pub triangle_count: usize,
+    resident_bytes: u64,
     pub handle: ResidentGeometryHandle,
     gpu: ResidentMeshGpu,
     source: TriangleMesh,
@@ -146,6 +147,122 @@ impl GpuGeometryResidency {
         Ok(entry)
     }
 
+    pub(crate) fn update_geometry(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        current: &ResidentGeometryId,
+        content: &NodeContent,
+        ranges: Vec<studio_core::scene_contract::ElementRange>,
+    ) -> Result<GeometryResidentEntry, BackendError> {
+        let mesh = match content {
+            NodeContent::CustomMesh(mesh) => mesh,
+            _ => {
+                return Err(BackendError::Incompatible {
+                    reason: "incremental resident update requires a custom mesh".into(),
+                });
+            }
+        };
+        let key = ResidencyKey::for_content(content, "", RESIDENT_KERNEL_VERSION)?;
+        let (node_id, topology, previous_positions, previous_source) = {
+            let state = self
+                .state
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let record = state
+                .entries
+                .get(&current.0)
+                .ok_or_else(|| BackendError::Kernel {
+                    message: "resident geometry update source is unavailable".into(),
+                })?;
+            if record.record.key.topology != key.topology {
+                return Err(BackendError::Incompatible {
+                    reason: "incremental resident update changed topology".into(),
+                });
+            }
+            (
+                record.record.node_id.clone(),
+                record.record.gpu.topology(),
+                record.record.gpu.position_buffer().clone(),
+                record.record.source.clone(),
+            )
+        };
+        let update = prepare_resident_attribute_update(
+            device,
+            queue,
+            &self.resources,
+            topology,
+            &previous_positions,
+            mesh,
+            &ranges,
+        )?;
+        let bounds = mesh_bounds(mesh)?;
+        let incremental_bytes = update.gpu.incremental_byte_size();
+        let phases = update.gpu.phases.clone();
+        let upload_bytes = update.upload_bytes;
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        self.evict_for(&mut state, incremental_bytes)?;
+        let geometry_id = node_id.to_string();
+        let record = ResidentGeometryRecord {
+            id: ResidentGeometryId(key.result.clone()),
+            node_id,
+            key: key.clone(),
+            content: content.clone(),
+            bounds,
+            vertex_count: mesh.positions.len(),
+            triangle_count: update.gpu.topology().triangle_count as usize,
+            resident_bytes: incremental_bytes,
+            handle: ResidentGeometryHandle {
+                id: ResidentGeometryId(key.result.clone()),
+                geometry_id,
+                digests: key.digest_set("", RESIDENT_KERNEL_VERSION),
+                vertex_count: mesh.positions.len(),
+                triangle_count: update.gpu.topology().triangle_count as usize,
+                device_generation: self.device_generation,
+                state: ResidentGeometryState::Pending,
+            },
+            gpu: update.gpu,
+            source: mesh.clone(),
+        };
+        state.phase_counters.upload_bytes = state
+            .phase_counters
+            .upload_bytes
+            .saturating_add(upload_bytes);
+        state.resident_bytes = state.resident_bytes.saturating_add(incremental_bytes);
+        state.peak_resident_bytes = state.peak_resident_bytes.max(state.resident_bytes);
+        state.generation = state.generation.wrapping_add(1);
+        let generation = state.generation;
+        state.entries.insert(
+            key.result.clone(),
+            StoredEntry {
+                record,
+                pinned: false,
+                last_used: generation,
+            },
+        );
+        let stored = state
+            .entries
+            .get(&key.result)
+            .expect("updated resident entry must exist");
+        let mut entry = resident_entry(
+            &stored.record,
+            GeometryEvaluationMode::Warm,
+            &state,
+            1,
+            &stored.record.node_id,
+        );
+        entry.dirty = studio_core::scene_contract::scene_content_dirty(
+            &NodeContent::CustomMesh(previous_source),
+            content,
+        );
+        entry.evidence.stats.upload_bytes = upload_bytes;
+        entry.evidence.phases = phases;
+        Ok(entry)
+    }
+
     pub(crate) fn evaluate_batch(
         &self,
         device: &wgpu::Device,
@@ -211,13 +328,14 @@ impl GpuGeometryResidency {
                 content: input.content,
                 bounds,
                 vertex_count: input.mesh.positions.len(),
-                triangle_count: gpu.triangle_count as usize,
+                triangle_count: gpu.topology().triangle_count as usize,
+                resident_bytes: bytes,
                 handle: ResidentGeometryHandle {
                     id: ResidentGeometryId(key.result.clone()),
                     geometry_id,
                     digests: key.digest_set("", RESIDENT_KERNEL_VERSION),
                     vertex_count: input.mesh.positions.len(),
-                    triangle_count: gpu.triangle_count as usize,
+                    triangle_count: gpu.topology().triangle_count as usize,
                     device_generation: self.device_generation,
                     state: ResidentGeometryState::Pending,
                 },
@@ -437,7 +555,7 @@ impl GpuGeometryResidency {
             geometry_id: node_id.to_string(),
             digests,
             vertex_count: evaluated_mesh.positions.len(),
-            triangle_count: gpu.triangle_count as usize,
+            triangle_count: gpu.topology().triangle_count as usize,
             device_generation: self.device_generation,
             state: ResidentGeometryState::Ready,
         };
@@ -448,7 +566,8 @@ impl GpuGeometryResidency {
             content: content.clone(),
             bounds,
             vertex_count: evaluated_mesh.positions.len(),
-            triangle_count: gpu.triangle_count as usize,
+            triangle_count: gpu.topology().triangle_count as usize,
+            resident_bytes: bytes,
             handle,
             gpu,
             source: evaluated_mesh.clone(),
@@ -569,7 +688,7 @@ impl GpuGeometryResidency {
             if let Some(entry) = state.entries.remove(&key) {
                 state.resident_bytes = state
                     .resident_bytes
-                    .saturating_sub(entry.record.gpu.byte_size());
+                    .saturating_sub(entry.record.resident_bytes);
                 state.evictions += 1;
                 entry.record.gpu.release(&self.resources);
             }

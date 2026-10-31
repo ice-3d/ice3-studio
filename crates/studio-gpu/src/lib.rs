@@ -10,7 +10,7 @@ pub use kernels::{
 };
 pub use residency::{
     DirtyPlan, ResidencyKey, ResidentBatchPlan, ResidentBatchSubmission, ResidentGeometryRecord,
-    ResidentPhaseCounters,
+    ResidentPhaseCounters, ResourceReferences,
 };
 pub use resources::{
     BufferClass, BufferRole, DeviceResources, PipelineCache, PipelineKey, ResourceStats,

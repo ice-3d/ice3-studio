@@ -293,6 +293,18 @@ impl NativeGpuBackend {
             .evaluate_custom_mesh(&ready.device, &ready.queue, mesh)
     }
 
+    pub fn update_resident_geometry(
+        &self,
+        current: &ResidentGeometryId,
+        content: &NodeContent,
+        ranges: Vec<studio_core::scene_contract::ElementRange>,
+    ) -> Result<studio_core::gpu_contract::GeometryResidentEntry, BackendError> {
+        let ready = self.ready_device()?;
+        ready
+            .residency
+            .update_geometry(&ready.device, &ready.queue, current, content, ranges)
+    }
+
     pub fn prepare_geometry_digests(
         &self,
         content: &NodeContent,

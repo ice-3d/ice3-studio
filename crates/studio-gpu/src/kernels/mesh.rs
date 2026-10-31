@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -5,6 +6,7 @@ use bytemuck::{Pod, Zeroable};
 use studio_core::geometry::{Bounds, EvaluatedMesh, TriangleMesh, Vertex};
 use studio_core::gpu_contract::{BackendError, GeometryPhaseEvidence};
 use studio_core::math::Vec3;
+use studio_core::scene_contract::ElementRange;
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindingResource, Buffer, BufferAsyncError, BufferBinding,
     BufferDescriptor, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device,
@@ -170,23 +172,36 @@ pub fn evaluate_custom_mesh(
 }
 
 pub(crate) struct ResidentMeshGpu {
+    topology: Arc<ResidentTopologyGpu>,
+    attributes: ResidentAttributesGpu,
+    pub(crate) phases: GeometryPhaseEvidence,
+}
+
+pub(crate) struct ResidentTopologyGpu {
     params: BufferLease,
-    positions: BufferLease,
     indices: BufferLease,
     offsets: BufferLease,
     incidence: BufferLease,
+    pub(crate) vertex_count: u32,
+    pub(crate) triangle_count: u32,
+    workgroup_count: u32,
+}
+
+pub(crate) struct ResidentAttributesGpu {
+    positions: BufferLease,
     face_normals: BufferLease,
     normals: BufferLease,
     bounds: BufferLease,
-    pub(crate) vertex_count: u32,
-    pub(crate) triangle_count: u32,
-    pub(crate) phases: GeometryPhaseEvidence,
-    workgroup_count: u32,
 }
 
 pub(crate) struct PendingResidentMesh {
     gpu: ResidentMeshGpu,
     bind_group: wgpu::BindGroup,
+}
+
+pub(crate) struct ResidentAttributeUpdate {
+    pub gpu: ResidentMeshGpu,
+    pub upload_bytes: u64,
 }
 
 impl PendingResidentMesh {
@@ -205,12 +220,55 @@ impl PendingResidentMesh {
 
 impl ResidentMeshGpu {
     pub(crate) fn byte_size(&self) -> u64 {
+        self.topology
+            .byte_size()
+            .saturating_add(self.attributes.byte_size())
+    }
+
+    pub(crate) fn incremental_byte_size(&self) -> u64 {
+        self.attributes.byte_size()
+    }
+
+    pub(crate) fn topology(&self) -> Arc<ResidentTopologyGpu> {
+        self.topology.clone()
+    }
+
+    pub(crate) fn position_buffer(&self) -> &Buffer {
+        &self.attributes.positions.buffer
+    }
+
+    pub(crate) fn snapshot_readback_bytes(&self) -> u64 {
+        self.topology.vertex_count as u64 * 16 + self.topology.workgroup_count as u64 * 32
+    }
+
+    pub(crate) fn release(self, resources: &DeviceResources) {
+        self.attributes.release(resources);
+        if let Ok(topology) = Arc::try_unwrap(self.topology) {
+            topology.release(resources);
+        }
+    }
+}
+
+impl ResidentTopologyGpu {
+    fn byte_size(&self) -> u64 {
+        [&self.params, &self.indices, &self.offsets, &self.incidence]
+            .into_iter()
+            .map(|lease| lease.buffer.size())
+            .sum()
+    }
+
+    fn release(self, resources: &DeviceResources) {
+        resources.buffers().release(self.params);
+        resources.buffers().release(self.indices);
+        resources.buffers().release(self.offsets);
+        resources.buffers().release(self.incidence);
+    }
+}
+
+impl ResidentAttributesGpu {
+    fn byte_size(&self) -> u64 {
         [
-            &self.params,
             &self.positions,
-            &self.indices,
-            &self.offsets,
-            &self.incidence,
             &self.face_normals,
             &self.normals,
             &self.bounds,
@@ -220,16 +278,8 @@ impl ResidentMeshGpu {
         .sum()
     }
 
-    pub(crate) fn snapshot_readback_bytes(&self) -> u64 {
-        self.vertex_count as u64 * 16 + self.workgroup_count as u64 * 32
-    }
-
-    pub(crate) fn release(self, resources: &DeviceResources) {
-        resources.buffers().release(self.params);
+    fn release(self, resources: &DeviceResources) {
         resources.buffers().release(self.positions);
-        resources.buffers().release(self.indices);
-        resources.buffers().release(self.offsets);
-        resources.buffers().release(self.incidence);
         resources.buffers().release(self.face_normals);
         resources.buffers().release(self.normals);
         resources.buffers().release(self.bounds);
@@ -301,7 +351,7 @@ pub(crate) fn prepare_resident_custom_mesh(
         queue,
         resources,
         "ICE3 resident mesh positions",
-        BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
         bytemuck::cast_slice(&positions),
     )?;
     let index_lease = acquire_upload(
@@ -351,42 +401,229 @@ pub(crate) fn prepare_resident_custom_mesh(
     )?;
     let planning_ms = elapsed_ms(planning_started);
 
+    let topology = Arc::new(ResidentTopologyGpu {
+        params: params_lease,
+        indices: index_lease,
+        offsets: offset_lease,
+        incidence: incidence_lease,
+        vertex_count: geometry.vertex_count,
+        triangle_count: geometry.triangle_count,
+        workgroup_count: geometry.workgroup_count,
+    });
+    let attributes = ResidentAttributesGpu {
+        positions: position_lease,
+        face_normals: face_normal_lease,
+        normals: normal_lease,
+        bounds: bounds_lease,
+    };
     let layout = resources.pipelines().mesh_layout();
     let bind_group = device.create_bind_group(&BindGroupDescriptor {
         label: Some("ICE3 resident mesh bindings"),
         layout,
         entries: &[
-            lease_binding(0, &params_lease),
-            lease_binding(1, &position_lease),
-            lease_binding(2, &index_lease),
-            lease_binding(3, &offset_lease),
-            lease_binding(4, &incidence_lease),
-            lease_binding(5, &face_normal_lease),
-            lease_binding(6, &normal_lease),
-            lease_binding(7, &bounds_lease),
+            lease_binding(0, &topology.params),
+            lease_binding(1, &attributes.positions),
+            lease_binding(2, &topology.indices),
+            lease_binding(3, &topology.offsets),
+            lease_binding(4, &topology.incidence),
+            lease_binding(5, &attributes.face_normals),
+            lease_binding(6, &attributes.normals),
+            lease_binding(7, &attributes.bounds),
         ],
     });
     Ok(PendingResidentMesh {
         gpu: ResidentMeshGpu {
-            params: params_lease,
-            positions: position_lease,
-            indices: index_lease,
-            offsets: offset_lease,
-            incidence: incidence_lease,
-            face_normals: face_normal_lease,
-            normals: normal_lease,
-            bounds: bounds_lease,
-            vertex_count: geometry.vertex_count,
-            triangle_count: geometry.triangle_count,
+            topology,
+            attributes,
             phases: GeometryPhaseEvidence {
                 validation_ms,
                 planning_ms,
                 ..GeometryPhaseEvidence::default()
             },
-            workgroup_count: geometry.workgroup_count,
         },
         bind_group,
     })
+}
+
+pub(crate) fn prepare_resident_attribute_update(
+    device: &Device,
+    queue: &Queue,
+    resources: &DeviceResources,
+    topology: Arc<ResidentTopologyGpu>,
+    previous_positions: &Buffer,
+    mesh: &TriangleMesh,
+    ranges: &[ElementRange],
+) -> Result<ResidentAttributeUpdate, BackendError> {
+    let validation_started = std::time::Instant::now();
+    let geometry = validate_mesh_input(mesh)?;
+    if geometry.vertex_count != topology.vertex_count
+        || geometry.triangle_count != topology.triangle_count
+    {
+        return Err(BackendError::Incompatible {
+            reason: "incremental update changed mesh topology".into(),
+        });
+    }
+    let validation_ms = elapsed_ms(validation_started);
+
+    let planning_started = std::time::Instant::now();
+    let positions = mesh
+        .positions
+        .iter()
+        .map(|position| [position[0], position[1], position[2], 1.0])
+        .collect::<Vec<_>>();
+    let position_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DynamicAttribute,
+        BufferUsages::STORAGE | BufferUsages::COPY_DST | BufferUsages::COPY_SRC,
+        positions.len() as u64 * 16,
+        "ICE3 resident mesh positions",
+    )?;
+    let face_normal_lease = acquire_output(
+        device,
+        resources,
+        "ICE3 resident mesh face normals",
+        geometry.triangle_count as u64 * 16,
+        BufferUsages::STORAGE,
+    )?;
+    let normal_lease = acquire_output(
+        device,
+        resources,
+        "ICE3 resident mesh normals",
+        geometry.vertex_count as u64 * 16,
+        BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+    )?;
+    let bounds_lease = acquire_output(
+        device,
+        resources,
+        "ICE3 resident mesh bounds",
+        geometry.workgroup_count as u64 * 32,
+        BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+    )?;
+    let attributes = ResidentAttributesGpu {
+        positions: position_lease,
+        face_normals: face_normal_lease,
+        normals: normal_lease,
+        bounds: bounds_lease,
+    };
+    let mut upload_bytes = 0u64;
+    for range in ranges {
+        let start = range.start as usize;
+        let end = start
+            .checked_add(range.count as usize)
+            .filter(|end| *end <= positions.len())
+            .ok_or_else(|| BackendError::Kernel {
+                message: "resident position range is outside the mesh".into(),
+            })?;
+        queue.write_buffer(
+            &attributes.positions.buffer,
+            start as u64 * 16,
+            bytemuck::cast_slice(&positions[start..end]),
+        );
+        upload_bytes = upload_bytes.saturating_add((range.count as u64) * 16);
+    }
+    let planning_ms = elapsed_ms(planning_started);
+    let layout = resources.pipelines().mesh_layout();
+    let bind_group = device.create_bind_group(&BindGroupDescriptor {
+        label: Some("ICE3 resident mesh update bindings"),
+        layout,
+        entries: &[
+            lease_binding(0, &topology.params),
+            lease_binding(1, &attributes.positions),
+            lease_binding(2, &topology.indices),
+            lease_binding(3, &topology.offsets),
+            lease_binding(4, &topology.incidence),
+            lease_binding(5, &attributes.face_normals),
+            lease_binding(6, &attributes.normals),
+            lease_binding(7, &attributes.bounds),
+        ],
+    });
+    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+        label: Some("ICE3 resident attribute update"),
+    });
+    let mut phases = GeometryPhaseEvidence {
+        validation_ms,
+        planning_ms,
+        ..GeometryPhaseEvidence::default()
+    };
+    for range in unchanged_ranges(positions.len(), ranges)? {
+        encoder.copy_buffer_to_buffer(
+            previous_positions,
+            range.start as u64 * 16,
+            &attributes.positions.buffer,
+            range.start as u64 * 16,
+            range.count as u64 * 16,
+        );
+    }
+    let encode_started = std::time::Instant::now();
+    {
+        let face_pipeline = resources
+            .pipelines()
+            .get(PipelineKey::MeshFaceNormals)
+            .expect("resident face pipeline must be ready");
+        let normal_pipeline = resources
+            .pipelines()
+            .get(PipelineKey::MeshNormals)
+            .expect("resident normal pipeline must be ready");
+        let bounds_pipeline = resources
+            .pipelines()
+            .get(PipelineKey::MeshBounds)
+            .expect("resident bounds pipeline must be ready");
+        let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+            label: Some("ICE3 resident attribute update compute"),
+            timestamp_writes: None,
+        });
+        pass.set_bind_group(0, &bind_group, &[]);
+        pass.set_pipeline(face_pipeline);
+        pass.dispatch_workgroups(geometry.triangle_count.div_ceil(64), 1, 1);
+        pass.set_pipeline(normal_pipeline);
+        pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
+        pass.set_pipeline(bounds_pipeline);
+        pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
+    }
+    phases.encode_ms = elapsed_ms(encode_started);
+    let submit_started = std::time::Instant::now();
+    queue.submit([encoder.finish()]);
+    phases.submit_ms = elapsed_ms(submit_started);
+    Ok(ResidentAttributeUpdate {
+        gpu: ResidentMeshGpu {
+            topology,
+            attributes,
+            phases,
+        },
+        upload_bytes,
+    })
+}
+
+fn unchanged_ranges(
+    total: usize,
+    changed: &[ElementRange],
+) -> Result<Vec<ElementRange>, BackendError> {
+    let mut sorted = changed.to_vec();
+    sorted.sort_by_key(|range| range.start);
+    let mut output = Vec::new();
+    let mut cursor = 0usize;
+    for range in sorted {
+        let start = range.start as usize;
+        if start > total || start.saturating_add(range.count as usize) > total {
+            return Err(BackendError::Kernel {
+                message: "resident position range is outside the mesh".into(),
+            });
+        }
+        if cursor < start {
+            output.push(ElementRange {
+                start: cursor as u32,
+                count: (start - cursor) as u32,
+            });
+        }
+        cursor = cursor.max(start.saturating_add(range.count as usize));
+    }
+    if cursor < total {
+        output.push(ElementRange {
+            start: cursor as u32,
+            count: (total - cursor) as u32,
+        });
+    }
+    Ok(output)
 }
 
 pub(crate) fn encode_resident_custom_mesh(
@@ -413,11 +650,11 @@ pub(crate) fn encode_resident_custom_mesh(
     });
     pass.set_bind_group(0, &pending.bind_group, &[]);
     pass.set_pipeline(face_pipeline);
-    pass.dispatch_workgroups(pending.gpu.triangle_count.div_ceil(64), 1, 1);
+    pass.dispatch_workgroups(pending.gpu.topology.triangle_count.div_ceil(64), 1, 1);
     pass.set_pipeline(normal_pipeline);
-    pass.dispatch_workgroups(pending.gpu.workgroup_count, 1, 1);
+    pass.dispatch_workgroups(pending.gpu.topology.workgroup_count, 1, 1);
     pass.set_pipeline(bounds_pipeline);
-    pass.dispatch_workgroups(pending.gpu.workgroup_count, 1, 1);
+    pass.dispatch_workgroups(pending.gpu.topology.workgroup_count, 1, 1);
     drop(pass);
     pending.gpu.phases.encode_ms = elapsed_ms(encode_started);
 }
@@ -433,22 +670,22 @@ pub(crate) fn snapshot_resident_custom_mesh(
     gpu: &ResidentMeshGpu,
     source: &TriangleMesh,
 ) -> Result<EvaluatedMesh, BackendError> {
-    let normal_bytes = gpu.vertex_count as u64 * 16;
-    let bounds_bytes = gpu.workgroup_count as u64 * 32;
+    let normal_bytes = gpu.topology.vertex_count as u64 * 16;
+    let bounds_bytes = gpu.topology.workgroup_count as u64 * 32;
     let normal_staging = resources.staging().acquire(device, normal_bytes)?;
     let bounds_staging = resources.staging().acquire(device, bounds_bytes)?;
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
         label: Some("ICE3 resident mesh snapshot"),
     });
     encoder.copy_buffer_to_buffer(
-        &gpu.normals.buffer,
+        &gpu.attributes.normals.buffer,
         0,
         &normal_staging.buffer,
         0,
         normal_bytes,
     );
     encoder.copy_buffer_to_buffer(
-        &gpu.bounds.buffer,
+        &gpu.attributes.bounds.buffer,
         0,
         &bounds_staging.buffer,
         0,
