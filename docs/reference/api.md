@@ -74,6 +74,17 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 | `evaluation.query` | No | `EvaluationQueryRequest` | Bounded derived geometry summaries and optional payloads |
 | `evaluation.waitScene` | No | `{ revision? }` | Published experimental GPU scene status |
 | `evaluation.visibleInstances` | No | `{ targetRevision, planes[6][4] }` | Visible GPU buffer indices and stable node IDs; GPU compute when experimental scene sessions are ready, CPU fallback otherwise |
+| `evaluation.stats` | No | none | Effective triangle, unique mesh, and cache statistics for the current revision |
+| `changeset.create` | Yes | `{ baseRevision, title }` | New draft ChangeSet |
+| `changeset.addOperations` | Yes | `{ changeSetId, expectedVersion, entries }` | Updated ChangeSet |
+| `changeset.removeOperations` | Yes | `{ changeSetId, expectedVersion, entryIds }` | Updated ChangeSet |
+| `changeset.evaluate` | Yes | `{ changeSetId, expectedVersion, includeCandidate? }` | Status, diagnostics, and candidate digest |
+| `changeset.commit` | Yes | `{ changeSetId, expectedVersion, approvedDigest, idempotencyKey }` | Committed revision |
+| `changeset.get` | No | `{ changeSetId }` | Persisted ChangeSet |
+| `changeset.getCandidate` | No | `{ changeSetId }` | Candidate document |
+| `changeset.impact` | No | `{ changeSetId, expectedVersion }` | Change impact and geometry rebuild classification |
+| `changeset.list` | No | none | Persisted ChangeSet list |
+| `changeset.discard` | Yes | `{ changeSetId }` | Discarded ChangeSet |
 | `export.sourceGlb` | Yes | none | Source GLB export metadata |
 | `export.runtimePreview` | Yes | `RuntimePreviewRequest` | Prepared committed or candidate preview metadata |
 
@@ -187,14 +198,13 @@ rotated/zoomed selection screenshot beside it.
 
 | Type | Purpose |
 |---|---|
-| `node.create` | Create a group, primitive, mesh, or sweep node |
-| `node.update` | Update name, transform, visibility, or metadata |
+| `node.create` | Create a group, primitive, custom mesh, sweep, or component-instance node |
+| `node.update` | Update name, transform, visibility, metadata, or replace node content |
 | `node.reparent` | Change a node parent |
 | `node.delete` | Delete an unreferenced node |
-| `primitive.update` | Replace primitive parameters |
-| `mesh.replace` | Replace a triangle mesh |
 | `material.upsert` | Create or update a material |
 | `material.assign` | Assign or clear a node material |
+| `material.patch` | Update only named material fields |
 | `relation.create` | Create a typed directed relationship |
 | `relation.update` | Update relationship fields or metadata |
 | `relation.delete` | Delete a relationship |

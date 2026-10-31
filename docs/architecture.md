@@ -144,8 +144,14 @@ diff, idempotency, persistence, and revision semantics as full operations.
 ## Industry Layering
 
 Core primitives and operations are generic. Industrial concepts use metadata, relations, and
-assemblies above the Core boundary. `wastewater-mini` is an acceptance fixture, not a
-hard-coded process type in the modeling API.
+assemblies above the Core boundary. Two fixtures exercise the boundary at different scales:
+`wastewater-mini` (11 nodes) is the deterministic contract fixture used by the verification
+gate, and the wastewater reference plant (204 bound equipment over a 251 MB streamed asset) is
+the default authoring scene. Neither is a hard-coded process type in the modeling API.
+
+The authoritative inventory of methods, operations, ChangeSet states, diagnostics, CLI flags,
+and environment variables lives in [能力清单](reference/capabilities.md). That file mirrors the
+code; when it disagrees with narrative documentation, it wins.
 
 ## Security Posture
 

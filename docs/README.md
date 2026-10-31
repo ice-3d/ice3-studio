@@ -12,8 +12,10 @@
 |---|---|---|---|
 | `ICE3-STUDIO-RM-001` | [Studio README](../README.md) | Implemented | 项目定位、当前状态和文档入口 |
 | `ICE3-STUDIO-GUIDE-START-001` | [Getting Started](guides/getting-started.md) | Implemented | 本地启动、API 工作流、验证和性能基线 |
-| `ICE3-STUDIO-GUIDE-002` | [Large Industrial Fixture](guides/large-industrial-fixture.md) | Implemented | 573 万三角形参考资产、204 个语义绑定及程序化 API fixture |
+| `ICE3-STUDIO-GUIDE-001` | [污水模块 AI 验收夹具](guides/wastewater-fixture.md) | Implemented | `wastewater-mini` 契约 fixture 的确定性 AI 建模计划 |
+| `ICE3-STUDIO-GUIDE-002` | [Large Industrial Fixture](guides/large-industrial-fixture.md) | Implemented | 576 万三角形参考资产、204 个语义绑定及程序化 API fixture |
 | `ICE3-STUDIO-ARC-001` | [Architecture](architecture.md) | Implemented | 组件边界、真源、安全和延期范围 |
+| `ICE3-STUDIO-REF-CAP-001` | [能力清单](reference/capabilities.md) | Implemented | 39 个方法、27 种 Operation、7 个 ChangeSet 状态、诊断码、CLI 与环境变量的代码镜像 |
 | `ICE3-STUDIO-REF-API-001` | [API Reference](reference/api.md) | Implemented | JSON-RPC、Operation、revision 和导出契约 |
 | `ICE3-STUDIO-REF-DIAG-001` | [Diagnostics](reference/diagnostics.md) | Implemented | 稳定错误码和恢复规则 |
 | `ICE3-STUDIO-REF-CHANGESET-001` | [ChangeSet Review](reference/change-sets.md) | Implemented | 候选变更、digest 审批、权限和恢复 |
@@ -36,7 +38,7 @@
 | `ICE3-STUDIO-PLAN-009` | [GPU-Resident Geometry 实施计划](plans/2026-10-31-gpu-resident-geometry.md) | Experimental | Native residency、增量 packet、浏览器 buffer 复用和量化验收 |
 | `ICE3-STUDIO-PLAN-008` | [Native GPU Compute Backend 实施计划](plans/2026-10-30-native-gpu-compute-backend.md) | Experimental | GPU 契约、设备生命周期、内核、调度、证据和 fail-closed 性能门禁 |
 | `ICE3-STUDIO-SPEC-004` | [Toolchain Sidecar Integration 设计](specs/2026-10-30-studio-toolchain-sidecar-design.md) | Implemented | Studio 与 Toolchain 的版本化本地 Sidecar、能力协商和资产边界 |
-| `ICE3-STUDIO-SPEC-005` | [Large-Scene Authoring 设计](specs/2026-10-30-large-scene-authoring-design.md) | Proposed | 参数化组件、实例、连接、GPU 求值、分区发布和大型场景验收 |
+| `ICE3-STUDIO-SPEC-005` | [Large-Scene Authoring 设计](specs/2026-10-30-large-scene-authoring-design.md) | Implemented | 参数化组件、实例、连接、GPU 求值、分区发布和大型场景验收 |
 | `ICE3-STUDIO-PLAN-006` | [Large-Scene Authoring Foundation 实施计划](plans/2026-10-30-large-scene-authoring-foundation.md) | Implemented | M1 文档 schema、组件、实例、连接、CPU 求值和缓存 |
 | `ICE3-STUDIO-PLAN-007` | [Large Industrial Scene Acceptance 实施计划](plans/2026-10-30-large-industrial-scene-acceptance.md) | Implemented | M2 大规模场景目录、布局、拓扑、公共 API 生成和性能验收 |
 | `ICE3-STUDIO-PLAN-005` | [Toolchain Sidecar Integration 实施计划](plans/2026-10-30-studio-toolchain-sidecar.md) | Implemented | 共享契约、Sidecar、Rust 客户端、Server 集成和发布验收 |

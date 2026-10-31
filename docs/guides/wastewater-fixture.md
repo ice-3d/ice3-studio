@@ -6,6 +6,11 @@
 >
 > Owner: ICE3 Studio maintainers
 
+本夹具是**契约测试用途**，不是默认演示场景。默认开发场景是完整的高保真污水处理厂
+（见 [Getting Started](getting-started.md) 的 `npm run dev`）。`wastewater-mini` 只有
+11 个节点，价值在于启动快、结果确定，被 `npm run verify`、Viewer E2E 和 MVP benchmark
+用作固定输入；需要单独看它时用 `npm run dev:mini`。
+
 `fixtures/wastewater-mini/ai-plan.json` 是确定性 AI 客户端提交的建模计划。它不包含
 模型凭据，也不依赖 UI 操作。
 

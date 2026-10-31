@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-007
 >
-> Status: Proposed
+> Status: Experimental
 >
 > Owner: ICE3 Studio maintainers
 

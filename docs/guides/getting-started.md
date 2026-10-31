@@ -64,9 +64,10 @@ npm --prefix apps/viewer run dev
 The watch build updates `apps/viewer/dist`; reload the browser tab to pick it up. The Workbench
 and API share the same origin.
 
-The Workbench shows the current revision, generic object tree, validation diagnostics, form
-inspection, and the prepared preview. A revision event triggers a fresh document read and preview
-load without replacing the canvas.
+The Workbench shows the current revision, the source/derived object tree, the 3D viewport,
+typed property forms, the Agent panel, ChangeSet review, validation diagnostics, and the
+prepared preview. A revision event triggers a fresh document read and preview load without
+replacing the canvas, so selection and camera survive a commit.
 
 ## Model Through the API
 
@@ -110,6 +111,22 @@ expected revision and an idempotency key:
 
 Use `dryRun: true` to validate and inspect the diff without creating a revision. If a
 transaction is rejected, nothing from that batch is persisted.
+
+## Review a ChangeSet
+
+AI proposals and human form edits both go through a ChangeSet. In the default `review-required`
+mode an agent token can stage and evaluate, but cannot commit:
+
+1. `changeset.create { baseRevision, title }`
+2. `changeset.addOperations { changeSetId, expectedVersion, entries }`
+3. `changeset.evaluate { changeSetId, expectedVersion }` → status `ready` plus a candidate digest
+4. `changeset.commit { changeSetId, expectedVersion, approvedDigest, idempotencyKey }` carrying
+   the approval cookie
+
+The commit is rejected when the digest no longer matches the approved candidate, when the
+ChangeSet is not `ready`, or when the caller presents only the agent token. `changeset.impact`
+reports whether a proposal stays local or forces a wider rebuild, so the reviewer can judge the
+cost before approving. See [ChangeSet 审阅](../reference/change-sets.md).
 
 ## Verify and Benchmark
 

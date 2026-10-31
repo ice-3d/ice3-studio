@@ -36,8 +36,13 @@
 加载完整几何，同时创建 204 个可被 Agent 搜索、选择和局部编辑的语义绑定。
 
 ```bash
-npm run example:wwtp-reference
+npm run dev
 ```
+
+默认入口即该场景，启动后前台常驻，`Ctrl+C` 停止。首次运行注册资产并提交绑定（约两
+分钟），之后复用已存项目（约两秒）。只需跑一次并退出时用
+`STUDIO_ONE_SHOT=1 npm run dev`；`npm run example:wwtp-reference` 是同一脚本的等价入口。
+设置 `ICE3_WWTP_PROJECT_ID` 可以启动隔离副本而不是复用默认项目。
 
 该命令会启动本地 Studio、注册原始资产、创建语义绑定，并由 Viewer 按实体角色应用
 展示材质，最后输出可手动检查的 URL。当前参考资产包含 1,761 个源节点、204 个设备绑定、75 种材质和

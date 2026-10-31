@@ -1,0 +1,212 @@
+# 能力清单
+
+> Document ID: ICE3-STUDIO-REF-CAP-001
+>
+> Status: Implemented
+>
+> Owner: ICE3 Studio maintainers
+
+本文件是 Studio 对外能力的**代码镜像**。内容逐项来自 `crates/` 与 `apps/viewer/src/`，
+实现变更时同步更新；与其它文档冲突时以本文件和代码为准。
+
+## 传输与鉴权
+
+- JSON-RPC 2.0 over HTTP `POST /rpc`，另有 WebSocket 推送 revision 与 ChangeSet 事件。
+- 只监听 `127.0.0.1`。
+- 写方法需要 `Authorization: Bearer <STUDIO_SESSION_TOKEN>`。
+- 提交 ChangeSet 需要审批 Cookie `ice3_studio_approval=<STUDIO_APPROVAL_TOKEN>`。
+- `review-required` 模式下 Agent 令牌不能直接 `document.apply` 或 `changeset.commit`；
+  `autonomous` 模式下允许直接写入。
+
+## JSON-RPC 方法（39）
+
+### system（3）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `system.health` | 否 | 无 | `apiVersion`、`schemaVersion`、`status` |
+| `system.capabilities` | 否 | 无 | 方法清单、Toolchain 状态、compute 证据、写模式 |
+| `system.agentManifest` | 否 | 无 | Agent 工具、当前令牌权限、调用上限、工作流提示 |
+
+### project（5）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `project.create` | 是 | `{ projectId }` | `{ opened: true }` |
+| `project.open` | 是 | `{ projectId }` | `{ opened: true }` |
+| `project.get` | 否 | 无 | 当前 Document |
+| `project.save` | 是 | 无 | 当前已持久化 revision |
+| `project.close` | 是 | 无 | 释放写锁并关闭项目 |
+
+### document（5）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `document.get` | 否 | 无 | 当前 Document |
+| `document.apply` | 是 | `ApplyRequest` | `ApplyResult` |
+| `document.undo` | 是 | 无 | 恢复后的文档（作为新 revision） |
+| `document.redo` | 是 | 无 | 同上 |
+| `document.history` | 否 | 无 | 操作历史 |
+
+### scene（5）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `scene.get` | 否 | 无 | 当前场景 |
+| `scene.query` | 否 | 过滤条件 | 确定性顺序的匹配节点 |
+| `scene.context` | 否 | 无 | 有界项目摘要（计数、bounds、facet、权限、上限） |
+| `scene.search` | 否 | `SceneSearchRequest` | revision 绑定的 source/derived 节点页 |
+| `scene.bounds` | 否 | 无 | 按 node ID 的世界空间 bounds |
+
+### validation（1）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `validation.run` | 否 | 无 | 诊断数组 |
+
+### evaluation（5）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `evaluation.evaluate` | 否 | 无 | 按 node ID 的求值网格 |
+| `evaluation.query` | 否 | `EvaluationQueryRequest` | 有界派生几何摘要与可选负载 |
+| `evaluation.stats` | 否 | 无 | 有效三角形、唯一网格、缓存命中统计 |
+| `evaluation.waitScene` | 否 | `{ revision? }` | 已发布的实验性 GPU 场景状态 |
+| `evaluation.visibleInstances` | 否 | `{ targetRevision, planes[6][4] }` | 可见实例索引与稳定 node ID |
+
+### export（2）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `export.sourceGlb` | 是 | 无 | Source GLB 导出元数据 |
+| `export.runtimePreview` | 是 | `RuntimePreviewRequest` | 已提交或候选的预处理预览元数据 |
+
+### changeset（10）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `changeset.create` | 是 | `{ baseRevision, title }` | ChangeSet |
+| `changeset.addOperations` | 是 | `{ changeSetId, expectedVersion, entries }` | 更新后的 ChangeSet |
+| `changeset.removeOperations` | 是 | `{ changeSetId, expectedVersion, ... }` | 更新后的 ChangeSet |
+| `changeset.evaluate` | 是 | `{ changeSetId, expectedVersion, includeCandidate }` | 状态、诊断、candidateDigest |
+| `changeset.commit` | 是 | `{ changeSetId, expectedVersion, approvedDigest, idempotencyKey }` | 提交结果 |
+| `changeset.get` | 否 | `{ changeSetId }` | ChangeSet |
+| `changeset.getCandidate` | 否 | `{ changeSetId }` | 候选文档 |
+| `changeset.impact` | 否 | `{ changeSetId }` | 影响范围与几何重建分类 |
+| `changeset.list` | 否 | 无 | ChangeSet 列表 |
+| `changeset.discard` | 是 | `{ changeSetId }` | 丢弃结果 |
+
+### referenceAsset（3）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `referenceAsset.register` | 是 | `{ sourcePath, preparedPath, tilesetPath, equipmentManifestPath }` | assetId 与有界描述符 |
+| `referenceAsset.get` | 否 | `{ assetId }` | 描述符与流式资产 URL |
+| `referenceAsset.bindings` | 否 | `{ assetId, cursor?, limit? }` | 稳定设备绑定页（limit 1..=100） |
+
+## Operation 类型（27）
+
+`document.apply` 与 `changeset.addOperations` 接受同一组操作。
+
+| 域 | 操作 |
+|---|---|
+| node（4） | `node.create`、`node.update`、`node.reparent`、`node.delete` |
+| component（4） | `component.define`、`component.update`、`component.patch`、`component.delete` |
+| instance（4） | `instance.create`、`instance.update`、`instance.patch`、`instance.delete` |
+| instanceSet（3） | `instanceSet.create`、`instanceSet.update`、`instanceSet.delete` |
+| connection（4） | `connection.create`、`connection.update`、`connection.patch`、`connection.delete` |
+| material（3） | `material.upsert`、`material.assign`、`material.patch` |
+| relation（3） | `relation.create`、`relation.update`、`relation.delete` |
+| constraint（2） | `constraint.upsert`、`constraint.delete` |
+
+`*.patch` 为稀疏字段修改，只提交声明的字段，但仍经过完整校验、diff、幂等和 revision
+冲突检查。操作不能提交路径、URL、shell 命令、脚本或任意表达式。
+
+## ChangeSet 状态（7）
+
+| 状态 | 含义 |
+|---|---|
+| `draft` | 已创建，操作可增删 |
+| `evaluating` | 求值进行中 |
+| `ready` | 求值通过，持有可提交的 candidateDigest |
+| `blocked` | 求值或预览失败，带诊断 |
+| `stale` | 基线 revision 已前进，需重建 |
+| `committed` | 已提交为 revision |
+| `discarded` | 已丢弃 |
+
+只有 `ready` 状态且提交时 digest 与审批时一致才会落为 revision。
+
+## 诊断码（32）
+
+全部以 `ICE3_STUDIO_` 为前缀，稳定且不复用。
+
+| 域 | 诊断码 |
+|---|---|
+| API | `ICE3_STUDIO_API_INVALID`、`ICE3_STUDIO_API_VERSION_UNSUPPORTED`、`ICE3_STUDIO_AUTH_REQUIRED` |
+| 项目 | `ICE3_STUDIO_PROJECT_NOT_FOUND`、`ICE3_STUDIO_PROJECT_LOCKED`、`ICE3_STUDIO_PERSISTENCE_FAILED`、`ICE3_STUDIO_REVISION_CONFLICT` |
+| 操作 | `ICE3_STUDIO_OPERATION_INVALID`、`ICE3_STUDIO_COMPONENT_INVALID`、`ICE3_STUDIO_INSTANCE_INVALID`、`ICE3_STUDIO_INSTANCE_SET_INVALID`、`ICE3_STUDIO_CONNECTION_INVALID`、`ICE3_STUDIO_PARAMETER_INVALID`、`ICE3_STUDIO_CONSTRAINT_FAILED` |
+| 几何 | `ICE3_STUDIO_GEOMETRY_INVALID`、`ICE3_STUDIO_GEOMETRY_CACHE_FAILED`、`ICE3_STUDIO_BUDGET_EXCEEDED` |
+| 引用资产 | `ICE3_STUDIO_REFERENCE_INVALID`、`ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` |
+| 导出与预览 | `ICE3_STUDIO_EXPORT_FAILED`、`ICE3_STUDIO_RUNTIME_PREVIEW_FAILED` |
+| GPU | `ICE3_STUDIO_GPU_UNAVAILABLE`、`ICE3_STUDIO_GPU_INCOMPATIBLE`、`ICE3_STUDIO_GPU_DEVICE_LOST`、`ICE3_STUDIO_GPU_KERNEL_FAILED`、`ICE3_STUDIO_GPU_PARITY_FAILED`、`ICE3_STUDIO_GPU_BUDGET_EXCEEDED` |
+| Toolchain | `ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE`、`ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE`、`ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID`、`ICE3_STUDIO_TOOLCHAIN_TIMEOUT`、`ICE3_STUDIO_TOOLCHAIN_JOB_FAILED` |
+
+完整说明与恢复规则见 [Diagnostics](diagnostics.md)。
+
+## CLI
+
+```
+ice3-studio schema --output <dir> [--check]
+ice3-studio serve --workspace <dir> --project <id>
+                  [--fixture <dir>] [--port <u16>] [--write-mode <mode>]
+                  [--native-gpu <cpu|auto|gpu>]
+```
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `--workspace` | 必填 | 项目与资产的根目录，路径限制在此 |
+| `--project` | 必填 | 项目 ID，对应 workspace 下的目录 |
+| `--fixture` | 无 | 首次打开时用于播种的 fixture 目录 |
+| `--port` | `8120` | 仅绑定 loopback |
+| `--write-mode` | `review-required` | 或 `autonomous` |
+| `--native-gpu` | `cpu` | 启动期策略，不能被 API 请求覆盖 |
+
+## 环境变量
+
+| 变量 | 作用 |
+|---|---|
+| `STUDIO_VIEWER_DIR` | Viewer 构建产物目录；不设则只提供 API |
+| `STUDIO_SESSION_TOKEN` | 写入令牌；不设则随机生成并在启动时打印 |
+| `STUDIO_APPROVAL_TOKEN` | 审批令牌，写入 Cookie 用于提交 ChangeSet |
+| `STUDIO_AGENT_TOKEN` | 供 Agent 使用的令牌 |
+| `STUDIO_APP_ROOT` | Viewer 资源根 |
+| `STUDIO_NODE` | Sidecar 使用的 Node 可执行文件；不设则从 `PATH` 查找 |
+| `STUDIO_TOOLCHAIN_CLI` | Toolchain 适配脚本 |
+| `STUDIO_PREVIEW_PACKETS` | 设为 `1` 启用增量 preview packet（实验） |
+| `STUDIO_GPU_SCENE_SESSIONS` | 设为 `1` 启用 GPU 场景会话（实验） |
+| `STUDIO_INCREMENTAL_SCENE_CACHE` | 设为 `0` 关闭 CPU 增量场景缓存（默认开启） |
+| `ICE3_TOOLCHAIN_CLI` | 透传给 Sidecar 的 Toolchain CLI 入口 |
+| `ICE3_JT_CONVERTER` | JT 转换器路径，由部署方提供 |
+| `ICE3_FBX_TIMEOUT_MS`、`ICE3_USD_TIMEOUT_MS`、`ICE3_JT_TIMEOUT_MS` | 各导入器超时 |
+
+注意：`ICE3_TOOLCHAIN_CLI` 与 `ICE3_JT_CONVERTER` 由 Sidecar 进程解析，其工作目录是
+**项目目录**而非仓库根，相对路径必须基于项目目录书写，或直接使用绝对路径。
+
+## Viewer 能力
+
+`apps/viewer/src` 的实际模块：
+
+| 模块 | 职责 |
+|---|---|
+| `app` | Workbench 主框架与表头 |
+| `viewport` | 视口、SceneAdapter、相机取景 |
+| `navigation` | 对象树与树模型 |
+| `forms` | 表单渲染、实例参数、表单到操作的编译 |
+| `changeset` | 候选变更的 Provider、Store 与类型 |
+| `agent` | Agent 面板、对话 Store、传输层 |
+| `session` | 会话与令牌管理 |
+| `compute` | GPU/compute 证据展示 |
+| `toolchain` | Toolchain 状态展示 |
+| `api`、`shared` | RPC 客户端与共享工具 |
+
+Viewer 只调用公开读 API 并订阅 revision 事件，不持有任何私有修改通道。
