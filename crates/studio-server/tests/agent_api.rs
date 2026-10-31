@@ -266,6 +266,43 @@ async fn source_search_rejects_query_and_revision_drift() {
 }
 
 #[tokio::test]
+async fn source_search_rejects_cursor_after_project_switch() {
+    let server = start_test_server(ServerConfig::for_tests("agent-search-project-a")).await;
+    apply_scene_fixture(&server).await;
+    let first = search(
+        &server,
+        serde_json::json!({ "query": "pump", "limit": 1 }),
+    )
+    .await;
+    let cursor = first["result"]["nextCursor"].as_str().unwrap();
+
+    let created = rpc_with_bearer(
+        &server,
+        server.token(),
+        "project.create",
+        serde_json::json!({ "projectId": "agent-search-project-b" }),
+    )
+    .await;
+    assert!(created.get("error").is_none(), "{created}");
+    apply_scene_fixture(&server).await;
+
+    let stale = search(
+        &server,
+        serde_json::json!({
+            "query": "pump",
+            "limit": 1,
+            "cursor": cursor
+        }),
+    )
+    .await;
+    assert_eq!(
+        stale["error"]["diagnosticCode"],
+        "ICE3_STUDIO_REVISION_CONFLICT",
+        "{stale}"
+    );
+}
+
+#[tokio::test]
 async fn source_search_rejects_unknown_projection() {
     let server = start_test_server(ServerConfig::for_tests("agent-search-projection")).await;
     apply_scene_fixture(&server).await;

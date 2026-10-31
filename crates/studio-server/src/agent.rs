@@ -361,7 +361,7 @@ pub(crate) fn search(
     }
 
     let fields = normalize_fields(request.fields.as_deref())?;
-    let digest = normalize_query(&request, &fields)?;
+    let digest = normalize_query(&session.document.project_id, &request, &fields)?;
     let revision = session.document.revision.as_u64();
     let offset = match request.cursor.as_deref() {
         Some(cursor) => decode_cursor(cursor, revision, &digest)?,
@@ -781,6 +781,7 @@ fn normalize_fields(
 }
 
 fn normalize_query(
+    project_id: &str,
     request: &SceneSearchRequest,
     fields: &Option<BTreeSet<SceneSearchField>>,
 ) -> Result<String, RpcError> {
@@ -788,6 +789,7 @@ fn normalize_query(
         .clone()
         .map(|fields| fields.into_iter().collect::<Vec<_>>());
     let bytes = serde_json::to_vec(&(
+        project_id,
         &request.scope,
         &request.query,
         &request.node_id,
