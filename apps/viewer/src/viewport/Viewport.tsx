@@ -5,10 +5,11 @@ import { SceneAdapter } from './SceneAdapter';
 type Props = {
   previewUrl: string | null;
   reference: StudioReferenceSession | null;
+  selectionIds: readonly string[];
   onSelection: (ids: readonly string[]) => void;
 };
 
-export function Viewport({ previewUrl, reference, onSelection }: Props) {
+export function Viewport({ previewUrl, reference, selectionIds, onSelection }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<SceneAdapter | null>(null);
 
@@ -29,6 +30,10 @@ export function Viewport({ previewUrl, reference, onSelection }: Props) {
       void scene.current?.show(previewUrl);
     }
   }, [previewUrl, reference]);
+
+  useEffect(() => {
+    scene.current?.select(selectionIds);
+  }, [selectionIds]);
 
   return <section className="viewport" ref={host} aria-label="Model viewport" />;
 }

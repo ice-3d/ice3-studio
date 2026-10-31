@@ -4,6 +4,8 @@ const SAFE_VIEW_MARGIN = 1.3;
 const VIEW_DIRECTION = normalize([0.72, 0.58, 0.82]);
 type Vector3Tuple = [number, number, number];
 
+// Large site bounds stay inside the clip range while preserving useful
+// depth precision for inspection at the smallest supported camera distance.
 export const SCENE_CAMERA_NEAR = 0.5;
 export const SCENE_CAMERA_FAR = 10_000;
 

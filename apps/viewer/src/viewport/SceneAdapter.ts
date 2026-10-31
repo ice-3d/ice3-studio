@@ -46,6 +46,7 @@ export class SceneAdapter {
   private tilesetLoader: ICETilesetLoader | null = null;
   private tilesetHandle: ICETilesetHandle | null = null;
   private referenceBindings: StudioReferenceBinding[] = [];
+  private selectionIds: string[] = [];
   private originalNodeState = new WeakMap<ImportedNode, {
     matrix: number[];
     visible: boolean;
@@ -85,6 +86,28 @@ export class SceneAdapter {
     await this.showPreview({ url });
   }
 
+  select(nodeIds: readonly string[]): void {
+    this.selectionIds = [...nodeIds];
+    if (!this.engine) return;
+    const bindingByNode = new Map(
+      this.referenceBindings
+        .filter((binding) => binding.nodeId)
+        .map((binding) => [binding.nodeId!, binding.selectionId]),
+    );
+    const importedSelection = nodeIds.map(
+      (nodeId) => bindingByNode.get(nodeId) ?? nodeId,
+    );
+    const currentSelection = this.engine.getSelection();
+    if (
+      currentSelection.length === importedSelection.length
+      && currentSelection.every((id, index) => id === importedSelection[index])
+    ) {
+      return;
+    }
+    this.engine.setSelection(importedSelection);
+    this.engine.requestRender('studio-selection-change');
+  }
+
   async showReference(
     asset: StudioReferenceAsset,
     bindings: readonly StudioReferenceBinding[],
@@ -105,6 +128,7 @@ export class SceneAdapter {
         maxResidentBytes: 805_306_368,
       });
       const replacement = await this.tilesetLoader.open(asset.tilesetUrl);
+      this.viewportElement?.setAttribute('data-reference-state', 'loading-coarse');
       this.frameBounds(replacement.bounds);
       let activated = false;
       const activate = (): void => {
@@ -116,6 +140,7 @@ export class SceneAdapter {
           this.originalNodeState,
         );
         this.engine.setScene(replacement.scene);
+        this.select(this.selectionIds);
         const previous = this.tilesetHandle;
         this.tilesetHandle = replacement;
         this.handle?.dispose();
@@ -124,6 +149,7 @@ export class SceneAdapter {
         previous?.dispose();
         this.orbit?.dispose();
         this.orbit = new ICEOrbitController(this.engine, this.camera).start();
+        this.viewportElement?.setAttribute('data-reference-state', 'ready');
         this.engine.requestRender('studio-reference-coarse-ready');
       };
       replacement.on<ICETilesetEvent>('TILESET_TILE_LOADED', () => {
@@ -137,8 +163,10 @@ export class SceneAdapter {
     } catch (error) {
       if (asset.preparedPreviewUrl) {
         await this.showGlb(asset.preparedPreviewUrl);
+        this.viewportElement?.setAttribute('data-reference-state', 'fallback');
         return;
       }
+      this.viewportElement?.setAttribute('data-reference-state', 'failed');
       throw error;
     }
   }

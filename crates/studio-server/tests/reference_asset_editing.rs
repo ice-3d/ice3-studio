@@ -88,17 +88,8 @@ async fn context_aggregates_reference_stats_without_inline_geometry() {
     assert!(context.to_string().len() < 16 * 1024);
     assert!(context.to_string().find("positions").is_none(), "{context}");
 
-    let stats = rpc_with_bearer(
-        &server,
-        server.agent_token(),
-        "evaluation.stats",
-        json!({}),
-    )
-    .await;
-    assert_eq!(
-        stats["result"]["effectiveTriangles"], 5_757_962,
-        "{stats}"
-    );
+    let stats = rpc_with_bearer(&server, server.agent_token(), "evaluation.stats", json!({})).await;
+    assert_eq!(stats["result"]["effectiveTriangles"], 5_757_962, "{stats}");
     assert_eq!(stats["result"]["uniqueMeshes"], 1632, "{stats}");
 }
 
@@ -143,13 +134,7 @@ async fn unknown_reference_assets_and_selection_ids_block_evaluation() {
         rejected["error"]["diagnosticCode"], "ICE3_STUDIO_REFERENCE_INVALID",
         "{rejected}"
     );
-    let document = rpc_with_bearer(
-        &server,
-        server.agent_token(),
-        "document.get",
-        json!({}),
-    )
-    .await;
+    let document = rpc_with_bearer(&server, server.agent_token(), "document.get", json!({})).await;
     assert_eq!(document["result"]["revision"], 1, "{document}");
     assert!(
         document["result"]["scene"]["nodes"]
