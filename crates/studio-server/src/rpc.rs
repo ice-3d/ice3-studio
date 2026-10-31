@@ -53,6 +53,7 @@ pub struct ServerConfig {
     pub viewer_dir: Option<PathBuf>,
     pub compute_mode: GeometryBackendMode,
     pub preview_packet_enabled: bool,
+    pub scene_sessions_enabled: bool,
 }
 
 impl ServerConfig {
@@ -69,6 +70,7 @@ impl ServerConfig {
             viewer_dir: None,
             compute_mode: GeometryBackendMode::Cpu,
             preview_packet_enabled: false,
+            scene_sessions_enabled: false,
         }
     }
 
@@ -181,6 +183,7 @@ struct SessionCredentials {
 struct ComputeOptions {
     mode: GeometryBackendMode,
     preview_packet_enabled: bool,
+    scene_sessions_enabled: bool,
 }
 
 pub struct TestServer {
@@ -332,6 +335,7 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         ComputeOptions {
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
+            scene_sessions_enabled: config.scene_sessions_enabled,
         },
     )
     .await
@@ -371,6 +375,7 @@ pub async fn start_test_server_at(root: &Path) -> TestServer {
         ComputeOptions {
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
+            scene_sessions_enabled: config.scene_sessions_enabled,
         },
     )
     .await
@@ -422,6 +427,7 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
         ComputeOptions {
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
+            scene_sessions_enabled: config.scene_sessions_enabled,
         },
     )
     .await?;
@@ -478,6 +484,7 @@ async fn initialize_state(
         crate::compute::ComputePolicy {
             mode: compute.mode,
             preview_packet_enabled: compute.preview_packet_enabled,
+            scene_sessions_enabled: compute.scene_sessions_enabled,
             ..crate::compute::ComputePolicy::default()
         },
         (compute.mode != GeometryBackendMode::Cpu).then_some(gpu),

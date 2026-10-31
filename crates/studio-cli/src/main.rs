@@ -64,6 +64,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 compute_mode: native_gpu,
                 preview_packet_enabled: std::env::var("STUDIO_PREVIEW_PACKETS")
                     .is_ok_and(|value| value == "1"),
+                scene_sessions_enabled: std::env::var("STUDIO_GPU_SCENE_SESSIONS")
+                    .is_ok_and(|value| value == "1"),
             })
             .await?;
         }

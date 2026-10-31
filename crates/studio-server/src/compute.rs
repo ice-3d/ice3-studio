@@ -17,6 +17,9 @@ use studio_core::ids::NodeId;
 use studio_core::large_scene::cache::{
     GeometryCacheMetadata, GeometryEvaluation, GeometryEvaluator,
 };
+use studio_core::scene_contract::{
+    ScenePatch, SceneSessionId, SceneSessionStatus, SceneSubmission,
+};
 use studio_core::validation::DiagnosticCode;
 use studio_gpu::ResidencyKey;
 use tokio::sync::{Notify, OnceCell};
@@ -64,6 +67,7 @@ pub struct ComputePolicy {
     pub gpu_budget_bytes: u64,
     pub resident_enabled: bool,
     pub preview_packet_enabled: bool,
+    pub scene_sessions_enabled: bool,
 }
 
 impl Default for ComputePolicy {
@@ -75,6 +79,7 @@ impl Default for ComputePolicy {
             gpu_budget_bytes: DEFAULT_GPU_BUDGET_BYTES,
             resident_enabled: false,
             preview_packet_enabled: false,
+            scene_sessions_enabled: false,
         }
     }
 }
@@ -126,6 +131,7 @@ pub struct ComputeStatus {
     pub resident_hot_path_hashes: usize,
     pub handle_lookup_ms: f64,
     pub last_geometry_phases: GeometryPhaseEvidence,
+    pub scene_session: SceneSessionStatus,
 }
 
 #[derive(Debug, Clone)]
@@ -318,6 +324,7 @@ pub struct ComputeService {
     device_generation: std::sync::atomic::AtomicU64,
     last_compute: Mutex<Option<LastCompute>>,
     transforms: Mutex<BTreeMap<String, studio_core::math::Transform>>,
+    active_scene_session: Mutex<Option<SceneSessionId>>,
 }
 
 impl ComputeService {
@@ -347,6 +354,7 @@ impl ComputeService {
             device_generation: std::sync::atomic::AtomicU64::new(1),
             last_compute: Mutex::new(None),
             transforms: Mutex::new(BTreeMap::new()),
+            active_scene_session: Mutex::new(None),
         }
     }
 
@@ -366,6 +374,105 @@ impl ComputeService {
                     .unwrap_or_else(|| "no native GPU backend was configured".into()),
             })
         }
+    }
+
+    pub async fn open_scene_session(
+        &self,
+        project_id: &str,
+    ) -> Result<SceneSessionId, ComputeError> {
+        if !self.policy.scene_sessions_enabled || self.policy.mode == GeometryBackendMode::Cpu {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "GPU scene sessions are disabled".into(),
+            });
+        }
+        let capabilities = self.initialize().await?;
+        if capabilities.health != "ready" {
+            return Err(ComputeError::GpuUnavailable {
+                reason: capabilities
+                    .fallback_reason
+                    .unwrap_or_else(|| "GPU backend is not ready".into()),
+            });
+        }
+        let Some(gpu) = &self.gpu else {
+            return Err(ComputeError::GpuUnavailable {
+                reason: "no native GPU backend was configured".into(),
+            });
+        };
+        let next = gpu.create_scene_session(project_id).await?;
+        let previous = self
+            .active_scene_session
+            .lock()
+            .expect("scene session poisoned")
+            .replace(next.clone());
+        if let Some(previous) = previous {
+            let _ = gpu.close_scene_session(&previous).await;
+        }
+        Ok(next)
+    }
+
+    pub async fn apply_scene_patch(
+        &self,
+        patch: ScenePatch,
+    ) -> Result<SceneSubmission, ComputeError> {
+        if !self.policy.scene_sessions_enabled {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "GPU scene sessions are disabled".into(),
+            });
+        }
+        let session = self
+            .active_scene_session
+            .lock()
+            .expect("scene session poisoned")
+            .clone()
+            .ok_or_else(|| ComputeError::ResidencyUnavailable {
+                reason: "no GPU scene session is open".into(),
+            })?;
+        let gpu = self
+            .gpu
+            .as_ref()
+            .ok_or_else(|| ComputeError::GpuUnavailable {
+                reason: "no native GPU backend was configured".into(),
+            })?;
+        Ok(gpu.apply_scene_patch(&session, patch).await?)
+    }
+
+    pub async fn wait_scene(&self, revision: u64) -> Result<SceneSessionStatus, ComputeError> {
+        let session = self
+            .active_scene_session
+            .lock()
+            .expect("scene session poisoned")
+            .clone()
+            .ok_or_else(|| ComputeError::ResidencyUnavailable {
+                reason: "no GPU scene session is open".into(),
+            })?;
+        let gpu = self
+            .gpu
+            .as_ref()
+            .ok_or_else(|| ComputeError::GpuUnavailable {
+                reason: "no native GPU backend was configured".into(),
+            })?;
+        Ok(gpu.wait_scene_revision(&session, revision).await?)
+    }
+
+    pub async fn close_scene_session(&self) -> Result<(), ComputeError> {
+        let session = self
+            .active_scene_session
+            .lock()
+            .expect("scene session poisoned")
+            .take();
+        if let (Some(session), Some(gpu)) = (session, &self.gpu) {
+            gpu.close_scene_session(&session).await?;
+        }
+        Ok(())
+    }
+
+    pub fn scene_status(&self) -> Option<SceneSessionStatus> {
+        let session = self
+            .active_scene_session
+            .lock()
+            .expect("scene session poisoned")
+            .clone()?;
+        self.gpu.as_ref()?.scene_status(&session)
     }
 
     pub async fn register_geometry(
@@ -1094,6 +1201,13 @@ impl ComputeService {
             resident_hot_path_hashes: self.resident_hot_path_hashes.load(Ordering::Relaxed),
             handle_lookup_ms: f64::from_bits(self.handle_lookup_ms_bits.load(Ordering::Relaxed)),
             last_geometry_phases: evidence.phases.clone(),
+            scene_session: self.scene_status().unwrap_or(SceneSessionStatus {
+                enabled: self.policy.scene_sessions_enabled,
+                fallback_reason: self.policy.scene_sessions_enabled.then(|| {
+                    "scene session has not been opened or the backend is unavailable".into()
+                }),
+                ..SceneSessionStatus::default()
+            }),
         }
     }
 

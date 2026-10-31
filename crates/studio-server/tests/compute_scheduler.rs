@@ -17,6 +17,9 @@ use studio_core::large_scene::component::{
 };
 use studio_core::large_scene::evaluate::evaluate_large_scene_with_cache_and_evaluator;
 use studio_core::math::Transform;
+use studio_core::scene_contract::{
+    ScenePatch, SceneSessionId, SceneSessionState, SceneSessionStatus, SceneSubmission,
+};
 use studio_server::compute::{ComputeEvaluator, ComputePolicy, ComputeService};
 
 struct FakeGpu {
@@ -26,6 +29,7 @@ struct FakeGpu {
     starts: Mutex<Vec<GeometryJobPriority>>,
     memory_budget_bytes: u64,
     outcome: FakeOutcome,
+    scene_create_calls: AtomicUsize,
 }
 
 enum FakeOutcome {
@@ -44,6 +48,7 @@ impl FakeGpu {
             starts: Mutex::new(Vec::new()),
             memory_budget_bytes: 2 * 1024 * 1024 * 1024,
             outcome,
+            scene_create_calls: AtomicUsize::new(0),
         })
     }
 
@@ -55,7 +60,12 @@ impl FakeGpu {
             starts: Mutex::new(Vec::new()),
             memory_budget_bytes,
             outcome,
+            scene_create_calls: AtomicUsize::new(0),
         })
+    }
+
+    fn scene_create_calls(&self) -> usize {
+        self.scene_create_calls.load(Ordering::SeqCst)
     }
 }
 
@@ -122,8 +132,60 @@ impl GeometryBackend for FakeGpu {
         Ok(())
     }
 
+    async fn create_scene_session(
+        &self,
+        _project_id: &str,
+    ) -> Result<SceneSessionId, BackendError> {
+        self.scene_create_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(SceneSessionId("scene-1".into()))
+    }
+
+    async fn apply_scene_patch(
+        &self,
+        session: &SceneSessionId,
+        patch: ScenePatch,
+    ) -> Result<SceneSubmission, BackendError> {
+        Ok(SceneSubmission {
+            session_id: session.clone(),
+            target_revision: patch.target_revision,
+            submission_count: 1,
+            geometry_dispatch_count: usize::from(!patch.geometry.is_empty()),
+            instance_range_count: patch.instances.len(),
+            upload_bytes: 0,
+            readback_bytes: 0,
+            phases: Default::default(),
+        })
+    }
+
+    async fn wait_scene_revision(
+        &self,
+        session: &SceneSessionId,
+        revision: u64,
+    ) -> Result<SceneSessionStatus, BackendError> {
+        Ok(scene_status(session, revision))
+    }
+
+    async fn close_scene_session(&self, _session: &SceneSessionId) -> Result<(), BackendError> {
+        Ok(())
+    }
+
+    fn scene_status(&self, session: &SceneSessionId) -> Option<SceneSessionStatus> {
+        Some(scene_status(session, 0))
+    }
+
     fn stats(&self) -> GeometryExecutionStats {
         GeometryExecutionStats::default()
+    }
+}
+
+fn scene_status(session: &SceneSessionId, revision: u64) -> SceneSessionStatus {
+    SceneSessionStatus {
+        enabled: true,
+        session_id: Some(session.0.clone()),
+        state: SceneSessionState::Idle,
+        published_revision: revision,
+        target_revision: revision,
+        ..SceneSessionStatus::default()
     }
 }
 
@@ -434,5 +496,41 @@ async fn queued_interactive_work_precedes_background_work() {
             GeometryJobPriority::Interactive,
             GeometryJobPriority::Background,
         ]
+    );
+}
+
+#[tokio::test]
+async fn disabled_scene_sessions_do_not_initialize_backend_scene_state() {
+    let gpu = FakeGpu::new(FakeOutcome::Success);
+    let service = ComputeService::new(
+        ComputePolicy {
+            mode: GeometryBackendMode::Gpu,
+            scene_sessions_enabled: false,
+            ..ComputePolicy::default()
+        },
+        Some(gpu.clone() as Arc<dyn GeometryBackend>),
+    );
+
+    assert!(service.open_scene_session("project-1").await.is_err());
+    assert_eq!(gpu.scene_create_calls(), 0);
+    assert!(!service.status().scene_session.enabled);
+}
+
+#[tokio::test]
+async fn enabled_scene_sessions_report_pending_and_ready_revisions() {
+    let gpu = FakeGpu::new(FakeOutcome::Success);
+    let service = ComputeService::new(
+        ComputePolicy {
+            mode: GeometryBackendMode::Gpu,
+            scene_sessions_enabled: true,
+            ..ComputePolicy::default()
+        },
+        Some(gpu.clone() as Arc<dyn GeometryBackend>),
+    );
+    let session = service.open_scene_session("project-1").await.unwrap();
+    assert_eq!(gpu.scene_create_calls(), 1);
+    assert_eq!(
+        service.scene_status().unwrap().session_id,
+        Some(session.0.clone())
     );
 }

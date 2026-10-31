@@ -2605,6 +2605,9 @@
               "minimum": 0,
               "type": "integer"
             },
+            "sceneSession": {
+              "$ref": "#/$defs/SceneSessionStatus"
+            },
             "selectedBackend": {
               "$ref": "#/$defs/GeometryBackendKind"
             },
@@ -2649,7 +2652,8 @@
             "pipelinesWarmed",
             "residentHotPathHashes",
             "handleLookupMs",
-            "lastGeometryPhases"
+            "lastGeometryPhases",
+            "sceneSession"
           ],
           "type": "object"
         },
@@ -2771,6 +2775,130 @@
             "topologyHits",
             "residentHits",
             "evictions"
+          ],
+          "type": "object"
+        },
+        "SceneSessionState": {
+          "enum": [
+            "idle",
+            "pending",
+            "failed",
+            "lost"
+          ],
+          "type": "string"
+        },
+        "SceneSessionStatus": {
+          "properties": {
+            "attributeCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dirtyRangeBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "fallbackReason": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "geometryCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "geometryDispatchCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "instanceCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "peakResidentBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pendingPatches": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pendingSubmissions": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "phases": {
+              "$ref": "#/$defs/GeometryPhaseEvidence"
+            },
+            "publishedRevision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "readbackBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "residentBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sessionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "state": {
+              "$ref": "#/$defs/SceneSessionState"
+            },
+            "submissionCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "targetRevision": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "topologyCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "state",
+            "publishedRevision",
+            "targetRevision",
+            "pendingPatches",
+            "pendingSubmissions",
+            "geometryCount",
+            "topologyCount",
+            "attributeCount",
+            "instanceCount",
+            "residentBytes",
+            "peakResidentBytes",
+            "dirtyRangeBytes",
+            "readbackBytes",
+            "submissionCount",
+            "geometryDispatchCount",
+            "phases"
           ],
           "type": "object"
         },
