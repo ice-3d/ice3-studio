@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-011
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
@@ -366,3 +366,23 @@ Hardware-dependent frame time remains measured rather than hard-coded.
   without rebuilding unrelated reference geometry.
 - Existing parametric projects and exports continue to pass the full verification
   suite.
+
+## 17. Implementation Evidence
+
+The real-asset acceptance run registered the 251,041,488-byte source GLB, the
+124,262,100-byte Prepared GLB, the tiled asset, and the 204-entry equipment manifest.
+It committed 204 semantic binding nodes and produced:
+
+- 70,984-byte `document.get` result;
+- 731-byte `scene.context` result;
+- 41,545-byte first binding page;
+- 341.9 ms from Viewer navigation to the first visible coarse tile;
+- 5,757,962 effective triangles and 1,632 unique meshes;
+- safe portrait and landscape bounds with no camera clipping;
+- zero selected-surface changes across stable screenshot frames;
+- a local transform/material edit with zero generated reference geometry.
+
+The editable responses remain bounded because the copied source, Prepared, and tiled
+files are served outside JSON-RPC. The reproducible report and screenshot are written
+to `output/large-reference-acceptance.json` and
+`output/large-reference-acceptance.png`.

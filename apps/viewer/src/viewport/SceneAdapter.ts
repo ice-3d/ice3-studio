@@ -47,6 +47,8 @@ export class SceneAdapter {
   private tilesetHandle: ICETilesetHandle | null = null;
   private referenceBindings: StudioReferenceBinding[] = [];
   private selectionIds: string[] = [];
+  private lastBounds: ICEGeometryBounds | null = null;
+  private resizeObserver: ResizeObserver | null = null;
   private originalNodeState = new WeakMap<ImportedNode, {
     matrix: number[];
     visible: boolean;
@@ -80,6 +82,11 @@ export class SceneAdapter {
       },
     });
     this.camera = camera;
+    container.dataset.referenceState = 'idle';
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.lastBounds) this.frameBounds(this.lastBounds);
+    });
+    this.resizeObserver.observe(container);
   }
 
   async show(url: string): Promise<void> {
@@ -117,6 +124,7 @@ export class SceneAdapter {
     if (!asset.tilesetUrl) {
       if (asset.preparedPreviewUrl) {
         await this.showGlb(asset.preparedPreviewUrl);
+        this.viewportElement?.setAttribute('data-reference-state', 'fallback');
         return;
       }
       throw new Error('reference asset has no streamable tileset or prepared preview');
@@ -254,6 +262,7 @@ export class SceneAdapter {
 
   private frameBounds(bounds: ICEGeometryBounds): void {
     if (!this.camera) return;
+    this.lastBounds = bounds;
     const width = this.viewportElement?.clientWidth ?? 1;
     const height = this.viewportElement?.clientHeight ?? 1;
     const framing = frameBoundsForViewport(
@@ -262,6 +271,43 @@ export class SceneAdapter {
       width / Math.max(1, height),
     );
     this.camera.setTarget(framing.target).setPosition(framing.position);
+    const matrix = this.camera.getViewProjectionMatrix(width / Math.max(1, height));
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (const x of [bounds.min[0], bounds.max[0]]) {
+      for (const y of [bounds.min[1], bounds.max[1]]) {
+        for (const z of [bounds.min[2], bounds.max[2]]) {
+          const clip = matrix.transformPoint(
+            { x, y, z } as Parameters<typeof matrix.transformPoint>[0],
+          );
+          const ndcX = clip[0] / clip[3];
+          const ndcY = clip[1] / clip[3];
+          const ndcZ = clip[2] / clip[3];
+          minX = Math.min(minX, ndcX);
+          maxX = Math.max(maxX, ndcX);
+          minY = Math.min(minY, ndcY);
+          maxY = Math.max(maxY, ndcY);
+          minZ = Math.min(minZ, ndcZ);
+          maxZ = Math.max(maxZ, ndcZ);
+        }
+      }
+    }
+    this.viewportElement?.setAttribute(
+      'data-bounds-safe',
+      String(
+        Math.max(Math.abs(minX), Math.abs(maxX), Math.abs(minY), Math.abs(maxY)) <= 0.9
+        && minZ >= -1
+        && maxZ <= 1
+      ),
+    );
+    this.viewportElement?.setAttribute(
+      'data-projected-bounds',
+      JSON.stringify({ minX, maxX, minY, maxY, minZ, maxZ }),
+    );
   }
 }
 

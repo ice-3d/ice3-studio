@@ -757,7 +757,7 @@ fn next_asset_id(references: &Path) -> Result<String, ReferenceAssetError> {
         .max()
         .unwrap_or(0)
         .checked_add(1)
-        .ok_or_else(|| ReferenceAssetError::InvalidManifest)?;
+        .ok_or(ReferenceAssetError::InvalidManifest)?;
     Ok(format!("asset-{next:06}"))
 }
 

@@ -76,6 +76,9 @@ stable diagnostic code remains the primary machine contract.
 - An idempotency key can be retried with the same semantic request; reusing it for different
   content is rejected.
 - A runtime preview failure keeps the previous valid preview.
+- Reference export with authored overrides fails closed with
+  `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED`; remove/reset the overrides or export the source
+  baseline instead.
 - A persistence failure keeps the previous snapshot loadable.
 - An explicit GPU-only failure returns its stable GPU diagnostic; automatic mode retries eligible
   work on the CPU and keeps the current revision unchanged.

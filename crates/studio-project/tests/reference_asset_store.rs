@@ -178,7 +178,7 @@ fn write_glb(path: &Path, digest_override: Option<String>) {
         "nodes": [{ "mesh": 0 }]
     });
     let mut json_bytes = serde_json::to_vec(&document).unwrap();
-    while json_bytes.len() % 4 != 0 {
+    while !json_bytes.len().is_multiple_of(4) {
         json_bytes.push(b' ');
     }
     let mut glb = Vec::new();
