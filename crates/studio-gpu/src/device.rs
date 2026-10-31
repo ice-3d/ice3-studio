@@ -689,10 +689,34 @@ impl NativeGpuBackend {
             }
             let instance_update = session.instances.apply_changes(patch.instances);
             let removed = session.instances.remove_nodes(&patch.removed_node_ids);
+            let matrix_data = session.instances.matrix_data();
+            let previous_instance_buffer = session.instance_buffer.take();
+            if matrix_data.is_empty() {
+                if let Some(buffer) = previous_instance_buffer {
+                    ready.resources.buffers().release(buffer);
+                }
+            } else {
+                let bytes = bytemuck::cast_slice(&matrix_data);
+                let buffer = ready.resources.buffers().acquire(
+                    &ready.device,
+                    crate::resources::BufferRole::DynamicAttribute,
+                    BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                    bytes.len() as u64,
+                    "ICE3 scene instance matrices",
+                )?;
+                ready.queue.write_buffer(&buffer.buffer, 0, bytes);
+                if let Some(previous) = previous_instance_buffer {
+                    ready.resources.buffers().release(previous);
+                }
+                session.instance_buffer = Some(buffer);
+            }
             for id in &patch.removed_geometry_ids {
                 session.geometries.remove(id);
             }
             session.pending_geometries.extend(pending.iter().cloned());
+            session.pending_submission_count = session
+                .pending_submission_count
+                .saturating_add(submission_count);
             session.submission_count = session.submission_count.saturating_add(submission_count);
             session.geometry_dispatch_count = session
                 .geometry_dispatch_count
@@ -774,6 +798,7 @@ impl NativeGpuBackend {
                     message: "GPU scene session is unavailable".into(),
                 })?;
         session.pending_geometries.clear();
+        session.pending_submission_count = 0;
         session.published_revision = revision;
         session.state = SceneSessionState::Idle;
         let stats = ready.residency.stats();

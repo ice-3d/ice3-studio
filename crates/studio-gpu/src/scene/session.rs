@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use studio_core::gpu_contract::{GeometryPhaseEvidence, ResidentGeometryId};
 use studio_core::scene_contract::{SceneSessionId, SceneSessionState, SceneSessionStatus};
 
+use crate::resources::BufferLease;
 use crate::scene::instances::InstanceTable;
 
 pub(crate) struct GpuSceneSession {
@@ -11,8 +12,10 @@ pub(crate) struct GpuSceneSession {
     pub target_revision: u64,
     pub state: SceneSessionState,
     pub instances: InstanceTable,
+    pub instance_buffer: Option<BufferLease>,
     pub geometries: BTreeMap<String, ResidentGeometryId>,
     pub pending_geometries: Vec<ResidentGeometryId>,
+    pub pending_submission_count: usize,
     pub submission_count: usize,
     pub geometry_dispatch_count: usize,
     pub dirty_range_bytes: u64,
@@ -28,8 +31,10 @@ impl GpuSceneSession {
             target_revision: published_revision,
             state: SceneSessionState::Idle,
             instances: InstanceTable::default(),
+            instance_buffer: None,
             geometries: BTreeMap::new(),
             pending_geometries: Vec::new(),
+            pending_submission_count: 0,
             submission_count: 0,
             geometry_dispatch_count: 0,
             dirty_range_bytes: 0,
@@ -51,7 +56,7 @@ impl GpuSceneSession {
             published_revision: self.published_revision,
             target_revision: self.target_revision,
             pending_patches: usize::from(!self.pending_geometries.is_empty()),
-            pending_submissions: self.pending_geometries.len(),
+            pending_submissions: self.pending_submission_count,
             geometry_count: self.geometries.len(),
             topology_count: self
                 .geometries
