@@ -43,7 +43,7 @@ export function evaluateBenchmarkGate(result) {
   }
   if (
     result.computeMode === 'gpu'
-    && result.compute?.sceneSession?.state === 'failed'
+    && result.compute?.sceneSession?.state !== 'idle'
   ) {
     failures.push('gpuSceneState');
   }
