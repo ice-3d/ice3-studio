@@ -133,6 +133,14 @@ Scene phase measurements show GPU planning and synchronization are now a small f
 revision latency. Document transaction handling, durable snapshot writing, and the JSON-RPC
 boundary are the dominant remaining costs.
 
+The Agent capability layer is a read facade over the same Document and cached evaluated scene.
+`system.agentManifest` describes tools and effective token authority; `scene.context` returns a
+bounded project summary; `scene.search` pages source and derived identities with revision-bound
+cursors; and `evaluation.query` limits payload reads to an explicit node set. These reads do not
+introduce a second scene model. Agent proposals use the existing ChangeSet and Operation pipeline.
+Sparse instance, component, connection, and material patches reuse the same atomic validation,
+diff, idempotency, persistence, and revision semantics as full operations.
+
 ## Industry Layering
 
 Core primitives and operations are generic. Industrial concepts use metadata, relations, and

@@ -2,7 +2,8 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rand::RngCore;
-use serde::Deserialize;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use studio_core::apply::{ApplyRequest, apply_transaction};
 use studio_core::changeset::{candidate_digest, evaluate_operations};
 use studio_core::diff::DocumentDiff;
@@ -14,59 +15,75 @@ use studio_project::changeset::{
     ChangeSet, ChangeSetEntry, ChangeSetEvaluation, ChangeSetId, ChangeSetSource, ChangeSetStatus,
     EntryId,
 };
+use ts_rs::TS;
 
 use crate::ServerEvent;
 use crate::preview::{CandidatePreview, PreviewAdapter};
 use crate::rpc::{RpcError, Session, project_error, transaction_error};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct CreateParams {
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetCreateParams {
     base_revision: Revision,
     title: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetParams {
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetGetParams {
     change_set_id: ChangeSetId,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct NewEntry {
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetNewEntry {
     source: ChangeSetSource,
     operation: Operation,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct AddParams {
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetAddParams {
     change_set_id: ChangeSetId,
     expected_version: u64,
-    entries: Vec<NewEntry>,
+    entries: Vec<ChangeSetNewEntry>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct RemoveParams {
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetRemoveParams {
     change_set_id: ChangeSetId,
     expected_version: u64,
     entry_ids: Vec<EntryId>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct EvaluateParams {
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetEvaluateParams {
     change_set_id: ChangeSetId,
     expected_version: u64,
     #[serde(default)]
+    #[ts(as = "Option<_>", optional)]
     include_candidate: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct CommitParams {
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetCommitParams {
     change_set_id: ChangeSetId,
     expected_version: u64,
     approved_digest: String,
@@ -165,7 +182,10 @@ pub(crate) fn record_candidate_preview_failure(
     store.save(&change_set).map_err(project_error)
 }
 
-fn create(session: &mut Session, params: CreateParams) -> Result<serde_json::Value, RpcError> {
+fn create(
+    session: &mut Session,
+    params: ChangeSetCreateParams,
+) -> Result<serde_json::Value, RpcError> {
     let base = session
         .store
         .load_revision(params.base_revision)
@@ -194,7 +214,7 @@ fn list(session: &mut Session) -> Result<serde_json::Value, RpcError> {
     .map_err(serialize_error)
 }
 
-fn get(session: &mut Session, params: GetParams) -> Result<serde_json::Value, RpcError> {
+fn get(session: &mut Session, params: ChangeSetGetParams) -> Result<serde_json::Value, RpcError> {
     let change_set = session
         .store
         .change_set_store()
@@ -203,7 +223,10 @@ fn get(session: &mut Session, params: GetParams) -> Result<serde_json::Value, Rp
     serde_json::to_value(change_set).map_err(serialize_error)
 }
 
-fn add_operations(session: &mut Session, params: AddParams) -> Result<serde_json::Value, RpcError> {
+fn add_operations(
+    session: &mut Session,
+    params: ChangeSetAddParams,
+) -> Result<serde_json::Value, RpcError> {
     let store = session.store.change_set_store();
     let mut change_set = store.load(&params.change_set_id).map_err(project_error)?;
     let mut next = change_set
@@ -240,7 +263,7 @@ fn add_operations(session: &mut Session, params: AddParams) -> Result<serde_json
 
 fn remove_operations(
     session: &mut Session,
-    params: RemoveParams,
+    params: ChangeSetRemoveParams,
 ) -> Result<serde_json::Value, RpcError> {
     let store = session.store.change_set_store();
     let mut change_set = store.load(&params.change_set_id).map_err(project_error)?;
@@ -254,7 +277,7 @@ fn remove_operations(
 
 fn evaluate_rpc(
     session: &mut Session,
-    params: EvaluateParams,
+    params: ChangeSetEvaluateParams,
 ) -> Result<serde_json::Value, RpcError> {
     let evaluation = evaluate(
         session,
@@ -265,7 +288,10 @@ fn evaluate_rpc(
     serde_json::to_value(evaluation).map_err(serialize_error)
 }
 
-fn candidate_rpc(session: &mut Session, params: GetParams) -> Result<serde_json::Value, RpcError> {
+fn candidate_rpc(
+    session: &mut Session,
+    params: ChangeSetGetParams,
+) -> Result<serde_json::Value, RpcError> {
     let change_set = session
         .store
         .change_set_store()
@@ -275,7 +301,10 @@ fn candidate_rpc(session: &mut Session, params: GetParams) -> Result<serde_json:
     serde_json::to_value(evaluation).map_err(serialize_error)
 }
 
-fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Value, RpcError> {
+fn commit(
+    session: &mut Session,
+    params: ChangeSetCommitParams,
+) -> Result<serde_json::Value, RpcError> {
     let change_sets = session.store.change_set_store();
     let mut change_set = change_sets
         .load(&params.change_set_id)
@@ -354,7 +383,10 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
     serde_json::to_value(result).map_err(serialize_error)
 }
 
-fn discard(session: &mut Session, params: GetParams) -> Result<serde_json::Value, RpcError> {
+fn discard(
+    session: &mut Session,
+    params: ChangeSetGetParams,
+) -> Result<serde_json::Value, RpcError> {
     let store = session.store.change_set_store();
     let mut change_set = store.load(&params.change_set_id).map_err(project_error)?;
     if matches!(

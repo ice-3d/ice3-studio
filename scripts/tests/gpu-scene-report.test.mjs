@@ -28,11 +28,47 @@ test('GPU scene report fails closed when the scene session failed', () => {
         state: 'failed',
       },
     },
+    agentContext: {
+      contextBytes: 1024,
+      searchPageBytes: 2048,
+      firstPageItems: 25,
+    },
   };
 
   assert.deepEqual(evaluateBenchmarkGate(result), [
     'gpuSceneState',
     'gpuVisibilityEmpty',
+  ]);
+});
+
+test('large-scene report rejects unbounded Agent context and search evidence', () => {
+  const result = {
+    computeMode: 'cpu',
+    visibleInstanceCount: 1,
+    operationCount: 659,
+    stats: {
+      effectiveTriangles: 6_125_878,
+      uniqueMeshes: 233,
+    },
+    incremental: {
+      cacheHits: 231,
+      generatedMeshes: 2,
+    },
+    measurements: {
+      warmStatsMs: { p50: 3 },
+      incrementalUpdateMs: { p50: 100 },
+    },
+    agentContext: {
+      contextBytes: 16 * 1024 + 1,
+      searchPageBytes: 128 * 1024 + 1,
+      firstPageItems: 26,
+    },
+  };
+
+  assert.deepEqual(evaluateBenchmarkGate(result), [
+    'agentContextBytes',
+    'agentSearchPageBytes',
+    'agentSearchLimit',
   ]);
 });
 

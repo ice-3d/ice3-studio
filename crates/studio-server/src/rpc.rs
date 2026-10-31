@@ -13,6 +13,7 @@ use axum::{Json, Router};
 use rand::RngCore;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use studio_core::agent_contract::{AgentAccess, AgentLimits};
 use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction};
 use studio_core::document::Document;
 use studio_core::geometry::Bounds;
@@ -36,7 +37,9 @@ use ts_rs::TS;
 
 use crate::ServerEvent;
 use crate::auth::{approval_cookie, bearer_token};
-use crate::capabilities::{WriteMode, authorize_write};
+use crate::capabilities::{
+    RequestAuthority, WriteMode, agent_access, authorize_write, classify_request_authority,
+};
 use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
 use crate::preview::{PreviewAdapter, export_source};
 use crate::preview_packet::PACKET_MEDIA_TYPE;
@@ -141,6 +144,8 @@ pub struct Capabilities {
     pub methods: Vec<String>,
     pub toolchain: ToolchainStatus,
     pub compute: ComputeStatus,
+    pub access: AgentAccess,
+    pub limits: AgentLimits,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
@@ -647,19 +652,26 @@ async fn rpc(
         )
             .into_response();
     }
-    let authorized = if mutating(&request.method) {
+    let (authorized, authority) = {
         let session = state.session.lock().expect("session lock");
-        authorize_write(
+        let authority = classify_request_authority(
             session.write_mode,
-            &request.method,
             bearer_token(&headers),
             approval_cookie(&headers),
             &session.token,
             &session.approval_token,
-        )
-        .is_some()
-    } else {
-        true
+        );
+        let authorized = !mutating(&request.method)
+            || authorize_write(
+                session.write_mode,
+                &request.method,
+                bearer_token(&headers),
+                approval_cookie(&headers),
+                &session.token,
+                &session.approval_token,
+            )
+            .is_some();
+        (authorized, authority)
     };
     if !authorized {
         return (
@@ -696,7 +708,7 @@ async fn rpc(
     }
     let response = match tokio::task::spawn_blocking(move || {
         let mut session = state.session.lock().expect("session lock");
-        dispatch(&mut session, &request)
+        dispatch(&mut session, &request, authority)
     })
     .await
     {
@@ -854,7 +866,11 @@ async fn dispatch_unlocked_preview(
     )
 }
 
-fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::Value, RpcError> {
+fn dispatch(
+    session: &mut Session,
+    request: &RpcRequest,
+    authority: RequestAuthority,
+) -> Result<serde_json::Value, RpcError> {
     if session.closed
         && !matches!(
             request.method.as_str(),
@@ -874,12 +890,16 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             "apiVersion": API_VERSION,
             "schemaVersion": PROJECT_SCHEMA_VERSION
         })),
+        "system.agentManifest" => {
+            serde_json::to_value(crate::agent::manifest(authority)).map_err(serialize_error)
+        }
         "system.capabilities" => Ok(serde_json::to_value(Capabilities {
             api_version: API_VERSION.into(),
             schema_version: PROJECT_SCHEMA_VERSION,
             methods: vec![
                 "system.health".into(),
                 "system.capabilities".into(),
+                "system.agentManifest".into(),
                 "project.create".into(),
                 "project.open".into(),
                 "project.get".into(),
@@ -892,10 +912,13 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "document.history".into(),
                 "scene.get".into(),
                 "scene.query".into(),
+                "scene.context".into(),
+                "scene.search".into(),
                 "scene.bounds".into(),
                 "validation.run".into(),
                 "evaluation.evaluate".into(),
                 "evaluation.stats".into(),
+                "evaluation.query".into(),
                 "evaluation.waitScene".into(),
                 "evaluation.visibleInstances".into(),
                 "export.sourceGlb".into(),
@@ -912,6 +935,8 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             ],
             toolchain: session.toolchain.status(),
             compute: session.compute.status(),
+            access: agent_access(authority),
+            limits: AgentLimits::default(),
         })
         .expect("serializable capabilities")),
         "project.get" | "document.get" => {
@@ -1073,6 +1098,13 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             Ok(serde_json::json!({ "opened": true }))
         }
         "scene.get" => serde_json::to_value(&session.document.scene).map_err(serialize_error),
+        "scene.context" => serde_json::to_value(crate::agent::context(session, authority)?)
+            .map_err(serialize_error),
+        "scene.search" => {
+            let request: studio_core::agent_contract::SceneSearchRequest =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            serde_json::to_value(crate::agent::search(session, request)?).map_err(serialize_error)
+        }
         "scene.query" => {
             let query: SceneQuery =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
@@ -1175,6 +1207,12 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 generated_meshes: evaluated.stats.generated_meshes,
             })
             .map_err(serialize_error)
+        }
+        "evaluation.query" => {
+            let request: studio_core::agent_contract::EvaluationQueryRequest =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            serde_json::to_value(crate::agent::evaluation_query(session, request)?)
+                .map_err(serialize_error)
         }
         "evaluation.waitScene" => {
             let params: RuntimePreviewParams =
@@ -1563,7 +1601,7 @@ fn visible_scene_instances_cpu(
     })
 }
 
-fn ensure_scene_snapshot(session: &mut Session) -> Result<(), RpcError> {
+pub(crate) fn ensure_scene_snapshot(session: &mut Session) -> Result<(), RpcError> {
     if session.scene_snapshot_revision == Some(session.document.revision.as_u64())
         && session.scene_snapshot.is_some()
     {

@@ -1,6 +1,8 @@
 mod common;
 
+use studio_server::changeset::ChangeSetEvaluateParams;
 use studio_server::{ServerConfig, TestServer, start_test_server, start_test_server_at};
+use ts_rs::TS;
 
 use common::{
     FAILED_TOOLCHAIN, SUCCESS_TOOLCHAIN, replace_toolchain_body, rpc_with_approval_cookie,
@@ -23,6 +25,11 @@ async fn rpc(server: &TestServer, method: &str, params: serde_json::Value) -> se
         .json()
         .await
         .unwrap()
+}
+
+#[test]
+fn evaluate_params_typescript_marks_defaulted_field_optional() {
+    assert!(ChangeSetEvaluateParams::decl().contains("includeCandidate?: boolean"));
 }
 
 #[tokio::test]

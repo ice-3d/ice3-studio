@@ -59,6 +59,19 @@ export function evaluateBenchmarkGate(result) {
   if (result.computeMode === 'gpu' && result.visibleInstanceCount === 0) {
     failures.push('gpuVisibilityEmpty');
   }
+  if (!result.agentContext) {
+    failures.push('agentContextEvidence');
+  } else {
+    if (result.agentContext.contextBytes > 16 * 1024) {
+      failures.push('agentContextBytes');
+    }
+    if (result.agentContext.searchPageBytes > 128 * 1024) {
+      failures.push('agentSearchPageBytes');
+    }
+    if (result.agentContext.firstPageItems > 25) {
+      failures.push('agentSearchLimit');
+    }
+  }
   return failures;
 }
 
@@ -193,6 +206,23 @@ async function main() {
     }
 
     const coldStats = await rpc('evaluation.stats');
+    const agentContextResponse = await rpc('scene.context');
+    const agentContextBytes = Buffer.byteLength(JSON.stringify(agentContextResponse));
+    const agentSearchPage = await rpc('scene.search', { scope: 'both', limit: 25 });
+    const agentSearchPageBytes = Buffer.byteLength(JSON.stringify(agentSearchPage));
+    const agentSearchSecondPage = agentSearchPage.nextCursor
+      ? await rpc('scene.search', {
+          scope: 'both',
+          limit: 25,
+          cursor: agentSearchPage.nextCursor,
+        })
+      : null;
+    const agentContext = {
+      contextBytes: agentContextBytes,
+      searchPageBytes: agentSearchPageBytes,
+      firstPageItems: agentSearchPage.items.length,
+      secondPageItems: agentSearchSecondPage?.items.length ?? 0,
+    };
     const visibilitySamples = [];
     let visibleInstanceCount = 0;
     let visibleNodeIdsSha256 = null;
@@ -457,6 +487,7 @@ async function main() {
       sourceGlbBytes: sourceBytes,
       visibleInstanceCount,
       visibleNodeIdsSha256,
+      agentContext,
       measurements: {
         planConstructionMs: metric(planSamples),
         initialBuildMs: metric([initialBuildMs]),

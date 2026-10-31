@@ -41,6 +41,22 @@ npm run benchmark:gpu
 - TypeScript Viewer：只通过公开 API 展示场景、revision、诊断和选择状态。
 - `wastewater-mini`：确定性 AI API 验收 fixture，不是写死在 Core 中的行业类型。
 
+## Agent API
+
+外部 Agent 可以通过 `system.agentManifest` 发现工具、当前权限和调用限制，再使用
+`scene.context` 获取固定大小项目摘要。`scene.search` 支持 source/derived 节点、字段投影
+和 revision-bound cursor；`evaluation.query` 只对显式列出的最多 32 个派生节点返回摘要或
+按需 positions/indices。
+
+模型修改仍通过原子 `document.apply` 或持久化 ChangeSet。默认 `review-required` 模式下，
+Agent 可以查询、提案和求值，但不能直接应用或提交；人工审批令牌负责最终提交。稀疏
+`instance.patch`、`component.patch`、`connection.patch` 和 `material.patch` 只修改指定字段，
+并继续经过完整校验、diff、幂等和 revision 冲突检查。
+
+大型场景基准中，`scene.context` 为 860 bytes，25 条 source+derived 搜索结果页约
+7.9 KiB；机器门禁分别限制为 16 KiB 和 128 KiB。Studio 不内置模型、Prompt、MCP Gateway
+或 Agent 策略。
+
 ## 性能基线
 
 `npm run benchmark` 使用 release build，在目标 Apple Silicon Mac 上记录并输出

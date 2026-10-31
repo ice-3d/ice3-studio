@@ -1,3 +1,4 @@
+pub mod agent_contract;
 pub mod apply;
 pub mod changeset;
 pub mod diff;
@@ -9,6 +10,7 @@ pub mod ids;
 pub mod large_scene;
 pub mod math;
 pub mod operation;
+pub mod patch;
 pub mod scene_contract;
 pub mod validation;
 
