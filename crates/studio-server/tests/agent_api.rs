@@ -1,5 +1,7 @@
 mod common;
 
+use std::path::Path;
+
 use studio_server::{ServerConfig, TestServer, start_test_server};
 
 use common::{rpc_with_approval_cookie, rpc_with_bearer};
@@ -59,6 +61,13 @@ async fn manifest_access_matches_request_authority() {
         "material.patch",
     ];
     let tools = agent["result"]["tools"].as_array().unwrap();
+    let schema: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../schemas/studio-api.schema.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
     for expected in expected_tools {
         let tool = tools
             .iter()
@@ -70,6 +79,16 @@ async fn manifest_access_matches_request_authority() {
                 .is_some_and(|value| value.contains("#/types/")),
             "tool {expected} must reference a generated schema definition: {tool}"
         );
+        for field in ["inputSchemaRef", "outputSchemaRef"] {
+            let Some(reference) = tool[field].as_str() else {
+                continue;
+            };
+            let type_name = reference.split("#/types/").nth(1).unwrap();
+            assert!(
+                schema["types"].get(type_name).is_some(),
+                "tool {expected} references missing schema type {type_name}"
+            );
+        }
     }
 }
 

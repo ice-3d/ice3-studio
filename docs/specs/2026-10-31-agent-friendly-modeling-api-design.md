@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-009
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
@@ -438,17 +438,17 @@ Sparse patches use the following general rules:
 ```text
 InstancePatch {
   type: "instance.patch"
-  node_id: string
+  nodeId: string
   name: string | null
   transform: Transform | null
   visible: boolean | null
-  definition_id: string | null
-  set_parameters: Record<string, ParameterValue>
-  remove_parameters: string[]
-  set_metadata: Record<string, string>
-  remove_metadata_keys: string[]
-  material_id: string | null
-  clear_material: boolean
+  definitionId: string | null
+  setParameters: Record<string, ParameterValue>
+  removeParameters: string[]
+  setMetadata: Record<string, string>
+  removeMetadataKeys: string[]
+  materialId: string | null
+  clearMaterial: boolean
 }
 ```
 
@@ -470,11 +470,11 @@ Child-part overrides are not patched in this phase. Callers continue to use
 ```text
 ComponentPatch {
   type: "component.patch"
-  component_id: string
+  componentId: string
   name: string | null
-  set_parameter_defaults: Record<string, ParameterValue>
-  set_metadata: Record<string, string>
-  remove_metadata_keys: string[]
+  setParameterDefaults: Record<string, ParameterValue>
+  setMetadata: Record<string, string>
+  removeMetadataKeys: string[]
 }
 ```
 
@@ -486,14 +486,14 @@ parts continues to use `component.update`.
 ```text
 ConnectionPatch {
   type: "connection.patch"
-  node_id: string
+  nodeId: string
   from: InstancePortRef | null
   to: InstancePortRef | null
   medium: string | null
   diameter: number | null
-  route_policy: RoutePolicy | null
-  set_metadata: Record<string, string>
-  remove_metadata_keys: string[]
+  routePolicy: RoutePolicy | null
+  setMetadata: Record<string, string>
+  removeMetadataKeys: string[]
 }
 ```
 
@@ -504,12 +504,12 @@ The linked relation and endpoint references remain validated before commit.
 ```text
 MaterialPatch {
   type: "material.patch"
-  material_id: string
+  materialId: string
   name: string | null
-  base_color: [number, number, number, number] | null
+  baseColor: [number, number, number, number] | null
   opacity: number | null
-  edge_color: [number, number, number, number] | null
-  clear_edge_color: boolean
+  edgeColor: [number, number, number, number] | null
+  clearEdgeColor: boolean
 }
 ```
 

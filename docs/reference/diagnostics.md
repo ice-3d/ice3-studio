@@ -13,6 +13,10 @@ traces, or paths outside the configured workspace.
 JSON-RPC errors expose the code as `error.diagnosticCode`. Document validation results expose the
 same value as `code`.
 
+Agent-facing failures may also include `error.data` with `category`, `retryable`, operation/object
+location, expected/actual values, and short recovery suggestions. These fields are additive; the
+stable diagnostic code remains the primary machine contract.
+
 ## Diagnostic Fields
 
 | Field | Meaning |
@@ -63,6 +67,9 @@ same value as `code`.
 
 - Validation or operation failures leave the current revision unchanged.
 - A revision conflict requires re-reading the current revision before resubmitting.
+- A stale or mismatched Agent search cursor requires restarting `scene.search` without the cursor.
+- Agent context, search, and evaluation limit failures include the invalid JSON Pointer and whether
+  retrying with corrected parameters can succeed.
 - An idempotency key can be retried with the same semantic request; reusing it for different
   content is rejected.
 - A runtime preview failure keeps the previous valid preview.

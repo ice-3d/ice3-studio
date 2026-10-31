@@ -45,6 +45,7 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 |---|---:|---|---|
 | `system.health` | No | none | Version and status |
 | `system.capabilities` | No | none | API version, method inventory, Toolchain state, and native compute evidence |
+| `system.agentManifest` | No | none | Agent tools, current token authority, limits, and workflow hints |
 | `project.create` | Yes | `{ projectId }` | `{ opened: true }` |
 | `project.open` | Yes | `{ projectId }` | `{ opened: true }` |
 | `project.get` | No | none | Current document |
@@ -57,9 +58,12 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 | `document.history` | No | none | Operation history |
 | `scene.get` | No | none | Current scene |
 | `scene.query` | No | See below | Matching nodes in deterministic scene order |
+| `scene.context` | No | none | Bounded project counts, bounds, facets, access, and limits |
+| `scene.search` | No | `SceneSearchRequest` | Revision-bound source/derived node pages |
 | `scene.bounds` | No | none | World-space bounds by node ID |
 | `validation.run` | No | none | Diagnostic array |
 | `evaluation.evaluate` | No | none | Evaluated mesh by node ID |
+| `evaluation.query` | No | `EvaluationQueryRequest` | Bounded derived geometry summaries and optional payloads |
 | `evaluation.waitScene` | No | `{ revision? }` | Published experimental GPU scene status |
 | `evaluation.visibleInstances` | No | `{ targetRevision, planes[6][4] }` | Visible GPU buffer indices and stable node IDs; GPU compute when experimental scene sessions are ready, CPU fallback otherwise |
 | `export.sourceGlb` | Yes | none | Source GLB export metadata |
@@ -143,10 +147,38 @@ until a project is opened again.
 | `connection.create` | Create a routed connection for an existing Relation |
 | `connection.update` | Replace connection endpoints or routing policy |
 | `connection.delete` | Delete a connection and its linked Relation |
+| `instance.patch` | Update only named instance fields, parameters, and metadata |
+| `component.patch` | Update only definition name, parameter defaults, and metadata |
+| `connection.patch` | Update only named connection fields and metadata |
+| `material.patch` | Update only named material fields |
 
 IDs, node order, material order, relation order, and diagnostic order are deterministic.
 Lengths are meters, angles are radians, coordinates are right-handed Y-up, and material colors
 are sRGB.
+
+## Agent Context And Search
+
+`system.agentManifest` reports `access`, `limits`, tool schema references, and short inspection,
+proposal, review, commit, and recovery workflows. Manifest availability is descriptive; mutation
+authorization remains enforced by the RPC boundary.
+
+`scene.context` returns fixed-size counts, world bounds, units/coordinate system, source content
+facets, up to 50 relation types, and effective access. It never returns complete node or geometry
+collections.
+
+`scene.search` accepts `scope: source | derived | both`, metadata/content/component/material/
+visibility/bounds filters, an optional name/ID query, field projection, and a limit from 1 to 100.
+It returns `{ revision, items, nextCursor }`. Cursor pages are bound to the revision and normalized
+filters; using a stale cursor or a cursor with different filters returns
+`ICE3_STUDIO_REVISION_CONFLICT`.
+
+`evaluation.query` requires 1 to 32 unique derived node IDs. It returns vertex/index counts,
+world bounds, and geometry digests by default. Positions and indices appear only when requested
+with `summary`.
+
+Sparse patch payloads use camelCase fields. Omitted fields remain unchanged. Metadata set/remove
+keys and parameter set/remove names may not overlap. Material and edge-color clearing use explicit
+`clearMaterial` and `clearEdgeColor` flags.
 
 ## Large-Scene Authoring
 

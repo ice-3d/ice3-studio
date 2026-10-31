@@ -39,6 +39,12 @@ async function rpc(id, method, params) {
 
 try {
   const plan = JSON.parse(await readFile(join(fixture, 'ai-plan.json'), 'utf8'));
+  const manifest = await rpc(101, 'system.agentManifest', {});
+  if (!manifest.result?.tools?.length) throw new Error('Agent manifest is unavailable');
+  const context = await rpc(102, 'scene.context', {});
+  if (context.result?.revision !== 0) throw new Error('initial Agent context revision is incorrect');
+  const search = await rpc(103, 'scene.search', { limit: 10 });
+  if (!Array.isArray(search.result?.items)) throw new Error('initial Agent search is malformed');
   const first = await rpc(1, 'document.apply', plan.transactions[0]);
   if (first.result?.revision !== 1) throw new Error('ground transaction failed');
   const rejected = await rpc(2, 'document.apply', plan.transactions[1]);
@@ -51,6 +57,9 @@ try {
     rejectedOperations: 1,
     finalRevision: committed.result.revision,
     sourcePath: exported.result.sourcePath,
+    agentManifestTools: manifest.result.tools.length,
+    initialSourceNodes: context.result.counts.sourceNodes,
+    initialSearchItems: search.result.items.length,
   }, null, 2));
 } finally {
   server.kill('SIGTERM');
