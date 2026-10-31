@@ -110,6 +110,11 @@ unchanged buffers. Native residency, browser WebGPU, and preview packets are exp
 the measured resident performance gate has not passed; the default remains CPU compute plus
 WebGL2 rendering.
 
+An opt-in revision-scoped GPU scene session retains shared topology, replaceable attributes, and
+an instance table across committed revisions. The large industrial scene currently exhausts the
+512 MiB GPU budget after 18 unique geometries, so the experimental session fails closed and leaves
+the CPU/WebGL2 path active.
+
 ## Industry Layering
 
 Core primitives and operations are generic. Industrial concepts use metadata, relations, and

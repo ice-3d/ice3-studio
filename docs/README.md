@@ -24,8 +24,8 @@
 | `ICE3-STUDIO-SPEC-003` | [Native GPU Compute 设计](specs/2026-10-30-native-gpu-compute-design.md) | Experimental | Native `wgpu` 实现完整，当前设备未达到 release 性能门禁 |
 | `ICE3-STUDIO-SPEC-006` | [GPU-Resident Geometry 设计](specs/2026-10-31-gpu-resident-geometry-design.md) | Experimental | 功能已交付，但 resident 性能门禁未通过；CPU 与 WebGL2 仍为默认 |
 | `ICE3-STUDIO-SPEC-007` | [GPU Resident Hot-Path Redesign](specs/2026-10-31-gpu-hot-path-redesign-design.md) | Experimental | 稳定 handle、一次性 digest、异步批处理和分阶段 GPU 证据 |
-| `ICE3-STUDIO-SPEC-008` | [Revision-Scoped GPU Scene Session](specs/2026-10-31-gpu-scene-session-design.md) | Proposed | 场景级长期 residency、revision dirty updates 和真实端到端验收 |
-| `ICE3-STUDIO-PLAN-011` | [Revision-Scoped GPU Scene Session 实施计划](plans/2026-10-31-gpu-scene-session.md) | Proposed | 从 CPU 场景索引到 GPU dirty updates、preview delta 和量化门禁 |
+| `ICE3-STUDIO-SPEC-008` | [Revision-Scoped GPU Scene Session](specs/2026-10-31-gpu-scene-session-design.md) | Experimental | 场景级 residency 与 dirty updates 已接线，512 MiB 预算门禁未通过 |
+| `ICE3-STUDIO-PLAN-011` | [Revision-Scoped GPU Scene Session 实施计划](plans/2026-10-31-gpu-scene-session.md) | Experimental | CPU 场景索引、GPU dirty updates、preview delta 和量化门禁 |
 | `ICE3-STUDIO-PLAN-010` | [GPU Resident Hot-Path Redesign Implementation Plan](plans/2026-10-31-gpu-hot-path-redesign.md) | Experimental | 从 resident digest/handle 到批处理、证据和生产预览接线 |
 | `ICE3-STUDIO-PLAN-009` | [GPU-Resident Geometry 实施计划](plans/2026-10-31-gpu-resident-geometry.md) | Experimental | Native residency、增量 packet、浏览器 buffer 复用和量化验收 |
 | `ICE3-STUDIO-PLAN-008` | [Native GPU Compute Backend 实施计划](plans/2026-10-30-native-gpu-compute-backend.md) | Experimental | GPU 契约、设备生命周期、内核、调度、证据和 fail-closed 性能门禁 |
