@@ -9,6 +9,7 @@ pub mod ids;
 pub mod large_scene;
 pub mod math;
 pub mod operation;
+pub mod scene_contract;
 pub mod validation;
 
 pub const PROJECT_SCHEMA_VERSION: u32 = 2;

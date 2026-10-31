@@ -8,6 +8,7 @@ use ts_rs::TS;
 use crate::document::NodeContent;
 use crate::geometry::{Bounds, EvaluatedMesh};
 use crate::ids::NodeId;
+use crate::scene_contract::{ScenePatch, SceneSessionId, SceneSessionStatus, SceneSubmission};
 use crate::validation::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -312,4 +313,43 @@ pub trait GeometryBackend: Send + Sync {
     }
     async fn cancel(&self, job_id: &str) -> Result<(), BackendError>;
     fn stats(&self) -> GeometryExecutionStats;
+
+    async fn create_scene_session(
+        &self,
+        _project_id: &str,
+    ) -> Result<SceneSessionId, BackendError> {
+        Err(BackendError::Unavailable {
+            reason: "scene sessions are unsupported".into(),
+        })
+    }
+
+    async fn apply_scene_patch(
+        &self,
+        _session: &SceneSessionId,
+        _patch: ScenePatch,
+    ) -> Result<SceneSubmission, BackendError> {
+        Err(BackendError::Unavailable {
+            reason: "scene sessions are unsupported".into(),
+        })
+    }
+
+    async fn wait_scene_revision(
+        &self,
+        _session: &SceneSessionId,
+        _revision: u64,
+    ) -> Result<SceneSessionStatus, BackendError> {
+        Err(BackendError::Unavailable {
+            reason: "scene sessions are unsupported".into(),
+        })
+    }
+
+    async fn close_scene_session(&self, _session: &SceneSessionId) -> Result<(), BackendError> {
+        Err(BackendError::Unavailable {
+            reason: "scene sessions are unsupported".into(),
+        })
+    }
+
+    fn scene_status(&self, _session: &SceneSessionId) -> Option<SceneSessionStatus> {
+        None
+    }
 }
