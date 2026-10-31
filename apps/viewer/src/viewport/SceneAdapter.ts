@@ -547,17 +547,23 @@ export function referenceSurfaceColor(
   } else if (nodeName.includes('Site.Facility') || pathName.includes('/Buildings/')) {
     color = '#b8b4aa';
   } else if (nodeName.startsWith('Pipe.air-')) {
-    color = '#3987b2';
-  } else if (nodeName.startsWith('Pipe.gas-')) {
-    color = '#d0ac32';
+    color = '#3f8fc5';
+  } else if (/^Pipe\.(gas|biogas)-/.test(nodeName)) {
+    color = '#d8b82e';
   } else if (nodeName.startsWith('Pipe.chemical-')) {
-    color = '#c9862b';
+    color = '#d4862d';
   } else if (/^Pipe\.(sludge|ras|was|scum)-/.test(nodeName)) {
     color = '#8a6249';
+  } else if (/^Pipe\.(loop|branch|mixed-liquor|recycle)-/.test(nodeName)) {
+    color = '#3f8b69';
   } else if (nodeName.startsWith('Pipe.service-water-')) {
-    color = '#3f7767';
-  } else if (/^Pipe\.(backwash|main|filtrate|supernatant|drain|return)-/.test(nodeName)) {
-    color = '#2477a0';
+    color = '#45966d';
+  } else if (/^Pipe\.(filtrate|supernatant)-/.test(nodeName)) {
+    color = '#7565a8';
+  } else if (/^Pipe\.(backwash|drain)-/.test(nodeName)) {
+    color = '#3996a8';
+  } else if (/^Pipe\.(main|water|treated|effluent|return)-/.test(nodeName)) {
+    color = '#347fae';
   } else if (nodeName.startsWith('SiteUtilities.Lamp.')) {
     color = nodeName.endsWith('.Head') ? '#eee7c7' : '#596267';
   } else if (nodeName === 'SiteMaintenanceWalkway.Rail') {

@@ -82,9 +82,13 @@ test('maps infrastructure and pipe colors by real-world material role', () => {
   assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.MainAccess'], '#1f2121'), '#25282b');
   assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.MainAccess.Curb.N'], '#a39e87'), '#c9c7be');
   assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.StormDrain.00'], '#2e383b'), '#454a4c');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.air-01'], '#7a8c8f'), '#3987b2');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.chemical-01a'], '#80754d'), '#c9862b');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.air-01'], '#7a8c8f'), '#3f8fc5');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.gas-01'], '#63784d'), '#d8b82e');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.chemical-01a'], '#80754d'), '#d4862d');
   assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.sludge-01'], '#695980'), '#8a6249');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.loop-a-01'], '#477063'), '#3f8b69');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.filtrate-01'], '#695980'), '#7565a8');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.main-01-IN-001-GR-101'], '#1f6b94'), '#347fae');
   assert.equal(referenceSurfaceColor(['AE-101'], '#265c66'), '#1f6675');
   assert.equal(referenceSurfaceColor(['AE-101'], '#66635c'), '#d6d7d2');
   assert.equal(referenceSurfaceColor(['AE-101'], '#6e7a7d'), '#a8b1b5');
