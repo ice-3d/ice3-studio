@@ -186,11 +186,11 @@ pub fn resolved_part_geometry_key(
     content: &PartContent,
     parameters: &BTreeMap<String, ParameterValue>,
 ) -> Result<String, LargeSceneError> {
+    let resolved = resolve_part_content(content, parameters)?;
     resolved_part_geometry_key_with_metadata(
         blueprint_digest,
         part_id,
-        content,
-        parameters,
+        &resolved,
         &GeometryCacheMetadata::cpu(),
     )
 }
@@ -198,8 +198,7 @@ pub fn resolved_part_geometry_key(
 fn resolved_part_geometry_key_with_metadata(
     blueprint_digest: &str,
     part_id: &str,
-    content: &PartContent,
-    parameters: &BTreeMap<String, ParameterValue>,
+    resolved: &NodeContent,
     metadata: &GeometryCacheMetadata,
 ) -> Result<String, LargeSceneError> {
     let bytes = serde_json::to_vec(&(
@@ -208,8 +207,7 @@ fn resolved_part_geometry_key_with_metadata(
         &metadata.parity_status,
         blueprint_digest,
         part_id,
-        content,
-        parameters,
+        resolved,
     ))
     .map_err(|_| LargeSceneError::InvalidComponentReference)?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
@@ -1002,8 +1000,7 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
     let selected_key = resolved_part_geometry_key_with_metadata(
         blueprint,
         part_id,
-        content,
-        parameters,
+        &node_content,
         &selected_metadata,
     )?;
     if let Some((mesh, resident_geometry_id)) =
@@ -1026,8 +1023,7 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
     let actual_key = resolved_part_geometry_key_with_metadata(
         blueprint,
         part_id,
-        content,
-        parameters,
+        &node_content,
         &evaluation.metadata,
     )?;
     if actual_key != selected_key
