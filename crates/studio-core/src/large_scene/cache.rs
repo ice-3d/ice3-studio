@@ -6,7 +6,7 @@ use ts_rs::TS;
 
 use crate::document::NodeContent;
 use crate::geometry::EvaluatedMesh;
-use crate::gpu_contract::{BackendError, GeometryBackendKind};
+use crate::gpu_contract::{BackendError, GeometryBackendKind, ResidentGeometryId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
@@ -37,11 +37,15 @@ pub struct GeometryCacheEntry {
 pub struct GeometryEvaluation {
     pub mesh: EvaluatedMesh,
     pub metadata: GeometryCacheMetadata,
+    pub resident_geometry_id: Option<ResidentGeometryId>,
 }
 
 pub trait GeometryEvaluator: Send + Sync {
     fn select_cache_metadata(&self, content: &NodeContent) -> GeometryCacheMetadata;
     fn evaluate(&self, content: &NodeContent) -> Result<GeometryEvaluation, BackendError>;
+    fn resident_geometry_id(&self, _content: &NodeContent) -> Option<ResidentGeometryId> {
+        None
+    }
 }
 
 pub trait GeometryStore {

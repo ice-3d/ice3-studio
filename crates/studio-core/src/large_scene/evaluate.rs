@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 
 use crate::document::{Document, NodeContent, SceneNode};
 use crate::geometry::{Bounds, EvaluatedMesh, GeometryError, Primitive};
-use crate::gpu_contract::BackendError;
+use crate::gpu_contract::{BackendError, ResidentGeometryId};
 use crate::ids::{ComponentId, MaterialId};
 use crate::large_scene::cache::{
     GeometryCacheMetadata, GeometryEvaluation, GeometryEvaluator, GeometryStore,
@@ -28,6 +28,7 @@ pub struct EvaluatedSceneNode {
     pub transform: Transform,
     pub material_id: Option<MaterialId>,
     pub mesh_key: Option<String>,
+    pub resident_geometry_id: Option<ResidentGeometryId>,
     pub metadata: BTreeMap<String, String>,
     pub visible: bool,
 }
@@ -48,6 +49,7 @@ pub struct LargeSceneStats {
 pub struct EvaluatedScene {
     pub nodes: Vec<EvaluatedSceneNode>,
     pub meshes: BTreeMap<String, EvaluatedMesh>,
+    pub resident_geometry_ids: BTreeMap<String, ResidentGeometryId>,
     pub stats: LargeSceneStats,
 }
 
@@ -63,6 +65,8 @@ pub enum LargeSceneError {
     Connection(#[from] ConnectionError),
     #[error("component reference is missing or cyclic")]
     InvalidComponentReference,
+    #[error("evaluated scene node was not found: {0}")]
+    NodeNotFound(String),
     #[error(transparent)]
     Backend(#[from] BackendError),
 }
@@ -253,6 +257,34 @@ pub fn evaluated_scene_bounds(scene: &EvaluatedScene) -> BTreeMap<String, Bounds
         );
     }
     output
+}
+
+pub fn update_transform_only(
+    scene: &mut EvaluatedScene,
+    node_id: &str,
+    transform: Transform,
+) -> Result<(), LargeSceneError> {
+    let node = scene
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == node_id)
+        .ok_or_else(|| LargeSceneError::NodeNotFound(node_id.into()))?;
+    node.transform = transform;
+    Ok(())
+}
+
+pub fn update_material_only(
+    scene: &mut EvaluatedScene,
+    node_id: &str,
+    material_id: Option<MaterialId>,
+) -> Result<(), LargeSceneError> {
+    let node = scene
+        .nodes
+        .iter_mut()
+        .find(|node| node.id == node_id)
+        .ok_or_else(|| LargeSceneError::NodeNotFound(node_id.into()))?;
+    node.material_id = material_id;
+    Ok(())
 }
 
 pub fn expand_instance_layout(layout: &InstanceLayout) -> Result<Vec<Transform>, LayoutError> {
@@ -547,6 +579,7 @@ fn expand_definition_parts(
                     transform,
                     material_id,
                     mesh_key: None,
+                    resident_geometry_id: None,
                     metadata,
                     visible,
                 });
@@ -569,6 +602,7 @@ fn expand_definition_parts(
                     transform,
                     material_id: material_id.clone(),
                     mesh_key: None,
+                    resident_geometry_id: None,
                     metadata: metadata.clone(),
                     visible,
                 });
@@ -591,7 +625,7 @@ fn expand_definition_parts(
                 )?;
             }
             content => {
-                let (mesh, mesh_key) = load_or_evaluate_part_mesh(
+                let (mesh, mesh_key, mut resident_geometry_id) = load_or_evaluate_part_mesh(
                     store,
                     &mut scene.stats,
                     &mut scene.meshes,
@@ -601,6 +635,14 @@ fn expand_definition_parts(
                     &part_parameters,
                     evaluator,
                 )?;
+                if resident_geometry_id.is_none() {
+                    resident_geometry_id = scene.resident_geometry_ids.get(&mesh_key).cloned();
+                }
+                if let Some(resident_id) = &resident_geometry_id {
+                    scene
+                        .resident_geometry_ids
+                        .insert(mesh_key.clone(), resident_id.clone());
+                }
                 let triangle_count = mesh.indices.len() / 3;
                 scene.stats.effective_triangles += triangle_count;
                 scene.nodes.push(EvaluatedSceneNode {
@@ -611,6 +653,7 @@ fn expand_definition_parts(
                     transform,
                     material_id,
                     mesh_key: Some(mesh_key),
+                    resident_geometry_id,
                     metadata,
                     visible,
                 });
@@ -647,6 +690,7 @@ fn append_legacy_node(
         transform: node.transform,
         material_id: node.material_id.clone(),
         mesh_key,
+        resident_geometry_id: None,
         metadata: node.metadata.clone(),
         visible: node.visible,
     });
@@ -849,6 +893,7 @@ fn append_connection(
         transform: Transform::IDENTITY,
         material_id: node.material_id.clone(),
         mesh_key: Some(mesh_key),
+        resident_geometry_id: None,
         metadata: node.metadata.clone(),
         visible: node.visible,
     });
@@ -921,7 +966,7 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
     content: &PartContent,
     parameters: &BTreeMap<String, ParameterValue>,
     evaluator: Option<&dyn GeometryEvaluator>,
-) -> Result<(EvaluatedMesh, String), LargeSceneError> {
+) -> Result<(EvaluatedMesh, String, Option<ResidentGeometryId>), LargeSceneError> {
     let node_content = resolve_part_content(content, parameters)?;
     let selected_metadata = evaluator
         .map(|evaluator| evaluator.select_cache_metadata(&node_content))
@@ -936,7 +981,9 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
     if let Some(mesh) =
         load_matching_cache_entry(store, stats, meshes, &selected_key, &selected_metadata)
     {
-        return Ok((mesh, selected_key));
+        let resident_geometry_id =
+            evaluator.and_then(|evaluator| evaluator.resident_geometry_id(&node_content));
+        return Ok((mesh, selected_key, resident_geometry_id));
     }
 
     let evaluation = if let Some(evaluator) = evaluator {
@@ -947,6 +994,7 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
         GeometryEvaluation {
             mesh: crate::geometry::evaluate_node_content(&node_content)?,
             metadata: GeometryCacheMetadata::cpu(),
+            resident_geometry_id: None,
         }
     };
     let actual_key = resolved_part_geometry_key_with_metadata(
@@ -960,7 +1008,7 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
         && let Some(mesh) =
             load_matching_cache_entry(store, stats, meshes, &actual_key, &evaluation.metadata)
     {
-        return Ok((mesh, actual_key));
+        return Ok((mesh, actual_key, evaluation.resident_geometry_id));
     }
 
     stats.cache_misses += 1;
@@ -973,7 +1021,7 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
         },
     );
     meshes.insert(actual_key.clone(), evaluation.mesh.clone());
-    Ok((evaluation.mesh, actual_key))
+    Ok((evaluation.mesh, actual_key, evaluation.resident_geometry_id))
 }
 
 fn load_matching_cache_entry<S: GeometryStore>(

@@ -1,13 +1,17 @@
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use studio_core::document::NodeContent;
 use studio_core::geometry::{EvaluatedMesh, Primitive};
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
-    GeometryBatch, GeometryExecutionStats, GeometryJobNode, GeometryJobPriority,
+    GeometryBatch, GeometryEvaluationEvidence, GeometryEvaluationMode, GeometryExecutionStats,
+    GeometryJobNode, GeometryJobPriority, GeometryResidentBatchResult, GeometrySnapshotRequest,
+    ResidentGeometryId,
 };
 use studio_core::ids::NodeId;
 use studio_core::large_scene::cache::{
@@ -22,12 +26,43 @@ pub const MAX_CONCURRENT_GPU_JOBS: usize = 2;
 pub const DEFAULT_GPU_BUDGET_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const GPU_KERNEL_VERSION: &str = "geometry-kernel-v1";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum GeometryEvaluationPurpose {
+    Preview,
+    Candidate,
+    SourceExport,
+    Diagnostics,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapshotPolicy {
+    Resident,
+    CpuReadable,
+}
+
+impl SnapshotPolicy {
+    pub const fn for_purpose(purpose: GeometryEvaluationPurpose) -> Self {
+        match purpose {
+            GeometryEvaluationPurpose::Preview | GeometryEvaluationPurpose::Candidate => {
+                Self::Resident
+            }
+            GeometryEvaluationPurpose::SourceExport | GeometryEvaluationPurpose::Diagnostics => {
+                Self::CpuReadable
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ComputePolicy {
     pub mode: GeometryBackendMode,
     pub gpu_threshold_triangles: usize,
     pub max_concurrent_gpu_jobs: usize,
     pub gpu_budget_bytes: u64,
+    pub resident_enabled: bool,
+    pub preview_packet_enabled: bool,
 }
 
 impl Default for ComputePolicy {
@@ -37,8 +72,23 @@ impl Default for ComputePolicy {
             gpu_threshold_triangles: INITIAL_GPU_THRESHOLD_TRIANGLES,
             max_concurrent_gpu_jobs: MAX_CONCURRENT_GPU_JOBS,
             gpu_budget_bytes: DEFAULT_GPU_BUDGET_BYTES,
+            resident_enabled: false,
+            preview_packet_enabled: false,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ResidentGeometryStatus {
+    pub enabled: bool,
+    pub geometry_count: usize,
+    pub resident_bytes: u64,
+    pub peak_resident_bytes: u64,
+    pub topology_hits: usize,
+    pub resident_hits: usize,
+    pub evictions: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
@@ -59,6 +109,10 @@ pub struct ComputeStatus {
     pub last_upload_bytes: u64,
     pub last_readback_bytes: u64,
     pub last_cache_hits: usize,
+    pub last_evaluation_mode: String,
+    pub resident_geometry: ResidentGeometryStatus,
+    pub preview_packet_version: Option<String>,
+    pub pipelines_warmed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -79,12 +133,15 @@ pub enum ComputeError {
     GpuUnavailable { reason: String },
     #[error(transparent)]
     Geometry(#[from] studio_core::geometry::GeometryError),
+    #[error("resident geometry evaluation is unavailable: {reason}")]
+    ResidencyUnavailable { reason: String },
 }
 
 impl ComputeError {
     pub fn diagnostic_code(&self) -> &'static str {
         match self {
             Self::GpuUnavailable { .. } => DiagnosticCode::GpuUnavailable.as_str(),
+            Self::ResidencyUnavailable { .. } => DiagnosticCode::GpuUnavailable.as_str(),
             Self::Geometry(_) => DiagnosticCode::GeometryInvalid.as_str(),
             Self::Backend(error) => match error {
                 BackendError::Unavailable { .. } => DiagnosticCode::GpuUnavailable.as_str(),
@@ -205,6 +262,12 @@ fn priority_rank(priority: GeometryJobPriority) -> usize {
     }
 }
 
+#[derive(Debug, Clone)]
+struct LastCompute {
+    content: NodeContent,
+    resident_ids: Vec<ResidentGeometryId>,
+}
+
 pub struct ComputeService {
     policy: ComputePolicy,
     gpu: Option<Arc<dyn GeometryBackend>>,
@@ -217,6 +280,12 @@ pub struct ComputeService {
     last_readback_bytes: std::sync::atomic::AtomicU64,
     last_cache_hits: AtomicUsize,
     last_backend: AtomicU8,
+    pipeline_warmed: AtomicBool,
+    last_evaluation_mode: Mutex<String>,
+    resident_evidence: Mutex<GeometryEvaluationEvidence>,
+    resident_by_content: Mutex<BTreeMap<String, ResidentGeometryId>>,
+    last_compute: Mutex<Option<LastCompute>>,
+    transforms: Mutex<BTreeMap<String, studio_core::math::Transform>>,
 }
 
 impl ComputeService {
@@ -234,6 +303,12 @@ impl ComputeService {
             last_readback_bytes: std::sync::atomic::AtomicU64::new(0),
             last_cache_hits: AtomicUsize::new(0),
             last_backend: AtomicU8::new(0),
+            pipeline_warmed: AtomicBool::new(false),
+            last_evaluation_mode: Mutex::new("cpu".into()),
+            resident_evidence: Mutex::new(GeometryEvaluationEvidence::default()),
+            resident_by_content: Mutex::new(BTreeMap::new()),
+            last_compute: Mutex::new(None),
+            transforms: Mutex::new(BTreeMap::new()),
         }
     }
 
@@ -265,6 +340,7 @@ impl ComputeService {
         content: NodeContent,
         priority: GeometryJobPriority,
     ) -> Result<ComputeResult, ComputeError> {
+        self.remember_content(content.clone());
         let triangles = estimate_triangles(&content);
         let estimated_bytes = estimate_geometry_bytes(&content);
         let probe = self.probe().await;
@@ -371,6 +447,7 @@ impl ComputeService {
                 stats.queue_wait_ms = queue_wait_ms;
                 let fallback_reason = stats.fallback_reason.clone();
                 self.record_stats(&stats);
+                self.record_evaluation(GeometryEvaluationMode::Cold, None);
                 self.last_backend.store(1, Ordering::Release);
                 Ok(ComputeResult {
                     mesh,
@@ -393,11 +470,245 @@ impl ComputeService {
         pollster::block_on(self.evaluate_with_priority(content, priority))
     }
 
+    fn evaluate_with_resident_id_blocking(
+        &self,
+        content: NodeContent,
+        priority: GeometryJobPriority,
+    ) -> Result<(ComputeResult, Option<ResidentGeometryId>), ComputeError> {
+        if !self.policy.resident_enabled || self.policy.mode == GeometryBackendMode::Cpu {
+            return self
+                .evaluate_blocking(content, priority)
+                .map(|result| (result, None));
+        }
+
+        pollster::block_on(async {
+            let content_key = resident_content_key(&content);
+            self.remember_content(content);
+            let resident = self
+                .evaluate_for(GeometryEvaluationPurpose::Preview)
+                .await?;
+            let resident_id = resident.entries.first().map(|entry| entry.id.clone());
+            if let Some(resident_id) = &resident_id {
+                self.resident_by_content
+                    .lock()
+                    .expect("resident content index poisoned")
+                    .insert(content_key, resident_id.clone());
+            }
+            let snapshot = self
+                .snapshot_for(GeometryEvaluationPurpose::Diagnostics)
+                .await?;
+            let node_id = NodeId::from("compute-node-000001");
+            let mesh = snapshot.meshes.get(&node_id).cloned().ok_or_else(|| {
+                ComputeError::ResidencyUnavailable {
+                    reason: "snapshot returned no mesh".into(),
+                }
+            })?;
+            Ok((
+                ComputeResult {
+                    mesh,
+                    backend: snapshot.backend,
+                    stats: snapshot.stats,
+                    fallback_reason: None,
+                    kernel_version: GPU_KERNEL_VERSION.into(),
+                    parity_status: "passed".into(),
+                },
+                resident_id,
+            ))
+        })
+    }
+
+    pub async fn evaluate_transform_only(
+        &self,
+        node_id: &str,
+        transform: studio_core::math::Transform,
+    ) -> Result<(), ComputeError> {
+        if !self.policy.resident_enabled {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "resident geometry is disabled".into(),
+            });
+        }
+        self.transforms
+            .lock()
+            .expect("transform state poisoned")
+            .insert(node_id.into(), transform);
+        self.set_evaluation_mode("resident");
+        Ok(())
+    }
+
+    pub async fn evaluate_for(
+        &self,
+        purpose: GeometryEvaluationPurpose,
+    ) -> Result<GeometryResidentBatchResult, ComputeError> {
+        if SnapshotPolicy::for_purpose(purpose) != SnapshotPolicy::Resident {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: format!("{purpose:?} requires an explicit CPU-readable snapshot"),
+            });
+        }
+        if !self.policy.resident_enabled {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "resident geometry is disabled".into(),
+            });
+        }
+        if self.policy.mode == GeometryBackendMode::Cpu {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "resident geometry requires a GPU backend".into(),
+            });
+        }
+        let content = self
+            .last_compute
+            .lock()
+            .expect("compute state poisoned")
+            .as_ref()
+            .map(|last| last.content.clone())
+            .ok_or_else(|| ComputeError::ResidencyUnavailable {
+                reason: "no geometry has been evaluated".into(),
+            })?;
+        let Some(gpu) = &self.gpu else {
+            return Err(ComputeError::GpuUnavailable {
+                reason: "no native GPU backend was configured".into(),
+            });
+        };
+
+        let probe = self.probe().await;
+        let healthy = probe
+            .capabilities
+            .as_ref()
+            .is_some_and(|capabilities| capabilities.health == "ready")
+            && self.gpu_available.load(Ordering::Acquire);
+        let allow_gpu = match self.policy.mode {
+            GeometryBackendMode::Cpu => false,
+            GeometryBackendMode::Gpu | GeometryBackendMode::Auto => healthy,
+        };
+        if !allow_gpu {
+            return Err(ComputeError::GpuUnavailable {
+                reason: probe
+                    .failure
+                    .unwrap_or_else(|| "GPU backend is not ready".into()),
+            });
+        }
+        let estimated_bytes = estimate_geometry_bytes(&content);
+        let effective_budget = probe
+            .capabilities
+            .as_ref()
+            .map(|capabilities| {
+                min_budget(
+                    self.policy.gpu_budget_bytes,
+                    capabilities.memory_budget_bytes,
+                )
+            })
+            .unwrap_or(self.policy.gpu_budget_bytes);
+        if estimated_bytes > effective_budget {
+            return Err(BackendError::BudgetExceeded.into());
+        }
+
+        let triangles = estimate_triangles(&content);
+        let batch = GeometryBatch {
+            job_id: format!("resident-{}-{triangles}", monotonic_job_id()),
+            priority: GeometryJobPriority::Interactive,
+            budget_bytes: self.policy.gpu_budget_bytes,
+            nodes: vec![GeometryJobNode {
+                node_id: NodeId::from("compute-node-000001"),
+                content,
+                content_digest: String::new(),
+                dependency_digest: String::new(),
+                cache_key: String::new(),
+            }],
+        };
+        let permit = self.gate.acquire(GeometryJobPriority::Interactive).await;
+        let result = gpu.evaluate_resident(batch).await;
+        drop(permit);
+        match result {
+            Ok(result) => {
+                self.pipeline_warmed.store(true, Ordering::Release);
+                self.record_evaluation(
+                    GeometryEvaluationMode::Resident,
+                    Some(result.evidence.clone()),
+                );
+                let ids = result
+                    .entries
+                    .iter()
+                    .map(|entry| entry.id.clone())
+                    .collect();
+                if let Some(last) = self
+                    .last_compute
+                    .lock()
+                    .expect("compute state poisoned")
+                    .as_mut()
+                {
+                    last.resident_ids = ids;
+                }
+                Ok(result)
+            }
+            Err(error) => {
+                self.handle_resident_failure(&error);
+                Err(error.into())
+            }
+        }
+    }
+
+    pub async fn snapshot_for(
+        &self,
+        purpose: GeometryEvaluationPurpose,
+    ) -> Result<studio_core::gpu_contract::GeometryBatchResult, ComputeError> {
+        if SnapshotPolicy::for_purpose(purpose) != SnapshotPolicy::CpuReadable {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: format!("{purpose:?} does not request a CPU-readable snapshot"),
+            });
+        }
+        if !self.policy.resident_enabled {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "resident geometry is disabled".into(),
+            });
+        }
+        let geometry_ids = self
+            .last_compute
+            .lock()
+            .expect("compute state poisoned")
+            .as_ref()
+            .map(|last| last.resident_ids.clone())
+            .filter(|ids| !ids.is_empty())
+            .ok_or_else(|| ComputeError::ResidencyUnavailable {
+                reason: "no resident geometry is available to snapshot".into(),
+            })?;
+        let Some(gpu) = &self.gpu else {
+            return Err(ComputeError::GpuUnavailable {
+                reason: "no native GPU backend was configured".into(),
+            });
+        };
+        let permit = self.gate.acquire(GeometryJobPriority::Interactive).await;
+        let result = gpu.snapshot(GeometrySnapshotRequest { geometry_ids }).await;
+        drop(permit);
+        match result {
+            Ok(result) => {
+                let mut evidence = self
+                    .resident_evidence
+                    .lock()
+                    .expect("resident evidence poisoned")
+                    .clone();
+                evidence.mode = GeometryEvaluationMode::Snapshot;
+                evidence.stats = result.stats.clone();
+                self.record_stats(&result.stats);
+                self.set_resident_evidence(evidence);
+                self.set_evaluation_mode("snapshot");
+                Ok(result)
+            }
+            Err(error) => {
+                self.handle_resident_failure(&error);
+                Err(error.into())
+            }
+        }
+    }
+
     pub fn status(&self) -> ComputeStatus {
         let probe = self.probe.get();
         let capabilities = probe.and_then(|probe| probe.capabilities.as_ref());
         let failure = probe.and_then(|probe| probe.failure.clone());
         let cpu_forced = self.policy.mode == GeometryBackendMode::Cpu;
+        let evidence = self
+            .resident_evidence
+            .lock()
+            .expect("resident evidence poisoned")
+            .clone();
         ComputeStatus {
             mode: self.policy.mode,
             selected_backend: if !cpu_forced && self.last_backend.load(Ordering::Acquire) == 1 {
@@ -453,6 +764,25 @@ impl ComputeService {
             last_upload_bytes: self.last_upload_bytes.load(Ordering::Relaxed),
             last_readback_bytes: self.last_readback_bytes.load(Ordering::Relaxed),
             last_cache_hits: self.last_cache_hits.load(Ordering::Relaxed),
+            last_evaluation_mode: self
+                .last_evaluation_mode
+                .lock()
+                .expect("evaluation mode poisoned")
+                .clone(),
+            resident_geometry: ResidentGeometryStatus {
+                enabled: self.policy.resident_enabled,
+                geometry_count: evidence.resident_geometries,
+                resident_bytes: evidence.resident_bytes,
+                peak_resident_bytes: evidence.peak_resident_bytes,
+                topology_hits: evidence.topology_hits,
+                resident_hits: evidence.resident_hits,
+                evictions: evidence.evictions,
+            },
+            preview_packet_version: self
+                .policy
+                .preview_packet_enabled
+                .then(|| "ICE3PGP1".into()),
+            pipelines_warmed: self.pipeline_warmed.load(Ordering::Acquire),
         }
     }
 
@@ -562,6 +892,7 @@ impl ComputeService {
         self.last_upload_bytes.store(0, Ordering::Relaxed);
         self.last_readback_bytes.store(0, Ordering::Relaxed);
         self.last_cache_hits.store(0, Ordering::Relaxed);
+        self.set_evaluation_mode("cpu");
         Ok(ComputeResult {
             mesh,
             backend: GeometryBackendKind::Cpu,
@@ -585,6 +916,89 @@ impl ComputeService {
         self.last_cache_hits
             .store(stats.cache_hits, Ordering::Relaxed);
     }
+
+    fn remember_content(&self, content: NodeContent) {
+        let mut last = self.last_compute.lock().expect("compute state poisoned");
+        if last
+            .as_ref()
+            .is_none_or(|previous| previous.content != content)
+        {
+            *last = Some(LastCompute {
+                content,
+                resident_ids: Vec::new(),
+            });
+        }
+    }
+
+    fn resident_geometry_id_for(&self, content: &NodeContent) -> Option<ResidentGeometryId> {
+        self.resident_by_content
+            .lock()
+            .expect("resident content index poisoned")
+            .get(&resident_content_key(content))
+            .cloned()
+    }
+
+    fn record_evaluation(
+        &self,
+        mode: GeometryEvaluationMode,
+        evidence: Option<GeometryEvaluationEvidence>,
+    ) {
+        if let Some(evidence) = evidence {
+            self.set_resident_evidence(evidence);
+        }
+        let label = match mode {
+            GeometryEvaluationMode::Cpu => "cpu",
+            GeometryEvaluationMode::Cold => "cold",
+            GeometryEvaluationMode::Warm => "warm",
+            GeometryEvaluationMode::Resident => "resident",
+            GeometryEvaluationMode::Snapshot => "snapshot",
+        };
+        self.set_evaluation_mode(label);
+    }
+
+    fn set_resident_evidence(&self, evidence: GeometryEvaluationEvidence) {
+        *self
+            .resident_evidence
+            .lock()
+            .expect("resident evidence poisoned") = evidence;
+    }
+
+    fn set_evaluation_mode(&self, mode: &str) {
+        *self
+            .last_evaluation_mode
+            .lock()
+            .expect("evaluation mode poisoned") = mode.into();
+    }
+
+    fn handle_resident_failure(&self, error: &BackendError) {
+        if matches!(error, BackendError::DeviceLost { .. }) {
+            if let Some(last) = self
+                .last_compute
+                .lock()
+                .expect("compute state poisoned")
+                .as_mut()
+            {
+                last.resident_ids.clear();
+            }
+            self.gpu_available.store(false, Ordering::Release);
+            self.last_backend.store(0, Ordering::Release);
+            self.pipeline_warmed.store(false, Ordering::Release);
+            self.resident_by_content
+                .lock()
+                .expect("resident content index poisoned")
+                .clear();
+            let mut evidence = self
+                .resident_evidence
+                .lock()
+                .expect("resident evidence poisoned");
+            evidence.resident_geometries = 0;
+            evidence.resident_bytes = 0;
+            evidence.resident_hits = 0;
+            drop(evidence);
+            let _ = self.runtime_failure.set(error.to_string());
+            self.set_evaluation_mode("cpu");
+        }
+    }
 }
 
 pub struct ComputeEvaluator<'a> {
@@ -604,16 +1018,21 @@ impl GeometryEvaluator for ComputeEvaluator<'_> {
 
     fn evaluate(&self, content: &NodeContent) -> Result<GeometryEvaluation, BackendError> {
         self.service
-            .evaluate_blocking(content.clone(), GeometryJobPriority::Throughput)
-            .map(|result| GeometryEvaluation {
+            .evaluate_with_resident_id_blocking(content.clone(), GeometryJobPriority::Throughput)
+            .map(|(result, resident_geometry_id)| GeometryEvaluation {
                 mesh: result.mesh,
                 metadata: GeometryCacheMetadata {
                     backend: result.backend,
                     kernel_version: result.kernel_version,
                     parity_status: result.parity_status,
                 },
+                resident_geometry_id,
             })
             .map_err(compute_error_as_backend)
+    }
+
+    fn resident_geometry_id(&self, content: &NodeContent) -> Option<ResidentGeometryId> {
+        self.service.resident_geometry_id_for(content)
     }
 }
 
@@ -624,6 +1043,7 @@ fn compute_error_as_backend(error: ComputeError) -> BackendError {
         ComputeError::Geometry(error) => BackendError::Kernel {
             message: error.to_string(),
         },
+        ComputeError::ResidencyUnavailable { reason } => BackendError::Incompatible { reason },
     }
 }
 
@@ -697,4 +1117,9 @@ fn monotonic_job_id() -> u64 {
     use std::sync::atomic::AtomicU64;
     static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
     NEXT_JOB.fetch_add(1, Ordering::Relaxed)
+}
+
+fn resident_content_key(content: &NodeContent) -> String {
+    let bytes = serde_json::to_vec(content).unwrap_or_default();
+    format!("{:x}", Sha256::digest(bytes))
 }

@@ -2504,6 +2504,9 @@
               "minimum": 0,
               "type": "integer"
             },
+            "lastEvaluationMode": {
+              "type": "string"
+            },
             "lastKernelMs": {
               "format": "double",
               "type": "number"
@@ -2531,10 +2534,22 @@
             "mode": {
               "$ref": "#/$defs/GeometryBackendMode"
             },
+            "pipelinesWarmed": {
+              "type": "boolean"
+            },
+            "previewPacketVersion": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "queueDepth": {
               "format": "uint",
               "minimum": 0,
               "type": "integer"
+            },
+            "residentGeometry": {
+              "$ref": "#/$defs/ResidentGeometryStatus"
             },
             "selectedBackend": {
               "$ref": "#/$defs/GeometryBackendKind"
@@ -2556,7 +2571,10 @@
             "lastKernelMs",
             "lastUploadBytes",
             "lastReadbackBytes",
-            "lastCacheHits"
+            "lastCacheHits",
+            "lastEvaluationMode",
+            "residentGeometry",
+            "pipelinesWarmed"
           ],
           "type": "object"
         },
@@ -2574,6 +2592,53 @@
             "gpu"
           ],
           "type": "string"
+        },
+        "ResidentGeometryStatus": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "evictions": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "geometryCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "peakResidentBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "residentBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "residentHits": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "topologyHits": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "geometryCount",
+            "residentBytes",
+            "peakResidentBytes",
+            "topologyHits",
+            "residentHits",
+            "evictions"
+          ],
+          "type": "object"
         },
         "ToolchainState": {
           "enum": [

@@ -1433,6 +1433,7 @@ fn large_scene_error(error: studio_core::large_scene::evaluate::LargeSceneError)
         LargeSceneError::Layout(_) => DiagnosticCode::InstanceSetInvalid,
         LargeSceneError::Geometry(_) => DiagnosticCode::GeometryInvalid,
         LargeSceneError::InvalidComponentReference => DiagnosticCode::ComponentInvalid,
+        LargeSceneError::NodeNotFound(_) => DiagnosticCode::ReferenceInvalid,
         LargeSceneError::Backend(error) => match error {
             studio_core::gpu_contract::BackendError::Unavailable { .. } => {
                 DiagnosticCode::GpuUnavailable
