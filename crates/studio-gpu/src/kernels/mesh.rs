@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use bytemuck::{Pod, Zeroable};
 use studio_core::geometry::{Bounds, EvaluatedMesh, TriangleMesh, Vertex};
-use studio_core::gpu_contract::BackendError;
+use studio_core::gpu_contract::{BackendError, GeometryPhaseEvidence};
 use studio_core::math::Vec3;
 use wgpu::{
     BindGroupDescriptor, BindGroupEntry, BindingResource, Buffer, BufferAsyncError, BufferBinding,
@@ -180,6 +180,7 @@ pub(crate) struct ResidentMeshGpu {
     bounds: BufferLease,
     pub(crate) vertex_count: u32,
     pub(crate) triangle_count: u32,
+    pub(crate) phases: GeometryPhaseEvidence,
     workgroup_count: u32,
 }
 
@@ -222,10 +223,13 @@ pub(crate) fn create_resident_custom_mesh(
     resources: &DeviceResources,
     mesh: &TriangleMesh,
 ) -> Result<ResidentMeshGpu, BackendError> {
+    let validation_started = std::time::Instant::now();
     let geometry = validate_mesh_input(mesh)?;
     let adjacency = build_adjacency(mesh, geometry.vertex_count)?;
     validate_memory_budget(&geometry, adjacency.offsets.len())?;
+    let validation_ms = elapsed_ms(validation_started);
 
+    let planning_started = std::time::Instant::now();
     let positions = mesh
         .positions
         .iter()
@@ -299,6 +303,7 @@ pub(crate) fn create_resident_custom_mesh(
         geometry.workgroup_count as u64 * 32,
         BufferUsages::STORAGE | BufferUsages::COPY_SRC,
     )?;
+    let planning_ms = elapsed_ms(planning_started);
 
     let face_pipeline = resources.pipelines().get(PipelineKey::MeshFaceNormals)?;
     let normal_pipeline = resources.pipelines().get(PipelineKey::MeshNormals)?;
@@ -318,6 +323,7 @@ pub(crate) fn create_resident_custom_mesh(
             lease_binding(7, &bounds_lease),
         ],
     });
+    let encode_started = std::time::Instant::now();
     let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
         label: Some("ICE3 resident mesh encoder"),
     });
@@ -334,7 +340,11 @@ pub(crate) fn create_resident_custom_mesh(
         pass.set_pipeline(bounds_pipeline);
         pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
     }
+    let encode_ms = elapsed_ms(encode_started);
+    let submit_started = std::time::Instant::now();
     queue.submit([encoder.finish()]);
+    let submit_ms = elapsed_ms(submit_started);
+    let wait_started = std::time::Instant::now();
     device
         .poll(PollType::Wait {
             submission_index: None,
@@ -343,6 +353,7 @@ pub(crate) fn create_resident_custom_mesh(
         .map_err(|error| BackendError::Kernel {
             message: format!("resident mesh completion failed: {error}"),
         })?;
+    let wait_ms = elapsed_ms(wait_started);
 
     Ok(ResidentMeshGpu {
         params: params_lease,
@@ -355,8 +366,21 @@ pub(crate) fn create_resident_custom_mesh(
         bounds: bounds_lease,
         vertex_count: geometry.vertex_count,
         triangle_count: geometry.triangle_count,
+        phases: GeometryPhaseEvidence {
+            validation_ms,
+            planning_ms,
+            encode_ms,
+            submit_ms,
+            wait_ms,
+            gpu_kernel_ms: None,
+            ..GeometryPhaseEvidence::default()
+        },
         workgroup_count: geometry.workgroup_count,
     })
+}
+
+fn elapsed_ms(started: std::time::Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1_000.0
 }
 
 pub(crate) fn snapshot_resident_custom_mesh(

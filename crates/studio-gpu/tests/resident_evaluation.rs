@@ -48,6 +48,32 @@ fn stale_device_generation_rejects_the_handle() {
 }
 
 #[test]
+fn resident_hit_reports_zero_gpu_and_transfer_phases() {
+    let Some(backend) = NativeGpuBackend::for_test_gpu() else {
+        return;
+    };
+    let mesh = synthetic_mesh(2);
+    let digests = backend
+        .prepare_geometry_digests(&NodeContent::CustomMesh(mesh.clone()))
+        .unwrap();
+    let cold = backend
+        .evaluate_with_digests(&mesh, digests, "component/body")
+        .unwrap();
+    assert!(cold.evidence.phases.validation_ms > 0.0);
+    assert!(cold.evidence.phases.encode_ms > 0.0);
+    assert!(cold.evidence.phases.submit_ms > 0.0);
+    assert!(cold.evidence.phases.wait_ms > 0.0);
+
+    let before = backend.resident_phase_counters().unwrap();
+    let resident = backend.evaluate_resident_handle(&cold.id).unwrap();
+    let after = backend.resident_phase_counters().unwrap();
+    assert_eq!(after.upload_bytes, before.upload_bytes);
+    assert_eq!(after.fence_waits, before.fence_waits);
+    assert!(resident.evidence.phases.lookup_ms > 0.0);
+    assert_eq!(resident.evidence.phases.gpu_kernel_ms, None);
+}
+
+#[test]
 fn second_evaluation_reuses_topology_without_readback() {
     let Some(backend) = NativeGpuBackend::for_test_gpu() else {
         return;

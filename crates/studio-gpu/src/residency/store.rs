@@ -136,6 +136,7 @@ impl GpuGeometryResidency {
         &self,
         id: &ResidentGeometryId,
     ) -> Result<GeometryResidentEntry, BackendError> {
+        let lookup_started = std::time::Instant::now();
         let mut state = self
             .state
             .lock()
@@ -163,13 +164,14 @@ impl GpuGeometryResidency {
             .entries
             .get(&id.0)
             .expect("resident entry checked above");
-        let resident = resident_entry(
+        let mut resident = resident_entry(
             &stored.record,
             GeometryEvaluationMode::Resident,
             &state,
             0,
             &stored.record.node_id,
         );
+        resident.evidence.phases.lookup_ms = elapsed_ms(lookup_started);
         state.last_evidence = resident.evidence.clone();
         Ok(resident)
     }
@@ -249,6 +251,7 @@ impl GpuGeometryResidency {
         }
 
         let gpu = create_resident_custom_mesh(device, queue, &self.resources, evaluated_mesh)?;
+        let phases = gpu.phases.clone();
         let bytes = gpu.byte_size();
         state.phase_counters.upload_bytes =
             state.phase_counters.upload_bytes.saturating_add(bytes);
@@ -280,7 +283,8 @@ impl GpuGeometryResidency {
         state.resident_bytes = state.resident_bytes.saturating_add(bytes);
         state.peak_resident_bytes = state.peak_resident_bytes.max(state.resident_bytes);
         state.generation = generation;
-        let entry = resident_entry(&record, GeometryEvaluationMode::Cold, &state, 1, node_id);
+        let mut entry = resident_entry(&record, GeometryEvaluationMode::Cold, &state, 1, node_id);
+        entry.evidence.phases = phases;
         state.entries.insert(
             key.result,
             StoredEntry {
@@ -303,6 +307,7 @@ impl GpuGeometryResidency {
             .state
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let snapshot_started = std::time::Instant::now();
         let (mesh, readback_bytes) = {
             let entry = state
                 .entries
@@ -326,6 +331,7 @@ impl GpuGeometryResidency {
             .stats
             .readback_bytes
             .saturating_add(readback_bytes);
+        state.last_evidence.phases.snapshot_ms = elapsed_ms(snapshot_started);
         Ok(mesh)
     }
 
@@ -397,6 +403,10 @@ impl GpuGeometryResidency {
         }
         Ok(())
     }
+}
+
+fn elapsed_ms(started: std::time::Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1_000.0
 }
 
 impl Drop for GpuGeometryResidency {

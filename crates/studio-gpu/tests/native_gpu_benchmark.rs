@@ -4,6 +4,7 @@ use std::time::Instant;
 use serde_json::{Value, json};
 use studio_core::document::NodeContent;
 use studio_core::geometry::{Bounds, EvaluatedMesh, TriangleMesh, evaluate_node_content};
+use studio_core::gpu_contract::GeometryPhaseEvidence;
 use studio_gpu::NativeGpuBackend;
 
 const WARMUPS: usize = 2;
@@ -16,6 +17,12 @@ fn benchmark_report_contains_every_evaluation_mode() {
         assert!(
             report["workloads"][0]["modes"].get(mode).is_some(),
             "{mode}"
+        );
+        assert!(
+            report["workloads"][0]["modes"][mode]
+                .get("phases")
+                .is_some(),
+            "{mode} phases"
         );
     }
 }
@@ -67,14 +74,16 @@ fn native_gpu_benchmark() {
         let resident_seed = backend
             .evaluate_custom_mesh_resident(&mesh)
             .expect("resident warm-up");
+        let cold_phases = resident_seed.evidence.phases.clone();
         let mut resident_samples = Vec::with_capacity(SAMPLES);
+        let mut resident_phases = GeometryPhaseEvidence::default();
         for _ in 0..SAMPLES {
             let started = Instant::now();
-            black_box(
-                backend
-                    .evaluate_custom_mesh_resident(&mesh)
-                    .expect("resident sample"),
-            );
+            let resident = backend
+                .evaluate_custom_mesh_resident(&mesh)
+                .expect("resident sample");
+            resident_phases = resident.evidence.phases.clone();
+            black_box(resident);
             resident_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
         }
 
@@ -130,6 +139,7 @@ fn native_gpu_benchmark() {
         let resident_p95 = percentile(&mut resident_samples, 0.95);
         let snapshot_p50 = percentile(&mut snapshot_samples, 0.50);
         let snapshot_p95 = percentile(&mut snapshot_samples, 0.95);
+        let snapshot_phases = backend.resident_stats().expect("resident stats").phases;
         let preview_p50 = percentile(&mut preview_samples, 0.50);
         let preview_p95 = percentile(&mut preview_samples, 0.95);
         let gain = 1.0 - resident_p50 / cpu_p50;
@@ -171,13 +181,17 @@ fn native_gpu_benchmark() {
                     + mesh.indices.len() as u64 * 20,
             },
             "modes": {
-                "cold": mode_report(cold_p50, cold_p95, true, true, None),
+                "cold": mode_report(cold_p50, cold_p95, true, true, None, cold_phases),
                 "warm": mode_report(
                     warm_topology_ms,
                     warm_topology_ms,
                     false,
                     false,
                     Some("planning-only".into()),
+                    GeometryPhaseEvidence {
+                        planning_ms: warm_topology_ms,
+                        ..GeometryPhaseEvidence::default()
+                    },
                 ),
                 "resident": mode_report(
                     resident_p50,
@@ -185,6 +199,7 @@ fn native_gpu_benchmark() {
                     false,
                     false,
                     None,
+                    resident_phases,
                 ),
                 "snapshot": mode_report(
                     snapshot_p50,
@@ -192,6 +207,7 @@ fn native_gpu_benchmark() {
                     false,
                     true,
                     None,
+                    snapshot_phases,
                 ),
                 "preview": mode_report(
                     preview_p50,
@@ -199,6 +215,7 @@ fn native_gpu_benchmark() {
                     false,
                     false,
                     None,
+                    GeometryPhaseEvidence::default(),
                 ),
             },
             "residentParity": resident_parity,
@@ -307,6 +324,7 @@ fn mode_report(
     uploads: bool,
     readback: bool,
     observed_mode: Option<String>,
+    phases: GeometryPhaseEvidence,
 ) -> Value {
     json!({
         "p50Ms": p50_ms,
@@ -315,6 +333,7 @@ fn mode_report(
         "uploadBytes": if uploads { 1 } else { 0 },
         "readbackBytes": if readback { 1 } else { 0 },
         "observedMode": observed_mode,
+        "phases": phases,
     })
 }
 
@@ -323,11 +342,11 @@ fn benchmark_fixture() -> Value {
         "workloads": [{
             "triangles": 50_000,
             "modes": {
-                "cold": mode_report(1.0, 1.1, true, true, None),
-                "warm": mode_report(0.5, 0.6, false, false, Some("warm".into())),
-                "resident": mode_report(0.1, 0.2, false, false, None),
-                "snapshot": mode_report(0.8, 0.9, false, true, None),
-                "preview": mode_report(0.2, 0.3, false, false, None),
+                "cold": mode_report(1.0, 1.1, true, true, None, GeometryPhaseEvidence::default()),
+                "warm": mode_report(0.5, 0.6, false, false, Some("warm".into()), GeometryPhaseEvidence::default()),
+                "resident": mode_report(0.1, 0.2, false, false, None, GeometryPhaseEvidence::default()),
+                "snapshot": mode_report(0.8, 0.9, false, true, None, GeometryPhaseEvidence::default()),
+                "preview": mode_report(0.2, 0.3, false, false, None, GeometryPhaseEvidence::default()),
             }
         }]
     })
