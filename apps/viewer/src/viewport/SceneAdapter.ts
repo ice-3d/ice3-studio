@@ -11,6 +11,11 @@ import {
   type ICEPreviewGeometryPacket,
   type ICEScene,
 } from 'ice3';
+import {
+  frameBoundsForViewport,
+  SCENE_CAMERA_FAR,
+  SCENE_CAMERA_NEAR,
+} from './cameraFraming';
 
 export interface ScenePreviewSource {
   readonly url: string;
@@ -27,16 +32,18 @@ export class SceneAdapter {
   private packetLoader: ICEPreviewPacketLoader | null = null;
   private packet: ICEPreviewGeometryPacket | undefined;
   private pinnedPacketGeometries = new Map<string, ICEIndexedGeometry>();
+  private viewportElement: HTMLElement | null = null;
   onSelection: ((ids: readonly string[]) => void) | undefined;
 
   async mount(container: HTMLElement): Promise<void> {
+    this.viewportElement = container;
     const engine = await new ICE3({ renderer: 'webgl2' }).initAsync(container);
     engine.setBackgroundColor('#000000');
     const camera = new ICEPerspectiveCamera({
       id: 'studio-camera',
       fov: 42,
-      near: 0.05,
-      far: 3000,
+      near: SCENE_CAMERA_NEAR,
+      far: SCENE_CAMERA_FAR,
       position: [45, 32, 55],
       target: [0, 1, 0],
     });
@@ -137,23 +144,14 @@ export class SceneAdapter {
 
   private frameBounds(bounds: ICEGeometryBounds): void {
     if (!this.camera) return;
-    const { min, max } = bounds;
-    const center: [number, number, number] = [
-      (min[0] + max[0]) / 2,
-      (min[1] + max[1]) / 2,
-      (min[2] + max[2]) / 2,
-    ];
-    const radius = Math.max(1, Math.hypot(
-      max[0] - min[0],
-      max[1] - min[1],
-      max[2] - min[2],
-    ) / 2);
-    const distance = radius / Math.sin(this.camera.fov * Math.PI / 360) * 1.15;
-    this.camera.setTarget(center).setPosition([
-      center[0] + distance * 0.72,
-      center[1] + distance * 0.48,
-      center[2] + distance * 0.82,
-    ]);
+    const width = this.viewportElement?.clientWidth ?? 1;
+    const height = this.viewportElement?.clientHeight ?? 1;
+    const framing = frameBoundsForViewport(
+      bounds,
+      this.camera.fov,
+      width / Math.max(1, height),
+    );
+    this.camera.setTarget(framing.target).setPosition(framing.position);
   }
 }
 
