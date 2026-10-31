@@ -20,7 +20,15 @@ fn writes_deterministic_schema_output() {
     assert!(!first.ends_with(b"\n\n"));
     assert!(first_types.ends_with(b"\n"));
     assert!(!first_types.ends_with(b"\n\n"));
-    let text = String::from_utf8(first).unwrap();
+    let text = String::from_utf8_lossy(&first);
     assert!(text.contains("node.create"));
     assert!(text.contains("export.runtimePreview"));
+    assert!(text.contains("changeset.impact"));
+    let schema: serde_json::Value = serde_json::from_slice(&first).unwrap();
+    assert!(schema["types"].get("ChangeSetImpactParams").is_some());
+    assert!(schema["types"].get("ChangeSetImpactResult").is_some());
+    assert!(schema["types"].get("IterationImpact").is_some());
+    let types = String::from_utf8(first_types).unwrap();
+    assert!(types.contains("export type ChangeSetImpactResult"));
+    assert!(types.contains("export type IterationImpact"));
 }

@@ -68,6 +68,8 @@ stable diagnostic code remains the primary machine contract.
 - Validation or operation failures leave the current revision unchanged.
 - A revision conflict requires re-reading the current revision before resubmitting.
 - A stale or mismatched Agent search cursor requires restarting `scene.search` without the cursor.
+- A blocked or stale `changeset.impact` request returns `scope: "unavailable"` with no candidate
+  digest and no partial geometry forecast; fix validation or restart from the current revision.
 - Agent context, search, and evaluation limit failures include the invalid JSON Pointer and whether
   retrying with corrected parameters can succeed.
 - An idempotency key can be retried with the same semantic request; reusing it for different

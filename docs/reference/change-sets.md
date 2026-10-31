@@ -34,12 +34,24 @@ The following public methods implement the review lifecycle:
 - `changeset.addOperations`
 - `changeset.removeOperations`
 - `changeset.evaluate`
+- `changeset.impact`
 - `changeset.getCandidate`
 - `changeset.commit`
 - `changeset.discard`
 
 `changeset.evaluate` returns the ordered diff, diagnostics, and a SHA-256 candidate digest.
 `includeCandidate` controls whether the derived Document is included in that response.
+
+`changeset.impact` evaluates the current ChangeSet and returns bounded planning evidence:
+source, derived, relation, component, and material counts; `local`, `targeted`, `broad`,
+`full_rebuild`, or `unavailable` scope; generated and reused geometry; cache hits and misses; and
+deduplicated reason codes. It returns the same candidate digest that `changeset.commit` verifies.
+The method persists candidate evaluation state but never changes the committed Document or
+publishes a scene revision.
+
+Impact analysis uses the existing incremental dependency planner and may warm the
+content-addressed geometry cache. It does not merge the candidate into the active scene snapshot.
+After commit, `evaluation.stats` reports the execution evidence for the committed revision.
 
 `changeset.commit` requires:
 
@@ -65,8 +77,8 @@ isolated and reported without preventing the current revision from loading.
 ## Permissions
 
 `review-required` is the default mode. The Agent proposal token may read, create and edit
-ChangeSets, evaluate candidates, and request candidate previews. It cannot commit, approve, discard,
-or call `document.apply`.
+ChangeSets, evaluate or analyze candidates, and request candidate previews. It cannot commit,
+approve, discard, or call `document.apply`.
 
 The human approval capability is delivered by the single-use loopback bootstrap endpoint and stored
 in an `HttpOnly`, `SameSite=Strict` cookie. It may commit or discard proposals. It is not returned
@@ -91,6 +103,8 @@ Committing a ChangeSet publishes `changeset.committed` before `revision.committe
 ## Recovery
 
 - A failed evaluation leaves the committed revision unchanged.
+- A blocked or stale impact request returns `scope: "unavailable"` and does not forecast partial
+  derived geometry.
 - A failed candidate preview retains previously valid candidate files.
 - A stale base marks the ChangeSet stale and rejects commit with
   `ICE3_STUDIO_REVISION_CONFLICT`.

@@ -177,6 +177,22 @@ filters; using a stale cursor or a cursor with different filters returns
 world bounds, and geometry digests by default. Positions and indices appear only when requested
 with `summary`.
 
+Agent proposal iteration uses:
+
+```text
+changeset.create
+changeset.addOperations
+changeset.impact
+changeset.commit
+```
+
+`changeset.impact` returns the existing candidate digest plus bounded impact counts instead of a
+complete scene payload. Its `scope` is `local`, `targeted`, `broad`, `full_rebuild`, or
+`unavailable`. Local and targeted reports include affected source/derived counts, reused and
+generated geometry, cache hits/misses, and reason codes. It may warm content-addressed geometry
+entries but does not publish the candidate scene. Use post-commit `evaluation.stats` for exact
+execution evidence on the committed revision.
+
 Sparse patch payloads use camelCase fields. Omitted fields remain unchanged. Metadata set/remove
 keys and parameter set/remove names may not overlap. Material and edge-color clearing use explicit
 `clearMaterial` and `clearEdgeColor` flags.
