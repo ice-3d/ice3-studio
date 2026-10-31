@@ -1977,6 +1977,7 @@ dependencies = [
  "pollster",
  "serde",
  "serde_json",
+ "sha2",
  "studio-core",
  "thiserror",
  "wgpu",
