@@ -11,6 +11,32 @@ use studio_core::large_scene::connection::{ConnectionIntent, InstancePortRef, Ro
 use studio_core::math::Vec3;
 use studio_core::operation::Operation;
 use studio_core::patch::{ComponentPatch, ConnectionPatch, InstancePatch, MaterialPatch};
+use ts_rs::TS;
+
+#[test]
+fn sparse_patch_typescript_marks_omittable_fields_optional() {
+    let instance = InstancePatch::decl();
+    assert!(instance.contains("nodeId: NodeId"));
+    assert!(instance.contains("name?: string | null"));
+    assert!(instance.contains("setParameters?:"));
+    assert!(instance.contains("removeParameters?: Array<string>"));
+    assert!(instance.contains("clearMaterial?: boolean"));
+
+    let material = MaterialPatch::decl();
+    assert!(material.contains("materialId: MaterialId"));
+    assert!(material.contains("baseColor?: [number, number, number, number] | null"));
+    assert!(material.contains("clearEdgeColor?: boolean"));
+
+    let component = ComponentPatch::decl();
+    assert!(component.contains("componentId: ComponentId"));
+    assert!(component.contains("setParameterDefaults?:"));
+    assert!(component.contains("removeMetadataKeys?: Array<string>"));
+
+    let connection = ConnectionPatch::decl();
+    assert!(connection.contains("nodeId: NodeId"));
+    assert!(connection.contains("from?: InstancePortRef | null"));
+    assert!(connection.contains("setMetadata?:"));
+}
 
 #[test]
 fn instance_patch_changes_only_named_fields() {

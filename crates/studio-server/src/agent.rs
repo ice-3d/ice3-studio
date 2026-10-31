@@ -167,6 +167,17 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 Some("ChangeSet"),
             ),
             tool(
+                "export.runtimePreview",
+                "Prepare a committed or candidate runtime preview.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_propose,
+                "preview access is unavailable",
+                "RuntimePreviewRequest",
+                None,
+            ),
+            tool(
                 "document.apply",
                 "Apply one atomic modeling transaction.",
                 AgentSideEffect::DirectWrite,

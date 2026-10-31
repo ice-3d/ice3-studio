@@ -107,14 +107,16 @@ pub enum EvaluationInclude {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
-#[ts(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", optional_fields = nullable)]
 #[ts(export)]
 pub struct SceneSearchRequest {
+    #[ts(as = "Option<_>", optional)]
     pub scope: SceneSearchScope,
     pub query: Option<String>,
     pub node_id: Option<String>,
     pub owner_id: Option<String>,
     pub parent_id: Option<String>,
+    #[ts(as = "Option<_>", optional)]
     pub metadata: BTreeMap<String, String>,
     pub content_kind: Option<SceneContentKind>,
     pub component_definition_id: Option<ComponentId>,
@@ -125,6 +127,7 @@ pub struct SceneSearchRequest {
     pub bounds: Option<Bounds>,
     pub fields: Option<Vec<SceneSearchField>>,
     pub cursor: Option<String>,
+    #[ts(as = "Option<_>", optional)]
     pub limit: usize,
 }
 
@@ -358,6 +361,15 @@ pub struct AgentManifest {
     pub limits: AgentLimits,
     pub tools: Vec<AgentTool>,
     pub workflows: Vec<AgentWorkflow>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase", optional_fields = nullable)]
+#[ts(export)]
+pub struct RuntimePreviewRequest {
+    pub revision: Option<u64>,
+    pub candidate_digest: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]

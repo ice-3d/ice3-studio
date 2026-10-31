@@ -67,10 +67,11 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 | `evaluation.waitScene` | No | `{ revision? }` | Published experimental GPU scene status |
 | `evaluation.visibleInstances` | No | `{ targetRevision, planes[6][4] }` | Visible GPU buffer indices and stable node IDs; GPU compute when experimental scene sessions are ready, CPU fallback otherwise |
 | `export.sourceGlb` | Yes | none | Source GLB export metadata |
-| `export.runtimePreview` | Yes | `{ revision? }` | Prepared preview metadata |
+| `export.runtimePreview` | Yes | `RuntimePreviewRequest` | Prepared committed or candidate preview metadata |
 
-`export.runtimePreview` always prepares the current document revision. A commit is persisted
-before its revision event is published.
+`export.runtimePreview` prepares the current document revision when `candidateDigest` is absent.
+When a candidate digest is provided, it prepares that persisted ChangeSet candidate for review.
+A commit is persisted before its revision event is published.
 
 `system.capabilities.toolchain` reports `state`, contract/package versions, enabled operations,
 and a sanitized failure reason. Runtime preview responses include the derived `assetId` and

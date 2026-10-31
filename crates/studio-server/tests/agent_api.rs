@@ -57,6 +57,7 @@ async fn manifest_access_matches_request_authority() {
         "changeset.getCandidate",
         "changeset.commit",
         "changeset.discard",
+        "export.runtimePreview",
         "document.apply",
         "instance.patch",
         "component.patch",
@@ -103,6 +104,7 @@ async fn manifest_access_matches_request_authority() {
         ("changeset.getCandidate", "changeSetId"),
         ("changeset.commit", "approvedDigest"),
         ("changeset.discard", "changeSetId"),
+        ("export.runtimePreview", "candidateDigest"),
     ] {
         let tool = tools.iter().find(|tool| tool["name"] == tool_name).unwrap();
         let reference = tool["inputSchemaRef"].as_str().unwrap();

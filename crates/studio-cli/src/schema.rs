@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use schemars::schema_for;
 use studio_core::agent_contract::{
-    AgentManifest, EvaluationQueryRequest, EvaluationQueryResult, SceneContext, SceneSearchRequest,
-    SceneSearchResult,
+    AgentManifest, EvaluationQueryRequest, EvaluationQueryResult, RuntimePreviewRequest,
+    SceneContext, SceneSearchRequest, SceneSearchResult,
 };
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
@@ -103,8 +103,8 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "InstancePatch": schema_for!(InstancePatch),
             "ComponentPatch": schema_for!(ComponentPatch),
             "ConnectionPatch": schema_for!(ConnectionPatch),
-            "MaterialPatch": schema_for!(MaterialPatch)
-            ,
+            "MaterialPatch": schema_for!(MaterialPatch),
+            "RuntimePreviewRequest": schema_for!(RuntimePreviewRequest),
             "ChangeSetCreateParams": schema_for!(ChangeSetCreateParams),
             "ChangeSetGetParams": schema_for!(ChangeSetGetParams),
             "ChangeSetNewEntry": schema_for!(ChangeSetNewEntry),

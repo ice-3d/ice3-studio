@@ -5,4 +5,4 @@ import type { NodeId } from "./NodeId";
 import type { ParameterValue } from "./ParameterValue";
 import type { Transform } from "./Transform";
 
-export type InstancePatch = { nodeId: NodeId, name: string | null, transform: Transform | null, visible: boolean | null, definitionId: ComponentId | null, setParameters: { [key in string]?: ParameterValue }, removeParameters: Array<string>, setMetadata: { [key in string]?: string }, removeMetadataKeys: Array<string>, materialId: MaterialId | null, clearMaterial: boolean, };
+export type InstancePatch = { nodeId: NodeId, name?: string | null, transform?: Transform | null, visible?: boolean | null, definitionId?: ComponentId | null, setParameters?: { [key in string]?: ParameterValue }, removeParameters?: Array<string>, setMetadata?: { [key in string]?: string }, removeMetadataKeys?: Array<string>, materialId?: MaterialId | null, clearMaterial?: boolean, };

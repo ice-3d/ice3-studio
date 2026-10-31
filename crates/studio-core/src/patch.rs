@@ -11,7 +11,7 @@ use crate::math::Transform;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[ts(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", optional_fields = nullable)]
 #[ts(export)]
 pub struct InstancePatch {
     pub node_id: NodeId,
@@ -24,16 +24,21 @@ pub struct InstancePatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub definition_id: Option<ComponentId>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub set_parameters: BTreeMap<String, ParameterValue>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub remove_parameters: Vec<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub set_metadata: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub remove_metadata_keys: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material_id: Option<MaterialId>,
     #[serde(default)]
+    #[ts(as = "Option<_>", optional)]
     pub clear_material: bool,
 }
 
@@ -54,7 +59,7 @@ impl InstancePatch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[ts(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", optional_fields = nullable)]
 #[ts(export)]
 pub struct MaterialPatch {
     pub material_id: MaterialId,
@@ -67,6 +72,7 @@ pub struct MaterialPatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edge_color: Option<[f32; 4]>,
     #[serde(default)]
+    #[ts(as = "Option<_>", optional)]
     pub clear_edge_color: bool,
 }
 
@@ -82,17 +88,20 @@ impl MaterialPatch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[ts(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", optional_fields = nullable)]
 #[ts(export)]
 pub struct ComponentPatch {
     pub component_id: ComponentId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub set_parameter_defaults: BTreeMap<String, ParameterValue>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub set_metadata: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub remove_metadata_keys: Vec<String>,
 }
 
@@ -107,7 +116,7 @@ impl ComponentPatch {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[ts(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", optional_fields = nullable)]
 #[ts(export)]
 pub struct ConnectionPatch {
     pub node_id: NodeId,
@@ -122,8 +131,10 @@ pub struct ConnectionPatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub route_policy: Option<RoutePolicy>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub set_metadata: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<_>", optional)]
     pub remove_metadata_keys: Vec<String>,
 }
 

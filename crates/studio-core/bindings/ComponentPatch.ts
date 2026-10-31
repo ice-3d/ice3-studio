@@ -2,4 +2,4 @@
 import type { ComponentId } from "./ComponentId";
 import type { ParameterValue } from "./ParameterValue";
 
-export type ComponentPatch = { componentId: ComponentId, name: string | null, setParameterDefaults: { [key in string]?: ParameterValue }, setMetadata: { [key in string]?: string }, removeMetadataKeys: Array<string>, };
+export type ComponentPatch = { componentId: ComponentId, name?: string | null, setParameterDefaults?: { [key in string]?: ParameterValue }, setMetadata?: { [key in string]?: string }, removeMetadataKeys?: Array<string>, };

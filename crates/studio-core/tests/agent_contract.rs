@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
 use studio_core::agent_contract::{
-    AgentLimits, EvaluationInclude, EvaluationQueryRequest, SceneSearchField, SceneSearchRequest,
-    SceneSearchScope,
+    AgentLimits, EvaluationInclude, EvaluationQueryRequest, RuntimePreviewRequest,
+    SceneSearchField, SceneSearchRequest, SceneSearchScope,
 };
+use ts_rs::TS;
 
 #[test]
 fn agent_requests_serialize_with_camel_case_and_bounded_defaults() {
@@ -40,4 +41,17 @@ fn agent_requests_serialize_with_camel_case_and_bounded_defaults() {
     let value = serde_json::to_value(evaluation).unwrap();
     assert_eq!(value["nodeIds"][0], "node-000001/body");
     assert_eq!(AgentLimits::default().search_max_limit, 100);
+}
+
+#[test]
+fn agent_request_typescript_marks_omittable_fields_optional() {
+    let search = SceneSearchRequest::decl();
+    assert!(search.contains("scope?: SceneSearchScope"));
+    assert!(search.contains("query?: string | null"));
+    assert!(search.contains("metadata?:"));
+    assert!(search.contains("limit?: number"));
+
+    let preview = RuntimePreviewRequest::decl();
+    assert!(preview.contains("revision?: bigint | null"));
+    assert!(preview.contains("candidateDigest?: string | null"));
 }

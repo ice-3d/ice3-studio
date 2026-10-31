@@ -3,4 +3,4 @@ import type { InstancePortRef } from "./InstancePortRef";
 import type { NodeId } from "./NodeId";
 import type { RoutePolicy } from "./RoutePolicy";
 
-export type ConnectionPatch = { nodeId: NodeId, from: InstancePortRef | null, to: InstancePortRef | null, medium: string | null, diameter: number | null, routePolicy: RoutePolicy | null, setMetadata: { [key in string]?: string }, removeMetadataKeys: Array<string>, };
+export type ConnectionPatch = { nodeId: NodeId, from?: InstancePortRef | null, to?: InstancePortRef | null, medium?: string | null, diameter?: number | null, routePolicy?: RoutePolicy | null, setMetadata?: { [key in string]?: string }, removeMetadataKeys?: Array<string>, };
