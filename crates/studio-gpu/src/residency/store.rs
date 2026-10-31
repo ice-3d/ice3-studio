@@ -4,8 +4,9 @@ use std::sync::{Arc, Mutex};
 use studio_core::document::NodeContent;
 use studio_core::geometry::{Bounds, EvaluatedMesh, TriangleMesh};
 use studio_core::gpu_contract::{
-    BackendError, GeometryEvaluationEvidence, GeometryEvaluationMode, GeometryExecutionStats,
-    GeometryResidentEntry, ResidentGeometryId,
+    BackendError, GeometryDigestSet, GeometryEvaluationEvidence, GeometryEvaluationMode,
+    GeometryExecutionStats, GeometryResidentEntry, ResidentGeometryHandle, ResidentGeometryId,
+    ResidentGeometryState,
 };
 use studio_core::ids::NodeId;
 
@@ -17,6 +18,13 @@ use crate::resources::DeviceResources;
 
 const RESIDENT_KERNEL_VERSION: &str = "geometry-kernel-v1";
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ResidentPhaseCounters {
+    pub full_hashes: u64,
+    pub upload_bytes: u64,
+    pub fence_waits: u64,
+}
+
 pub struct ResidentGeometryRecord {
     pub id: ResidentGeometryId,
     pub node_id: NodeId,
@@ -25,6 +33,7 @@ pub struct ResidentGeometryRecord {
     pub bounds: Bounds,
     pub vertex_count: usize,
     pub triangle_count: usize,
+    pub handle: ResidentGeometryHandle,
     gpu: ResidentMeshGpu,
     source: TriangleMesh,
 }
@@ -44,20 +53,27 @@ struct StoreState {
     topology_hits: usize,
     resident_hits: usize,
     evictions: usize,
+    phase_counters: ResidentPhaseCounters,
     last_evidence: GeometryEvaluationEvidence,
 }
 
 pub struct GpuGeometryResidency {
     resources: Arc<DeviceResources>,
     max_bytes: u64,
+    device_generation: u64,
     state: Mutex<StoreState>,
 }
 
 impl GpuGeometryResidency {
-    pub(crate) fn new(resources: Arc<DeviceResources>, max_bytes: u64) -> Self {
+    pub(crate) fn new(
+        resources: Arc<DeviceResources>,
+        max_bytes: u64,
+        device_generation: u64,
+    ) -> Self {
         Self {
             resources,
             max_bytes,
+            device_generation,
             state: Mutex::new(StoreState {
                 last_evidence: evidence(GeometryEvaluationMode::Cpu, 0, 0, 0, 0),
                 ..StoreState::default()
@@ -91,6 +107,118 @@ impl GpuGeometryResidency {
         evaluated_mesh: &TriangleMesh,
     ) -> Result<(GeometryResidentEntry, bool), BackendError> {
         let key = ResidencyKey::for_content(content, "", RESIDENT_KERNEL_VERSION)?;
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .phase_counters
+            .full_hashes += 1;
+        self.evaluate_key(device, queue, node_id, content, evaluated_mesh, key)
+    }
+
+    pub(crate) fn evaluate_with_digests(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        geometry_id: &str,
+        content: &NodeContent,
+        evaluated_mesh: &TriangleMesh,
+        digests: &GeometryDigestSet,
+    ) -> Result<GeometryResidentEntry, BackendError> {
+        let node_id = NodeId::from(geometry_id);
+        let key = ResidencyKey::from_digests(digests);
+        let (mut entry, _) =
+            self.evaluate_key(device, queue, &node_id, content, evaluated_mesh, key)?;
+        entry.node_id = node_id;
+        Ok(entry)
+    }
+
+    pub(crate) fn evaluate_handle(
+        &self,
+        id: &ResidentGeometryId,
+    ) -> Result<GeometryResidentEntry, BackendError> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.generation = state.generation.wrapping_add(1);
+        let generation = state.generation;
+        {
+            let stored = state
+                .entries
+                .get_mut(&id.0)
+                .ok_or_else(|| BackendError::Kernel {
+                    message: "resident geometry handle is unavailable".into(),
+                })?;
+            if stored.record.handle.device_generation != self.device_generation
+                || stored.record.handle.state != ResidentGeometryState::Ready
+            {
+                return Err(BackendError::DeviceLost {
+                    message: "resident geometry handle generation is stale".into(),
+                });
+            }
+            stored.last_used = generation;
+        }
+        state.resident_hits += 1;
+        let stored = state
+            .entries
+            .get(&id.0)
+            .expect("resident entry checked above");
+        let resident = resident_entry(
+            &stored.record,
+            GeometryEvaluationMode::Resident,
+            &state,
+            0,
+            &stored.record.node_id,
+        );
+        state.last_evidence = resident.evidence.clone();
+        Ok(resident)
+    }
+
+    pub(crate) fn handle(
+        &self,
+        id: &ResidentGeometryId,
+    ) -> Result<ResidentGeometryHandle, BackendError> {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .entries
+            .get(&id.0)
+            .map(|entry| entry.record.handle.clone())
+            .ok_or_else(|| BackendError::Kernel {
+                message: "resident geometry handle is unavailable".into(),
+            })
+    }
+
+    pub(crate) fn evaluate_handle_checked(
+        &self,
+        handle: &ResidentGeometryHandle,
+    ) -> Result<GeometryResidentEntry, BackendError> {
+        if handle.device_generation != self.device_generation
+            || handle.state != ResidentGeometryState::Ready
+        {
+            return Err(BackendError::DeviceLost {
+                message: "resident geometry handle generation is stale".into(),
+            });
+        }
+        self.evaluate_handle(&handle.id)
+    }
+
+    pub(crate) fn phase_counters(&self) -> ResidentPhaseCounters {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .phase_counters
+    }
+
+    fn evaluate_key(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        node_id: &NodeId,
+        content: &NodeContent,
+        evaluated_mesh: &TriangleMesh,
+        key: ResidencyKey,
+    ) -> Result<(GeometryResidentEntry, bool), BackendError> {
         let mut state = self
             .state
             .lock()
@@ -122,8 +250,21 @@ impl GpuGeometryResidency {
 
         let gpu = create_resident_custom_mesh(device, queue, &self.resources, evaluated_mesh)?;
         let bytes = gpu.byte_size();
+        state.phase_counters.upload_bytes =
+            state.phase_counters.upload_bytes.saturating_add(bytes);
+        state.phase_counters.fence_waits += 1;
         self.evict_for(&mut state, bytes)?;
         let bounds = mesh_bounds(evaluated_mesh)?;
+        let digests = key.digest_set("", RESIDENT_KERNEL_VERSION);
+        let handle = ResidentGeometryHandle {
+            id: ResidentGeometryId(key.result.clone()),
+            geometry_id: node_id.to_string(),
+            digests,
+            vertex_count: evaluated_mesh.positions.len(),
+            triangle_count: gpu.triangle_count as usize,
+            device_generation: self.device_generation,
+            state: ResidentGeometryState::Ready,
+        };
         let record = ResidentGeometryRecord {
             id: ResidentGeometryId(key.result.clone()),
             node_id: node_id.clone(),
@@ -132,6 +273,7 @@ impl GpuGeometryResidency {
             bounds,
             vertex_count: evaluated_mesh.positions.len(),
             triangle_count: gpu.triangle_count as usize,
+            handle,
             gpu,
             source: evaluated_mesh.clone(),
         };

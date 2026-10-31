@@ -1,14 +1,17 @@
 use std::collections::{BTreeMap, HashSet};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 use std::time::Instant;
 
-use crate::residency::{GpuGeometryResidency, ResidentBatchPlan};
+use crate::residency::{GpuGeometryResidency, ResidentBatchPlan, ResidencyKey};
 use crate::resources::{DeviceResources, ResourceStats};
+use studio_core::document::NodeContent;
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
     GeometryBatch, GeometryBatchResult, GeometryEvaluationMode, GeometryExecutionStats,
-    GeometryResidentBatchResult,
+    GeometryDigestSet, GeometryResidentBatchResult, GeometryResidentEntry,
+    ResidentGeometryHandle, ResidentGeometryId,
 };
 use wgpu::{
     Adapter, BindGroupDescriptor, BindGroupEntry, BufferDescriptor, BufferUsages,
@@ -58,6 +61,7 @@ pub struct NativeGpuBackend {
     mode: GeometryBackendMode,
     state: Arc<Mutex<DeviceState>>,
     limits: GpuHostLimits,
+    device_generation: Arc<AtomicU64>,
 }
 
 impl NativeGpuBackend {
@@ -76,6 +80,7 @@ impl NativeGpuBackend {
                 stats: GeometryExecutionStats::default(),
             })),
             limits: GpuHostLimits::default(),
+            device_generation: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -126,9 +131,11 @@ impl NativeGpuBackend {
             })?;
         warmup_one_triangle(&device, &queue)?;
         let resources = DeviceResources::create(&device, &queue, &self.limits)?;
+        let device_generation = self.device_generation.fetch_add(1, Ordering::AcqRel) + 1;
         let residency = Arc::new(GpuGeometryResidency::new(
             resources.clone(),
             self.limits.max_job_memory_bytes,
+            device_generation,
         ));
         let state = self.state.clone();
         device.set_device_lost_callback(move |reason, message| {
@@ -284,6 +291,59 @@ impl NativeGpuBackend {
         ready
             .residency
             .evaluate_custom_mesh(&ready.device, &ready.queue, mesh)
+    }
+
+    pub fn prepare_geometry_digests(
+        &self,
+        content: &NodeContent,
+    ) -> Result<GeometryDigestSet, BackendError> {
+        Ok(ResidencyKey::for_content(content, "", "geometry-kernel-v1")?
+            .digest_set("", "geometry-kernel-v1"))
+    }
+
+    pub fn evaluate_with_digests(
+        &self,
+        mesh: &studio_core::geometry::TriangleMesh,
+        digests: GeometryDigestSet,
+        geometry_id: &str,
+    ) -> Result<GeometryResidentEntry, BackendError> {
+        let ready = self.ready_device()?;
+        let content = NodeContent::CustomMesh(mesh.clone());
+        ready.residency.evaluate_with_digests(
+            &ready.device,
+            &ready.queue,
+            geometry_id,
+            &content,
+            mesh,
+            &digests,
+        )
+    }
+
+    pub fn evaluate_resident_handle(
+        &self,
+        id: &ResidentGeometryId,
+    ) -> Result<GeometryResidentEntry, BackendError> {
+        self.ready_device()?.residency.evaluate_handle(id)
+    }
+
+    pub fn evaluate_resident_handle_checked(
+        &self,
+        handle: &ResidentGeometryHandle,
+    ) -> Result<GeometryResidentEntry, BackendError> {
+        self.ready_device()?
+            .residency
+            .evaluate_handle_checked(handle)
+    }
+
+    pub fn resident_handle(
+        &self,
+        id: &ResidentGeometryId,
+    ) -> Result<ResidentGeometryHandle, BackendError> {
+        self.ready_device()?.residency.handle(id)
+    }
+
+    pub fn resident_phase_counters(&self) -> Result<crate::ResidentPhaseCounters, BackendError> {
+        Ok(self.ready_device()?.residency.phase_counters())
     }
 
     pub fn snapshot_geometry(

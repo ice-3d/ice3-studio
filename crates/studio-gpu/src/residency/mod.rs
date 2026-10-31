@@ -7,4 +7,4 @@ pub use batch::{ResidentBatchPlan, ResidentBatchSubmission};
 pub use dirty::DirtyPlan;
 pub use key::ResidencyKey;
 pub(crate) use store::GpuGeometryResidency;
-pub use store::ResidentGeometryRecord;
+pub use store::{ResidentGeometryRecord, ResidentPhaseCounters};

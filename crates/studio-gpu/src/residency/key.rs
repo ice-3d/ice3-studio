@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 use studio_core::document::NodeContent;
-use studio_core::gpu_contract::BackendError;
+use studio_core::gpu_contract::{BackendError, GeometryDigestSet};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResidencyKey {
@@ -10,6 +10,36 @@ pub struct ResidencyKey {
 }
 
 impl ResidencyKey {
+    pub fn from_digests(digests: &GeometryDigestSet) -> Self {
+        let result = hash_parts(&[
+            b"geometry-result-v2",
+            digests.topology.as_bytes(),
+            digests.attribute.as_bytes(),
+            digests.dependency.as_bytes(),
+            digests.kernel_version.as_bytes(),
+            digests.parity_version.as_bytes(),
+        ]);
+        Self {
+            topology: digests.topology.clone(),
+            attribute: digests.attribute.clone(),
+            result,
+        }
+    }
+
+    pub fn digest_set(
+        &self,
+        dependency: &str,
+        kernel_version: &str,
+    ) -> GeometryDigestSet {
+        GeometryDigestSet {
+            topology: self.topology.clone(),
+            attribute: self.attribute.clone(),
+            dependency: dependency.into(),
+            kernel_version: kernel_version.into(),
+            parity_version: "parity-1e-5-v1".into(),
+        }
+    }
+
     pub fn for_content(
         content: &NodeContent,
         dependency_digest: &str,
