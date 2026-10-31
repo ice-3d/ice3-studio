@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -10,6 +12,7 @@ use crate::ids::{ComponentId, MaterialId, NodeId, RelationId, Revision};
 use crate::large_scene::component::PartContent;
 use crate::large_scene::connection::ConnectionIntent;
 use crate::operation::Operation;
+use crate::patch::{InstancePatch, MaterialPatch};
 use crate::validation::{Diagnostic, DiagnosticCode, validate_document};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -202,6 +205,12 @@ fn apply_operation(
     operation_index: usize,
 ) -> Result<(), TransactionError> {
     match operation {
+        Operation::InstancePatch(patch) => {
+            apply_instance_patch(document, patch, diff, operation_index)?;
+        }
+        Operation::MaterialPatch(patch) => {
+            apply_material_patch(document, patch, diff, operation_index)?;
+        }
         Operation::ComponentDefine { definition } => {
             let id = definition.id.clone();
             if document
@@ -584,6 +593,211 @@ fn apply_operation(
         }
     }
     Ok(())
+}
+
+fn apply_instance_patch(
+    document: &mut Document,
+    patch: InstancePatch,
+    diff: &mut DiffBuilder,
+    operation_index: usize,
+) -> Result<(), TransactionError> {
+    if !patch.has_input() {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.node_id,
+            "",
+            "patch must contain at least one field",
+        ));
+    }
+    if patch
+        .remove_parameters
+        .iter()
+        .any(|name| patch.set_parameters.contains_key(name))
+    {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.node_id,
+            "/removeParameters",
+            "a parameter cannot be set and removed in one patch",
+        ));
+    }
+    if patch
+        .remove_metadata_keys
+        .iter()
+        .any(|key| patch.set_metadata.contains_key(key))
+    {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.node_id,
+            "/removeMetadataKeys",
+            "a metadata key cannot be set and removed in one patch",
+        ));
+    }
+    if patch.material_id.is_some() && patch.clear_material {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.node_id,
+            "/clearMaterial",
+            "materialId and clearMaterial cannot be combined",
+        ));
+    }
+
+    let current_definition_id = document
+        .scene
+        .nodes()
+        .iter()
+        .find(|node| node.id == patch.node_id)
+        .and_then(|node| match &node.content {
+            NodeContent::ComponentInstance(instance) => Some(instance.definition_id.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| {
+            invalid_patch(
+                operation_index,
+                &patch.node_id,
+                "/nodeId",
+                "node is not a component instance",
+            )
+        })?;
+    let definition_id = patch.definition_id.clone().unwrap_or(current_definition_id);
+    let definition = document
+        .components
+        .iter()
+        .find(|definition| definition.id == definition_id)
+        .ok_or_else(|| {
+            invalid_patch(
+                operation_index,
+                &patch.node_id,
+                "/definitionId",
+                "component definition does not exist",
+            )
+        })?;
+    let parameters = definition
+        .parameters
+        .iter()
+        .map(|parameter| parameter.name.as_str())
+        .collect::<BTreeSet<_>>();
+    if patch
+        .set_parameters
+        .keys()
+        .chain(&patch.remove_parameters)
+        .any(|name| !parameters.contains(name.as_str()))
+    {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.node_id,
+            "/setParameters",
+            "patch contains an unknown component parameter",
+        ));
+    }
+
+    let node = node_mut(document, &patch.node_id, operation_index, "/nodeId")?;
+    if let Some(name) = patch.name {
+        node.name = name;
+    }
+    if let Some(transform) = patch.transform {
+        node.transform = transform;
+    }
+    if let Some(visible) = patch.visible {
+        node.visible = visible;
+    }
+    for (key, value) in patch.set_metadata {
+        node.metadata.insert(key, value);
+    }
+    for key in patch
+        .remove_metadata_keys
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+    {
+        node.metadata.remove(&key);
+    }
+    if let Some(material_id) = patch.material_id {
+        node.material_id = Some(material_id);
+    } else if patch.clear_material {
+        node.material_id = None;
+    }
+
+    let NodeContent::ComponentInstance(instance) = &mut node.content else {
+        unreachable!("component instance checked above");
+    };
+    if let Some(definition_id) = patch.definition_id {
+        instance.definition_id = definition_id;
+    }
+    for name in patch.remove_parameters.into_iter().collect::<BTreeSet<_>>() {
+        instance.parameters.remove(&name);
+    }
+    for (name, value) in patch.set_parameters {
+        instance.parameters.insert(name, value);
+    }
+    diff.node_updated(patch.node_id);
+    Ok(())
+}
+
+fn apply_material_patch(
+    document: &mut Document,
+    patch: MaterialPatch,
+    diff: &mut DiffBuilder,
+    operation_index: usize,
+) -> Result<(), TransactionError> {
+    if !patch.has_input() {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.material_id,
+            "",
+            "patch must contain at least one field",
+        ));
+    }
+    if patch.edge_color.is_some() && patch.clear_edge_color {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.material_id,
+            "/clearEdgeColor",
+            "edgeColor and clearEdgeColor cannot be combined",
+        ));
+    }
+    let material = document
+        .materials
+        .iter_mut()
+        .find(|material| material.id == patch.material_id)
+        .ok_or_else(|| {
+            operation_error(
+                operation_index,
+                &patch.material_id,
+                "/materialId",
+                "material does not exist",
+            )
+        })?;
+    if let Some(name) = patch.name {
+        material.name = name;
+    }
+    if let Some(base_color) = patch.base_color {
+        material.base_color = base_color;
+    }
+    if let Some(opacity) = patch.opacity {
+        material.opacity = opacity;
+    }
+    if let Some(edge_color) = patch.edge_color {
+        material.edge_color = Some(edge_color);
+    } else if patch.clear_edge_color {
+        material.edge_color = None;
+    }
+    diff.material_updated(patch.material_id);
+    Ok(())
+}
+
+fn invalid_patch(
+    operation_index: usize,
+    object_id: impl ToString,
+    pointer: &str,
+    message: &str,
+) -> TransactionError {
+    TransactionError::OperationInvalid {
+        operation_index,
+        code: DiagnosticCode::OperationInvalid,
+        object_id: Some(object_id.to_string()),
+        pointer: pointer.into(),
+        message: message.into(),
+    }
 }
 
 fn node_mut<'a>(

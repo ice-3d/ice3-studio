@@ -1,0 +1,80 @@
+use std::collections::BTreeMap;
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+use crate::ids::{ComponentId, MaterialId, NodeId};
+use crate::large_scene::component::ParameterValue;
+use crate::math::Transform;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct InstancePatch {
+    pub node_id: NodeId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transform: Option<Transform>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visible: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub definition_id: Option<ComponentId>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub set_parameters: BTreeMap<String, ParameterValue>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remove_parameters: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub set_metadata: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub remove_metadata_keys: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material_id: Option<MaterialId>,
+    #[serde(default)]
+    pub clear_material: bool,
+}
+
+impl InstancePatch {
+    pub fn has_input(&self) -> bool {
+        self.name.is_some()
+            || self.transform.is_some()
+            || self.visible.is_some()
+            || self.definition_id.is_some()
+            || !self.set_parameters.is_empty()
+            || !self.remove_parameters.is_empty()
+            || !self.set_metadata.is_empty()
+            || !self.remove_metadata_keys.is_empty()
+            || self.material_id.is_some()
+            || self.clear_material
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MaterialPatch {
+    pub material_id: MaterialId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_color: Option<[f32; 4]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub opacity: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge_color: Option<[f32; 4]>,
+    #[serde(default)]
+    pub clear_edge_color: bool,
+}
+
+impl MaterialPatch {
+    pub fn has_input(&self) -> bool {
+        self.name.is_some()
+            || self.base_color.is_some()
+            || self.opacity.is_some()
+            || self.edge_color.is_some()
+            || self.clear_edge_color
+    }
+}

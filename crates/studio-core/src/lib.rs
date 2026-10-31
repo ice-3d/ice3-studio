@@ -10,6 +10,7 @@ pub mod ids;
 pub mod large_scene;
 pub mod math;
 pub mod operation;
+pub mod patch;
 pub mod scene_contract;
 pub mod validation;
 

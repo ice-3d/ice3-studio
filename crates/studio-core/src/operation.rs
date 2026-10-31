@@ -10,11 +10,18 @@ use crate::ids::{ComponentId, ConstraintId, MaterialId, NodeId, RelationId};
 use crate::large_scene::component::{ComponentDefinition, ComponentInstance, InstanceSet};
 use crate::large_scene::connection::ConnectionIntent;
 use crate::math::Transform;
+use crate::patch::{InstancePatch, MaterialPatch};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "type", deny_unknown_fields)]
 #[ts(export)]
 pub enum Operation {
+    #[serde(rename = "instance.patch")]
+    #[ts(rename = "instance.patch")]
+    InstancePatch(InstancePatch),
+    #[serde(rename = "material.patch")]
+    #[ts(rename = "material.patch")]
+    MaterialPatch(MaterialPatch),
     #[serde(rename = "component.define")]
     #[ts(rename = "component.define")]
     ComponentDefine { definition: ComponentDefinition },

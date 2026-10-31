@@ -763,6 +763,143 @@
             {
               "additionalProperties": false,
               "properties": {
+                "clearMaterial": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "definitionId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "materialId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nodeId": {
+                  "type": "string"
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "removeParameters": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "setParameters": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/ParameterValue"
+                  },
+                  "type": "object"
+                },
+                "transform": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Transform"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "const": "instance.patch",
+                  "type": "string"
+                },
+                "visible": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "nodeId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "baseColor": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "clearEdgeColor": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "edgeColor": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "materialId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "opacity": {
+                  "format": "float",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "type": {
+                  "const": "material.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "materialId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
                 "definition": {
                   "$ref": "#/$defs/ComponentDefinition"
                 },
@@ -4022,6 +4159,143 @@
             {
               "additionalProperties": false,
               "properties": {
+                "clearMaterial": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "definitionId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "materialId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nodeId": {
+                  "type": "string"
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "removeParameters": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "setParameters": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/ParameterValue"
+                  },
+                  "type": "object"
+                },
+                "transform": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Transform"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "const": "instance.patch",
+                  "type": "string"
+                },
+                "visible": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "nodeId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "baseColor": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "clearEdgeColor": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "edgeColor": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "materialId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "opacity": {
+                  "format": "float",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "type": {
+                  "const": "material.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "materialId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
                 "definition": {
                   "$ref": "#/$defs/ComponentDefinition"
                 },
@@ -6287,6 +6561,143 @@
         },
         "Operation": {
           "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "clearMaterial": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "definitionId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "materialId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nodeId": {
+                  "type": "string"
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "removeParameters": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "setParameters": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/ParameterValue"
+                  },
+                  "type": "object"
+                },
+                "transform": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/Transform"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "const": "instance.patch",
+                  "type": "string"
+                },
+                "visible": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "nodeId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "baseColor": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "clearEdgeColor": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "edgeColor": {
+                  "items": {
+                    "format": "float",
+                    "type": "number"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": [
+                    "array",
+                    "null"
+                  ]
+                },
+                "materialId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "opacity": {
+                  "format": "float",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "type": {
+                  "const": "material.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "materialId"
+              ],
+              "type": "object"
+            },
             {
               "additionalProperties": false,
               "properties": {
@@ -13034,6 +13445,143 @@
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "clearMaterial": {
+              "default": false,
+              "type": "boolean"
+            },
+            "definitionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "materialId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "removeMetadataKeys": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "removeParameters": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "setMetadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "setParameters": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ParameterValue"
+              },
+              "type": "object"
+            },
+            "transform": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Transform"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "const": "instance.patch",
+              "type": "string"
+            },
+            "visible": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "nodeId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "baseColor": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "clearEdgeColor": {
+              "default": false,
+              "type": "boolean"
+            },
+            "edgeColor": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "materialId": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "opacity": {
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "type": {
+              "const": "material.patch",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "materialId"
+          ],
+          "type": "object"
+        },
         {
           "additionalProperties": false,
           "properties": {
