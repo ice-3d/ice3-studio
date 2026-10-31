@@ -5,12 +5,12 @@ use bytemuck::{Pod, Zeroable};
 use studio_core::geometry::{Primitive, Vertex};
 use studio_core::gpu_contract::BackendError;
 use wgpu::{
-    BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindingType, Buffer, BufferAsyncError, BufferBindingType, BufferDescriptor, BufferUsages,
-    CommandEncoder, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipelineDescriptor,
-    Device, MapMode, PipelineLayoutDescriptor, PollType, Queue, ShaderModuleDescriptor,
-    ShaderSource, ShaderStages,
+    BindGroupDescriptor, BindGroupEntry, BindingResource, Buffer, BufferAsyncError, BufferBinding,
+    BufferUsages, CommandEncoder, CommandEncoderDescriptor, ComputePassDescriptor, Device, MapMode,
+    PollType, Queue,
 };
+
+use crate::resources::{BufferLease, BufferRole, DeviceResources, PipelineKey};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrimitiveJob {
@@ -108,94 +108,106 @@ impl PrimitiveGpuParams {
 pub fn evaluate_box(
     device: &Device,
     queue: &Queue,
+    resources: &DeviceResources,
     params: PrimitiveGpuParams,
 ) -> Result<MeshReadback, BackendError> {
-    run_kernel(device, queue, params, "generate_box")
+    run_kernel(device, queue, resources, params, PipelineKey::Box)
 }
 
 pub fn evaluate_plane(
     device: &Device,
     queue: &Queue,
+    resources: &DeviceResources,
     params: PrimitiveGpuParams,
 ) -> Result<MeshReadback, BackendError> {
-    run_kernel(device, queue, params, "generate_plane")
+    run_kernel(device, queue, resources, params, PipelineKey::Plane)
 }
 
 pub fn evaluate_cylinder(
     device: &Device,
     queue: &Queue,
+    resources: &DeviceResources,
     params: PrimitiveGpuParams,
 ) -> Result<MeshReadback, BackendError> {
-    run_radial_kernel(device, queue, params, "generate_cylinder", None)
+    run_radial_kernel(
+        device,
+        queue,
+        resources,
+        params,
+        PipelineKey::Cylinder,
+        None,
+    )
 }
 
 pub fn evaluate_sphere(
     device: &Device,
     queue: &Queue,
+    resources: &DeviceResources,
     params: PrimitiveGpuParams,
 ) -> Result<MeshReadback, BackendError> {
-    run_radial_kernel(device, queue, params, "generate_sphere", None)
+    run_radial_kernel(device, queue, resources, params, PipelineKey::Sphere, None)
 }
 
 pub fn evaluate_sweep(
     device: &Device,
     queue: &Queue,
+    resources: &DeviceResources,
     params: PrimitiveGpuParams,
     points: &[[f32; 3]],
 ) -> Result<MeshReadback, BackendError> {
-    run_radial_kernel(device, queue, params, "generate_sweep", Some(points))
+    run_radial_kernel(
+        device,
+        queue,
+        resources,
+        params,
+        PipelineKey::Sweep,
+        Some(points),
+    )
 }
 
 fn run_kernel(
     device: &Device,
     queue: &Queue,
+    resources: &DeviceResources,
     params: PrimitiveGpuParams,
-    entry_point: &str,
+    pipeline_key: PipelineKey,
 ) -> Result<MeshReadback, BackendError> {
+    let entry_point = match pipeline_key {
+        PipelineKey::Box => "generate_box",
+        PipelineKey::Plane => "generate_plane",
+        _ => {
+            return Err(BackendError::Kernel {
+                message: "invalid primitive pipeline".into(),
+            });
+        }
+    };
     validate_gpu_params(&params, entry_point)?;
 
     let vertex_bytes = params.vertex_count as u64 * std::mem::size_of::<GpuVertex>() as u64;
     let index_bytes = params.index_count as u64 * std::mem::size_of::<u32>() as u64;
-    let params_buffer = device.create_buffer(&BufferDescriptor {
-        label: Some("ICE3 primitive parameters"),
-        size: std::mem::size_of::<PrimitiveGpuParams>() as u64,
-        usage: BufferUsages::UNIFORM,
-        mapped_at_creation: true,
-    });
-    let mut mapped_params = params_buffer
-        .slice(..)
-        .get_mapped_range_mut()
-        .map_err(|error| BackendError::Kernel {
-            message: format!("primitive parameter mapping failed: {error}"),
-        })?;
-    mapped_params.copy_from_slice(bytemuck::bytes_of(&params));
-    drop(mapped_params);
-    params_buffer.unmap();
-
-    let vertex_buffer = device.create_buffer(&BufferDescriptor {
-        label: Some("ICE3 primitive vertices"),
-        size: vertex_bytes,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    let index_buffer = device.create_buffer(&BufferDescriptor {
-        label: Some("ICE3 primitive indices"),
-        size: index_bytes,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    let shader = device.create_shader_module(ShaderModuleDescriptor {
-        label: Some("ICE3 primitive shaders"),
-        source: ShaderSource::Wgsl(include_str!("box_plane.wgsl").into()),
-    });
-    let pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-        label: Some("ICE3 primitive pipeline"),
-        layout: None,
-        module: &shader,
-        entry_point: Some(entry_point),
-        compilation_options: Default::default(),
-        cache: None,
-    });
+    let params_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DynamicAttribute,
+        BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        std::mem::size_of::<PrimitiveGpuParams>() as u64,
+        "ICE3 primitive parameters",
+    )?;
+    queue.write_buffer(&params_lease.buffer, 0, bytemuck::bytes_of(&params));
+    let vertex_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DeviceOutput,
+        BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        vertex_bytes,
+        "ICE3 primitive vertices",
+    )?;
+    let index_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DeviceOutput,
+        BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        index_bytes,
+        "ICE3 primitive indices",
+    )?;
+    let pipeline = resources.pipelines().get(pipeline_key)?;
     let bind_group_layout = pipeline.get_bind_group_layout(0);
     let bind_group = device.create_bind_group(&BindGroupDescriptor {
         label: Some("ICE3 primitive bindings"),
@@ -203,15 +215,15 @@ fn run_kernel(
         entries: &[
             BindGroupEntry {
                 binding: 0,
-                resource: params_buffer.as_entire_binding(),
+                resource: lease_binding(&params_lease),
             },
             BindGroupEntry {
                 binding: 1,
-                resource: vertex_buffer.as_entire_binding(),
+                resource: lease_binding(&vertex_lease),
             },
             BindGroupEntry {
                 binding: 2,
-                resource: index_buffer.as_entire_binding(),
+                resource: lease_binding(&index_lease),
             },
         ],
     });
@@ -226,47 +238,58 @@ fn run_kernel(
             label: Some("ICE3 primitive pass"),
             timestamp_writes: None,
         });
-        pass.set_pipeline(&pipeline);
+        pass.set_pipeline(pipeline);
         pass.set_bind_group(0, &bind_group, &[]);
         pass.dispatch_workgroups(workgroups, 1, 1);
     }
-    readback_mesh(
+    let result = readback_mesh(
         device,
         queue,
+        resources,
         encoder,
-        &vertex_buffer,
-        &index_buffer,
-        params.vertex_count,
-        params.index_count,
-    )
+        ReadbackInputs {
+            vertex_buffer: &vertex_lease.buffer,
+            index_buffer: &index_lease.buffer,
+            vertex_count: params.vertex_count,
+            index_count: params.index_count,
+        },
+    );
+    resources.buffers().release(params_lease);
+    resources.buffers().release(vertex_lease);
+    resources.buffers().release(index_lease);
+    result
 }
 
 fn run_radial_kernel(
     device: &Device,
     queue: &Queue,
+    resources: &DeviceResources,
     params: PrimitiveGpuParams,
-    entry_point: &str,
+    pipeline_key: PipelineKey,
     points: Option<&[[f32; 3]]>,
 ) -> Result<MeshReadback, BackendError> {
+    let entry_point = match pipeline_key {
+        PipelineKey::Cylinder => "generate_cylinder",
+        PipelineKey::Sphere => "generate_sphere",
+        PipelineKey::Sweep => "generate_sweep",
+        _ => {
+            return Err(BackendError::Kernel {
+                message: "invalid radial pipeline".into(),
+            });
+        }
+    };
     validate_radial_params(&params, entry_point, points)?;
 
     let vertex_bytes = params.vertex_count as u64 * std::mem::size_of::<GpuVertex>() as u64;
     let index_bytes = params.index_count as u64 * std::mem::size_of::<u32>() as u64;
-    let params_buffer = device.create_buffer(&BufferDescriptor {
-        label: Some("ICE3 radial parameters"),
-        size: std::mem::size_of::<PrimitiveGpuParams>() as u64,
-        usage: BufferUsages::UNIFORM,
-        mapped_at_creation: true,
-    });
-    let mut mapped_params = params_buffer
-        .slice(..)
-        .get_mapped_range_mut()
-        .map_err(|error| BackendError::Kernel {
-            message: format!("radial parameter mapping failed: {error}"),
-        })?;
-    mapped_params.copy_from_slice(bytemuck::bytes_of(&params));
-    drop(mapped_params);
-    params_buffer.unmap();
+    let params_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DynamicAttribute,
+        BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        std::mem::size_of::<PrimitiveGpuParams>() as u64,
+        "ICE3 radial parameters",
+    )?;
+    queue.write_buffer(&params_lease.buffer, 0, bytemuck::bytes_of(&params));
 
     let point_values = points
         .map(|points| {
@@ -276,115 +299,50 @@ fn run_radial_kernel(
                 .collect::<Vec<_>>()
         })
         .unwrap_or_else(|| vec![[0.0, 0.0, 0.0, 1.0]]);
-    let point_buffer = device.create_buffer(&BufferDescriptor {
-        label: Some("ICE3 radial input points"),
-        size: (point_values.len() * std::mem::size_of::<[f32; 4]>()) as u64,
-        usage: BufferUsages::STORAGE,
-        mapped_at_creation: true,
-    });
-    let mut mapped_points = point_buffer
-        .slice(..)
-        .get_mapped_range_mut()
-        .map_err(|error| BackendError::Kernel {
-            message: format!("radial input mapping failed: {error}"),
-        })?;
-    mapped_points.copy_from_slice(bytemuck::cast_slice(&point_values));
-    drop(mapped_points);
-    point_buffer.unmap();
+    let point_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DynamicAttribute,
+        BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        (point_values.len() * std::mem::size_of::<[f32; 4]>()) as u64,
+        "ICE3 radial input points",
+    )?;
+    queue.write_buffer(&point_lease.buffer, 0, bytemuck::cast_slice(&point_values));
 
-    let vertex_buffer = device.create_buffer(&BufferDescriptor {
-        label: Some("ICE3 radial vertices"),
-        size: vertex_bytes,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    let index_buffer = device.create_buffer(&BufferDescriptor {
-        label: Some("ICE3 radial indices"),
-        size: index_bytes,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    let shader = device.create_shader_module(ShaderModuleDescriptor {
-        label: Some("ICE3 radial shaders"),
-        source: ShaderSource::Wgsl(include_str!("radial.wgsl").into()),
-    });
-    let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-        label: Some("ICE3 radial binding layout"),
-        entries: &[
-            BindGroupLayoutEntry {
-                binding: 0,
-                visibility: ShaderStages::COMPUTE,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            BindGroupLayoutEntry {
-                binding: 1,
-                visibility: ShaderStages::COMPUTE,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Storage { read_only: false },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            BindGroupLayoutEntry {
-                binding: 2,
-                visibility: ShaderStages::COMPUTE,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Storage { read_only: false },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            BindGroupLayoutEntry {
-                binding: 3,
-                visibility: ShaderStages::COMPUTE,
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-    });
-    let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-        label: Some("ICE3 radial pipeline layout"),
-        bind_group_layouts: &[Some(&bind_group_layout)],
-        immediate_size: 0,
-    });
-    let pipeline = device.create_compute_pipeline(&ComputePipelineDescriptor {
-        label: Some("ICE3 radial pipeline"),
-        layout: Some(&pipeline_layout),
-        module: &shader,
-        entry_point: Some(entry_point),
-        compilation_options: Default::default(),
-        cache: None,
-    });
+    let vertex_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DeviceOutput,
+        BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        vertex_bytes,
+        "ICE3 radial vertices",
+    )?;
+    let index_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DeviceOutput,
+        BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        index_bytes,
+        "ICE3 radial indices",
+    )?;
+    let pipeline = resources.pipelines().get(pipeline_key)?;
+    let bind_group_layout = resources.pipelines().radial_layout();
     let bind_group = device.create_bind_group(&BindGroupDescriptor {
         label: Some("ICE3 radial bindings"),
-        layout: &bind_group_layout,
+        layout: bind_group_layout,
         entries: &[
             BindGroupEntry {
                 binding: 0,
-                resource: params_buffer.as_entire_binding(),
+                resource: lease_binding(&params_lease),
             },
             BindGroupEntry {
                 binding: 1,
-                resource: vertex_buffer.as_entire_binding(),
+                resource: lease_binding(&vertex_lease),
             },
             BindGroupEntry {
                 binding: 2,
-                resource: index_buffer.as_entire_binding(),
+                resource: lease_binding(&index_lease),
             },
             BindGroupEntry {
                 binding: 3,
-                resource: point_buffer.as_entire_binding(),
+                resource: lease_binding(&point_lease),
             },
         ],
     });
@@ -398,41 +356,67 @@ fn run_radial_kernel(
             label: Some("ICE3 radial pass"),
             timestamp_writes: None,
         });
-        pass.set_pipeline(&pipeline);
+        pass.set_pipeline(pipeline);
         pass.set_bind_group(0, &bind_group, &[]);
         pass.dispatch_workgroups(workgroups, 1, 1);
     }
 
-    readback_mesh(
+    let result = readback_mesh(
         device,
         queue,
+        resources,
         encoder,
-        &vertex_buffer,
-        &index_buffer,
-        params.vertex_count,
-        params.index_count,
-    )
+        ReadbackInputs {
+            vertex_buffer: &vertex_lease.buffer,
+            index_buffer: &index_lease.buffer,
+            vertex_count: params.vertex_count,
+            index_count: params.index_count,
+        },
+    );
+    resources.buffers().release(params_lease);
+    resources.buffers().release(point_lease);
+    resources.buffers().release(vertex_lease);
+    resources.buffers().release(index_lease);
+    result
+}
+
+struct ReadbackInputs<'a> {
+    vertex_buffer: &'a Buffer,
+    index_buffer: &'a Buffer,
+    vertex_count: u32,
+    index_count: u32,
 }
 
 fn readback_mesh(
     device: &Device,
     queue: &Queue,
+    resources: &DeviceResources,
     mut encoder: CommandEncoder,
-    vertex_buffer: &Buffer,
-    index_buffer: &Buffer,
-    vertex_count: u32,
-    index_count: u32,
+    inputs: ReadbackInputs<'_>,
 ) -> Result<MeshReadback, BackendError> {
-    let vertex_bytes = vertex_count as u64 * std::mem::size_of::<GpuVertex>() as u64;
-    let index_bytes = index_count as u64 * std::mem::size_of::<u32>() as u64;
-    let vertex_readback = create_readback(device, "primitive vertex readback", vertex_bytes);
-    let index_readback = create_readback(device, "primitive index readback", index_bytes);
-    encoder.copy_buffer_to_buffer(vertex_buffer, 0, &vertex_readback, 0, vertex_bytes);
-    encoder.copy_buffer_to_buffer(index_buffer, 0, &index_readback, 0, index_bytes);
+    let vertex_bytes = inputs.vertex_count as u64 * std::mem::size_of::<GpuVertex>() as u64;
+    let index_bytes = inputs.index_count as u64 * std::mem::size_of::<u32>() as u64;
+    let vertex_readback = resources.staging().acquire(device, vertex_bytes)?;
+    let index_readback = resources.staging().acquire(device, index_bytes)?;
+    debug_assert_ne!(vertex_readback.index, index_readback.index);
+    encoder.copy_buffer_to_buffer(
+        inputs.vertex_buffer,
+        0,
+        &vertex_readback.buffer,
+        0,
+        vertex_bytes,
+    );
+    encoder.copy_buffer_to_buffer(
+        inputs.index_buffer,
+        0,
+        &index_readback.buffer,
+        0,
+        index_bytes,
+    );
     queue.submit([encoder.finish()]);
 
-    let vertex_mapping = map_async(&vertex_readback);
-    let index_mapping = map_async(&index_readback);
+    let vertex_mapping = map_async(&vertex_readback.buffer);
+    let index_mapping = map_async(&index_readback.buffer);
     device
         .poll(PollType::Wait {
             submission_index: None,
@@ -446,7 +430,8 @@ fn readback_mesh(
 
     let vertices = {
         let mapped = vertex_readback
-            .slice(..)
+            .buffer
+            .slice(0..vertex_bytes)
             .get_mapped_range()
             .map_err(|error| BackendError::Kernel {
                 message: format!("primitive vertex readback mapping failed: {error}"),
@@ -462,11 +447,12 @@ fn readback_mesh(
         drop(mapped);
         vertices
     };
-    vertex_readback.unmap();
+    vertex_readback.buffer.unmap();
 
     let indices = {
         let mapped = index_readback
-            .slice(..)
+            .buffer
+            .slice(0..index_bytes)
             .get_mapped_range()
             .map_err(|error| BackendError::Kernel {
                 message: format!("primitive index readback mapping failed: {error}"),
@@ -475,39 +461,53 @@ fn readback_mesh(
         drop(mapped);
         indices
     };
-    index_readback.unmap();
+    index_readback.buffer.unmap();
+    resources.staging().complete(1);
 
     validate_readback(&vertices, &indices)?;
     Ok(MeshReadback { vertices, indices })
 }
 
-fn validate_readback(vertices: &[Vertex], indices: &[u32]) -> Result<(), BackendError> {
-    if !vertices.is_empty()
-        && indices.len().is_multiple_of(3)
-        && !indices
-            .iter()
-            .any(|index| *index as usize >= vertices.len())
-        && !vertices.iter().any(|vertex| {
-            vertex
-                .position
-                .iter()
-                .chain(vertex.normal.iter())
-                .any(|value| !value.is_finite())
-        })
-    {
-        Ok(())
-    } else {
-        Err(BackendError::Parity)
-    }
+fn lease_binding(lease: &BufferLease) -> BindingResource<'_> {
+    BindingResource::Buffer(BufferBinding {
+        buffer: &lease.buffer,
+        offset: 0,
+        size: std::num::NonZeroU64::new(lease.requested_bytes),
+    })
 }
 
-fn create_readback(device: &Device, label: &str, size: u64) -> Buffer {
-    device.create_buffer(&BufferDescriptor {
-        label: Some(label),
-        size,
-        usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    })
+fn validate_readback(vertices: &[Vertex], indices: &[u32]) -> Result<(), BackendError> {
+    if vertices.is_empty() || !indices.len().is_multiple_of(3) {
+        return Err(BackendError::Kernel {
+            message: "primitive readback has invalid topology counts".into(),
+        });
+    }
+    if let Some((position, index)) = indices
+        .iter()
+        .enumerate()
+        .find(|(_, index)| **index as usize >= vertices.len())
+    {
+        return Err(BackendError::Kernel {
+            message: format!(
+                "primitive readback index {index} at {position} exceeds {} vertices",
+                vertices.len()
+            ),
+        });
+    }
+    if let Some((position, value)) = vertices.iter().enumerate().find_map(|(position, vertex)| {
+        vertex
+            .position
+            .iter()
+            .chain(vertex.normal.iter())
+            .copied()
+            .find(|value| !value.is_finite())
+            .map(|value| (position, value))
+    }) {
+        return Err(BackendError::Kernel {
+            message: format!("primitive readback value {value} at vertex {position} is not finite"),
+        });
+    }
+    Ok(())
 }
 
 fn map_async(buffer: &Buffer) -> mpsc::Receiver<Result<(), BufferAsyncError>> {

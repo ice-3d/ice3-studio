@@ -6,11 +6,11 @@ use studio_core::geometry::{Bounds, EvaluatedMesh, TriangleMesh, Vertex};
 use studio_core::gpu_contract::BackendError;
 use studio_core::math::Vec3;
 use wgpu::{
-    BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
-    BindingType, Buffer, BufferAsyncError, BufferBindingType, BufferDescriptor, BufferUsages,
-    CommandEncoderDescriptor, ComputePassDescriptor, ComputePipelineDescriptor, Device, MapMode,
-    PipelineLayoutDescriptor, PollType, Queue, ShaderModuleDescriptor, ShaderSource, ShaderStages,
+    BindGroupDescriptor, BindGroupEntry, Buffer, BufferAsyncError, BufferDescriptor, BufferUsages,
+    CommandEncoderDescriptor, ComputePassDescriptor, Device, MapMode, PollType, Queue,
 };
+
+use crate::resources::{PipelineCache, PipelineKey};
 
 const MAX_MESH_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -26,6 +26,7 @@ struct MeshParams {
 pub fn evaluate_custom_mesh(
     device: &Device,
     queue: &Queue,
+    pipelines: &PipelineCache,
     mesh: &TriangleMesh,
 ) -> Result<EvaluatedMesh, BackendError> {
     let geometry = validate_mesh_input(mesh)?;
@@ -93,40 +94,13 @@ pub fn evaluate_custom_mesh(
         mapped_at_creation: false,
     });
 
-    let shader = device.create_shader_module(ShaderModuleDescriptor {
-        label: Some("ICE3 mesh shaders"),
-        source: ShaderSource::Wgsl(include_str!("mesh.wgsl").into()),
-    });
-    let layout = create_pipeline_layout(device);
-    let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-        label: Some("ICE3 mesh pipeline layout"),
-        bind_group_layouts: &[Some(&layout)],
-        immediate_size: 0,
-    });
-    let face_pipeline = create_pipeline(
-        device,
-        &pipeline_layout,
-        &shader,
-        "ICE3 mesh face normal pipeline",
-        "generate_face_normals",
-    );
-    let normal_pipeline = create_pipeline(
-        device,
-        &pipeline_layout,
-        &shader,
-        "ICE3 mesh normal pipeline",
-        "accumulate_normals",
-    );
-    let bounds_pipeline = create_pipeline(
-        device,
-        &pipeline_layout,
-        &shader,
-        "ICE3 mesh bounds pipeline",
-        "reduce_bounds",
-    );
+    let face_pipeline = pipelines.get(PipelineKey::MeshFaceNormals)?;
+    let normal_pipeline = pipelines.get(PipelineKey::MeshNormals)?;
+    let bounds_pipeline = pipelines.get(PipelineKey::MeshBounds)?;
+    let layout = pipelines.mesh_layout();
     let bind_group = device.create_bind_group(&BindGroupDescriptor {
         label: Some("ICE3 mesh bindings"),
-        layout: &layout,
+        layout,
         entries: &[
             binding(0, &params_buffer),
             binding(1, &position_buffer),
@@ -148,11 +122,11 @@ pub fn evaluate_custom_mesh(
             timestamp_writes: None,
         });
         pass.set_bind_group(0, &bind_group, &[]);
-        pass.set_pipeline(&face_pipeline);
+        pass.set_pipeline(face_pipeline);
         pass.dispatch_workgroups(geometry.triangle_count.div_ceil(64), 1, 1);
-        pass.set_pipeline(&normal_pipeline);
+        pass.set_pipeline(normal_pipeline);
         pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
-        pass.set_pipeline(&bounds_pipeline);
+        pass.set_pipeline(bounds_pipeline);
         pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
     }
 
@@ -326,57 +300,11 @@ fn create_mapped_buffer(
     Ok(buffer)
 }
 
-fn create_pipeline_layout(device: &Device) -> wgpu::BindGroupLayout {
-    device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-        label: Some("ICE3 mesh binding layout"),
-        entries: &[
-            entry(0, BufferBindingType::Uniform),
-            entry(1, BufferBindingType::Storage { read_only: true }),
-            entry(2, BufferBindingType::Storage { read_only: true }),
-            entry(3, BufferBindingType::Storage { read_only: true }),
-            entry(4, BufferBindingType::Storage { read_only: true }),
-            entry(5, BufferBindingType::Storage { read_only: false }),
-            entry(6, BufferBindingType::Storage { read_only: false }),
-            entry(7, BufferBindingType::Storage { read_only: false }),
-        ],
-    })
-}
-
-fn entry(binding: u32, ty: BufferBindingType) -> BindGroupLayoutEntry {
-    BindGroupLayoutEntry {
-        binding,
-        visibility: ShaderStages::COMPUTE,
-        ty: BindingType::Buffer {
-            ty,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        },
-        count: None,
-    }
-}
-
 fn binding<'a>(binding: u32, buffer: &'a Buffer) -> BindGroupEntry<'a> {
     BindGroupEntry {
         binding,
         resource: buffer.as_entire_binding(),
     }
-}
-
-fn create_pipeline(
-    device: &Device,
-    layout: &wgpu::PipelineLayout,
-    shader: &wgpu::ShaderModule,
-    label: &str,
-    entry_point: &str,
-) -> wgpu::ComputePipeline {
-    device.create_compute_pipeline(&ComputePipelineDescriptor {
-        label: Some(label),
-        layout: Some(layout),
-        module: shader,
-        entry_point: Some(entry_point),
-        compilation_options: Default::default(),
-        cache: None,
-    })
 }
 
 fn readback_pair(

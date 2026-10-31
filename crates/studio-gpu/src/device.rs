@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 use std::time::Instant;
 
+use crate::resources::{DeviceResources, ResourceStats};
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
     GeometryBatch, GeometryBatchResult, GeometryExecutionStats,
@@ -36,8 +37,11 @@ struct DeviceState {
     _adapter: Option<Adapter>,
     _device: Option<Arc<Device>>,
     _queue: Option<Arc<Queue>>,
+    _resources: Option<Arc<DeviceResources>>,
     stats: GeometryExecutionStats,
 }
+
+type ReadyDevice = (Arc<Device>, Arc<Queue>, Arc<DeviceResources>);
 
 pub struct NativeGpuBackend {
     mode: GeometryBackendMode,
@@ -54,6 +58,7 @@ impl NativeGpuBackend {
                 _adapter: None,
                 _device: None,
                 _queue: None,
+                _resources: None,
                 stats: GeometryExecutionStats::default(),
             })),
             limits: GpuHostLimits::default(),
@@ -106,6 +111,7 @@ impl NativeGpuBackend {
                 reason: error.to_string(),
             })?;
         warmup_one_triangle(&device, &queue)?;
+        let resources = DeviceResources::create(&device, &queue, &self.limits)?;
         let state = self.state.clone();
         device.set_device_lost_callback(move |reason, message| {
             record_device_loss(&state, format!("{reason:?}: {message}"));
@@ -123,6 +129,7 @@ impl NativeGpuBackend {
             adapter,
             device,
             queue,
+            resources,
         })
     }
 
@@ -154,7 +161,7 @@ impl NativeGpuBackend {
         &self,
         job: crate::PrimitiveJob,
     ) -> Result<crate::MeshReadback, BackendError> {
-        let (device, queue) = self.ready_device()?;
+        let (device, queue, resources) = self.ready_device()?;
         match job.primitive {
             studio_core::geometry::Primitive::Box {
                 width,
@@ -165,6 +172,7 @@ impl NativeGpuBackend {
                 crate::evaluate_box(
                     &device,
                     &queue,
+                    &resources,
                     crate::PrimitiveGpuParams::for_box(width, height, depth),
                 )
             }
@@ -173,6 +181,7 @@ impl NativeGpuBackend {
                 crate::evaluate_plane(
                     &device,
                     &queue,
+                    &resources,
                     crate::PrimitiveGpuParams::for_plane(width, depth),
                 )
             }
@@ -190,6 +199,7 @@ impl NativeGpuBackend {
                 crate::evaluate_cylinder(
                     &device,
                     &queue,
+                    &resources,
                     crate::PrimitiveGpuParams::for_cylinder(radius, height, segments),
                 )
             }
@@ -207,6 +217,7 @@ impl NativeGpuBackend {
                 crate::evaluate_sphere(
                     &device,
                     &queue,
+                    &resources,
                     crate::PrimitiveGpuParams::for_sphere(radius, segments, rings),
                 )
             }
@@ -217,24 +228,44 @@ impl NativeGpuBackend {
         &self,
         job: crate::SweepJob,
     ) -> Result<crate::MeshReadback, BackendError> {
-        let (device, queue) = self.ready_device()?;
+        let (device, queue, resources) = self.ready_device()?;
         let point_count =
             u32::try_from(job.points.len()).map_err(|_| BackendError::BudgetExceeded)?;
         let params =
             crate::PrimitiveGpuParams::for_sweep(point_count, job.radius, job.radial_segments)
                 .ok_or(BackendError::BudgetExceeded)?;
-        crate::evaluate_sweep(&device, &queue, params, &job.points)
+        crate::evaluate_sweep(&device, &queue, &resources, params, &job.points)
     }
 
     pub fn evaluate_custom_mesh(
         &self,
         mesh: &studio_core::geometry::TriangleMesh,
     ) -> Result<studio_core::geometry::EvaluatedMesh, BackendError> {
-        let (device, queue) = self.ready_device()?;
-        crate::evaluate_custom_mesh(&device, &queue, mesh)
+        let (device, queue, resources) = self.ready_device()?;
+        crate::evaluate_custom_mesh(&device, &queue, resources.pipelines(), mesh)
     }
 
-    fn ready_device(&self) -> Result<(Arc<Device>, Arc<Queue>), BackendError> {
+    pub fn resource_stats(&self) -> ResourceStats {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            ._resources
+            .as_ref()
+            .map(|resources| resources.stats())
+            .unwrap_or_default()
+    }
+
+    pub fn ready_staging_slots(&self) -> Result<usize, BackendError> {
+        let (_, _, resources) = self.ready_device()?;
+        Ok(resources.ready_staging_slots())
+    }
+
+    pub fn warm_pipelines_for_test(&self) -> Result<(), BackendError> {
+        let _ = self.ready_device()?;
+        Ok(())
+    }
+
+    fn ready_device(&self) -> Result<ReadyDevice, BackendError> {
         if self.mode == GeometryBackendMode::Cpu {
             return Err(BackendError::Unavailable {
                 reason: "GPU mode is disabled".into(),
@@ -254,8 +285,10 @@ impl NativeGpuBackend {
                     .unwrap_or_else(|| "GPU device is no longer ready".into()),
             });
         }
-        match (&state._device, &state._queue) {
-            (Some(device), Some(queue)) => Ok((device.clone(), queue.clone())),
+        match (&state._device, &state._queue, &state._resources) {
+            (Some(device), Some(queue), Some(resources)) => {
+                Ok((device.clone(), queue.clone(), resources.clone()))
+            }
             _ => Err(BackendError::Unavailable {
                 reason: "GPU device has not been initialized".into(),
             }),
@@ -268,6 +301,7 @@ pub struct CapabilityProbe {
     adapter: Adapter,
     device: Device,
     queue: Queue,
+    resources: Arc<DeviceResources>,
 }
 
 #[async_trait::async_trait]
@@ -302,6 +336,7 @@ impl GeometryBackend for NativeGpuBackend {
         state._adapter = Some(probe.adapter);
         state._device = Some(Arc::new(probe.device));
         state._queue = Some(Arc::new(probe.queue));
+        state._resources = Some(probe.resources);
         Ok(capabilities)
     }
 
@@ -309,7 +344,7 @@ impl GeometryBackend for NativeGpuBackend {
         if self.mode == GeometryBackendMode::Cpu {
             return evaluate_cpu_batch(batch);
         }
-        let (device, queue) = self.ready_device()?;
+        let (device, queue, resources) = self.ready_device()?;
         let started = Instant::now();
         let mut meshes = std::collections::BTreeMap::new();
         let mut upload_bytes = 0u64;
@@ -334,7 +369,7 @@ impl GeometryBackend for NativeGpuBackend {
                     readback_to_mesh(readback)
                 }
                 studio_core::document::NodeContent::CustomMesh(mesh) => {
-                    crate::evaluate_custom_mesh(&device, &queue, mesh)?
+                    crate::evaluate_custom_mesh(&device, &queue, resources.pipelines(), mesh)?
                 }
                 studio_core::document::NodeContent::Sweep {
                     points,
@@ -653,13 +688,14 @@ mod tests {
                 health: "ready".into(),
                 accelerated: true,
                 adapter_tier: "integrated".into(),
-                backend_family: "metal".into(),
+                backend_family: "native".into(),
                 memory_budget_bytes: 512 * 1024 * 1024,
                 fallback_reason: None,
             }),
             _adapter: None,
             _device: None,
             _queue: None,
+            _resources: None,
             stats: GeometryExecutionStats::default(),
         });
 

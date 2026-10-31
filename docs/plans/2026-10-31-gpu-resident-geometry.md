@@ -117,7 +117,7 @@ fn dirty_channels_round_trip_as_a_stable_mask() {
     mask.insert(GeometryDirtyChannel::Positions);
     mask.insert(GeometryDirtyChannel::Normals);
     mask.insert(GeometryDirtyChannel::Bounds);
-    assert_eq!(mask.bits(), 0b0001_0101);
+    assert_eq!(mask.bits(), 0b0001_1010);
     assert!(mask.contains(GeometryDirtyChannel::Normals));
     assert!(!mask.contains(GeometryDirtyChannel::Topology));
     assert_eq!(serde_json::to_string(&GeometryEvaluationMode::Resident).unwrap(), "\"resident\"");
@@ -283,9 +283,10 @@ git commit -m "feat(studio-core): define resident geometry contract"
 - Test: `crates/studio-gpu/tests/resource_lifecycle.rs`
 
 **Interfaces:**
-- Consumes: healthy `wgpu::Device` and `wgpu::Queue` from Task 1's existing lifecycle.
+- Consumes: healthy `wgpu::Device` and `wgpu::Queue` from the existing native backend lifecycle.
 - Produces: `DeviceResources::create(device, queue, limits)`,
-  `PipelineKey::{Box, Plane, Cylinder, Sphere, Sweep, Mesh}`, `PipelineCache`,
+  `PipelineKey::{Box, Plane, Cylinder, Sphere, Sweep, MeshFaceNormals, MeshNormals, MeshBounds}`,
+  `PipelineCache`,
   `BufferClass::for_bytes(u64)`, `BufferPool::{acquire, release, total_bytes}`, and
   `StagingRing::{acquire, complete, ready_count}`,
   `NativeGpuBackend::{resource_stats, warm_pipelines_for_test}`.
@@ -293,13 +294,16 @@ git commit -m "feat(studio-core): define resident geometry contract"
 - [ ] **Step 1: Write failing lifecycle tests**
 
 ```rust
-use studio_gpu::{BufferClass, GpuHostLimits, NativeGpuBackend};
+use studio_gpu::{BufferClass, NativeGpuBackend};
 
 #[test]
 fn capacity_classes_round_up_without_unbounded_allocations() {
     assert_eq!(BufferClass::for_bytes(1), BufferClass::OneMiB);
     assert_eq!(BufferClass::for_bytes(1_048_577), BufferClass::FourMiB);
-    assert_eq!(BufferClass::for_bytes(80 * 1024 * 1024), BufferClass::Exact(80 * 1024 * 1024));
+    assert_eq!(
+        BufferClass::for_bytes(80 * 1024 * 1024),
+        BufferClass::TwoHundredFiftySixMiB,
+    );
 }
 
 #[test]
@@ -598,7 +602,7 @@ fn compatible_nodes_share_one_submission_and_one_completion() {
     let result = backend.evaluate_resident(batch).unwrap();
     assert_eq!(result.entries.len(), 32);
     assert_eq!(result.evidence.submission_count, 1);
-    assert_eq!(result.evidence.readback_bytes, 0);
+    assert_eq!(result.evidence.stats.readback_bytes, 0);
 }
 
 #[test]
