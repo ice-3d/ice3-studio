@@ -48,6 +48,7 @@ fn box_batch(job_id: &str, count: u32) -> GeometryBatch {
                 content_digest: String::new(),
                 dependency_digest: String::new(),
                 cache_key: String::new(),
+                digests: None,
             })
             .collect(),
     }

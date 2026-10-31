@@ -311,6 +311,7 @@ fn evidence(
         evictions: 0,
         preview_packet_bytes: 0,
         browser_upload_bytes: 0,
+        phases: Default::default(),
     }
 }
 

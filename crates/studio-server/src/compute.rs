@@ -440,6 +440,7 @@ impl ComputeService {
                 content_digest: String::new(),
                 dependency_digest: String::new(),
                 cache_key: String::new(),
+                digests: None,
             }],
         };
         let result = gpu.evaluate(batch).await;
@@ -623,6 +624,7 @@ impl ComputeService {
                 content_digest: String::new(),
                 dependency_digest: String::new(),
                 cache_key: String::new(),
+                digests: None,
             }],
         };
         let permit = self.gate.acquire(GeometryJobPriority::Interactive).await;

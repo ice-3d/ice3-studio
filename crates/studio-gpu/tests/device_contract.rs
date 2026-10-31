@@ -51,6 +51,7 @@ fn batch_evaluation_uses_the_native_gpu_kernels() {
             content_digest: String::new(),
             dependency_digest: String::new(),
             cache_key: String::new(),
+            digests: None,
         }],
     }))
     .unwrap();

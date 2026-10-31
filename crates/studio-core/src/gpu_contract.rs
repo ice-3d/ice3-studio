@@ -49,6 +49,27 @@ pub enum GeometryEvaluationMode {
     Snapshot,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GeometryDigestSet {
+    pub topology: String,
+    pub attribute: String,
+    pub dependency: String,
+    pub kernel_version: String,
+    pub parity_version: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ResidentGeometryState {
+    Pending,
+    Ready,
+    Lost,
+    Evicted,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
@@ -101,6 +122,7 @@ pub struct GeometryJobNode {
     pub content_digest: String,
     pub dependency_digest: String,
     pub cache_key: String,
+    pub digests: Option<GeometryDigestSet>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -132,6 +154,7 @@ pub struct GeometryEvaluationEvidence {
     pub evictions: usize,
     pub preview_packet_bytes: u64,
     pub browser_upload_bytes: u64,
+    pub phases: GeometryPhaseEvidence,
 }
 
 impl Default for GeometryEvaluationEvidence {
@@ -148,8 +171,25 @@ impl Default for GeometryEvaluationEvidence {
             evictions: 0,
             preview_packet_bytes: 0,
             browser_upload_bytes: 0,
+            phases: GeometryPhaseEvidence::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GeometryPhaseEvidence {
+    pub lookup_ms: f64,
+    pub planning_ms: f64,
+    pub validation_ms: f64,
+    pub encode_ms: f64,
+    pub submit_ms: f64,
+    pub gpu_kernel_ms: Option<f64>,
+    pub wait_ms: f64,
+    pub snapshot_ms: f64,
+    pub transport_ms: f64,
+    pub browser_upload_ms: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -166,6 +206,19 @@ pub struct GeometryBatchResult {
 #[ts(export)]
 #[ts(type = "string")]
 pub struct ResidentGeometryId(pub String);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ResidentGeometryHandle {
+    pub id: ResidentGeometryId,
+    pub geometry_id: String,
+    pub digests: GeometryDigestSet,
+    pub vertex_count: usize,
+    pub triangle_count: usize,
+    pub device_generation: u64,
+    pub state: ResidentGeometryState,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GeometryResidentEntry {
