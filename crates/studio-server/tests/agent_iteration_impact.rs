@@ -140,6 +140,37 @@ async fn impact_digest_matches_evaluate_and_version_drift_fails_closed() {
 }
 
 #[tokio::test]
+async fn impact_after_project_revision_advance_is_stale_and_unavailable() {
+    let server = start_test_server(ServerConfig::review_required("impact-stale-base")).await;
+    seed_parameterized_scene(&server).await;
+    warm_stats(&server).await;
+    let changes =
+        create_change_set_with_operations(&server, vec![instance_patch_transform("node-000001")])
+            .await;
+
+    let advanced = rpc_with_approval_cookie(
+        &server,
+        "document.apply",
+        serde_json::json!({
+            "expectedRevision": 1,
+            "dryRun": false,
+            "idempotencyKey": "impact-stale-base-advance",
+            "operations": [instance_patch_transform("node-000002")]
+        }),
+    )
+    .await;
+    assert_eq!(advanced["result"]["revision"], 2, "{advanced}");
+
+    let result = request_impact_result(&server, &changes).await;
+
+    assert_eq!(result["status"], "stale", "{result}");
+    assert_eq!(result["impact"]["scope"], "unavailable", "{result}");
+    assert_eq!(result["impact"]["generatedGeometry"], 0, "{result}");
+    assert_eq!(result["impact"]["affectedSourceNodes"], 0, "{result}");
+    assert!(result["candidateDigest"].is_null(), "{result}");
+}
+
+#[tokio::test]
 async fn blocked_candidate_impact_is_unavailable() {
     let server = start_test_server(ServerConfig::review_required("impact-blocked")).await;
     seed_parameterized_scene(&server).await;
