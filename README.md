@@ -74,7 +74,8 @@ handle 测量的是无哈希、无上传、无 fence 的缓存命中，不代表
 场景会话，`npm run benchmark:gpu-scene` 会输出大型工业场景对照。精确尺寸 buffer 分配后，
 完整 6.1M 有效三角形的 233 个共享几何和 1,938 个实例约占用 46 MiB GPU 内存。
 transform-only revision 的 p50 已从默认 CPU 路径约 1.28 s 降到约 117 ms，达到 5×
-目标；初始 GPU 场景构建仍约 24.8 s，因此场景会话继续保持实验性和默认关闭。
+目标；初始 GPU 场景构建已从约 24.8 s 降到约 15.2 s，但仍明显慢于 CPU 首建，因此场景
+会话继续保持实验性和默认关闭。
 生产 preview 路径会在上一 revision packet 可用时写入增量 packet；transform-only 更新不包含
 geometry payload，geometry 更新只回读受影响的 scene geometry。失败不会回滚已提交 Document。
 
