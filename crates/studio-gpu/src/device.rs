@@ -605,6 +605,8 @@ impl NativeGpuBackend {
             session.instances = Default::default();
         }
         let result: Result<SceneSubmission, BackendError> = (|| {
+            let planning_started = Instant::now();
+            let mut phases = GeometryPhaseEvidence::default();
             let mut upload_bytes = 0u64;
             let mut geometry_dispatch_count = 0usize;
             let mut submission_count = 0usize;
@@ -637,6 +639,7 @@ impl NativeGpuBackend {
                     None
                 };
                 if let Some(entry) = update {
+                    merge_phases(&mut phases, &entry.evidence.phases);
                     upload_bytes = upload_bytes.saturating_add(entry.evidence.stats.upload_bytes);
                     geometry_dispatch_count += 1;
                     submission_count += 1;
@@ -690,6 +693,7 @@ impl NativeGpuBackend {
                     ready
                         .residency
                         .evaluate_batch(&ready.device, &ready.queue, cold_inputs)?;
+                merge_phases(&mut phases, &outcome.phases);
                 submission_count = submission_count.saturating_add(outcome.submission_count);
                 geometry_dispatch_count =
                     geometry_dispatch_count.saturating_add(outcome.entries.len());
@@ -786,6 +790,8 @@ impl NativeGpuBackend {
                 .geometry_dispatch_count
                 .saturating_add(geometry_dispatch_count);
             session.dirty_range_bytes = session.dirty_range_bytes.saturating_add(dirty_range_bytes);
+            phases.planning_ms = elapsed_ms(planning_started);
+            session.phases = phases.clone();
             session.state = if session.pending_geometries.is_empty() {
                 SceneSessionState::Idle
             } else {
@@ -803,7 +809,7 @@ impl NativeGpuBackend {
                     + removed.removed_ranges.len(),
                 upload_bytes,
                 readback_bytes: 0,
-                phases: GeometryPhaseEvidence::default(),
+                phases,
             })
         })();
         if let Err(error) = &result {
@@ -818,6 +824,7 @@ impl NativeGpuBackend {
         session_id: &SceneSessionId,
         revision: u64,
     ) -> Result<SceneSessionStatus, BackendError> {
+        let wait_started = Instant::now();
         let ready = self.ready_device()?;
         let pending =
             {
@@ -865,6 +872,7 @@ impl NativeGpuBackend {
         session.pending_submission_count = 0;
         session.published_revision = revision;
         session.state = SceneSessionState::Idle;
+        session.phases.wait_ms = session.phases.wait_ms.max(elapsed_ms(wait_started));
         let stats = ready.residency.stats();
         Ok(session.status(session_id, stats.resident_bytes, stats.peak_resident_bytes))
     }
@@ -1394,6 +1402,24 @@ fn record_device_loss(state: &Mutex<DeviceState>, reason: String) {
     if let Some(residency) = residency {
         residency.clear();
     }
+}
+
+fn merge_phases(target: &mut GeometryPhaseEvidence, source: &GeometryPhaseEvidence) {
+    target.lookup_ms += source.lookup_ms;
+    target.planning_ms += source.planning_ms;
+    target.validation_ms += source.validation_ms;
+    target.encode_ms += source.encode_ms;
+    target.submit_ms += source.submit_ms;
+    target.snapshot_ms += source.snapshot_ms;
+    target.transport_ms += source.transport_ms;
+    target.browser_upload_ms += source.browser_upload_ms;
+    if let Some(kernel_ms) = source.gpu_kernel_ms {
+        *target.gpu_kernel_ms.get_or_insert(0.0) += kernel_ms;
+    }
+}
+
+fn elapsed_ms(started: Instant) -> f64 {
+    started.elapsed().as_secs_f64() * 1_000.0
 }
 
 fn validate_positive(values: &[f32]) -> Result<(), BackendError> {

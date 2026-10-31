@@ -202,6 +202,9 @@ async function main() {
 
     const fullUpdateSamples = [];
     const incrementalSamples = [];
+    const transformApplySamples = [];
+    const transformWaitSamples = [];
+    const transformStatsSamples = [];
     let incrementalStats;
     let currentRevision = document.revision;
     for (let sample = 0; sample < 7; sample += 1) {
@@ -246,7 +249,15 @@ async function main() {
         }],
       });
       currentRevision = moved.revision;
+      transformApplySamples.push(performance.now() - incrementalStarted);
+      const waitStarted = performance.now();
+      if (sceneSessions) {
+        await rpc('evaluation.waitScene', { revision: currentRevision });
+      }
+      transformWaitSamples.push(performance.now() - waitStarted);
+      const statsStarted = performance.now();
       incrementalStats = await rpc('evaluation.stats');
+      transformStatsSamples.push(performance.now() - statsStarted);
       incrementalSamples.push(performance.now() - incrementalStarted);
     }
 
@@ -282,6 +293,9 @@ async function main() {
     }
 
     const parameterSamples = [];
+    const parameterApplySamples = [];
+    const parameterWaitSamples = [];
+    const parameterStatsSamples = [];
     for (let sample = 0; sample < 7; sample += 1) {
       const started = performance.now();
       const updated = await rpc('document.apply', {
@@ -301,14 +315,22 @@ async function main() {
         }],
       });
       currentRevision = updated.revision;
+      parameterApplySamples.push(performance.now() - started);
+      const waitStarted = performance.now();
       if (sceneSessions) {
         await rpc('evaluation.waitScene', { revision: currentRevision });
       }
+      parameterWaitSamples.push(performance.now() - waitStarted);
+      const statsStarted = performance.now();
       await rpc('evaluation.stats');
+      parameterStatsSamples.push(performance.now() - statsStarted);
       parameterSamples.push(performance.now() - started);
     }
 
     const topologySamples = [];
+    const topologyApplySamples = [];
+    const topologyWaitSamples = [];
+    const topologyStatsSamples = [];
     for (let sample = 0; sample < 3; sample += 1) {
       const started = performance.now();
       const updated = await rpc('document.apply', {
@@ -336,10 +358,15 @@ async function main() {
         }],
       });
       currentRevision = updated.revision;
+      topologyApplySamples.push(performance.now() - started);
+      const waitStarted = performance.now();
       if (sceneSessions) {
         await rpc('evaluation.waitScene', { revision: currentRevision });
       }
+      topologyWaitSamples.push(performance.now() - waitStarted);
+      const statsStarted = performance.now();
       await rpc('evaluation.stats');
+      topologyStatsSamples.push(performance.now() - statsStarted);
       topologySamples.push(performance.now() - started);
     }
 
@@ -400,8 +427,17 @@ async function main() {
         fullUpdateMs: metric(fullUpdateSamples),
         warmStatsMs: metric(warmSamples),
         incrementalUpdateMs: metric(incrementalSamples),
+        transformApplyMs: metric(transformApplySamples),
+        transformWaitMs: metric(transformWaitSamples),
+        transformStatsMs: metric(transformStatsSamples),
         parameterUpdateMs: metric(parameterSamples),
+        parameterApplyMs: metric(parameterApplySamples),
+        parameterWaitMs: metric(parameterWaitSamples),
+        parameterStatsMs: metric(parameterStatsSamples),
         topologyUpdateMs: metric(topologySamples),
+        topologyApplyMs: metric(topologyApplySamples),
+        topologyWaitMs: metric(topologyWaitSamples),
+        topologyStatsMs: metric(topologyStatsSamples),
         instanceVisibilityMs: metric(visibilitySamples),
         sourceGlbExportMs: metric(exportSamples),
         reopenMs: metric(reopenSamples),

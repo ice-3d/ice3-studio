@@ -84,6 +84,10 @@ geometry payload，geometry 更新只回读受影响的 scene geometry。失败�
 完整大型场景的宽视锥查询返回全部 1,938 个实例，p50 约 0.9 ms。该接口和场景会话一起
 保持显式实验状态。
 
+同场分解显示 transform revision 的约 118 ms 中，场景 apply 约 116 ms、scene wait
+约 0.4 ms、stats 约 1.6 ms；GPU scene planning 约 1.5 ms。当前主要成本已转移到
+Document 事务、持久化和 RPC 边界。
+
 ## AI 辅助开发
 
 本项目在设计和实现过程中大量使用了 AI 辅助开发。

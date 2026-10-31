@@ -24,6 +24,7 @@ fn pending_revisions_publish_in_order_and_transform_updates_skip_geometry() {
         )
         .unwrap();
     assert_eq!(first.submission_count, 1);
+    assert!(first.phases.planning_ms > 0.0);
 
     let second = backend
         .apply_scene_patch(
@@ -35,6 +36,7 @@ fn pending_revisions_publish_in_order_and_transform_updates_skip_geometry() {
     assert_eq!(second.readback_bytes, 0);
     assert_eq!(second.upload_bytes, 64);
     assert_eq!(second.instance_range_count, 1);
+    assert!(second.phases.planning_ms > 0.0);
 
     let ready = backend.wait_scene_revision(&session, 2).unwrap();
     assert_eq!(ready.published_revision, 2);

@@ -126,6 +126,10 @@ visibility query that consumes the uploaded matrices and bounds. Instance transf
 their changed matrix ranges instead of re-uploading the complete instance table. The large-scene
 wide-frustum query returns all 1,938 resident instances; the API remains experimental.
 
+Scene phase measurements show GPU planning and synchronization are now a small fraction of warm
+revision latency. Document transaction handling, durable snapshot writing, and the JSON-RPC
+boundary are the dominant remaining costs.
+
 ## Industry Layering
 
 Core primitives and operations are generic. Industrial concepts use metadata, relations, and
