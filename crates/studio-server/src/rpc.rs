@@ -1737,6 +1737,9 @@ fn merge_scene_snapshot(session: &mut Session, built: &crate::scene_session::Bui
         .filter_map(|key| scene.meshes.get(key))
         .map(|mesh| mesh.indices.len() / 3)
         .sum();
+    scene.stats.cache_hits = built.scene.stats.cache_hits;
+    scene.stats.cache_misses = built.scene.stats.cache_misses;
+    scene.stats.generated_meshes = built.scene.stats.generated_meshes;
     session.scene_snapshot_revision = Some(built.patch.target_revision);
     session.scene_source_index = SceneSourceIndex::capture(&session.document, scene, None).ok();
 }

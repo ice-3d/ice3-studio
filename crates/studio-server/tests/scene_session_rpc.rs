@@ -278,6 +278,56 @@ async fn undo_and_redo_rebuild_the_incremental_scene_cache() {
     );
 }
 
+#[tokio::test]
+async fn local_update_reports_incremental_geometry_cache_hits() {
+    let server = start_test_server(ServerConfig::for_tests("scene-local-cache")).await;
+    let created = rpc(
+        &server,
+        "document.apply",
+        serde_json::json!({
+            "expectedRevision": 0,
+            "idempotencyKey": "scene-local-cache-create",
+            "operations": [box_node("node-000001", 0.0), box_node("node-000002", 4.0)]
+        }),
+    )
+    .await;
+    assert_eq!(created["result"]["revision"], 1, "{created}");
+    let initial = rpc(&server, "evaluation.stats", serde_json::json!({})).await;
+    assert_eq!(initial["result"]["expandedNodes"], 2, "{initial}");
+
+    let updated = rpc(
+        &server,
+        "document.apply",
+        serde_json::json!({
+            "expectedRevision": 1,
+            "idempotencyKey": "scene-local-cache-move",
+            "operations": [{
+                "type": "node.update",
+                "node_id": "node-000001",
+                "name": null,
+                "transform": {
+                    "translation": { "x": 2, "y": 0, "z": 0 },
+                    "rotation": [0, 0, 0, 1],
+                    "scale": { "x": 1, "y": 1, "z": 1 }
+                },
+                "visible": null,
+                "metadata": null
+            }]
+        }),
+    )
+    .await;
+    assert_eq!(updated["result"]["revision"], 2, "{updated}");
+
+    let local = rpc(&server, "evaluation.stats", serde_json::json!({})).await;
+    assert_eq!(local["result"]["expandedNodes"], 2, "{local}");
+    assert_eq!(local["result"]["generatedMeshes"], 0, "{local}");
+    assert_eq!(local["result"]["cacheMisses"], 0, "{local}");
+    assert!(
+        local["result"]["cacheHits"].as_u64().unwrap_or_default() > 0,
+        "local update should report reuse of unchanged geometry: {local}"
+    );
+}
+
 fn box_node(node_id: &str, x: f32) -> serde_json::Value {
     serde_json::json!({
         "type": "node.create",
