@@ -9,15 +9,17 @@ use studio_core::document::NodeContent;
 use studio_core::geometry::{EvaluatedMesh, Primitive};
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
-    GeometryBatch, GeometryEvaluationEvidence, GeometryEvaluationMode, GeometryExecutionStats,
-    GeometryJobNode, GeometryJobPriority, GeometryResidentBatchResult, GeometrySnapshotRequest,
-    ResidentGeometryId,
+    GeometryBatch, GeometryEvaluationEvidence, GeometryEvaluationMode,
+    GeometryExecutionStats, GeometryJobNode, GeometryJobPriority, GeometryPhaseEvidence,
+    GeometryResidentBatchResult, GeometrySnapshotRequest, ResidentGeometryHandle,
+    ResidentGeometryId, ResidentGeometryState,
 };
 use studio_core::ids::NodeId;
 use studio_core::large_scene::cache::{
     GeometryCacheMetadata, GeometryEvaluation, GeometryEvaluator,
 };
 use studio_core::validation::DiagnosticCode;
+use studio_gpu::ResidencyKey;
 use tokio::sync::{Notify, OnceCell};
 use ts_rs::TS;
 
@@ -122,6 +124,9 @@ pub struct ComputeStatus {
     pub preview_packet_version: Option<String>,
     pub preview_geometry_packet: Option<String>,
     pub pipelines_warmed: bool,
+    pub resident_hot_path_hashes: usize,
+    pub handle_lookup_ms: f64,
+    pub last_geometry_phases: GeometryPhaseEvidence,
 }
 
 #[derive(Debug, Clone)]
@@ -277,6 +282,19 @@ struct LastCompute {
     resident_ids: Vec<ResidentGeometryId>,
 }
 
+#[derive(Debug, Clone)]
+struct RegisteredGeometry {
+    handle: ResidentGeometryHandle,
+    content: NodeContent,
+}
+
+#[derive(Debug, Clone)]
+pub struct GeometryHandleEvaluation {
+    pub handle: ResidentGeometryHandle,
+    pub mode: String,
+    pub evidence: GeometryEvaluationEvidence,
+}
+
 pub struct ComputeService {
     policy: ComputePolicy,
     gpu: Option<Arc<dyn GeometryBackend>>,
@@ -294,6 +312,11 @@ pub struct ComputeService {
     last_evaluation_mode: Mutex<String>,
     resident_evidence: Mutex<GeometryEvaluationEvidence>,
     resident_by_content: Mutex<BTreeMap<String, ResidentGeometryId>>,
+    registered_geometry: Mutex<BTreeMap<ResidentGeometryId, RegisteredGeometry>>,
+    geometry_ids: Mutex<BTreeMap<String, ResidentGeometryId>>,
+    resident_hot_path_hashes: AtomicUsize,
+    handle_lookup_ms_bits: std::sync::atomic::AtomicU64,
+    device_generation: std::sync::atomic::AtomicU64,
     last_compute: Mutex<Option<LastCompute>>,
     transforms: Mutex<BTreeMap<String, studio_core::math::Transform>>,
 }
@@ -318,6 +341,11 @@ impl ComputeService {
             last_evaluation_mode: Mutex::new("cpu".into()),
             resident_evidence: Mutex::new(GeometryEvaluationEvidence::default()),
             resident_by_content: Mutex::new(BTreeMap::new()),
+            registered_geometry: Mutex::new(BTreeMap::new()),
+            geometry_ids: Mutex::new(BTreeMap::new()),
+            resident_hot_path_hashes: AtomicUsize::new(0),
+            handle_lookup_ms_bits: std::sync::atomic::AtomicU64::new(0.0f64.to_bits()),
+            device_generation: std::sync::atomic::AtomicU64::new(1),
             last_compute: Mutex::new(None),
             transforms: Mutex::new(BTreeMap::new()),
         }
@@ -338,6 +366,222 @@ impl ComputeService {
                     .clone()
                     .unwrap_or_else(|| "no native GPU backend was configured".into()),
             })
+        }
+    }
+
+    pub async fn register_geometry(
+        &self,
+        geometry_id: String,
+        content: NodeContent,
+    ) -> Result<ResidentGeometryHandle, ComputeError> {
+        if !self.policy.resident_enabled {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "resident geometry is disabled".into(),
+            });
+        }
+        if let Some(existing) = self
+            .geometry_ids
+            .lock()
+            .expect("geometry id index poisoned")
+            .get(&geometry_id)
+            .cloned()
+            && let Some(record) = self
+                .registered_geometry
+                .lock()
+                .expect("registered geometry poisoned")
+                .get(&existing)
+            && record.content == content
+        {
+            return Ok(record.handle.clone());
+        }
+
+        let key = ResidencyKey::for_content(&content, "", GPU_KERNEL_VERSION)?;
+        let digests = key.digest_set("", GPU_KERNEL_VERSION);
+        let id = ResidentGeometryId(ResidencyKey::from_digests(&digests).result);
+        let handle = ResidentGeometryHandle {
+            id: id.clone(),
+            geometry_id: geometry_id.clone(),
+            digests,
+            vertex_count: estimate_vertex_count(&content),
+            triangle_count: estimate_triangles(&content),
+            device_generation: self.device_generation.load(Ordering::Acquire),
+            state: ResidentGeometryState::Pending,
+        };
+        self.resident_hot_path_hashes.fetch_add(1, Ordering::AcqRel);
+        self.registered_geometry
+            .lock()
+            .expect("registered geometry poisoned")
+            .insert(
+                id.clone(),
+                RegisteredGeometry {
+                    handle: handle.clone(),
+                    content,
+                },
+            );
+        self.geometry_ids
+            .lock()
+            .expect("geometry id index poisoned")
+            .insert(geometry_id, id);
+        Ok(handle)
+    }
+
+    pub async fn evaluate_handle(
+        &self,
+        handle: &ResidentGeometryHandle,
+    ) -> Result<GeometryHandleEvaluation, ComputeError> {
+        let lookup_started = std::time::Instant::now();
+        if handle.device_generation != self.device_generation.load(Ordering::Acquire)
+            || handle.state == ResidentGeometryState::Lost
+            || handle.state == ResidentGeometryState::Evicted
+        {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "resident geometry handle is stale".into(),
+            });
+        }
+        let registered = self
+            .registered_geometry
+            .lock()
+            .expect("registered geometry poisoned")
+            .get(&handle.id)
+            .cloned()
+            .ok_or_else(|| ComputeError::ResidencyUnavailable {
+                reason: "resident geometry handle is unknown".into(),
+            })?;
+        let lookup_ms = lookup_started.elapsed().as_secs_f64() * 1_000.0;
+        let triangles = estimate_triangles(&registered.content);
+        let estimated_bytes = estimate_geometry_bytes(&registered.content);
+        let probe = self.probe().await;
+        if !probe
+            .capabilities
+            .as_ref()
+            .is_some_and(|capabilities| capabilities.health == "ready")
+            || !self.gpu_available.load(Ordering::Acquire)
+        {
+            return Err(ComputeError::GpuUnavailable {
+                reason: probe
+                    .failure
+                    .unwrap_or_else(|| "GPU backend is not ready".into()),
+            });
+        }
+        let effective_budget = probe
+            .capabilities
+            .as_ref()
+            .map(|capabilities| {
+                min_budget(
+                    self.policy.gpu_budget_bytes,
+                    capabilities.memory_budget_bytes,
+                )
+            })
+            .unwrap_or(self.policy.gpu_budget_bytes);
+        if estimated_bytes > effective_budget {
+            return Err(BackendError::BudgetExceeded.into());
+        }
+        let Some(gpu) = &self.gpu else {
+            return Err(ComputeError::GpuUnavailable {
+                reason: "no native GPU backend was configured".into(),
+            });
+        };
+        let batch = GeometryBatch {
+            job_id: format!("handle-{}-{triangles}", monotonic_job_id()),
+            priority: GeometryJobPriority::Interactive,
+            budget_bytes: self.policy.gpu_budget_bytes,
+            nodes: vec![GeometryJobNode {
+                node_id: NodeId::from(handle.geometry_id.clone()),
+                content: registered.content,
+                content_digest: handle.digests.attribute.clone(),
+                dependency_digest: handle.digests.dependency.clone(),
+                cache_key: handle.id.0.clone(),
+                digests: Some(handle.digests.clone()),
+            }],
+        };
+        let permit = self.gate.acquire(GeometryJobPriority::Interactive).await;
+        let result = gpu.evaluate_resident(batch).await;
+        drop(permit);
+        match result {
+            Ok(mut result) => {
+                let mode = result
+                    .entries
+                    .first()
+                    .map(|entry| evaluation_mode_label(entry.mode))
+                    .unwrap_or("resident");
+                if let Some(entry) = result.entries.first() {
+                    result.evidence = entry.evidence.clone();
+                }
+                result.evidence.phases.lookup_ms = lookup_ms;
+                let mut resident_handle = handle.clone();
+                resident_handle.state = ResidentGeometryState::Ready;
+                if let Some(entry) = result.entries.first() {
+                    resident_handle.vertex_count = entry.vertex_count;
+                    resident_handle.triangle_count = entry.triangle_count;
+                }
+                if let Some(record) = self
+                    .registered_geometry
+                    .lock()
+                    .expect("registered geometry poisoned")
+                    .get_mut(&handle.id)
+                {
+                    record.handle = resident_handle.clone();
+                }
+                self.pipeline_warmed.store(true, Ordering::Release);
+                self.handle_lookup_ms_bits
+                    .store(lookup_ms.to_bits(), Ordering::Relaxed);
+                self.set_resident_evidence(result.evidence.clone());
+                self.set_evaluation_mode(mode);
+                Ok(GeometryHandleEvaluation {
+                    handle: resident_handle,
+                    mode: mode.into(),
+                    evidence: result.evidence,
+                })
+            }
+            Err(error) => {
+                self.handle_resident_failure(&error);
+                Err(error.into())
+            }
+        }
+    }
+
+    pub async fn snapshot_handle(
+        &self,
+        handle: &ResidentGeometryHandle,
+    ) -> Result<studio_core::gpu_contract::GeometryBatchResult, ComputeError> {
+        if handle.device_generation != self.device_generation.load(Ordering::Acquire)
+            || handle.state != ResidentGeometryState::Ready
+        {
+            return Err(ComputeError::ResidencyUnavailable {
+                reason: "resident geometry handle is stale".into(),
+            });
+        }
+        let Some(gpu) = &self.gpu else {
+            return Err(ComputeError::GpuUnavailable {
+                reason: "no native GPU backend was configured".into(),
+            });
+        };
+        let permit = self.gate.acquire(GeometryJobPriority::Interactive).await;
+        let result = gpu
+            .snapshot(GeometrySnapshotRequest {
+                geometry_ids: vec![handle.id.clone()],
+            })
+            .await;
+        drop(permit);
+        match result {
+            Ok(result) => {
+                self.last_snapshot_readback_bytes
+                    .store(result.stats.readback_bytes, Ordering::Relaxed);
+                let mut evidence = self
+                    .resident_evidence
+                    .lock()
+                    .expect("resident evidence poisoned")
+                    .clone();
+                evidence.mode = GeometryEvaluationMode::Snapshot;
+                evidence.stats = result.stats.clone();
+                self.set_resident_evidence(evidence);
+                self.set_evaluation_mode("snapshot");
+                Ok(result)
+            }
+            Err(error) => {
+                self.handle_resident_failure(&error);
+                Err(error.into())
+            }
         }
     }
 
@@ -807,6 +1051,11 @@ impl ComputeService {
                 .then(|| "ICE3PGP1".into()),
             preview_geometry_packet: self.policy.preview_packet_enabled.then(|| "1".into()),
             pipelines_warmed: self.pipeline_warmed.load(Ordering::Acquire),
+            resident_hot_path_hashes: self.resident_hot_path_hashes.load(Ordering::Relaxed),
+            handle_lookup_ms: f64::from_bits(
+                self.handle_lookup_ms_bits.load(Ordering::Relaxed),
+            ),
+            last_geometry_phases: evidence.phases.clone(),
         }
     }
 
@@ -1007,10 +1256,19 @@ impl ComputeService {
             self.gpu_available.store(false, Ordering::Release);
             self.last_backend.store(0, Ordering::Release);
             self.pipeline_warmed.store(false, Ordering::Release);
+            self.device_generation.fetch_add(1, Ordering::AcqRel);
             self.resident_by_content
                 .lock()
                 .expect("resident content index poisoned")
                 .clear();
+            for record in self
+                .registered_geometry
+                .lock()
+                .expect("registered geometry poisoned")
+                .values_mut()
+            {
+                record.handle.state = ResidentGeometryState::Lost;
+            }
             let mut evidence = self
                 .resident_evidence
                 .lock()
@@ -1104,6 +1362,39 @@ fn estimate_triangles(content: &NodeContent) -> usize {
             .saturating_mul(*radial_segments as usize)
             .saturating_mul(6)
             .saturating_add(radial_segments.saturating_sub(2).saturating_mul(6) as usize),
+    }
+}
+
+fn estimate_vertex_count(content: &NodeContent) -> usize {
+    match content {
+        NodeContent::Primitive(Primitive::Box { .. }) => 24,
+        NodeContent::Primitive(Primitive::Plane { .. }) => 4,
+        NodeContent::Primitive(Primitive::Cylinder { segments, .. }) => {
+            *segments as usize * 4 + 6
+        }
+        NodeContent::Primitive(Primitive::Sphere {
+            segments, rings, ..
+        }) => (*segments as usize + 1) * (*rings as usize + 1),
+        NodeContent::CustomMesh(mesh) => mesh.positions.len(),
+        NodeContent::Sweep {
+            points,
+            radial_segments,
+            ..
+        } => points.len() * *radial_segments as usize,
+        NodeContent::Group
+        | NodeContent::ComponentInstance(_)
+        | NodeContent::InstanceSet(_)
+        | NodeContent::Connection(_) => 0,
+    }
+}
+
+fn evaluation_mode_label(mode: GeometryEvaluationMode) -> &'static str {
+    match mode {
+        GeometryEvaluationMode::Cpu => "cpu",
+        GeometryEvaluationMode::Cold => "cold",
+        GeometryEvaluationMode::Warm => "warm",
+        GeometryEvaluationMode::Resident => "resident",
+        GeometryEvaluationMode::Snapshot => "snapshot",
     }
 }
 

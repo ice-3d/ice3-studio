@@ -2512,6 +2512,10 @@
               "minimum": 0,
               "type": "integer"
             },
+            "handleLookupMs": {
+              "format": "double",
+              "type": "number"
+            },
             "health": {
               "type": "string"
             },
@@ -2522,6 +2526,9 @@
             },
             "lastEvaluationMode": {
               "type": "string"
+            },
+            "lastGeometryPhases": {
+              "$ref": "#/$defs/GeometryPhaseEvidence"
             },
             "lastKernelMs": {
               "format": "double",
@@ -2593,6 +2600,11 @@
               "minimum": 0,
               "type": "integer"
             },
+            "residentHotPathHashes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
             "selectedBackend": {
               "$ref": "#/$defs/GeometryBackendKind"
             },
@@ -2634,7 +2646,10 @@
             "previewPacketBytes",
             "browserUploadBytes",
             "snapshotReadbackBytes",
-            "pipelinesWarmed"
+            "pipelinesWarmed",
+            "residentHotPathHashes",
+            "handleLookupMs",
+            "lastGeometryPhases"
           ],
           "type": "object"
         },
@@ -2652,6 +2667,65 @@
             "gpu"
           ],
           "type": "string"
+        },
+        "GeometryPhaseEvidence": {
+          "properties": {
+            "browserUploadMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "encodeMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "gpuKernelMs": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "lookupMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "planningMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "snapshotMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "submitMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "transportMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "validationMs": {
+              "format": "double",
+              "type": "number"
+            },
+            "waitMs": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "lookupMs",
+            "planningMs",
+            "validationMs",
+            "encodeMs",
+            "submitMs",
+            "waitMs",
+            "snapshotMs",
+            "transportMs",
+            "browserUploadMs"
+          ],
+          "type": "object"
         },
         "ResidentGeometryStatus": {
           "properties": {

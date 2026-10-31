@@ -8,7 +8,7 @@ use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
     GeometryBatch, GeometryBatchResult, GeometryEvaluationEvidence, GeometryEvaluationMode,
     GeometryExecutionStats, GeometryResidentBatchResult, GeometryResidentEntry,
-    GeometrySnapshotRequest, ResidentGeometryId,
+    GeometrySnapshotRequest, ResidentGeometryHandle, ResidentGeometryId,
 };
 use studio_core::ids::{ComponentId, MaterialId, NodeId};
 use studio_core::large_scene::cache::{
@@ -144,7 +144,11 @@ impl GeometryBackend for FakeGpu {
             job_id: batch.job_id,
             backend: GeometryBackendKind::Gpu,
             entries: vec![GeometryResidentEntry {
-                id: ResidentGeometryId("resident-1".into()),
+                id: ResidentGeometryId(if first.cache_key.is_empty() {
+                    "resident-1".into()
+                } else {
+                    first.cache_key.clone()
+                }),
                 node_id: first.node_id.clone(),
                 mode,
                 dirty: Default::default(),
@@ -390,6 +394,39 @@ async fn resident_evidence_is_exposed_in_compute_status() {
     assert_eq!(status.resident_geometry.resident_bytes, 4096);
     assert_eq!(status.resident_geometry.topology_hits, 1);
     assert!(status.pipelines_warmed);
+}
+
+#[tokio::test]
+async fn repeated_handle_evaluation_skips_content_hashing() {
+    let gpu = FakeGpu::new();
+    let service = resident_service(gpu.clone());
+    let handle = service
+        .register_geometry("shared".into(), box_content())
+        .await
+        .unwrap();
+    let first = service.evaluate_handle(&handle).await.unwrap();
+    let hashes = service.status().resident_hot_path_hashes;
+    let second = service.evaluate_handle(&first.handle).await.unwrap();
+    assert_eq!(service.status().resident_hot_path_hashes, hashes);
+    assert_eq!(second.mode, "resident");
+}
+
+#[tokio::test]
+async fn stale_handle_falls_back_without_mutating_revision() {
+    let gpu = FakeGpu::new();
+    let service = resident_service(gpu);
+    let handle = service
+        .register_geometry("shared".into(), box_content())
+        .await
+        .unwrap();
+    let document = component_document();
+    let revision = document.revision;
+    let stale = ResidentGeometryHandle {
+        device_generation: handle.device_generation + 1,
+        ..handle
+    };
+    assert!(service.evaluate_handle(&stale).await.is_err());
+    assert_eq!(document.revision, revision);
 }
 
 #[tokio::test]

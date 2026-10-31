@@ -201,7 +201,9 @@ pub struct GeometryBatchResult {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, TS)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema, TS,
+)]
 #[serde(transparent)]
 #[ts(export)]
 #[ts(type = "string")]
