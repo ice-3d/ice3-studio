@@ -492,23 +492,23 @@ const sourceMaterialColors = Object.freeze<Record<string, string>>({
   '#7a827d': '#b4b8b5',
   '#475252': '#5d686e',
   '#614d33': '#d6d8d4',
-  '#263d45': '#435b64',
+  '#263d45': '#4b7b8d',
   '#477063': '#3f7767',
   '#80754d': '#c9862b',
   '#7a8c8f': '#3987b2',
   '#1f6b94': '#2477a0',
-  '#87857a': '#b8b4aa',
+  '#87857a': '#c4c1b7',
   '#1c1f1d': '#414947',
   '#695980': '#8a6249',
   '#a39e87': '#eee7c7',
   '#47707a': '#4a8d9c',
   '#4d524f': '#697170',
-  '#424d4f': '#7b8582',
+  '#424d4f': '#59666c',
   '#1f2121': '#25282b',
   '#63784d': '#d0ac32',
   '#6e6354': '#a99c88',
   '#a67526': '#d78a2e',
-  '#1a1b17': '#777a72',
+  '#1a1b17': '#91a77c',
   '#616b66': '#7e8a82',
   '#617075': '#84989f',
 });
@@ -539,13 +539,11 @@ export function referenceSurfaceColor(
   } else if (nodeName.startsWith('RoadNetwork.')) {
     color = '#25282b';
   } else if (nodeName === 'Ground.Slab') {
-    color = '#aaa99f';
+    color = '#91a77c';
   } else if (nodeName === 'Ground') {
-    color = '#777a72';
+    color = '#8da478';
   } else if (nodeName.startsWith('SitePads.')) {
-    color = '#a99c88';
-  } else if (nodeName.includes('Site.Facility') || pathName.includes('/Buildings/')) {
-    color = '#b8b4aa';
+    color = '#b9b6ab';
   } else if (nodeName.startsWith('Pipe.air-')) {
     color = '#3f8fc5';
   } else if (/^Pipe\.(gas|biogas)-/.test(nodeName)) {

@@ -48,6 +48,7 @@ const steps = [
       '--test',
       'scripts/tests/large-industrial-detail.test.mjs',
       'scripts/tests/large-industrial-fixture.test.mjs',
+      'scripts/tests/reference-layout.test.mjs',
     ],
   },
   {

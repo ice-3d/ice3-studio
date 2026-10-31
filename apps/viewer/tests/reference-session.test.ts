@@ -77,8 +77,8 @@ test('lifts reference materials without discarding their hue', () => {
 });
 
 test('maps infrastructure and pipe colors by real-world material role', () => {
-  assert.equal(referenceSurfaceColor(['Ground'], '#1a1b17'), '#777a72');
-  assert.equal(referenceSurfaceColor(['Ground', 'Ground.Slab'], '#1a1b17'), '#aaa99f');
+  assert.equal(referenceSurfaceColor(['Ground'], '#1a1b17'), '#8da478');
+  assert.equal(referenceSurfaceColor(['Ground', 'Ground.Slab'], '#1a1b17'), '#91a77c');
   assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.MainAccess'], '#1f2121'), '#25282b');
   assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.MainAccess.Curb.N'], '#a39e87'), '#c9c7be');
   assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.StormDrain.00'], '#2e383b'), '#454a4c');
@@ -89,6 +89,10 @@ test('maps infrastructure and pipe colors by real-world material role', () => {
   assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.loop-a-01'], '#477063'), '#3f8b69');
   assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.filtrate-01'], '#695980'), '#7565a8');
   assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.main-01-IN-001-GR-101'], '#1f6b94'), '#347fae');
+  assert.equal(
+    referenceSurfaceColor(['Buildings', 'Operations Center'], '#263d45'),
+    '#4b7b8d',
+  );
   assert.equal(referenceSurfaceColor(['AE-101'], '#265c66'), '#1f6675');
   assert.equal(referenceSurfaceColor(['AE-101'], '#66635c'), '#d6d7d2');
   assert.equal(referenceSurfaceColor(['AE-101'], '#6e7a7d'), '#a8b1b5');

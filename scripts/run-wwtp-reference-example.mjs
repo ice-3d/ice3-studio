@@ -3,6 +3,8 @@ import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { compactLayoutTranslation } from
+  '../fixtures/large-industrial-site/reference-layout.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
@@ -70,27 +72,31 @@ const registration = await rpc('referenceAsset.register', {
 }, { approvalToken });
 
 const manifest = JSON.parse(await readFile(equipmentManifest, 'utf8'));
-const bindings = manifest.equipment.map((entry, index) => ({
-  type: 'node.create',
-  node_id: `node-${String(index + 1).padStart(6, '0')}`,
-  parent_id: null,
-  name: entry.tag ?? entry.name,
-  transform: {
-    translation: { x: 0, y: 0, z: 0 },
-    rotation: [0, 0, 0, 1],
-    scale: { x: 1, y: 1, z: 1 },
-  },
-  content: {
-    type: 'reference_instance',
-    assetId: registration.assetId,
-    selectionId: entry.selectionId,
-  },
-  material_id: null,
-  metadata: {
-    area: String(entry.area ?? ''),
-    sourceTag: String(entry.tag ?? ''),
-  },
-}));
+const bindings = manifest.equipment.map((entry, index) => {
+  const compact = compactLayoutTranslation(entry);
+  return {
+    type: 'node.create',
+    node_id: `node-${String(index + 1).padStart(6, '0')}`,
+    parent_id: null,
+    name: entry.tag ?? entry.name,
+    transform: {
+      translation: compact ?? { x: 0, y: 0, z: 0 },
+      rotation: [0, 0, 0, 1],
+      scale: { x: 1, y: 1, z: 1 },
+    },
+    content: {
+      type: 'reference_instance',
+      assetId: registration.assetId,
+      selectionId: entry.selectionId,
+    },
+    material_id: null,
+    metadata: {
+      area: String(entry.area ?? ''),
+      sourceTag: String(entry.tag ?? ''),
+      layout: compact ? 'compact-process-array' : 'reference-layout',
+    },
+  };
+});
 await commitOperations(
   'Create semantic equipment bindings',
   bindings,
