@@ -50,10 +50,13 @@ async fn manifest_access_matches_request_authority() {
         "scene.search",
         "evaluation.query",
         "changeset.create",
+        "changeset.get",
         "changeset.addOperations",
+        "changeset.removeOperations",
         "changeset.evaluate",
         "changeset.getCandidate",
         "changeset.commit",
+        "changeset.discard",
         "document.apply",
         "instance.patch",
         "component.patch",
@@ -89,6 +92,27 @@ async fn manifest_access_matches_request_authority() {
                 "tool {expected} references missing schema type {type_name}"
             );
         }
+    }
+
+    for (tool_name, property) in [
+        ("changeset.create", "baseRevision"),
+        ("changeset.get", "changeSetId"),
+        ("changeset.addOperations", "entries"),
+        ("changeset.removeOperations", "entryIds"),
+        ("changeset.evaluate", "expectedVersion"),
+        ("changeset.getCandidate", "changeSetId"),
+        ("changeset.commit", "approvedDigest"),
+        ("changeset.discard", "changeSetId"),
+    ] {
+        let tool = tools.iter().find(|tool| tool["name"] == tool_name).unwrap();
+        let reference = tool["inputSchemaRef"].as_str().unwrap();
+        let type_name = reference.split("#/types/").nth(1).unwrap();
+        assert!(
+            schema["types"][type_name]["properties"]
+                .get(property)
+                .is_some(),
+            "tool {tool_name} schema {type_name} must include {property}"
+        );
     }
 }
 
@@ -269,11 +293,7 @@ async fn source_search_rejects_query_and_revision_drift() {
 async fn source_search_rejects_cursor_after_project_switch() {
     let server = start_test_server(ServerConfig::for_tests("agent-search-project-a")).await;
     apply_scene_fixture(&server).await;
-    let first = search(
-        &server,
-        serde_json::json!({ "query": "pump", "limit": 1 }),
-    )
-    .await;
+    let first = search(&server, serde_json::json!({ "query": "pump", "limit": 1 })).await;
     let cursor = first["result"]["nextCursor"].as_str().unwrap();
 
     let created = rpc_with_bearer(
@@ -296,8 +316,7 @@ async fn source_search_rejects_cursor_after_project_switch() {
     )
     .await;
     assert_eq!(
-        stale["error"]["diagnosticCode"],
-        "ICE3_STUDIO_REVISION_CONFLICT",
+        stale["error"]["diagnosticCode"], "ICE3_STUDIO_REVISION_CONFLICT",
         "{stale}"
     );
 }

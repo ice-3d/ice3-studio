@@ -16,6 +16,10 @@ use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_project::changeset::{
     ChangeSet, ChangeSetEntry, ChangeSetEvaluation, ChangeSetId, ChangeSetSource, ChangeSetStatus,
 };
+use studio_server::changeset::{
+    ChangeSetAddParams, ChangeSetCommitParams, ChangeSetCreateParams, ChangeSetEvaluateParams,
+    ChangeSetGetParams, ChangeSetNewEntry, ChangeSetRemoveParams,
+};
 use studio_server::preview::CandidatePreview;
 use studio_server::{Capabilities, EvaluatedSceneStats, RpcRequest, RpcResponse, ServerEvent};
 use thiserror::Error;
@@ -100,6 +104,14 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "ComponentPatch": schema_for!(ComponentPatch),
             "ConnectionPatch": schema_for!(ConnectionPatch),
             "MaterialPatch": schema_for!(MaterialPatch)
+            ,
+            "ChangeSetCreateParams": schema_for!(ChangeSetCreateParams),
+            "ChangeSetGetParams": schema_for!(ChangeSetGetParams),
+            "ChangeSetNewEntry": schema_for!(ChangeSetNewEntry),
+            "ChangeSetAddParams": schema_for!(ChangeSetAddParams),
+            "ChangeSetRemoveParams": schema_for!(ChangeSetRemoveParams),
+            "ChangeSetEvaluateParams": schema_for!(ChangeSetEvaluateParams),
+            "ChangeSetCommitParams": schema_for!(ChangeSetCommitParams)
         }
     });
     let mut api_bytes = serde_json::to_vec_pretty(&api).map_err(SchemaError::Json)?;

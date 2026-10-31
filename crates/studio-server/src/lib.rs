@@ -3,7 +3,7 @@
 mod agent;
 mod auth;
 pub mod capabilities;
-mod changeset;
+pub mod changeset;
 pub mod compute;
 mod events;
 pub mod preview;
