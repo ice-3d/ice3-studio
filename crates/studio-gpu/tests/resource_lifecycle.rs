@@ -2,12 +2,16 @@ use studio_core::geometry::Primitive;
 use studio_gpu::{BufferClass, NativeGpuBackend, PrimitiveJob};
 
 #[test]
-fn capacity_classes_round_up_without_unbounded_allocations() {
-    assert_eq!(BufferClass::for_bytes(1), BufferClass::OneMiB);
-    assert_eq!(BufferClass::for_bytes(1_048_577), BufferClass::FourMiB);
+fn capacity_classes_use_exact_allocations_for_shared_scene_buffers() {
+    assert_eq!(BufferClass::for_bytes(1), BufferClass::Exact(1));
+    assert_eq!(BufferClass::for_bytes(64), BufferClass::Exact(64));
+    assert_eq!(
+        BufferClass::for_bytes(1_048_577),
+        BufferClass::Exact(1_048_577)
+    );
     assert_eq!(
         BufferClass::for_bytes(80 * 1024 * 1024),
-        BufferClass::TwoHundredFiftySixMiB
+        BufferClass::Exact(80 * 1024 * 1024)
     );
 }
 

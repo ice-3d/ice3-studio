@@ -14,6 +14,7 @@ use studio_core::gpu_contract::{
     GeometryExecutionStats, GeometryPhaseEvidence, GeometryResidentBatchResult,
     GeometryResidentEntry, ResidentGeometryHandle, ResidentGeometryId,
 };
+use studio_core::ids::NodeId;
 use studio_core::scene_contract::{
     SceneGeometryReadback, SceneGeometrySnapshotRequest, ScenePatch, SceneSessionId,
     SceneSessionState, SceneSessionStatus, SceneSubmission,
@@ -607,6 +608,7 @@ impl NativeGpuBackend {
             let mut submission_count = 0usize;
             let mut dirty_range_bytes = 0u64;
             let mut pending = Vec::new();
+            let mut cold_inputs = Vec::new();
             for change in patch.geometry {
                 let previous = change
                     .previous_geometry_id
@@ -629,8 +631,12 @@ impl NativeGpuBackend {
                 } else {
                     None
                 };
-                let entry = if let Some(entry) = update {
-                    entry
+                if let Some(entry) = update {
+                    upload_bytes = upload_bytes.saturating_add(entry.evidence.stats.upload_bytes);
+                    geometry_dispatch_count += 1;
+                    submission_count += 1;
+                    pending.push(entry.id.clone());
+                    session.geometries.insert(change.geometry_id, entry.id);
                 } else {
                     let mesh = match &change.content {
                         NodeContent::CustomMesh(mesh) => mesh.clone(),
@@ -649,16 +655,16 @@ impl NativeGpuBackend {
                             }
                         }
                     };
-                    ready.residency.evaluate_with_digests(
-                        &ready.device,
-                        &ready.queue,
-                        &change.geometry_id,
-                        &change.content,
-                        &mesh,
-                        &change.digests,
-                    )?
-                };
-                upload_bytes = upload_bytes.saturating_add(entry.evidence.stats.upload_bytes);
+                    upload_bytes = upload_bytes
+                        .saturating_add(mesh.positions.len() as u64 * 16)
+                        .saturating_add(mesh.indices.len() as u64 * 8);
+                    cold_inputs.push(ResidentBatchInput {
+                        node_id: NodeId::from(change.geometry_id.clone()),
+                        content: change.content,
+                        mesh,
+                        digests: Some(change.digests),
+                    });
+                }
                 dirty_range_bytes = dirty_range_bytes.saturating_add(
                     change
                         .position_ranges
@@ -666,10 +672,20 @@ impl NativeGpuBackend {
                         .map(|range| range.count as u64 * 16)
                         .sum::<u64>(),
                 );
-                geometry_dispatch_count += 1;
-                submission_count += 1;
-                pending.push(entry.id.clone());
-                session.geometries.insert(change.geometry_id, entry.id);
+            }
+            if !cold_inputs.is_empty() {
+                let outcome =
+                    ready
+                        .residency
+                        .evaluate_batch(&ready.device, &ready.queue, cold_inputs)?;
+                submission_count = submission_count.saturating_add(outcome.submission_count);
+                geometry_dispatch_count =
+                    geometry_dispatch_count.saturating_add(outcome.entries.len());
+                for entry in outcome.entries {
+                    let geometry_id = entry.node_id.to_string();
+                    pending.push(entry.id.clone());
+                    session.geometries.insert(geometry_id, entry.id);
+                }
             }
             let instance_update = session.instances.apply_changes(patch.instances);
             let removed = session.instances.remove_nodes(&patch.removed_node_ids);

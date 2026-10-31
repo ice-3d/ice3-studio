@@ -4,8 +4,6 @@ use std::sync::Mutex;
 use studio_core::gpu_contract::BackendError;
 use wgpu::{Buffer, BufferDescriptor, BufferUsages, Device};
 
-const MIB: u64 = 1024 * 1024;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BufferClass {
     OneMiB,
@@ -18,28 +16,16 @@ pub enum BufferClass {
 
 impl BufferClass {
     pub const fn for_bytes(bytes: u64) -> Self {
-        if bytes <= MIB {
-            Self::OneMiB
-        } else if bytes <= 4 * MIB {
-            Self::FourMiB
-        } else if bytes <= 16 * MIB {
-            Self::SixteenMiB
-        } else if bytes <= 64 * MIB {
-            Self::SixtyFourMiB
-        } else if bytes <= 256 * MIB {
-            Self::TwoHundredFiftySixMiB
-        } else {
-            Self::Exact(bytes)
-        }
+        Self::Exact(bytes)
     }
 
     pub const fn allocated_bytes(self) -> u64 {
         match self {
-            Self::OneMiB => MIB,
-            Self::FourMiB => 4 * MIB,
-            Self::SixteenMiB => 16 * MIB,
-            Self::SixtyFourMiB => 64 * MIB,
-            Self::TwoHundredFiftySixMiB => 256 * MIB,
+            Self::OneMiB => 1024 * 1024,
+            Self::FourMiB => 4 * 1024 * 1024,
+            Self::SixteenMiB => 16 * 1024 * 1024,
+            Self::SixtyFourMiB => 64 * 1024 * 1024,
+            Self::TwoHundredFiftySixMiB => 256 * 1024 * 1024,
             Self::Exact(bytes) => bytes,
         }
     }
