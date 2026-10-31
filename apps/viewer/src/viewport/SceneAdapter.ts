@@ -504,7 +504,7 @@ const sourceMaterialColors = Object.freeze<Record<string, string>>({
   '#47707a': '#4a8d9c',
   '#4d524f': '#697170',
   '#424d4f': '#7b8582',
-  '#1f2121': '#50575b',
+  '#1f2121': '#25282b',
   '#63784d': '#d0ac32',
   '#6e6354': '#a99c88',
   '#a67526': '#d78a2e',
@@ -531,11 +531,13 @@ export function referenceSurfaceColor(
   const nodeName = path.at(-1) ?? '';
   let color: string | undefined;
   if (nodeName.includes('.Marking.')) {
-    color = '#eee7c7';
+    color = '#e8e4d8';
   } else if (nodeName.includes('.Curb.')) {
     color = '#c9c7be';
+  } else if (nodeName.startsWith('RoadNetwork.StormDrain.')) {
+    color = '#454a4c';
   } else if (nodeName.startsWith('RoadNetwork.')) {
-    color = '#50575b';
+    color = '#25282b';
   } else if (nodeName === 'Ground.Slab') {
     color = '#aaa99f';
   } else if (nodeName === 'Ground') {
