@@ -21,12 +21,12 @@ const VISIBILITY_SAMPLE_COUNT = 31;
 export function evaluateBenchmarkGate(result) {
   const failures = [];
   if (
-    result.stats.effectiveTriangles < 5_500_000
-    || result.stats.effectiveTriangles > 7_500_000
+    result.stats.effectiveTriangles < 800_000
+    || result.stats.effectiveTriangles > 1_000_000
   ) {
     failures.push('effectiveTriangles');
   }
-  if (result.stats.uniqueMeshes > 300) {
+  if (result.stats.uniqueMeshes > 1_200) {
     failures.push('uniqueMeshes');
   }
   if (

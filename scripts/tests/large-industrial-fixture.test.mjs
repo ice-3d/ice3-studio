@@ -85,25 +85,25 @@ test('builds a deterministic high-level operation plan', () => {
   const second = buildIndustrialScenePlan();
   assert.deepEqual(first, second);
   const operations = first.transactions.flatMap((transaction) => transaction.operations);
-  assert.equal(first.expected.primaryObjects, 216);
+  assert.equal(first.expected.primaryObjects, 208);
   assert.equal(
     operations.filter((operation) => operation.type === 'instance.create').length,
-    216,
+    208,
   );
-  assert.equal(first.expected.facilityObjects, 12);
+  assert.equal(first.expected.facilityObjects, 10);
   assert.equal(
     operations.filter((operation) => operation.type === 'component.define').length,
-    23,
+    16,
   );
   assert.equal(
     operations.filter((operation) => operation.type === 'material.upsert').length,
-    10,
+    12,
   );
   assert.ok(
     operations.filter((operation) => (
       operation.type === 'node.create'
       && String(operation.metadata?.role ?? '').match(/ground|road|yard|landscape/)
-    )).length >= 20,
+    )).length >= 14,
   );
   assert.equal(operations.some((operation) => (
     ![
@@ -128,17 +128,13 @@ test('assigns readable material roles to every primary object', () => {
       .map((operation) => [operation.material_id, operation.name]),
   );
   const instances = operations.filter((operation) => operation.type === 'instance.create');
-  assert.equal(instances.length, 216);
+  assert.equal(instances.length, 208);
   assert.equal(instances.every((operation) => materials.has(operation.material_id)), true);
   assert.equal(
-    instances.find((operation) => operation.metadata.kind === 'biological-reactor')
-      .material_id,
-    'material-000003',
-  );
-  assert.equal(
-    instances.find((operation) => operation.metadata.kind === 'facility')
-      .material_id,
-    'material-000006',
+    Object.values(
+      instances.find((operation) => operation.name === 'Train 1 Aeration Basin').instance.overrides,
+    ).some(({ materialId }) => materialId === 'material-000004'),
+    true,
   );
 });
 
@@ -146,21 +142,27 @@ test('keeps operation batches and source node references valid', () => {
   const plan = buildIndustrialScenePlan();
   const nodeIds = new Set();
   for (const transaction of plan.transactions) {
-    assert.ok(transaction.operations.length <= 80);
+    assert.ok(transaction.operations.length <= 300);
     for (const operation of transaction.operations) {
+      if (operation.type === 'node.create') {
+        if (operation.parent_id !== null) {
+          assert.ok(nodeIds.has(operation.parent_id));
+        }
+        nodeIds.add(operation.node_id);
+      }
       if (operation.type === 'instance.create') {
         if (operation.parent_id !== null) {
           assert.ok(nodeIds.has(operation.parent_id));
         }
         const { x, y, z } = operation.transform.translation;
-        assert.ok(x >= 0 && x <= 1000);
+        assert.ok(x >= -600 && x <= 650);
         assert.ok(y >= 0 && y <= 100);
-        assert.ok(z >= 0 && z <= 550);
+        assert.ok(z >= -280 && z <= 400);
         nodeIds.add(operation.node_id);
       }
     }
   }
-  assert.equal(nodeIds.size, 216);
+  assert.equal(nodeIds.size, 235);
 });
 
 test('connects every process train without dangling ports', () => {
@@ -169,12 +171,17 @@ test('connects every process train without dangling ports', () => {
   assert.equal(topology.processTrains, 6);
   assert.equal(topology.danglingPorts, 0);
   assert.equal(topology.invalidMedia, 0);
-  assert.ok(topology.connectionCount >= 120);
+  assert.equal(topology.connectionCount, 99);
 
-  const instanceIds = new Set(plan.transactions
+  const instances = plan.transactions
     .flatMap((transaction) => transaction.operations)
     .filter((operation) => operation.type === 'instance.create')
-    .map((operation) => operation.node_id));
+  const instanceIds = new Set(instances.map((operation) => operation.node_id));
+  const definitions = new Map(plan.componentDefinitions.map((definition) => [definition.id, definition]));
+  const definitionByInstance = new Map(instances.map((instance) => [
+    instance.node_id,
+    definitions.get(instance.instance.definitionId),
+  ]));
   const relationIds = new Set();
   let connectionCount = 0;
   for (const transaction of plan.transactions) {
@@ -186,9 +193,11 @@ test('connects every process train without dangling ports', () => {
         connectionCount += 1;
         assert.ok(instanceIds.has(operation.connection.from.nodeId));
         assert.ok(instanceIds.has(operation.connection.to.nodeId));
-        assert.equal(operation.connection.from.port, 'process-out');
-        assert.equal(operation.connection.to.port, 'process-in');
-        assert.equal(operation.connection.medium, 'process-fluid');
+        const fromDefinition = definitionByInstance.get(operation.connection.from.nodeId);
+        const toDefinition = definitionByInstance.get(operation.connection.to.nodeId);
+        assert.ok(fromDefinition.ports.some(({ name }) => name === operation.connection.from.port));
+        assert.ok(toDefinition.ports.some(({ name }) => name === operation.connection.to.port));
+        assert.ok(['air', 'liquid'].includes(operation.connection.medium));
         assert.ok(relationIds.has(operation.connection.relationId));
       }
     }
@@ -216,8 +225,8 @@ test('rejects evaluated output outside the accepted scale', () => {
 test('benchmark gate rejects missing scale and cache reuse', () => {
   const failures = evaluateBenchmarkGate({
     stats: {
-      effectiveTriangles: 5_000_000,
-      uniqueMeshes: 400,
+      effectiveTriangles: 500_000,
+      uniqueMeshes: 1_201,
     },
     incremental: {
       cacheHits: 0,
@@ -234,7 +243,7 @@ test('benchmark gate rejects missing scale and cache reuse', () => {
   ]);
 });
 
-test('assigns and connects three reactors and two secondary structures per train', () => {
+test('assigns and connects the full treatment train', () => {
   const plan = buildIndustrialScenePlan();
   const instances = plan.transactions
     .flatMap((transaction) => transaction.operations)
@@ -242,16 +251,10 @@ test('assigns and connects three reactors and two secondary structures per train
   const byId = new Map(instances.map((instance) => [instance.node_id, instance]));
 
   for (const train of plan.processTrains) {
-    const reactors = instances.filter((instance) => (
-      instance.metadata.kind === 'biological-reactor'
-      && Number(instance.metadata.train) === train
-    ));
-    const secondary = instances.filter((instance) => (
-      instance.metadata.kind === 'secondary-structure'
-      && Number(instance.metadata.train) === train
-    ));
-    assert.equal(reactors.length, 3, `reactor count for train ${train}`);
-    assert.equal(secondary.length, 2, `secondary count for train ${train}`);
+    const reactors = instances.filter(({ name }) => name === `Train ${train} Aeration Basin`);
+    const secondary = instances.filter(({ name }) => name === `Train ${train} Secondary Clarifier`);
+    assert.equal(reactors.length, 1, `reactor count for train ${train}`);
+    assert.equal(secondary.length, 1, `secondary count for train ${train}`);
 
     const trainConnections = plan.transactions
       .flatMap((transaction) => transaction.operations)

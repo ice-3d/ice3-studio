@@ -12,7 +12,7 @@
 |---|---|---|---|
 | `ICE3-STUDIO-RM-001` | [Studio README](../README.md) | Implemented | 项目定位、当前状态和文档入口 |
 | `ICE3-STUDIO-GUIDE-START-001` | [Getting Started](guides/getting-started.md) | Implemented | 本地启动、API 工作流、验证和性能基线 |
-| `ICE3-STUDIO-GUIDE-002` | [Large Industrial Fixture](guides/large-industrial-fixture.md) | Implemented | 216 对象、6.1M 三角形场景的 API 生成、统计与基准 |
+| `ICE3-STUDIO-GUIDE-002` | [Large Industrial Fixture](guides/large-industrial-fixture.md) | Implemented | 208 对象、913 个语义部件和 99 条连接的 API 生成、统计与基准 |
 | `ICE3-STUDIO-ARC-001` | [Architecture](architecture.md) | Implemented | 组件边界、真源、安全和延期范围 |
 | `ICE3-STUDIO-REF-API-001` | [API Reference](reference/api.md) | Implemented | JSON-RPC、Operation、revision 和导出契约 |
 | `ICE3-STUDIO-REF-DIAG-001` | [Diagnostics](reference/diagnostics.md) | Implemented | 稳定错误码和恢复规则 |

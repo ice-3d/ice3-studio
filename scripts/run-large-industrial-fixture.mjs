@@ -18,7 +18,7 @@ export function verifyAppliedScene(stats, expected) {
   if (stats.sourceNodes < expected.primaryObjects) {
     throw new Error('source object count is below the accepted scale');
   }
-  if (stats.uniqueMeshes > 300) {
+  if (stats.uniqueMeshes > 1_200) {
     throw new Error(
       `equipment definitions did not share evaluated meshes: ${JSON.stringify(stats)}`,
     );
