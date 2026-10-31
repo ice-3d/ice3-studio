@@ -4,6 +4,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rand::RngCore;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use studio_core::agent_contract::{
+    ChangeImpactCounts, IterationImpact, IterationImpactReason, IterationImpactScope,
+};
 use studio_core::apply::{ApplyRequest, apply_transaction};
 use studio_core::changeset::{candidate_digest, evaluate_operations};
 use studio_core::diff::DocumentDiff;
@@ -83,6 +86,29 @@ pub struct ChangeSetEvaluateParams {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
+pub struct ChangeSetImpactParams {
+    change_set_id: ChangeSetId,
+    expected_version: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetImpactResult {
+    change_set_id: ChangeSetId,
+    version: u64,
+    base_revision: Revision,
+    status: ChangeSetStatus,
+    candidate_digest: Option<String>,
+    diagnostic_count: usize,
+    impact: IterationImpact,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
 pub struct ChangeSetCommitParams {
     change_set_id: ChangeSetId,
     expected_version: u64,
@@ -102,6 +128,7 @@ pub(crate) fn dispatch(
         "changeset.addOperations" => add_operations(session, parse(params)?),
         "changeset.removeOperations" => remove_operations(session, parse(params)?),
         "changeset.evaluate" => evaluate_rpc(session, parse(params)?),
+        "changeset.impact" => impact_rpc(session, parse(params)?),
         "changeset.getCandidate" => candidate_rpc(session, parse(params)?),
         "changeset.commit" => commit(session, parse(params)?),
         "changeset.discard" => discard(session, parse(params)?),
@@ -286,6 +313,67 @@ fn evaluate_rpc(
         params.include_candidate,
     )?;
     serde_json::to_value(evaluation).map_err(serialize_error)
+}
+
+fn impact_rpc(
+    session: &mut Session,
+    params: ChangeSetImpactParams,
+) -> Result<serde_json::Value, RpcError> {
+    let evaluation = evaluate(
+        session,
+        &params.change_set_id,
+        params.expected_version,
+        true,
+    )?;
+    let diagnostic_count = evaluation.diagnostics.len();
+    let impact = if evaluation.status == ChangeSetStatus::Ready {
+        let candidate = evaluation
+            .candidate
+            .as_ref()
+            .ok_or_else(|| operation_error("candidate document is unavailable"))?;
+        let change_set = session
+            .store
+            .change_set_store()
+            .load(&params.change_set_id)
+            .map_err(project_error)?;
+        crate::iteration_impact::analyze_impact(
+            session,
+            candidate,
+            &evaluation.diff,
+            &change_set.operations(),
+        )?
+    } else {
+        unavailable_impact()
+    };
+    serde_json::to_value(ChangeSetImpactResult {
+        change_set_id: evaluation.change_set_id,
+        version: evaluation.version,
+        base_revision: evaluation.base_revision,
+        status: evaluation.status,
+        candidate_digest: evaluation.candidate_digest,
+        diagnostic_count,
+        impact,
+    })
+    .map_err(serialize_error)
+}
+
+fn unavailable_impact() -> IterationImpact {
+    IterationImpact {
+        scope: IterationImpactScope::Unavailable,
+        full_scene_rebuild_required: false,
+        source_nodes: ChangeImpactCounts::default(),
+        derived_nodes: ChangeImpactCounts::default(),
+        relations: ChangeImpactCounts::default(),
+        components: ChangeImpactCounts::default(),
+        materials: ChangeImpactCounts::default(),
+        affected_source_nodes: 0,
+        affected_derived_nodes: 0,
+        reused_geometry: 0,
+        generated_geometry: 0,
+        cache_hits: 0,
+        cache_misses: 0,
+        reasons: vec![IterationImpactReason::ValidationBlocked],
+    }
 }
 
 fn candidate_rpc(

@@ -90,6 +90,7 @@ pub fn authorize_write(
             | "changeset.addOperations"
             | "changeset.removeOperations"
             | "changeset.evaluate"
+            | "changeset.impact"
             | "changeset.getCandidate"
             | "export.sourceGlb"
             | "export.runtimePreview"

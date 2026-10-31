@@ -366,9 +366,7 @@ pub struct AgentManifest {
     pub workflows: Vec<AgentWorkflow>,
 }
 
-#[derive(
-    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS,
-)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
@@ -390,7 +388,9 @@ pub enum IterationImpactScope {
     Unavailable,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema, TS,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
 #[ts(export)]

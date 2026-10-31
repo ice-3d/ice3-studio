@@ -34,6 +34,9 @@ pub struct BuiltScenePatch {
     pub patch: ScenePatch,
     pub scene: EvaluatedScene,
     pub affected_source_nodes: Option<BTreeSet<NodeId>>,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+    pub generated_meshes: usize,
 }
 
 struct SourceNodeSnapshot {
@@ -273,6 +276,9 @@ pub fn build_scene_patch_with_scene<S: GeometryStore>(
         let scene = evaluate_large_scene_with_cache_and_evaluator(document, store, evaluator)?;
         return Ok(BuiltScenePatch {
             patch: build_full_scene_patch(document, &scene, evaluator)?,
+            cache_hits: scene.stats.cache_hits,
+            cache_misses: scene.stats.cache_misses,
+            generated_meshes: scene.stats.generated_meshes,
             scene,
             affected_source_nodes: None,
         });
@@ -346,6 +352,9 @@ pub fn build_scene_patch_with_scene<S: GeometryStore>(
     };
     Ok(BuiltScenePatch {
         patch,
+        cache_hits: scene.stats.cache_hits,
+        cache_misses: scene.stats.cache_misses,
+        generated_meshes: scene.stats.generated_meshes,
         scene,
         affected_source_nodes: Some(selected),
     })

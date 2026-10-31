@@ -6,6 +6,7 @@ pub mod capabilities;
 pub mod changeset;
 pub mod compute;
 mod events;
+mod iteration_impact;
 pub mod preview;
 pub mod preview_packet;
 mod rpc;
