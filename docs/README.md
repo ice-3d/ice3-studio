@@ -23,6 +23,7 @@
 | `ICE3-STUDIO-SPEC-002` | [Studio Web Workbench 设计](specs/2026-10-30-studio-web-workbench-design.md) | Implemented | AI-native 审查、表单编辑、ChangeSet 和通用工作台设计 |
 | `ICE3-STUDIO-SPEC-003` | [Native GPU Compute 设计](specs/2026-10-30-native-gpu-compute-design.md) | Experimental | Native `wgpu` 实现完整，当前设备未达到 release 性能门禁 |
 | `ICE3-STUDIO-SPEC-006` | [GPU-Resident Geometry 设计](specs/2026-10-31-gpu-resident-geometry-design.md) | Experimental | 功能已交付，但 resident 性能门禁未通过；CPU 与 WebGL2 仍为默认 |
+| `ICE3-STUDIO-SPEC-007` | [GPU Resident Hot-Path Redesign](specs/2026-10-31-gpu-hot-path-redesign-design.md) | Proposed | 稳定 handle、一次性 digest、异步批处理和分阶段 GPU 证据 |
 | `ICE3-STUDIO-PLAN-009` | [GPU-Resident Geometry 实施计划](plans/2026-10-31-gpu-resident-geometry.md) | Experimental | Native residency、增量 packet、浏览器 buffer 复用和量化验收 |
 | `ICE3-STUDIO-PLAN-008` | [Native GPU Compute Backend 实施计划](plans/2026-10-30-native-gpu-compute-backend.md) | Experimental | GPU 契约、设备生命周期、内核、调度、证据和 fail-closed 性能门禁 |
 | `ICE3-STUDIO-SPEC-004` | [Toolchain Sidecar Integration 设计](specs/2026-10-30-studio-toolchain-sidecar-design.md) | Implemented | Studio 与 Toolchain 的版本化本地 Sidecar、能力协商和资产边界 |
