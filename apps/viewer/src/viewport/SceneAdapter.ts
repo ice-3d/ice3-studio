@@ -52,6 +52,7 @@ export class SceneAdapter {
   private originalNodeState = new WeakMap<ImportedNode, {
     matrix: number[];
     visible: boolean;
+    material?: ImportedMaterial;
   }>();
   onSelection: ((ids: readonly string[]) => void) | undefined;
 
@@ -336,13 +337,24 @@ type ImportedNode = {
   rotation: { x: number; y: number; z: number };
   scale: { x: number; y: number; z: number };
   localMatrixOverride?: Float32Array | null;
+  material?: ImportedMaterial;
   setLocalMatrix(matrix: readonly number[]): unknown;
+};
+
+type ImportedMaterial = {
+  readonly color: string;
+  readonly edgeColor?: string;
+  readonly shading?: 'directional';
 };
 
 function applyReferenceOverrides(
   scene: unknown,
   bindings: readonly StudioReferenceBinding[],
-  originalNodeState: WeakMap<ImportedNode, { matrix: number[]; visible: boolean }>,
+  originalNodeState: WeakMap<ImportedNode, {
+    matrix: number[];
+    visible: boolean;
+    material?: ImportedMaterial;
+  }>,
 ): void {
   const nodes = findImportedNodes(scene as ImportedNode);
   for (const binding of bindings) {
@@ -353,6 +365,7 @@ function applyReferenceOverrides(
         originalNodeState.set(node, {
           matrix: currentLocalMatrix(node),
           visible: node.visible,
+          material: node.material,
         });
       }
       const original = originalNodeState.get(node)!;
@@ -362,6 +375,16 @@ function applyReferenceOverrides(
         node.setLocalMatrix(multiplyMatrices(transformMatrix(binding.transform), original.matrix));
       }
       node.visible = binding.visible ? original.visible : false;
+      const independentlyMaterialized = (node.semanticSelectionIds?.length ?? 0) <= 1;
+      if (binding.materialColor && independentlyMaterialized && original.material) {
+        const material = Object.create(
+          Object.getPrototypeOf(original.material),
+        ) as ImportedMaterial;
+        Object.assign(material, original.material, { color: binding.materialColor });
+        node.material = material;
+      } else if (original.material) {
+        node.material = original.material;
+      }
     }
   }
 }

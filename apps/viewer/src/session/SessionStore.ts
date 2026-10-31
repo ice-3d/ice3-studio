@@ -29,6 +29,7 @@ export type StudioReferenceBinding = StudioReferenceBindingEntry & {
   transform: StudioTransform;
   visible: boolean;
   materialId: string | null;
+  materialColor: string | null;
 };
 
 export type StudioReferenceSession = {
@@ -154,9 +155,24 @@ async function loadReference(
         transform: node?.transform ?? identityTransform(),
         visible: node?.visible ?? true,
         materialId: node?.materialId ?? null,
+        materialColor: materialColor(document, node?.materialId),
       };
     }),
   };
+}
+
+function materialColor(
+  document: StudioDocument,
+  materialId: string | null | undefined,
+): string | null {
+  if (!materialId) return null;
+  const material = document.materials?.find((candidate) => candidate.id === materialId);
+  if (!material) return null;
+  return `#${material.baseColor.slice(0, 3).map((channel) => (
+    Math.round(Math.min(1, Math.max(0, channel)) * 255)
+      .toString(16)
+      .padStart(2, '0')
+  )).join('')}`;
 }
 
 function identityTransform(): StudioTransform {

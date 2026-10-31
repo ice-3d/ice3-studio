@@ -376,7 +376,7 @@ It committed 204 semantic binding nodes and produced:
 - 70,984-byte `document.get` result;
 - 731-byte `scene.context` result;
 - 41,545-byte first binding page;
-- 335.4 ms from Viewer navigation to the first visible coarse tile;
+- about 330 ms from Viewer navigation to the first visible coarse tile;
 - 5,757,962 effective triangles and 1,632 unique meshes;
 - safe portrait and landscape bounds with no camera clipping;
 - zero selected-surface changes across stable screenshot frames;

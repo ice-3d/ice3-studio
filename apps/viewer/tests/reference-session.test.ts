@@ -20,6 +20,7 @@ test('loads reference metadata without requesting document geometry', async () =
             scale: { x: 1, y: 1, z: 1 },
           },
           metadata: {},
+          materialId: 'material-000001',
           content: {
             type: 'reference_instance',
             assetId: 'asset-000001',
@@ -27,6 +28,11 @@ test('loads reference metadata without requesting document geometry', async () =
           },
         }],
       },
+      materials: [{
+        id: 'material-000001',
+        name: 'Override',
+        baseColor: [0.4, 0.6, 0.8, 1] as [number, number, number, number],
+      }],
       components: [],
     }),
     validation: async () => [],
@@ -49,6 +55,7 @@ test('loads reference metadata without requesting document geometry', async () =
     store.snapshot.reference?.bindings[0]?.transform,
     { translation: { x: 4, y: 0, z: 0 }, rotation: [0, 0, 0, 1], scale: { x: 1, y: 1, z: 1 } },
   );
+  assert.equal(store.snapshot.reference?.bindings[0]?.materialColor, '#6699cc');
 });
 
 test('maps imported selection IDs back to Studio binding IDs', () => {

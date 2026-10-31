@@ -92,6 +92,13 @@ export type StudioDocument = {
   revision: number;
   scene: { nodes: StudioNode[] };
   components: ComponentDefinition[];
+  materials?: StudioMaterial[];
+};
+
+export type StudioMaterial = {
+  id: string;
+  name: string;
+  baseColor: [number, number, number, number];
 };
 
 export type Diagnostic = {
