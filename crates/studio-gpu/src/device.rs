@@ -6,12 +6,16 @@ use std::time::Instant;
 
 use crate::residency::{GpuGeometryResidency, ResidencyKey, ResidentBatchInput, ResidentBatchPlan};
 use crate::resources::{DeviceResources, ResourceStats};
+use crate::scene::session::GpuSceneSession;
 use studio_core::document::NodeContent;
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
     GeometryBatch, GeometryBatchResult, GeometryDigestSet, GeometryEvaluationMode,
-    GeometryExecutionStats, GeometryResidentBatchResult, GeometryResidentEntry,
-    ResidentGeometryHandle, ResidentGeometryId,
+    GeometryExecutionStats, GeometryPhaseEvidence, GeometryResidentBatchResult,
+    GeometryResidentEntry, ResidentGeometryHandle, ResidentGeometryId,
+};
+use studio_core::scene_contract::{
+    ScenePatch, SceneSessionId, SceneSessionState, SceneSessionStatus, SceneSubmission,
 };
 use wgpu::{
     Adapter, BindGroupDescriptor, BindGroupEntry, BufferDescriptor, BufferUsages,
@@ -47,6 +51,8 @@ struct DeviceState {
     _residency: Option<Arc<GpuGeometryResidency>>,
     cancelled_jobs: HashSet<String>,
     completed_resident_jobs: BTreeMap<String, GeometryResidentBatchResult>,
+    scene_sessions: BTreeMap<String, GpuSceneSession>,
+    next_scene_session: u64,
     stats: GeometryExecutionStats,
 }
 
@@ -77,6 +83,8 @@ impl NativeGpuBackend {
                 _residency: None,
                 cancelled_jobs: HashSet::new(),
                 completed_resident_jobs: BTreeMap::new(),
+                scene_sessions: BTreeMap::new(),
+                next_scene_session: 0,
                 stats: GeometryExecutionStats::default(),
             })),
             limits: GpuHostLimits::default(),
@@ -518,6 +526,274 @@ impl NativeGpuBackend {
         Ok(())
     }
 
+    pub fn create_scene_session(&self, project_id: &str) -> Result<SceneSessionId, BackendError> {
+        let _ready = self.ready_device()?;
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.next_scene_session = state.next_scene_session.wrapping_add(1);
+        let id = SceneSessionId(format!(
+            "{project_id}-scene-{:08}",
+            state.next_scene_session
+        ));
+        state.scene_sessions.insert(
+            id.0.clone(),
+            GpuSceneSession::new(self.device_generation.load(Ordering::Acquire), 0),
+        );
+        Ok(id)
+    }
+
+    pub fn apply_scene_patch(
+        &self,
+        session_id: &SceneSessionId,
+        patch: ScenePatch,
+    ) -> Result<SceneSubmission, BackendError> {
+        let ready = self.ready_device()?;
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let session =
+            state
+                .scene_sessions
+                .get_mut(&session_id.0)
+                .ok_or_else(|| BackendError::Kernel {
+                    message: "GPU scene session is unavailable".into(),
+                })?;
+        let previous_target = session.target_revision;
+        session.target_revision = patch.target_revision;
+        if session.state == SceneSessionState::Lost
+            || session.device_generation != self.device_generation.load(Ordering::Acquire)
+        {
+            session.state = SceneSessionState::Failed;
+            session.fallback_reason = Some("GPU scene device generation is stale".into());
+            return Err(BackendError::DeviceLost {
+                message: "GPU scene device generation is stale".into(),
+            });
+        }
+        if session.state == SceneSessionState::Failed {
+            return Err(BackendError::Unavailable {
+                reason: session
+                    .fallback_reason
+                    .clone()
+                    .unwrap_or_else(|| "GPU scene session has failed".into()),
+            });
+        }
+        let valid_order = patch.base_revision == previous_target
+            || (patch.full_rebuild
+                && patch.base_revision == 0
+                && (session.published_revision == 0
+                    || patch.target_revision > patch.base_revision));
+        if !valid_order {
+            session.state = SceneSessionState::Failed;
+            session.fallback_reason = Some(format!(
+                "scene revision order is invalid: base {} target {} published {}",
+                patch.base_revision, patch.target_revision, session.published_revision
+            ));
+            return Err(BackendError::Kernel {
+                message: session.fallback_reason.clone().unwrap_or_default(),
+            });
+        }
+
+        if patch.full_rebuild {
+            session.geometries.clear();
+            session.instances = Default::default();
+        }
+        let result: Result<SceneSubmission, BackendError> = (|| {
+            let mut upload_bytes = 0u64;
+            let mut geometry_dispatch_count = 0usize;
+            let mut submission_count = 0usize;
+            let mut dirty_range_bytes = 0u64;
+            let mut pending = Vec::new();
+            for change in patch.geometry {
+                let previous = change
+                    .previous_geometry_id
+                    .as_ref()
+                    .and_then(|id| session.geometries.get(id))
+                    .or_else(|| session.geometries.get(&change.geometry_id));
+                let update = if !patch.full_rebuild
+                    && !change
+                        .dirty
+                        .contains(studio_core::gpu_contract::GeometryDirtyChannel::Topology)
+                    && let Some(previous) = previous
+                {
+                    Some(ready.residency.update_geometry(
+                        &ready.device,
+                        &ready.queue,
+                        previous,
+                        &change.content,
+                        change.position_ranges.clone(),
+                    )?)
+                } else {
+                    None
+                };
+                let entry = if let Some(entry) = update {
+                    entry
+                } else {
+                    let mesh = match &change.content {
+                        NodeContent::CustomMesh(mesh) => mesh.clone(),
+                        content => {
+                            let evaluated = studio_core::geometry::evaluate_node_content(content)
+                                .map_err(|error| BackendError::Kernel {
+                                message: error.to_string(),
+                            })?;
+                            studio_core::geometry::TriangleMesh {
+                                positions: evaluated
+                                    .vertices
+                                    .into_iter()
+                                    .map(|vertex| vertex.position)
+                                    .collect(),
+                                indices: evaluated.indices,
+                            }
+                        }
+                    };
+                    ready.residency.evaluate_with_digests(
+                        &ready.device,
+                        &ready.queue,
+                        &change.geometry_id,
+                        &change.content,
+                        &mesh,
+                        &change.digests,
+                    )?
+                };
+                upload_bytes = upload_bytes.saturating_add(entry.evidence.stats.upload_bytes);
+                dirty_range_bytes = dirty_range_bytes.saturating_add(
+                    change
+                        .position_ranges
+                        .iter()
+                        .map(|range| range.count as u64 * 16)
+                        .sum::<u64>(),
+                );
+                geometry_dispatch_count += 1;
+                submission_count += 1;
+                pending.push(entry.id.clone());
+                session.geometries.insert(change.geometry_id, entry.id);
+            }
+            let instance_update = session.instances.apply_changes(patch.instances);
+            let removed = session.instances.remove_nodes(&patch.removed_node_ids);
+            for id in &patch.removed_geometry_ids {
+                session.geometries.remove(id);
+            }
+            session.pending_geometries.extend(pending.iter().cloned());
+            session.submission_count = session.submission_count.saturating_add(submission_count);
+            session.geometry_dispatch_count = session
+                .geometry_dispatch_count
+                .saturating_add(geometry_dispatch_count);
+            session.dirty_range_bytes = session.dirty_range_bytes.saturating_add(dirty_range_bytes);
+            session.state = if session.pending_geometries.is_empty() {
+                SceneSessionState::Idle
+            } else {
+                SceneSessionState::Pending
+            };
+            if session.pending_geometries.is_empty() {
+                session.published_revision = patch.target_revision;
+            }
+            Ok(SceneSubmission {
+                session_id: session_id.clone(),
+                target_revision: patch.target_revision,
+                submission_count,
+                geometry_dispatch_count,
+                instance_range_count: instance_update.changed_ranges.len()
+                    + removed.removed_ranges.len(),
+                upload_bytes,
+                readback_bytes: 0,
+                phases: GeometryPhaseEvidence::default(),
+            })
+        })();
+        if let Err(error) = &result {
+            session.state = SceneSessionState::Failed;
+            session.fallback_reason = Some(error.to_string());
+        }
+        result
+    }
+
+    pub fn wait_scene_revision(
+        &self,
+        session_id: &SceneSessionId,
+        revision: u64,
+    ) -> Result<SceneSessionStatus, BackendError> {
+        let ready = self.ready_device()?;
+        let pending =
+            {
+                let state = self
+                    .state
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let session = state.scene_sessions.get(&session_id.0).ok_or_else(|| {
+                    BackendError::Kernel {
+                        message: "GPU scene session is unavailable".into(),
+                    }
+                })?;
+                if revision > session.target_revision {
+                    return Err(BackendError::Kernel {
+                        message: "scene revision has not been queued".into(),
+                    });
+                }
+                session.pending_geometries.clone()
+            };
+        for geometry in pending {
+            if let Err(error) = ready.residency.evaluate_handle(&ready.device, &geometry) {
+                let mut state = self
+                    .state
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                if let Some(session) = state.scene_sessions.get_mut(&session_id.0) {
+                    session.state = SceneSessionState::Failed;
+                    session.fallback_reason = Some(error.to_string());
+                }
+                return Err(error);
+            }
+        }
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let session =
+            state
+                .scene_sessions
+                .get_mut(&session_id.0)
+                .ok_or_else(|| BackendError::Kernel {
+                    message: "GPU scene session is unavailable".into(),
+                })?;
+        session.pending_geometries.clear();
+        session.published_revision = revision;
+        session.state = SceneSessionState::Idle;
+        let stats = ready.residency.stats();
+        Ok(session.status(session_id, stats.resident_bytes, stats.peak_resident_bytes))
+    }
+
+    pub fn scene_status(&self, session_id: &SceneSessionId) -> Option<SceneSessionStatus> {
+        let ready = self.ready_device().ok()?;
+        let state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let session = state.scene_sessions.get(&session_id.0)?;
+        let stats = ready.residency.stats();
+        Some(session.status(session_id, stats.resident_bytes, stats.peak_resident_bytes))
+    }
+
+    pub fn close_scene_session(&self, session_id: &SceneSessionId) {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .scene_sessions
+            .remove(&session_id.0);
+    }
+
+    #[doc(hidden)]
+    pub fn fail_scene_for_test(&self, session_id: &SceneSessionId, reason: &str) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(session) = state.scene_sessions.get_mut(&session_id.0) {
+            session.state = SceneSessionState::Failed;
+            session.fallback_reason = Some(reason.into());
+        }
+    }
+
     fn ready_device(&self) -> Result<ReadyDevice, BackendError> {
         if self.mode == GeometryBackendMode::Cpu {
             return Err(BackendError::Unavailable {
@@ -683,6 +959,35 @@ impl GeometryBackend for NativeGpuBackend {
         NativeGpuBackend::evaluate_resident(self, batch)
     }
 
+    async fn create_scene_session(&self, project_id: &str) -> Result<SceneSessionId, BackendError> {
+        NativeGpuBackend::create_scene_session(self, project_id)
+    }
+
+    async fn apply_scene_patch(
+        &self,
+        session: &SceneSessionId,
+        patch: ScenePatch,
+    ) -> Result<SceneSubmission, BackendError> {
+        NativeGpuBackend::apply_scene_patch(self, session, patch)
+    }
+
+    async fn wait_scene_revision(
+        &self,
+        session: &SceneSessionId,
+        revision: u64,
+    ) -> Result<SceneSessionStatus, BackendError> {
+        NativeGpuBackend::wait_scene_revision(self, session, revision)
+    }
+
+    async fn close_scene_session(&self, session: &SceneSessionId) -> Result<(), BackendError> {
+        NativeGpuBackend::close_scene_session(self, session);
+        Ok(())
+    }
+
+    fn scene_status(&self, session: &SceneSessionId) -> Option<SceneSessionStatus> {
+        NativeGpuBackend::scene_status(self, session)
+    }
+
     async fn cancel(&self, job_id: &str) -> Result<(), BackendError> {
         self.mark_cancelled(job_id);
         Ok(())
@@ -702,6 +1007,10 @@ fn record_device_loss(state: &Mutex<DeviceState>, reason: String) {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let residency = state._residency.take();
+    for session in state.scene_sessions.values_mut() {
+        session.state = SceneSessionState::Lost;
+        session.fallback_reason = Some(reason.clone());
+    }
     if let Some(capabilities) = state.capabilities.as_mut() {
         capabilities.health = "unavailable".into();
         capabilities.accelerated = false;
@@ -980,6 +1289,8 @@ mod tests {
             _residency: None,
             cancelled_jobs: HashSet::new(),
             completed_resident_jobs: BTreeMap::new(),
+            scene_sessions: BTreeMap::new(),
+            next_scene_session: 0,
             stats: GeometryExecutionStats::default(),
         });
 

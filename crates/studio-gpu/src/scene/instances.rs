@@ -99,6 +99,14 @@ impl InstanceTable {
         &self.records
     }
 
+    pub fn len(&self) -> usize {
+        self.node_slots.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.node_slots.is_empty()
+    }
+
     pub fn gpu_bytes(&self) -> u64 {
         self.records.len() as u64 * 64
     }
