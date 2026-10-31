@@ -5,7 +5,6 @@ import {
   applyReferenceOverrides,
   lightenReferenceColor,
   mapReferenceSelection,
-  referenceSurfaceColor,
 } from '../src/viewport/SceneAdapter';
 
 test('loads reference metadata without requesting document geometry', async () => {
@@ -76,30 +75,13 @@ test('lifts reference materials without discarding their hue', () => {
   assert.equal(lightenReferenceColor('invalid'), 'invalid');
 });
 
-test('maps infrastructure and pipe colors by real-world material role', () => {
-  assert.equal(referenceSurfaceColor(['Ground'], '#1a1b17'), '#8da478');
-  assert.equal(referenceSurfaceColor(['Ground', 'Ground.Slab'], '#1a1b17'), '#91a77c');
-  assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.MainAccess'], '#1f2121'), '#25282b');
-  assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.MainAccess.Curb.N'], '#a39e87'), '#c9c7be');
-  assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.StormDrain.00'], '#2e383b'), '#454a4c');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.air-01'], '#7a8c8f'), '#3f8fc5');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.gas-01'], '#63784d'), '#d8b82e');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.chemical-01a'], '#80754d'), '#d4862d');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.sludge-01'], '#695980'), '#8a6249');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.loop-a-01'], '#477063'), '#3f8b69');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.filtrate-01'], '#695980'), '#7565a8');
-  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.main-01-IN-001-GR-101'], '#1f6b94'), '#347fae');
-  assert.equal(
-    referenceSurfaceColor(['Buildings', 'Operations Center'], '#263d45'),
-    '#4b7b8d',
-  );
-  assert.equal(referenceSurfaceColor(['AE-101'], '#265c66'), '#1f6675');
-  assert.equal(referenceSurfaceColor(['AE-101'], '#66635c'), '#d6d7d2');
-  assert.equal(referenceSurfaceColor(['AE-101'], '#6e7a7d'), '#a8b1b5');
-  assert.equal(referenceSurfaceColor(['AE-101'], '#ced4d5'), '#2f6f78');
+test('keeps the asset material when a binding declares no slot', () => {
+  const node = fakeNode('site/opaque', { color: '#4a5560' });
+  applyReferenceOverrides(fakeNode('site/root', null, [node]), [], new WeakMap());
+  assert.equal(node.material?.color, '#4a5560');
 });
 
-test('inherits equipment color through mesh children without tinting shared geometry', () => {
+test('inherits binding color through mesh children without tinting shared geometry', () => {
   const material = (color: string) => ({ color });
   const child = fakeNode('site/child', material('#334455'));
   const parent = fakeNode('site/equipment/AE-101', null, [child]);
@@ -128,32 +110,28 @@ test('inherits equipment color through mesh children without tinting shared geom
   ], new WeakMap());
 
   assert.equal(child.material?.color, '#26b8c6');
-  assert.equal(mixed.material?.color, lightenReferenceColor('#334455'));
+  // 共享几何同时属于两个绑定，无法判定用哪个颜色，因此保持资产原色。
+  assert.equal(mixed.material?.color, '#334455');
 });
 
-test('removes the legacy external stair primitive from facilities', () => {
-  const children = Array.from({ length: 7 }, (_, index) => (
-    fakeNode(`site/facility/part-${index}`, { color: '#66635c' })
-  ));
-  const building = fakeNode('Site.Facility.FAC-CTRL-101', null, children);
-  applyReferenceOverrides(
-    fakeNode('Buildings', null, [building]),
-    [],
-    new WeakMap(),
-  );
-  assert.equal(children[6]?.visible, false);
-  assert.equal(children[5]?.visible, true);
-});
-
-test('hides legacy paving blocks so the grass base remains continuous', () => {
-  const pad = fakeNode('SitePads.00', { color: '#66635c' });
-  const ground = fakeNode('Ground', null, [pad]);
-  applyReferenceOverrides(
-    fakeNode('Site', null, [ground]),
-    [],
-    new WeakMap(),
-  );
-  assert.equal(pad.visible, false);
+test('hides only the bindings the asset marked hidden', () => {
+  const obsolete = fakeNode('site/part-obsolete', { color: '#66635c' });
+  const kept = fakeNode('site/part-kept', { color: '#66635c' });
+  const assembly = fakeNode('Asset.Assembly', null, [obsolete, kept]);
+  applyReferenceOverrides(fakeNode('Asset', null, [assembly]), [
+    {
+      selectionId: 'site/part-obsolete',
+      name: 'part-obsolete',
+      nodeId: 'node-obsolete',
+      transform: identityTransform(),
+      visible: true,
+      materialId: null,
+      materialColor: null,
+      hidden: true,
+    },
+  ], new WeakMap());
+  assert.equal(obsolete.visible, false);
+  assert.equal(kept.visible, true);
 });
 
 function largeReferenceDescriptor() {
@@ -172,13 +150,17 @@ function largeReferenceDescriptor() {
         effectiveTriangles: 5_757_962,
         uniqueMeshes: 1632,
         materials: 75,
-        equipment: 204,
+        bindings: 204,
       },
+      materialSlots: [
+        { id: 'tank-aerated', color: '#26b8c6', role: 'surface' },
+        { id: 'pipe-sludge', color: '#8a6249', role: 'pipe' },
+      ],
       importedAt: '2026-10-31T00:00:00Z',
     },
     tilesetUrl: '/reference-assets/asset-000001/tileset.json',
     preparedPreviewUrl: '/reference-assets/asset-000001/prepared.glb',
-    equipmentManifestUrl: '/reference-assets/asset-000001/equipment.json',
+    bindingManifestUrl: '/reference-assets/asset-000001/bindings.json',
   };
 }
 

@@ -76,7 +76,8 @@ async function main() {
     const assetId = registration.result.assetId;
 
     const bindingStart = performance.now();
-    const bindings = manifest.equipment.map((entry, index) => bindingCreate(
+    const catalogue = manifest.bindings ?? manifest.equipment ?? [];
+    const bindings = catalogue.map((entry, index) => bindingCreate(
       `node-${String(index + 1).padStart(6, '0')}`,
       assetId,
       entry.selectionId,
@@ -102,7 +103,7 @@ async function main() {
     }, { agentToken });
     const stats = await rpc(server.baseUrl, 'evaluation.stats', {}, { agentToken });
 
-    assert.equal(document.result.scene.nodes.length, manifest.equipment.length);
+    assert.equal(document.result.scene.nodes.length, catalogue.length);
     assert.equal(context.result.counts.referenceAssets, 1);
     assert.equal(context.result.counts.effectiveTriangles, 5_757_962);
     assert.equal(stats.result.effectiveTriangles, 5_757_962);
@@ -213,10 +214,10 @@ async function main() {
     await canvas.screenshot({ path: screenshotPath });
 
     const selectionTags = [
-      manifest.equipment[0]?.tag,
-      manifest.equipment.find((entry) => entry.tag === 'GW-101')?.tag,
-      manifest.equipment.find((entry) => entry.tag === 'CL-101')?.tag,
-      manifest.equipment[10]?.tag,
+      catalogue[0]?.tag,
+      catalogue.find((entry) => entry.tag === 'GW-101')?.tag,
+      catalogue.find((entry) => entry.tag === 'CL-101')?.tag,
+      catalogue[10]?.tag,
     ].filter(Boolean);
     let flickerFrames = 0;
     let selectionMapped = false;
@@ -251,7 +252,7 @@ async function main() {
       contextBytes: Buffer.byteLength(JSON.stringify(context.result)),
       bindingPageBytes: Buffer.byteLength(JSON.stringify(page.result)),
       sourceNodes: document.result.scene.nodes.length,
-      equipment: registration.result.descriptor.stats.equipment,
+      equipment: registration.result.descriptor.stats.bindings,
       effectiveTriangles: stats.result.effectiveTriangles,
       uniqueMeshes: stats.result.uniqueMeshes,
       firstTileMs,

@@ -83,12 +83,13 @@ if (alreadyBound) {
     sourcePath: relative(workspaceRoot, sourcePath),
     preparedPath: relative(workspaceRoot, preparedPath),
     tilesetPath: relative(workspaceRoot, tilesetPath),
-    equipmentManifestPath: relative(workspaceRoot, equipmentManifest),
+    bindingManifestPath: relative(workspaceRoot, equipmentManifest),
   }, { approvalToken });
   assetId = registration.assetId;
 
   const manifest = JSON.parse(await readFile(equipmentManifest, 'utf8'));
-  const bindings = manifest.equipment.map((entry, index) => {
+  const catalogue = manifest.bindings ?? manifest.equipment ?? [];
+  const bindings = catalogue.map((entry, index) => {
     const compact = compactLayoutTranslation(entry);
     return {
       type: 'node.create',
@@ -131,7 +132,7 @@ const report = {
   url,
   reused: alreadyBound,
   sourceNodes: descriptor.descriptor?.stats?.sourceNodes ?? context.counts.sourceNodes,
-  equipment: descriptor.descriptor?.stats?.equipment ?? context.counts.sourceNodes,
+  bindings: descriptor.descriptor?.stats?.bindings ?? context.counts.sourceNodes,
   materials: descriptor.descriptor?.stats?.materials ?? null,
   effectiveTriangles: stats.effectiveTriangles,
   uniqueMeshes: stats.uniqueMeshes,

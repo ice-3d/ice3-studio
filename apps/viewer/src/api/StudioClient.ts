@@ -38,24 +38,27 @@ export type StudioReferenceAsset = {
       effectiveTriangles: number;
       uniqueMeshes: number;
       materials: number;
-      equipment: number;
+      bindings: number;
     };
+    materialSlots: Array<{ id: string; color: string | null; role: string | null }>;
+    displayExposure?: number;
     importedAt: string;
   };
   tilesetUrl: string | null;
   preparedPreviewUrl: string | null;
-  equipmentManifestUrl: string;
+  bindingManifestUrl: string;
 };
 
 export type StudioReferenceBindingEntry = {
   selectionId: string;
   name: string;
   kind?: string | null;
-  processStage?: string | null;
-  area?: string | null;
+  metadata?: Record<string, string>;
   bounds?: StudioBounds;
   transform?: StudioTransform;
   materialIds?: string[];
+  slot?: string | null;
+  hidden?: boolean;
 };
 
 export type StudioReferenceBindingPage = {

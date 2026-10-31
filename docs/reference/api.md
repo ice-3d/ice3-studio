@@ -24,7 +24,8 @@ The Web Viewer has no private mutation path.
   content rewritten beneath `/tiled/`.
 - `GET /reference-assets/{assetId}/tiled/{path}`: immutable coarse/fine GLB tiles.
 - `GET /reference-assets/{assetId}/prepared.glb`: immutable Prepared GLB fallback.
-- `GET /reference-assets/{assetId}/equipment.json`: immutable equipment manifest.
+- `GET /reference-assets/{assetId}/bindings.json`: immutable binding manifest. The legacy
+  `/equipment.json` path resolves to the same file.
 
 The default origin is `http://127.0.0.1:8120`. Server startup generates a short-lived token;
 mutating methods require `Authorization: Bearer <token>`.
@@ -159,9 +160,11 @@ references/<assetId>/
   asset.json
   source.glb
   prepared.glb
-  equipment.json
+  bindings.json
   tiled/tileset.json
 ```
+
+Early projects store the same manifest as `equipment.json`; both names are readable.
 
 Viewer sessions request the small Document, descriptor, and 100-item binding pages. An
 `ICETilesetLoader` streams coarse-to-fine tiles; imported selection IDs map back to Studio node

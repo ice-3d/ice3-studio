@@ -36,7 +36,7 @@ impl Fixture {
             source_path: PathBuf::from("refs/source.glb"),
             prepared_path: Some(PathBuf::from("refs/prepared.glb")),
             tileset_path: Some(PathBuf::from("refs/tiled")),
-            equipment_manifest_path: PathBuf::from("refs/equipment.json"),
+            binding_manifest_path: PathBuf::from("refs/equipment.json"),
         }
     }
 
@@ -51,7 +51,7 @@ fn registers_hashes_and_pages_a_reference_asset() {
     let store = fixture.store();
     let registered = store.register(&fixture.source()).unwrap();
 
-    assert_eq!(registered.descriptor.stats.equipment, 204);
+    assert_eq!(registered.descriptor.stats.bindings, 204);
     assert_eq!(registered.descriptor.stats.effective_triangles, 5_757_962);
     assert_eq!(
         store.get("asset-000001").unwrap().descriptor,

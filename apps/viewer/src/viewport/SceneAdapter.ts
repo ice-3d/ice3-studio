@@ -46,6 +46,7 @@ export class SceneAdapter {
   private tilesetLoader: ICETilesetLoader | null = null;
   private tilesetHandle: ICETilesetHandle | null = null;
   private referenceBindings: StudioReferenceBinding[] = [];
+  private referenceExposure = 1;
   private selectionIds: string[] = [];
   private lastBounds: ICEGeometryBounds | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -122,6 +123,8 @@ export class SceneAdapter {
   ): Promise<void> {
     if (!this.engine || !this.camera) throw new Error('scene is not mounted');
     this.referenceBindings = [...bindings];
+    // 曝光由资产声明，Viewer 只按数值执行，不做任何内容判断。
+    this.referenceExposure = asset.descriptor.displayExposure ?? 1;
     if (
       asset.preparedPreviewUrl
       && new URLSearchParams(window.location.search).get('reference') === 'glb'
@@ -153,6 +156,7 @@ export class SceneAdapter {
           replacement.scene,
           this.referenceBindings,
           this.originalNodeState,
+          this.referenceExposure,
         );
         this.engine.setScene(replacement.scene);
         this.select(this.selectionIds);
@@ -172,6 +176,7 @@ export class SceneAdapter {
           replacement.scene,
           this.referenceBindings,
           this.originalNodeState,
+          this.referenceExposure,
         );
         activate();
       });
@@ -239,6 +244,7 @@ export class SceneAdapter {
       this.handle.scene,
       this.referenceBindings,
       this.originalNodeState,
+      this.referenceExposure,
     );
     this.engine.setScene(this.handle.scene);
     this.viewportElement?.setAttribute('data-reference-state', 'fallback');
@@ -374,6 +380,7 @@ export function applyReferenceOverrides(
     visible: boolean;
     material?: ImportedMaterial;
   }>,
+  exposure = 1,
 ): void {
   const nodes = findImportedNodes(scene as ImportedNode);
   for (const binding of bindings) {
@@ -400,13 +407,10 @@ export function applyReferenceOverrides(
   const bindingsBySelection = new Map(
     bindings.map((binding) => [binding.selectionId, binding]),
   );
-  const applyMaterials = (
+  const applyBindings = (
     node: ImportedNode,
     inheritedBinding: StudioReferenceBinding | undefined,
-    path: readonly string[] = [],
-    childIndex = 0,
   ): void => {
-    const nodePath = node.name ? [...path, node.name] : path;
     if (!originalNodeState.has(node)) {
       originalNodeState.set(node, {
         matrix: currentLocalMatrix(node),
@@ -417,33 +421,24 @@ export function applyReferenceOverrides(
     const original = originalNodeState.get(node)!;
     const directBinding = matchingMaterialBinding(node, bindingsBySelection);
     const binding = directBinding ?? inheritedBinding;
-    const isExternalFacilityStair = (
-      pathName(path).includes('Site.Facility.')
-      && childIndex === 6
-    );
-    const isLegacySitePad = nodePath.some((part) => part.startsWith('SitePads'));
-    node.visible = isExternalFacilityStair || isLegacySitePad
-      ? false
-      : original.visible;
+    // 可见性只由资产声明的 hidden 决定，不再解析节点名。
+    node.visible = binding?.hidden ? false : original.visible;
     if (!original.material) {
       // Group nodes carry no material but still propagate semantic context.
     } else if (binding?.materialColor) {
       node.material = cloneMaterial(original.material, binding.materialColor);
     } else {
-      node.material = referenceRoleMaterial(original.material, nodePath);
+      node.material = presentReferenceMaterial(original.material, exposure);
     }
-    for (const [index, child] of (node.children ?? []).entries()) {
-      applyMaterials(child, binding, nodePath, index);
+    for (const child of node.children ?? []) {
+      applyBindings(child, binding);
     }
   };
   if (scene && typeof scene === 'object') {
-    applyMaterials(scene as ImportedNode, undefined);
+    applyBindings(scene as ImportedNode, undefined);
   }
 }
 
-function pathName(path: readonly string[]): string {
-  return path.join('/');
-}
 
 function matchingMaterialBinding(
   node: ImportedNode,
@@ -467,6 +462,17 @@ function cloneMaterial(material: ImportedMaterial, color: string): ImportedMater
   return cloned;
 }
 
+function presentReferenceMaterial(
+  material: ImportedMaterial,
+  exposure: number,
+): ImportedMaterial {
+  if (!(exposure > 1)) return material;
+  return cloneMaterial(
+    material,
+    lightenReferenceColor(material.color, Math.min(0.9, exposure - 1)),
+  );
+}
+
 export function lightenReferenceColor(color: string, amount = 0.42): string {
   const normalized = color.startsWith('#') ? color.slice(1) : color;
   const expanded = normalized.length === 3
@@ -482,107 +488,6 @@ export function lightenReferenceColor(color: string, amount = 0.42): string {
   return `#${channels.join('')}${expanded.slice(6)}`;
 }
 
-function presentedReferenceMaterial(material: ImportedMaterial): ImportedMaterial {
-  const presented = Object.create(
-    Object.getPrototypeOf(material),
-  ) as ImportedMaterial;
-  Object.assign(presented, material, {
-    color: lightenReferenceColor(material.color),
-    ...(material.edgeColor
-      ? { edgeColor: lightenReferenceColor(material.edgeColor, 0.12) }
-      : {}),
-  });
-  return presented;
-}
-
-const sourceMaterialColors = Object.freeze<Record<string, string>>({
-  '#66635c': '#d6d7d2',
-  '#6e7a7d': '#a8b1b5',
-  '#ced4d5': '#2f6f78',
-  '#265c66': '#1f6675',
-  '#2e383b': '#465158',
-  '#4d5c61': '#6c7b80',
-  '#7a827d': '#b4b8b5',
-  '#475252': '#5d686e',
-  '#614d33': '#d6d8d4',
-  '#263d45': '#4b7b8d',
-  '#477063': '#3f7767',
-  '#80754d': '#c9862b',
-  '#7a8c8f': '#3987b2',
-  '#1f6b94': '#2477a0',
-  '#87857a': '#c4c1b7',
-  '#1c1f1d': '#414947',
-  '#695980': '#8a6249',
-  '#a39e87': '#eee7c7',
-  '#47707a': '#4a8d9c',
-  '#4d524f': '#697170',
-  '#424d4f': '#59666c',
-  '#1f2121': '#25282b',
-  '#63784d': '#d0ac32',
-  '#6e6354': '#a99c88',
-  '#a67526': '#d78a2e',
-  '#1a1b17': '#91a77c',
-  '#616b66': '#7e8a82',
-  '#617075': '#84989f',
-});
-
-function referenceRoleMaterial(
-  material: ImportedMaterial,
-  path: readonly string[],
-): ImportedMaterial {
-  return cloneMaterial(
-    material,
-    referenceSurfaceColor(path, material.color),
-  );
-}
-
-export function referenceSurfaceColor(
-  path: readonly string[],
-  sourceColor: string,
-): string {
-  const pathName = path.join('/');
-  const nodeName = path.at(-1) ?? '';
-  let color: string | undefined;
-  if (nodeName.includes('.Marking.')) {
-    color = '#e8e4d8';
-  } else if (nodeName.includes('.Curb.')) {
-    color = '#c9c7be';
-  } else if (nodeName.startsWith('RoadNetwork.StormDrain.')) {
-    color = '#454a4c';
-  } else if (nodeName.startsWith('RoadNetwork.')) {
-    color = '#25282b';
-  } else if (nodeName === 'Ground.Slab') {
-    color = '#91a77c';
-  } else if (nodeName === 'Ground') {
-    color = '#8da478';
-  } else if (nodeName.startsWith('SitePads.')) {
-    color = '#b9b6ab';
-  } else if (nodeName.startsWith('Pipe.air-')) {
-    color = '#3f8fc5';
-  } else if (/^Pipe\.(gas|biogas)-/.test(nodeName)) {
-    color = '#d8b82e';
-  } else if (nodeName.startsWith('Pipe.chemical-')) {
-    color = '#d4862d';
-  } else if (/^Pipe\.(sludge|ras|was|scum)-/.test(nodeName)) {
-    color = '#8a6249';
-  } else if (/^Pipe\.(loop|branch|mixed-liquor|recycle)-/.test(nodeName)) {
-    color = '#3f8b69';
-  } else if (nodeName.startsWith('Pipe.service-water-')) {
-    color = '#45966d';
-  } else if (/^Pipe\.(filtrate|supernatant)-/.test(nodeName)) {
-    color = '#7565a8';
-  } else if (/^Pipe\.(backwash|drain)-/.test(nodeName)) {
-    color = '#3996a8';
-  } else if (/^Pipe\.(main|water|treated|effluent|return)-/.test(nodeName)) {
-    color = '#347fae';
-  } else if (nodeName.startsWith('SiteUtilities.Lamp.')) {
-    color = nodeName.endsWith('.Head') ? '#eee7c7' : '#596267';
-  } else if (nodeName === 'SiteMaintenanceWalkway.Rail') {
-    color = '#a2afb2';
-  }
-  return color ?? sourceMaterialColors[sourceColor.toLowerCase()]
-    ?? lightenReferenceColor(sourceColor);
-}
 
 function findImportedNodes(root: ImportedNode): ImportedNode[] {
   const output: ImportedNode[] = [];

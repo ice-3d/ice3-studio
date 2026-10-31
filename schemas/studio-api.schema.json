@@ -21301,16 +21301,16 @@
           ],
           "type": "object"
         },
-        "ReferenceAssetEquipment": {
+        "ReferenceAssetBinding": {
+          "description": "一条语义绑定：把资产内的稳定选择标识映射到可寻址的实体。\n行业属性一律放在 `metadata`，内核不认识任何具体字段。",
           "properties": {
-            "area": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
             "bounds": {
               "$ref": "#/$defs/Bounds"
+            },
+            "hidden": {
+              "default": false,
+              "description": "资产声明该绑定不应显示（例如已废弃构件）。",
+              "type": "boolean"
             },
             "kind": {
               "type": [
@@ -21324,17 +21324,26 @@
               },
               "type": "array"
             },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "default": {},
+              "type": "object"
+            },
             "name": {
               "type": "string"
             },
-            "processStage": {
+            "selectionId": {
+              "type": "string"
+            },
+            "slot": {
+              "default": null,
+              "description": "该绑定使用的材质槽位。为空时使用资产的默认材质。",
               "type": [
                 "string",
                 "null"
               ]
-            },
-            "selectionId": {
-              "type": "string"
             },
             "transform": {
               "$ref": "#/$defs/Transform"
@@ -21401,7 +21410,7 @@
       "properties": {
         "items": {
           "items": {
-            "$ref": "#/$defs/ReferenceAssetEquipment"
+            "$ref": "#/$defs/ReferenceAssetBinding"
           },
           "type": "array"
         },
@@ -21469,8 +21478,22 @@
             "bounds": {
               "$ref": "#/$defs/Bounds"
             },
+            "displayExposure": {
+              "default": 1.0,
+              "description": "展示曝光系数。资产可声明自身材质整体偏暗需要提亮，内核只做数值传递。",
+              "format": "float",
+              "type": "number"
+            },
             "importedAt": {
               "type": "string"
+            },
+            "materialSlots": {
+              "default": [],
+              "description": "资产声明的可覆盖材质槽位。Viewer 按槽位取色，不解析节点名。",
+              "items": {
+                "$ref": "#/$defs/ReferenceMaterialSlot"
+              },
+              "type": "array"
             },
             "preparedDigest": {
               "type": [
@@ -21502,13 +21525,14 @@
         },
         "ReferenceAssetStats": {
           "properties": {
-            "effectiveTriangles": {
-              "format": "uint64",
+            "bindings": {
+              "description": "语义绑定条目数。旧工程把该字段写作 `equipment`。",
+              "format": "uint",
               "minimum": 0,
               "type": "integer"
             },
-            "equipment": {
-              "format": "uint",
+            "effectiveTriangles": {
+              "format": "uint64",
               "minimum": 0,
               "type": "integer"
             },
@@ -21533,7 +21557,33 @@
             "effectiveTriangles",
             "uniqueMeshes",
             "materials",
-            "equipment"
+            "bindings"
+          ],
+          "type": "object"
+        },
+        "ReferenceMaterialSlot": {
+          "description": "资产发布方声明的材质槽位。`color` 是资产的默认表现，可被工程覆盖。",
+          "properties": {
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "role": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id"
           ],
           "type": "object"
         },
@@ -21562,11 +21612,11 @@
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "bindingManifestUrl": {
+          "type": "string"
+        },
         "descriptor": {
           "$ref": "#/$defs/ReferenceAssetDescriptor"
-        },
-        "equipmentManifestUrl": {
-          "type": "string"
         },
         "preparedPreviewUrl": {
           "type": [
@@ -21583,7 +21633,7 @@
       },
       "required": [
         "descriptor",
-        "equipmentManifestUrl"
+        "bindingManifestUrl"
       ],
       "title": "ReferenceAssetEndpoint",
       "type": "object"
@@ -21606,8 +21656,21 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
+        "bindingManifestPath": {
+          "default": null,
+          "description": "资产发布方提供的语义绑定清单路径。",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "equipmentManifestPath": {
-          "type": "string"
+          "default": null,
+          "description": "早期客户端使用的同义字段，读取时回退。",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "preparedPath": {
           "type": [
@@ -21626,8 +21689,7 @@
         }
       },
       "required": [
-        "sourcePath",
-        "equipmentManifestPath"
+        "sourcePath"
       ],
       "title": "ReferenceAssetRegisterParams",
       "type": "object"
@@ -21657,8 +21719,22 @@
             "bounds": {
               "$ref": "#/$defs/Bounds"
             },
+            "displayExposure": {
+              "default": 1.0,
+              "description": "展示曝光系数。资产可声明自身材质整体偏暗需要提亮，内核只做数值传递。",
+              "format": "float",
+              "type": "number"
+            },
             "importedAt": {
               "type": "string"
+            },
+            "materialSlots": {
+              "default": [],
+              "description": "资产声明的可覆盖材质槽位。Viewer 按槽位取色，不解析节点名。",
+              "items": {
+                "$ref": "#/$defs/ReferenceMaterialSlot"
+              },
+              "type": "array"
             },
             "preparedDigest": {
               "type": [
@@ -21690,13 +21766,14 @@
         },
         "ReferenceAssetStats": {
           "properties": {
-            "effectiveTriangles": {
-              "format": "uint64",
+            "bindings": {
+              "description": "语义绑定条目数。旧工程把该字段写作 `equipment`。",
+              "format": "uint",
               "minimum": 0,
               "type": "integer"
             },
-            "equipment": {
-              "format": "uint",
+            "effectiveTriangles": {
+              "format": "uint64",
               "minimum": 0,
               "type": "integer"
             },
@@ -21721,7 +21798,33 @@
             "effectiveTriangles",
             "uniqueMeshes",
             "materials",
-            "equipment"
+            "bindings"
+          ],
+          "type": "object"
+        },
+        "ReferenceMaterialSlot": {
+          "description": "资产发布方声明的材质槽位。`color` 是资产的默认表现，可被工程覆盖。",
+          "properties": {
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "role": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id"
           ],
           "type": "object"
         },

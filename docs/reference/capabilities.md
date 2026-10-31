@@ -100,7 +100,7 @@
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
-| `referenceAsset.register` | 是 | `{ sourcePath, preparedPath, tilesetPath, equipmentManifestPath }` | assetId 与有界描述符 |
+| `referenceAsset.register` | 是 | `{ sourcePath, preparedPath, tilesetPath, bindingManifestPath }` | assetId 与有界描述符 |
 | `referenceAsset.get` | 否 | `{ assetId }` | 描述符与流式资产 URL |
 | `referenceAsset.bindings` | 否 | `{ assetId, cursor?, limit? }` | 稳定设备绑定页（limit 1..=100） |
 
@@ -216,6 +216,41 @@ ice3-studio serve --workspace <dir> --project <id>
 - 根 `manifest.json` 记录 `magic`、`formatVersion`、`schemaVersion`、`projectId`、`revision`、内容 `digest` 和排除项。
 - 默认排除 `cache/` 和 `references/`，因此容器通常只有几百 KB；引用资产需要单独分发。
 - `pack` 会生成 `resources/summary.json` 与 `resources/layout.svg`（按区域着色的俯视散点图），便于不开编辑器时判断工程内容。
+
+## 参考资产清单
+
+资产发布方提供一份清单，Studio 只按结构读取，不解释任何行业字段：
+
+```json
+{
+  "assetId": "asset-000001",
+  "materialSlots": [
+    { "id": "tank-biological", "color": "#8ea6b2", "role": "tank" }
+  ],
+  "bindings": [
+    {
+      "selectionId": "asset/part/AE-101",
+      "name": "Aeration tank A",
+      "tag": "AE-101",
+      "bounds": { "min": [0, 0, 0], "max": [20, 6, 13] },
+      "slot": "tank-biological",
+      "hidden": false,
+      "metadata": { "stage": "biological", "area": "TrainA" }
+    }
+  ]
+}
+```
+
+| 字段 | 作用 |
+|---|---|
+| `materialSlots` | 资产声明可覆盖的材质槽位与默认颜色 |
+| `bindings[].slot` | 该绑定使用的槽位；缺省时保留资产原材质 |
+| `bindings[].hidden` | 资产声明该构件不应显示（废弃件） |
+| `bindings[].metadata` | 任意业务属性，内核不解释 |
+| `bindings[].tag` / `stage` / `area` | 兼容字段，解析时并入 `metadata` |
+
+Viewer 按槽位取色、按 `hidden` 隐藏，不解析节点名、不做行业推断。早期清单用
+`equipment` 作为数组键，读取时兼容。
 
 ## Viewer 能力
 

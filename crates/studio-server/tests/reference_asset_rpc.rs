@@ -14,7 +14,7 @@ async fn registers_and_reads_a_reference_without_geometry_in_rpc() {
     write_reference_fixture(server.workspace_root());
     let registered = register(&server).await;
     assert_eq!(
-        registered["result"]["descriptor"]["stats"]["equipment"], 204,
+        registered["result"]["descriptor"]["stats"]["bindings"], 204,
         "{registered}"
     );
     let asset_id = registered["result"]["assetId"].as_str().unwrap();
@@ -27,7 +27,7 @@ async fn registers_and_reads_a_reference_without_geometry_in_rpc() {
     .await;
 
     assert_eq!(
-        asset["result"]["descriptor"]["stats"]["equipment"], 204,
+        asset["result"]["descriptor"]["stats"]["bindings"], 204,
         "{asset}"
     );
     assert!(asset["result"].get("positions").is_none());

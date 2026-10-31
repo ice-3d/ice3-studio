@@ -145,6 +145,12 @@ async function loadReference(
         name: node.name,
       })));
   }
+  // 工程指派了材质就用工程的颜色；否则回退到资产为该绑定声明的槽位颜色。
+  const slotColors = new Map(
+    (asset.descriptor.materialSlots ?? [])
+      .filter((slot) => Boolean(slot.color))
+      .map((slot) => [slot.id, String(slot.color)]),
+  );
   return {
     asset,
     bindings: entries.map((entry) => {
@@ -155,7 +161,8 @@ async function loadReference(
         transform: node?.transform ?? identityTransform(),
         visible: node?.visible ?? true,
         materialId: node?.materialId ?? null,
-        materialColor: materialColor(document, node?.materialId),
+        materialColor: materialColor(document, node?.materialId)
+          ?? (entry.slot ? slotColors.get(entry.slot) ?? null : null),
       };
     }),
   };

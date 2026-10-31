@@ -4,7 +4,7 @@ use std::path::{Component, Path, PathBuf};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use studio_core::document::{Document, NodeContent};
-use studio_core::reference_asset::{ReferenceAssetDescriptor, ReferenceAssetEquipment};
+use studio_core::reference_asset::{ReferenceAssetBinding, ReferenceAssetDescriptor};
 use studio_core::validation::{Diagnostic, DiagnosticCode};
 use studio_project::reference_asset_store::{
     ReferenceAssetError, ReferenceAssetSource, ReferenceAssetStore,
@@ -21,7 +21,12 @@ pub struct ReferenceAssetRegisterParams {
     pub source_path: String,
     pub prepared_path: Option<String>,
     pub tileset_path: Option<String>,
-    pub equipment_manifest_path: String,
+    /// 资产发布方提供的语义绑定清单路径。
+    #[serde(default)]
+    pub binding_manifest_path: Option<String>,
+    /// 早期客户端使用的同义字段，读取时回退。
+    #[serde(default)]
+    pub equipment_manifest_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
@@ -56,14 +61,14 @@ pub struct ReferenceAssetEndpoint {
     pub descriptor: ReferenceAssetDescriptor,
     pub tileset_url: Option<String>,
     pub prepared_preview_url: Option<String>,
-    pub equipment_manifest_url: String,
+    pub binding_manifest_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ReferenceAssetBindingPageResult {
-    pub items: Vec<ReferenceAssetEquipment>,
+    pub items: Vec<ReferenceAssetBinding>,
     pub next_cursor: Option<String>,
 }
 
@@ -77,11 +82,22 @@ pub(crate) fn dispatch(
         "referenceAsset.register" => {
             let params: ReferenceAssetRegisterParams =
                 serde_json::from_value(params).map_err(invalid_params)?;
+            let manifest_path = params
+                .binding_manifest_path
+                .or(params.equipment_manifest_path)
+                .ok_or_else(|| {
+                    RpcError::with_diagnostic(
+                        -32602,
+                        DiagnosticCode::ApiInvalid.as_str(),
+                        "ICE3_STUDIO_API_INVALID: bindingManifestPath is required".into(),
+                        None,
+                    )
+                })?;
             let source = ReferenceAssetSource {
                 source_path: params.source_path.into(),
                 prepared_path: params.prepared_path.map(PathBuf::from),
                 tileset_path: params.tileset_path.map(PathBuf::from),
-                equipment_manifest_path: params.equipment_manifest_path.into(),
+                binding_manifest_path: manifest_path.into(),
             };
             let registered = store.register(&source).map_err(reference_asset_error)?;
             serde_json::to_value(ReferenceAssetRegisterResult {
@@ -106,7 +122,7 @@ pub(crate) fn dispatch(
                     .prepared_digest
                     .as_ref()
                     .map(|_| format!("{base}/prepared.glb")),
-                equipment_manifest_url: format!("{base}/equipment.json"),
+                binding_manifest_url: format!("{base}/bindings.json"),
                 descriptor: registered.descriptor,
             })
             .map_err(serialize_error)

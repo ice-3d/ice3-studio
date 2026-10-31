@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use studio_core::geometry::Bounds;
 use studio_core::math::{Transform, Vec3};
 use studio_core::reference_asset::{
-    ReferenceAssetDescriptor, ReferenceAssetEquipment, ReferenceAssetStats,
+    ReferenceAssetBinding, ReferenceAssetDescriptor, ReferenceAssetStats,
 };
 use thiserror::Error;
 
@@ -21,6 +21,10 @@ const MAX_GLB_JSON_BYTES: u32 = 64 * 1024 * 1024;
 const GLB_MAGIC: &[u8; 4] = b"glTF";
 const GLB_JSON_CHUNK: u32 = 0x4E4F_534A;
 const GLB_BINARY_CHUNK: u32 = 0x004E_4942;
+/// 资产存储内的语义绑定清单文件名。
+const MANIFEST_FILE_NAME: &str = "bindings.json";
+/// 早期工程把同一份清单存成 equipment.json，读取时回退兼容。
+const LEGACY_MANIFEST_FILE_NAME: &str = "equipment.json";
 
 static TEMP_NONCE: AtomicU64 = AtomicU64::new(0);
 
@@ -29,7 +33,8 @@ pub struct ReferenceAssetSource {
     pub source_path: PathBuf,
     pub prepared_path: Option<PathBuf>,
     pub tileset_path: Option<PathBuf>,
-    pub equipment_manifest_path: PathBuf,
+    /// 资产发布方提供的语义绑定清单，格式中立，不含行业字段假设。
+    pub binding_manifest_path: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,7 +51,7 @@ pub struct RegisteredReferenceAsset {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReferenceBindingPage {
-    pub items: Vec<ReferenceAssetEquipment>,
+    pub items: Vec<ReferenceAssetBinding>,
     pub next_cursor: Option<String>,
 }
 
@@ -101,7 +106,7 @@ impl ReferenceAssetStore {
             .as_deref()
             .map(|path| self.resolve_path(path))
             .transpose()?;
-        let manifest_path = self.resolve_path(&source.equipment_manifest_path)?;
+        let manifest_path = self.resolve_path(&source.binding_manifest_path)?;
 
         let source_digest = hash_file(&source_path)?;
         let prepared_digest = prepared_path.as_deref().map(hash_file).transpose()?;
@@ -148,8 +153,10 @@ impl ReferenceAssetStore {
                 effective_triangles: glb.effective_triangles,
                 unique_meshes: glb.unique_meshes,
                 materials: glb.materials,
-                equipment: manifest.entries.len(),
+                bindings: manifest.entries.len(),
             },
+            material_slots: manifest.material_slots.clone(),
+            display_exposure: manifest.display_exposure,
             imported_at: timestamp_now(),
         };
 
@@ -178,7 +185,7 @@ impl ReferenceAssetStore {
             }
             copy_and_verify(
                 &manifest_path,
-                &temporary.join("equipment.json"),
+                &temporary.join(MANIFEST_FILE_NAME),
                 &manifest_digest,
             )?;
             let descriptor_bytes = serde_json::to_vec_pretty(&descriptor)
@@ -227,7 +234,7 @@ impl ReferenceAssetStore {
         limit: usize,
     ) -> Result<ReferenceBindingPage, ReferenceAssetError> {
         let registered = self.get(asset_id)?;
-        let manifest = parse_manifest(&registered.root.join("equipment.json"))?;
+        let manifest = parse_manifest(&stored_manifest_path(&registered.root))?;
         let start = cursor
             .and_then(|cursor| {
                 manifest
@@ -302,7 +309,7 @@ impl ReferenceAssetStore {
             if descriptor.source_digest == source_digest
                 && descriptor.prepared_digest.as_deref() == prepared_digest
                 && descriptor.tileset_digest.as_deref() == tileset_digest
-                && hash_file(&root.join("equipment.json"))
+                && hash_file(&stored_manifest_path(root.as_path()))
                     .is_ok_and(|digest| digest == manifest_digest)
             {
                 return Ok(Some(ReferenceAssetRegistration {
@@ -547,25 +554,48 @@ fn parse_bounds(value: &Value) -> Result<Bounds, ReferenceAssetError> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct EquipmentManifest {
+struct BindingManifest {
     asset_id: String,
-    equipment: Vec<EquipmentManifestEntry>,
+    /// 新格式使用 `bindings`；早期工程写作 `equipment`，读取时兼容。
+    #[serde(default)]
+    bindings: Vec<BindingManifestEntry>,
+    #[serde(default)]
+    equipment: Vec<BindingManifestEntry>,
+    #[serde(default)]
+    material_slots: Vec<ManifestSlot>,
+    #[serde(default)]
+    display_exposure: Option<f32>,
 }
 
 struct ParsedManifest {
     asset_id: String,
-    entries: Vec<ReferenceAssetEquipment>,
+    entries: Vec<ReferenceAssetBinding>,
+    material_slots: Vec<studio_core::reference_asset::ReferenceMaterialSlot>,
+    display_exposure: f32,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct EquipmentManifestEntry {
+struct BindingManifestEntry {
     selection_id: String,
     name: String,
     tag: Option<String>,
     stage: Option<String>,
     area: Option<String>,
+    #[serde(default)]
+    slot: Option<String>,
+    #[serde(default)]
+    hidden: bool,
+    #[serde(default)]
+    metadata: std::collections::BTreeMap<String, String>,
     bounds: ManifestBounds,
+}
+
+#[derive(Debug, Deserialize)]
+struct ManifestSlot {
+    id: String,
+    color: Option<String>,
+    role: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -574,8 +604,18 @@ struct ManifestBounds {
     max: [f32; 3],
 }
 
-fn parse_manifest(path: &Path) -> Result<Vec<ReferenceAssetEquipment>, ReferenceAssetError> {
+fn parse_manifest(path: &Path) -> Result<Vec<ReferenceAssetBinding>, ReferenceAssetError> {
     Ok(parse_manifest_data(path)?.entries)
+}
+
+/// 已存储资产的清单路径，优先新文件名，回退旧文件名。
+fn stored_manifest_path(root: &Path) -> PathBuf {
+    let preferred = root.join(MANIFEST_FILE_NAME);
+    if preferred.is_file() {
+        preferred
+    } else {
+        root.join(LEGACY_MANIFEST_FILE_NAME)
+    }
 }
 
 fn parse_manifest_data(path: &Path) -> Result<ParsedManifest, ReferenceAssetError> {
@@ -590,16 +630,19 @@ fn parse_manifest_data(path: &Path) -> Result<ParsedManifest, ReferenceAssetErro
         return Err(ReferenceAssetError::InvalidManifest);
     }
     let bytes = fs::read(path).map_err(ReferenceAssetError::Io)?;
-    let manifest: EquipmentManifest =
+    let manifest: BindingManifest =
         serde_json::from_slice(&bytes).map_err(|_| ReferenceAssetError::InvalidManifest)?;
+    let mut raw_entries = manifest.equipment;
+    if !manifest.bindings.is_empty() {
+        raw_entries = manifest.bindings;
+    }
     if manifest.asset_id.trim().is_empty()
-        || manifest.equipment.is_empty()
-        || manifest.equipment.len() > MAX_MANIFEST_ENTRIES
+        || raw_entries.is_empty()
+        || raw_entries.len() > MAX_MANIFEST_ENTRIES
     {
         return Err(ReferenceAssetError::InvalidManifest);
     }
-    let mut entries = manifest
-        .equipment
+    let mut entries = raw_entries
         .into_iter()
         .map(|entry| {
             if entry.selection_id.trim().is_empty() || entry.name.trim().is_empty() {
@@ -633,15 +676,23 @@ fn parse_manifest_data(path: &Path) -> Result<ParsedManifest, ReferenceAssetErro
             if !valid {
                 return Err(ReferenceAssetError::InvalidManifest);
             }
-            Ok(ReferenceAssetEquipment {
+            let mut metadata = entry.metadata;
+            if let Some(stage) = entry.stage {
+                metadata.entry("stage".into()).or_insert(stage);
+            }
+            if let Some(area) = entry.area {
+                metadata.entry("area".into()).or_insert(area);
+            }
+            Ok(ReferenceAssetBinding {
                 selection_id: entry.selection_id,
                 name: entry.name,
                 kind: entry.tag,
-                process_stage: entry.stage,
-                area: entry.area,
                 bounds,
                 transform: Transform::IDENTITY,
                 material_ids: Vec::new(),
+                metadata,
+                slot: entry.slot,
+                hidden: entry.hidden,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -655,6 +706,16 @@ fn parse_manifest_data(path: &Path) -> Result<ParsedManifest, ReferenceAssetErro
     Ok(ParsedManifest {
         asset_id: manifest.asset_id,
         entries,
+        display_exposure: manifest.display_exposure.unwrap_or(1.0),
+        material_slots: manifest
+            .material_slots
+            .into_iter()
+            .map(|slot| studio_core::reference_asset::ReferenceMaterialSlot {
+                id: slot.id,
+                color: slot.color,
+                role: slot.role,
+            })
+            .collect(),
     })
 }
 

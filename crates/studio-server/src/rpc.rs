@@ -572,8 +572,13 @@ fn build_router(state: AppState, viewer_dir: Option<PathBuf>) -> Router {
             get(reference_prepared_file),
         )
         .route(
+            "/reference-assets/{asset_id}/bindings.json",
+            get(reference_binding_manifest_file),
+        )
+        // 早期工程与客户端使用旧路径，保留兼容。
+        .route(
             "/reference-assets/{asset_id}/equipment.json",
-            get(reference_equipment_file),
+            get(reference_binding_manifest_file),
         )
         .route("/previews/{revision}", get(preview_file))
         .route("/previews/candidates/{digest}", get(candidate_preview_file))
@@ -1533,14 +1538,27 @@ async fn reference_prepared_file(
     .await
 }
 
-async fn reference_equipment_file(
+async fn reference_binding_manifest_file(
     State(state): State<AppState>,
     AxumPath(asset_id): AxumPath<String>,
 ) -> Response {
+    // 新工程写 bindings.json；早期工程只有 equipment.json，按存在性回退。
+    let resolved = {
+        let session = state.session.lock().expect("session lock");
+        let project_dir = session.store.project_dir().to_path_buf();
+        ["bindings.json", "equipment.json"]
+            .into_iter()
+            .find(|name| {
+                crate::reference_asset::resolve_asset_file(&project_dir, &asset_id, Path::new(name))
+                    .map(|path| path.is_file())
+                    .unwrap_or(false)
+            })
+    };
+    let name = resolved.unwrap_or("bindings.json");
     serve_reference_asset_file(
         state,
         asset_id,
-        Path::new("equipment.json"),
+        Path::new(name),
         "application/json; charset=utf-8",
     )
     .await

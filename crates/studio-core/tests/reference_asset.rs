@@ -33,8 +33,10 @@ fn reference_instance_and_descriptor_round_trip() {
             effective_triangles: 5_757_962,
             unique_meshes: 1632,
             materials: 75,
-            equipment: 204,
+            bindings: 204,
         },
+        material_slots: Vec::new(),
+        display_exposure: 1.0,
         imported_at: "2026-10-31T00:00:00Z".into(),
     };
     let binding = SceneNode {
