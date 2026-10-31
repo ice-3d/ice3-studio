@@ -12,6 +12,7 @@ import {
   buildComponentDefinitions,
 } from '../../fixtures/large-industrial-site/templates.mjs';
 import { buildIndustrialScenePlan } from '../../fixtures/large-industrial-site/operations.mjs';
+import { createEquipmentMesh } from '../../fixtures/large-industrial-site/geometry.mjs';
 import { verifyAppliedScene } from '../../scripts/run-large-industrial-fixture.mjs';
 import { evaluateBenchmarkGate } from '../../benchmarks/large-industrial-scene.mjs';
 
@@ -50,6 +51,26 @@ test('every equipment kind has a reusable bounded template', () => {
   assert.ok(generated.find((candidate) => candidate.name === 'process-building'));
 });
 
+test('equipment geometry follows process semantics instead of one generic column', () => {
+  const reactor = meshBounds(createEquipmentMesh('biological-reactor', 1));
+  const clarifier = meshBounds(createEquipmentMesh('secondary-structure', 1));
+  const building = meshBounds(createEquipmentMesh('process-building', 1));
+  const digester = meshBounds(createEquipmentMesh('digester', 1));
+
+  assert.ok(reactor.width > 30, JSON.stringify(reactor));
+  assert.ok(reactor.depth > 18, JSON.stringify(reactor));
+  assert.ok(reactor.height < 10, JSON.stringify(reactor));
+
+  assert.ok(clarifier.width > 20 && clarifier.depth > 20, JSON.stringify(clarifier));
+  assert.ok(clarifier.height < 9, JSON.stringify(clarifier));
+
+  assert.ok(building.width > 18 && building.depth > 12, JSON.stringify(building));
+  assert.ok(building.height > 7, JSON.stringify(building));
+
+  assert.ok(digester.height > digester.width, JSON.stringify(digester));
+  assert.ok(digester.height > 14, JSON.stringify(digester));
+});
+
 test('catalogue weighted template budget targets the large scene band', () => {
   const weighted = EQUIPMENT_GROUPS.reduce(
     (sum, group) => sum + group.count * TEMPLATE_TRIANGLE_BUDGETS[group.kind],
@@ -74,6 +95,16 @@ test('builds a deterministic high-level operation plan', () => {
     operations.filter((operation) => operation.type === 'component.define').length,
     23,
   );
+  assert.equal(
+    operations.filter((operation) => operation.type === 'material.upsert').length,
+    10,
+  );
+  assert.ok(
+    operations.filter((operation) => (
+      operation.type === 'node.create'
+      && String(operation.metadata?.role ?? '').match(/ground|road|yard|landscape/)
+    )).length >= 20,
+  );
   assert.equal(operations.some((operation) => (
     ![
       'component.define',
@@ -81,8 +112,34 @@ test('builds a deterministic high-level operation plan', () => {
       'instanceSet.create',
       'relation.create',
       'connection.create',
+      'material.upsert',
+      'material.assign',
+      'node.create',
     ].includes(operation.type)
   )), false);
+});
+
+test('assigns readable material roles to every primary object', () => {
+  const operations = buildIndustrialScenePlan().transactions
+    .flatMap((transaction) => transaction.operations);
+  const materials = new Map(
+    operations
+      .filter((operation) => operation.type === 'material.upsert')
+      .map((operation) => [operation.material_id, operation.name]),
+  );
+  const instances = operations.filter((operation) => operation.type === 'instance.create');
+  assert.equal(instances.length, 216);
+  assert.equal(instances.every((operation) => materials.has(operation.material_id)), true);
+  assert.equal(
+    instances.find((operation) => operation.metadata.kind === 'biological-reactor')
+      .material_id,
+    'material-000003',
+  );
+  assert.equal(
+    instances.find((operation) => operation.metadata.kind === 'facility')
+      .material_id,
+    'material-000006',
+  );
 });
 
 test('keeps operation batches and source node references valid', () => {
@@ -169,6 +226,7 @@ test('benchmark gate rejects missing scale and cache reuse', () => {
     operationCount: 100_001,
   });
   assert.deepEqual(failures.sort(), [
+    'agentContextEvidence',
     'effectiveTriangles',
     'incrementalCacheReuse',
     'operationCount',
@@ -202,3 +260,19 @@ test('assigns and connects three reactors and two secondary structures per train
     assert.ok(trainConnections.length >= 6, `connections for train ${train}`);
   }
 });
+
+function meshBounds(mesh) {
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (const position of mesh.positions) {
+    for (let axis = 0; axis < 3; axis += 1) {
+      min[axis] = Math.min(min[axis], position[axis]);
+      max[axis] = Math.max(max[axis], position[axis]);
+    }
+  }
+  return {
+    width: max[0] - min[0],
+    height: max[1] - min[1],
+    depth: max[2] - min[2],
+  };
+}
