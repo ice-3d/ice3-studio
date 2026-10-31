@@ -37,7 +37,9 @@ use crate::capabilities::{WriteMode, authorize_write};
 use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
 use crate::preview::{PreviewAdapter, export_source};
 use crate::preview_packet::PACKET_MEDIA_TYPE;
-use crate::scene_session::{SceneSourceIndex, build_full_scene_patch, build_scene_patch};
+use crate::scene_session::{
+    SceneSourceIndex, build_full_scene_patch, build_scene_patch_with_scene,
+};
 use crate::toolchain::{ToolchainService, ToolchainStatus};
 
 const MAX_RPC_BODY_BYTES: usize = 64 * 1024 * 1024;
@@ -1531,7 +1533,7 @@ pub(crate) fn stage_committed_scene(session: &mut Session, diff: &studio_core::d
         return;
     };
     let evaluator = ComputeEvaluator::new(&session.compute);
-    match build_scene_patch(
+    match build_scene_patch_with_scene(
         &session.document,
         diff,
         previous_scene,
@@ -1539,38 +1541,79 @@ pub(crate) fn stage_committed_scene(session: &mut Session, diff: &studio_core::d
         &mut session.scene_cache,
         Some(&evaluator),
     ) {
-        Ok(patch) => {
-            let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
-            if patch.geometry.is_empty()
-                && let Some(scene) = session.scene_snapshot.as_mut()
-            {
-                for instance in &patch.instances {
-                    if let Some(node) = scene
-                        .nodes
-                        .iter_mut()
-                        .find(|node| node.id == instance.node_id)
-                    {
-                        node.transform = instance.transform;
-                        node.material_id = instance.material_id.clone().map(Into::into);
-                        node.visible = instance.visible;
-                    }
-                }
-                session.scene_snapshot_revision = Some(patch.target_revision);
-                session.scene_source_index =
-                    SceneSourceIndex::capture(&session.document, scene, Some(&evaluator)).ok();
-                session.last_scene_patch = Some(patch);
-                return;
-            }
-            session.last_scene_patch = Some(patch);
+        Ok(built) => {
+            let _ = pollster::block_on(session.compute.apply_scene_patch(built.patch.clone()));
+            merge_scene_snapshot(session, &built);
+            session.last_scene_patch = Some(built.patch);
         }
         Err(error) => {
             session.compute.record_scene_failure(error.to_string());
             session.last_scene_patch = None;
         }
     }
-    session.scene_snapshot = None;
-    session.scene_snapshot_revision = None;
-    session.scene_source_index = None;
+}
+
+fn merge_scene_snapshot(session: &mut Session, built: &crate::scene_session::BuiltScenePatch) {
+    if session.scene_snapshot.is_none() {
+        session.scene_snapshot = Some(built.scene.clone());
+        session.scene_snapshot_revision = Some(built.patch.target_revision);
+        session.scene_source_index =
+            SceneSourceIndex::capture(&session.document, &built.scene, None).ok();
+        return;
+    }
+    let old_ids = built.affected_source_nodes.as_ref().map(|affected| {
+        let old_index = session.scene_source_index.as_ref();
+        affected
+            .iter()
+            .flat_map(|source| {
+                old_index
+                    .into_iter()
+                    .flat_map(move |index| index.expanded_node_ids(source).map(str::to_owned))
+            })
+            .collect::<HashSet<_>>()
+    });
+    let scene = session
+        .scene_snapshot
+        .as_mut()
+        .expect("scene snapshot checked above");
+    let new_ids = built
+        .scene
+        .nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<HashSet<_>>();
+    if let Some(old_ids) = old_ids {
+        scene
+            .nodes
+            .retain(|node| !old_ids.contains(&node.id) && !new_ids.contains(node.id.as_str()));
+    } else {
+        scene
+            .nodes
+            .retain(|node| !new_ids.contains(node.id.as_str()));
+    }
+    scene.nodes.extend(built.scene.nodes.iter().cloned());
+    scene.meshes.extend(built.scene.meshes.clone());
+    scene
+        .resident_geometry_ids
+        .extend(built.scene.resident_geometry_ids.clone());
+    scene.nodes.sort_by(|left, right| left.id.cmp(&right.id));
+    scene.stats.source_nodes = session.document.scene.nodes().len();
+    scene.stats.expanded_nodes = scene.nodes.len();
+    scene.stats.unique_meshes = scene.meshes.len();
+    scene.stats.unique_triangles = scene
+        .meshes
+        .values()
+        .map(|mesh| mesh.indices.len() / 3)
+        .sum();
+    scene.stats.effective_triangles = scene
+        .nodes
+        .iter()
+        .filter_map(|node| node.mesh_key.as_ref())
+        .filter_map(|key| scene.meshes.get(key))
+        .map(|mesh| mesh.indices.len() / 3)
+        .sum();
+    session.scene_snapshot_revision = Some(built.patch.target_revision);
+    session.scene_source_index = SceneSourceIndex::capture(&session.document, scene, None).ok();
 }
 
 fn stage_scene_full_rebuild(session: &mut Session) {

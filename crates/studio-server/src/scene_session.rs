@@ -28,6 +28,12 @@ pub struct SceneSourceIndex {
     expanded_by_source: BTreeMap<NodeId, Vec<String>>,
 }
 
+pub struct BuiltScenePatch {
+    pub patch: ScenePatch,
+    pub scene: EvaluatedScene,
+    pub affected_source_nodes: Option<BTreeSet<NodeId>>,
+}
+
 struct SourceNodeSnapshot {
     content_digest: String,
 }
@@ -223,9 +229,25 @@ pub fn build_scene_patch<S: GeometryStore>(
     store: &mut S,
     evaluator: Option<&dyn GeometryEvaluator>,
 ) -> Result<ScenePatch, LargeSceneError> {
+    build_scene_patch_with_scene(document, diff, previous_scene, index, store, evaluator)
+        .map(|built| built.patch)
+}
+
+pub fn build_scene_patch_with_scene<S: GeometryStore>(
+    document: &Document,
+    diff: &DocumentDiff,
+    previous_scene: &EvaluatedScene,
+    index: &SceneSourceIndex,
+    store: &mut S,
+    evaluator: Option<&dyn GeometryEvaluator>,
+) -> Result<BuiltScenePatch, LargeSceneError> {
     let Some(selected) = index.affected_source_nodes(diff) else {
         let scene = evaluate_large_scene_with_cache_and_evaluator(document, store, evaluator)?;
-        return build_full_scene_patch(document, &scene, evaluator);
+        return Ok(BuiltScenePatch {
+            patch: build_full_scene_patch(document, &scene, evaluator)?,
+            scene,
+            affected_source_nodes: None,
+        });
     };
 
     let scene = evaluate_large_scene_selected(document, store, evaluator, &selected)?;
@@ -278,7 +300,7 @@ pub fn build_scene_patch<S: GeometryStore>(
         removed_node_ids.extend(index.expanded_node_ids(source).map(str::to_owned));
     }
 
-    Ok(ScenePatch {
+    let patch = ScenePatch {
         base_revision: index.revision,
         target_revision: document.revision.as_u64(),
         full_rebuild: false,
@@ -286,6 +308,11 @@ pub fn build_scene_patch<S: GeometryStore>(
         instances,
         removed_geometry_ids: Vec::new(),
         removed_node_ids,
+    };
+    Ok(BuiltScenePatch {
+        patch,
+        scene,
+        affected_source_nodes: Some(selected),
     })
 }
 
