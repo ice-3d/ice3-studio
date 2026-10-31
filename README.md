@@ -99,6 +99,22 @@ E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
 
 端到端流程见 [Getting Started](docs/guides/getting-started.md)。
 
+## 工程文件
+
+工程是一个目录，语义与几何分离：Document、变更集、操作历史通常只有几百 KB，引用资产
+在 `references/` 下可达数百 MB。撤销深度上限 200，超出后最早的快照被回收。
+
+可打包成单文件 `.ice3`（未压缩 tar，`tar -tf` 可直接查看）：
+
+```bash
+cargo run -p studio-cli -- pack --project ./wwtp-reference --output wwtp.ice3
+cargo run -p studio-cli -- unpack wwtp.ice3 --into ./restored
+```
+
+容器默认排除 `references/` 与 `cache/`，通常只有几百 KB，并附带
+`resources/summary.json` 与按区域着色的 `resources/layout.svg` 作为工程概览。
+详见 [能力清单](docs/reference/capabilities.md)。
+
 ## 架构
 
 ```

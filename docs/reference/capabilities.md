@@ -157,6 +157,8 @@
 
 ```
 ice3-studio schema --output <dir> [--check]
+ice3-studio pack --project <dir> --output <file.ice3>
+ice3-studio unpack <file.ice3> --into <dir>
 ice3-studio serve --workspace <dir> --project <id>
                   [--fixture <dir>] [--port <u16>] [--write-mode <mode>]
                   [--native-gpu <cpu|auto|gpu>]
@@ -191,6 +193,29 @@ ice3-studio serve --workspace <dir> --project <id>
 
 注意：`ICE3_TOOLCHAIN_CLI` 与 `ICE3_JT_CONVERTER` 由 Sidecar 进程解析，其工作目录是
 **项目目录**而非仓库根，相对路径必须基于项目目录书写，或直接使用绝对路径。
+
+## 工程格式
+
+工程是一个目录，语义层与几何层分离：
+
+| 路径 | 内容 | 可重建 |
+|---|---|---|
+| `project.json` | 工程头：schemaVersion、projectId、currentRevision、snapshotDigest、undo/redo 栈 | 否 |
+| `revisions/` | 文档快照，每个 revision 一份全量 | 否 |
+| `changesets/` | 持久化候选变更集 | 否 |
+| `history/operations.jsonl` | append-only 操作历史 | 否 |
+| `references/` | 引用资产（体积可达数百 MB） | 从源资产重建 |
+| `cache/` | 几何与预览缓存 | 是 |
+| `resources/` | 派生预览：`summary.json`、`layout.svg` | 是 |
+
+撤销深度上限为 `MAX_UNDO_DEPTH`（200）。超出后最早的快照被回收，对应的撤销记录同时失效；`open` 只校验仍被引用的 revision 是否完整。语义层通常只有几百 KB，几何在 `references/` 下。
+
+`.ice3` 容器把语义层打成单文件：
+
+- 未压缩 tar（每块 512 字节），`tar -tf` 可直接查看内容。
+- 根 `manifest.json` 记录 `magic`、`formatVersion`、`schemaVersion`、`projectId`、`revision`、内容 `digest` 和排除项。
+- 默认排除 `cache/` 和 `references/`，因此容器通常只有几百 KB；引用资产需要单独分发。
+- `pack` 会生成 `resources/summary.json` 与 `resources/layout.svg`（按区域着色的俯视散点图），便于不开编辑器时判断工程内容。
 
 ## Viewer 能力
 

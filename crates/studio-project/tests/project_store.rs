@@ -146,3 +146,92 @@ fn opens_a_version_one_project_and_writes_the_next_revision_as_version_two() {
     reopened.write_snapshot(&loaded).unwrap();
     assert_eq!(reopened.load_current().unwrap().schema_version, 2);
 }
+
+#[test]
+fn bounds_revision_snapshots_and_keeps_recent_undo_available() {
+    let root = tempfile::tempdir().unwrap();
+    let path = WorkspacePath::new(root.path(), "bounded").unwrap();
+    let store = ProjectStore::create(path).unwrap();
+
+    let document = Document::new("bounded");
+    store.write_snapshot(&document).unwrap();
+    let mut current = document;
+    let extra = 12usize;
+    for _ in 0..(studio_project::MAX_UNDO_DEPTH + extra) {
+        current.revision = current.revision.next();
+        store.write_snapshot(&current).unwrap();
+    }
+
+    // revisions/ 的文件数必须与撤销深度相关，而不是与编辑次数线性增长。
+    let snapshots = std::fs::read_dir(root.path().join("bounded/revisions"))
+        .unwrap()
+        .count();
+    assert!(
+        snapshots <= studio_project::MAX_UNDO_DEPTH + 2,
+        "snapshot count must stay bounded, found {snapshots}"
+    );
+
+    let loaded = store.load_current().unwrap();
+    assert_eq!(
+        loaded.revision.as_u64(),
+        (studio_project::MAX_UNDO_DEPTH + extra) as u64
+    );
+
+    // 最近一步撤销仍然可用，并且指向被回收边界之内的 revision。
+    let undone = store.undo().unwrap();
+    assert_eq!(
+        undone.revision.as_u64(),
+        (studio_project::MAX_UNDO_DEPTH + extra + 1) as u64
+    );
+    assert_eq!(
+        store.load_current().unwrap().revision.as_u64(),
+        (studio_project::MAX_UNDO_DEPTH + extra + 1) as u64
+    );
+}
+
+#[test]
+fn dropped_undo_entries_no_longer_hold_snapshots() {
+    let root = tempfile::tempdir().unwrap();
+    let path = WorkspacePath::new(root.path(), "trimmed").unwrap();
+    let store = ProjectStore::create(path).unwrap();
+
+    let document = Document::new("trimmed");
+    store.write_snapshot(&document).unwrap();
+    let mut current = document;
+    for _ in 0..(studio_project::MAX_UNDO_DEPTH + 5) {
+        current.revision = current.revision.next();
+        store.write_snapshot(&current).unwrap();
+    }
+
+    // 最早的 revision 已被回收，读取它必须失败而不是返回错误内容。
+    assert!(
+        store
+            .load_revision(studio_core::ids::Revision::new(1))
+            .is_err()
+    );
+}
+
+#[test]
+fn reopens_a_project_after_old_snapshots_were_reclaimed() {
+    let root = tempfile::tempdir().unwrap();
+    let path = WorkspacePath::new(root.path(), "reopen").unwrap();
+    let store = ProjectStore::create(path.clone()).unwrap();
+
+    let document = Document::new("reopen");
+    store.write_snapshot(&document).unwrap();
+    let mut current = document;
+    for _ in 0..(studio_project::MAX_UNDO_DEPTH + 8) {
+        current.revision = current.revision.next();
+        store.write_snapshot(&current).unwrap();
+    }
+    drop(store);
+
+    // 历史记录被回收后必须仍能重新打开，并且当前 revision 可读。
+    let reopened = ProjectStore::open(path).unwrap();
+    let loaded = reopened.load_current().unwrap();
+    assert_eq!(
+        loaded.revision.as_u64(),
+        (studio_project::MAX_UNDO_DEPTH + 8) as u64
+    );
+    assert!(reopened.history().unwrap().len() > studio_project::MAX_UNDO_DEPTH);
+}

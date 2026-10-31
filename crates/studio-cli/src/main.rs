@@ -21,6 +21,19 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+    /// 把工程目录打包成 `.ice3` 单文件容器。
+    Pack {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// 从 `.ice3` 容器还原工程目录。
+    Unpack {
+        archive: PathBuf,
+        #[arg(long)]
+        into: PathBuf,
+    },
     Serve {
         #[arg(long)]
         workspace: PathBuf,
@@ -42,6 +55,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
         Command::Schema { output, check } => schema::generate(&output, check)?,
+        Command::Pack { project, output } => {
+            let manifest = studio_project::archive::pack(&project, &output)?;
+            println!("{}", serde_json::to_string_pretty(&manifest)?);
+        }
+        Command::Unpack { archive, into } => {
+            let manifest = studio_project::archive::unpack(&archive, &into)?;
+            println!("{}", serde_json::to_string_pretty(&manifest)?);
+        }
         Command::Serve {
             workspace,
             project,

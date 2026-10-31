@@ -13,6 +13,10 @@ use crate::WorkspacePath;
 use crate::changeset_store::ChangeSetStore;
 use crate::lock::{LockError, ProjectLock};
 
+/// 保留的撤销步数上限。每个 revision 都会写一份完整快照，历史上限决定
+/// `revisions/` 的磁盘上界；超出后最早的快照会被回收，对应撤销记录同时失效。
+pub const MAX_UNDO_DEPTH: usize = 200;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryEntry {
@@ -168,7 +172,11 @@ impl ProjectStore {
         if let Some(metadata) = &previous {
             undo_stack.push(metadata.current_revision);
         }
+        if undo_stack.len() > MAX_UNDO_DEPTH {
+            undo_stack.drain(..undo_stack.len() - MAX_UNDO_DEPTH);
+        }
         let metadata = self.write_revision(document, undo_stack, Vec::new(), event)?;
+        self.prune_snapshots(&metadata)?;
         self.write_metadata(&metadata)
     }
 
@@ -191,6 +199,7 @@ impl ProjectStore {
                 "restoredFrom": target.as_u64()
             }),
         )?;
+        self.prune_snapshots(&next_metadata)?;
         self.write_metadata(&next_metadata)?;
         Ok(restored)
     }
@@ -216,6 +225,7 @@ impl ProjectStore {
                 "restoredFrom": target.as_u64()
             }),
         )?;
+        self.prune_snapshots(&next_metadata)?;
         self.write_metadata(&next_metadata)?;
         Ok(restored)
     }
@@ -297,6 +307,16 @@ impl ProjectStore {
             if entry.revision != Revision::new(index as u64) {
                 return Err(ProjectError::InvalidHistory);
             }
+        }
+        // 旧快照会被 prune_snapshots 回收，因此只校验仍被引用的 revision。
+        let mut required = std::collections::HashSet::new();
+        required.insert(metadata.current_revision);
+        required.extend(metadata.undo_stack.iter().copied());
+        required.extend(metadata.redo_stack.iter().copied());
+        for entry in history
+            .iter()
+            .filter(|entry| required.contains(&entry.revision))
+        {
             self.read_revision_with_digest(entry.revision, &entry.digest)?;
         }
         let Some(last) = history.last() else {
@@ -337,6 +357,35 @@ impl ProjectStore {
     fn write_metadata(&self, metadata: &ProjectMetadata) -> Result<(), ProjectError> {
         let bytes = serde_json::to_vec(metadata).map_err(ProjectError::Json)?;
         write_atomic(&self.path.project.join("project.json"), &bytes)
+    }
+
+    /// 回收不再被当前 revision、撤销栈或重做栈引用的快照文件。
+    /// 每个 revision 都写全量快照会让 `revisions/` 随编辑次数线性增长，
+    /// 这里保证它只与 MAX_UNDO_DEPTH 相关。
+    fn prune_snapshots(&self, metadata: &ProjectMetadata) -> Result<(), ProjectError> {
+        let mut keep = std::collections::HashSet::new();
+        keep.insert(metadata.current_revision.as_u64());
+        keep.extend(metadata.undo_stack.iter().map(|revision| revision.as_u64()));
+        keep.extend(metadata.redo_stack.iter().map(|revision| revision.as_u64()));
+
+        let directory = self.path.project.join("revisions");
+        let entries = match fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(_) => return Ok(()),
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(stem) = path.file_stem().and_then(|value| value.to_str()) else {
+                continue;
+            };
+            let Ok(revision) = stem.parse::<u64>() else {
+                continue;
+            };
+            if !keep.contains(&revision) {
+                fs::remove_file(&path).map_err(ProjectError::Io)?;
+            }
+        }
+        Ok(())
     }
 
     fn revision_path(&self, revision: Revision) -> PathBuf {
