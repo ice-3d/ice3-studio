@@ -71,6 +71,11 @@ const steps = [
     args: ['--check', 'benchmarks/gpu-scene-session.mjs'],
   },
   {
+    label: 'WWTP reference example',
+    command: 'node',
+    args: ['--check', 'scripts/run-wwtp-reference-example.mjs'],
+  },
+  {
     label: 'Viewer unit tests',
     command: 'npm',
     args: ['--prefix', 'apps/viewer', 'test'],

@@ -12,6 +12,7 @@
     "benchmark:gpu-scene": "node benchmarks/gpu-scene-session.mjs",
     "benchmark:large-industrial": "node benchmarks/large-industrial-scene.mjs",
     "fixture:large-industrial": "node scripts/run-large-industrial-fixture.mjs",
+    "example:wwtp-reference": "node scripts/run-wwtp-reference-example.mjs",
     "toolchain:stage": "node scripts/stage-toolchain.mjs",
     "toolchain:verify": "node scripts/verify-toolchain-bundle.mjs",
     "verify": "node scripts/verify.mjs"

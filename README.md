@@ -23,6 +23,16 @@ npm run benchmark
 npm run benchmark:gpu
 ```
 
+工作区同时包含 `ice3-engine` 和 `ice3-agent-console` 时，可以启动带原始
+Prepared GLB/Tileset 的高保真厂区案例：
+
+```bash
+npm run example:wwtp-reference
+```
+
+该案例保留 204 个可搜索、可选择和可局部编辑的语义绑定，使用分层流式资产承载完整
+几何，不把大型模型内联进 Studio Document。
+
 完整的本地启动、API 调用和 Viewer 使用方式见
 [Getting Started](docs/guides/getting-started.md)。
 

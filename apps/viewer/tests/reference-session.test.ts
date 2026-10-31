@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { SessionStore } from '../src/session/SessionStore';
-import { mapReferenceSelection } from '../src/viewport/SceneAdapter';
+import {
+  lightenReferenceColor,
+  mapReferenceSelection,
+} from '../src/viewport/SceneAdapter';
 
 test('loads reference metadata without requesting document geometry', async () => {
   const source = {
@@ -63,6 +66,12 @@ test('maps imported selection IDs back to Studio binding IDs', () => {
     'ice3-virtual-wwtp/equipment/AE-101',
     [{ nodeId: 'node-000001', selectionId: 'ice3-virtual-wwtp/equipment/AE-101' }],
   ), 'node-000001');
+});
+
+test('lifts reference materials without discarding their hue', () => {
+  assert.equal(lightenReferenceColor('#334455'), '#89939c');
+  assert.equal(lightenReferenceColor('#336699cc'), '#89a6c4cc');
+  assert.equal(lightenReferenceColor('invalid'), 'invalid');
 });
 
 function largeReferenceDescriptor() {

@@ -357,6 +357,7 @@ function applyReferenceOverrides(
   }>,
 ): void {
   const nodes = findImportedNodes(scene as ImportedNode);
+  const materializedNodes = new Set<ImportedNode>();
   for (const binding of bindings) {
     if (!binding.nodeId) continue;
     for (const node of nodes) {
@@ -382,11 +383,54 @@ function applyReferenceOverrides(
         ) as ImportedMaterial;
         Object.assign(material, original.material, { color: binding.materialColor });
         node.material = material;
+        materializedNodes.add(node);
       } else if (original.material) {
         node.material = original.material;
       }
     }
   }
+  for (const node of nodes) {
+    if (materializedNodes.has(node)) continue;
+    if (!originalNodeState.has(node)) {
+      originalNodeState.set(node, {
+        matrix: currentLocalMatrix(node),
+        visible: node.visible,
+        material: node.material,
+      });
+    }
+    const original = originalNodeState.get(node)!;
+    if (original.material) {
+      node.material = presentedReferenceMaterial(original.material);
+    }
+  }
+}
+
+export function lightenReferenceColor(color: string, amount = 0.42): string {
+  const normalized = color.startsWith('#') ? color.slice(1) : color;
+  const expanded = normalized.length === 3
+    ? normalized.split('').map((character) => `${character}${character}`).join('')
+    : normalized;
+  if (!/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(expanded)) return color;
+  const channels = [0, 2, 4].map((offset) => {
+    const value = Number.parseInt(expanded.slice(offset, offset + 2), 16);
+    return Math.round(value + (255 - value) * amount)
+      .toString(16)
+      .padStart(2, '0');
+  });
+  return `#${channels.join('')}${expanded.slice(6)}`;
+}
+
+function presentedReferenceMaterial(material: ImportedMaterial): ImportedMaterial {
+  const presented = Object.create(
+    Object.getPrototypeOf(material),
+  ) as ImportedMaterial;
+  Object.assign(presented, material, {
+    color: lightenReferenceColor(material.color),
+    ...(material.edgeColor
+      ? { edgeColor: lightenReferenceColor(material.edgeColor, 0.12) }
+      : {}),
+  });
+  return presented;
 }
 
 function findImportedNodes(root: ImportedNode): ImportedNode[] {
