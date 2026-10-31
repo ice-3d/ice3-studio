@@ -70,6 +70,12 @@ handle 测量的是无哈希、无上传、无 fence 的缓存命中，不代表
 冒充 kernel 时间。Cold 和 warm-topology 仍明显慢于 CPU，因此整体性能门禁失败关闭，
 `auto` 继续选择 CPU，WebGPU 浏览器渲染仍要求显式实验开启。
 
+`STUDIO_GPU_SCENE_SESSIONS=1` 配合 `--native-gpu gpu` 可启用实验性 revision-scoped GPU
+场景会话，`npm run benchmark:gpu-scene` 会输出大型工业场景对照。当前 512 MiB GPU 预算下，
+完整 6.1M 有效三角形场景在 18 个唯一几何后触发预算失败，因此场景会话保持默认关闭；
+失败不会回滚已提交 Document。内存几何缓存已将同一场景的 warm stats 从约 1.84 s 降到
+约 3 ms，但默认 transform-only revision 仍约 1.28 s，尚未达到 5× 目标。
+
 ## AI 辅助开发
 
 本项目在设计和实现过程中大量使用了 AI 辅助开发。

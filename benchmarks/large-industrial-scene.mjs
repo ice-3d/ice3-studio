@@ -35,6 +35,18 @@ export function evaluateBenchmarkGate(result) {
   if (result.operationCount >= 100_000) {
     failures.push('operationCount');
   }
+  if (
+    result.computeMode === 'gpu'
+    && result.measurements.warmStatsMs.p50 >= 100
+  ) {
+    failures.push('gpuSceneWarmStats');
+  }
+  if (
+    result.computeMode === 'gpu'
+    && result.compute?.sceneSession?.state === 'failed'
+  ) {
+    failures.push('gpuSceneState');
+  }
   return failures;
 }
 
@@ -47,6 +59,7 @@ async function main() {
       'target/release',
       process.platform === 'win32' ? 'studio-cli.exe' : 'studio-cli',
     );
+    const sceneSessions = process.env.STUDIO_GPU_SCENE_SESSIONS === '1';
     server = spawn(
       binary,
       [
@@ -59,6 +72,7 @@ async function main() {
         '0',
         '--write-mode',
         'autonomous',
+        ...(sceneSessions ? ['--native-gpu', 'gpu'] : []),
       ],
       {
         cwd: process.cwd(),
@@ -215,6 +229,8 @@ async function main() {
     );
     const result = {
       suite: 'large-industrial',
+      computeMode: sceneSessions ? 'gpu' : 'cpu',
+      compute: capabilities.compute,
       projectId: plan.projectId,
       revision: currentRevision,
       operationCount,

@@ -52,6 +52,11 @@ const steps = [
     args: ['--check', 'benchmarks/native-gpu.mjs'],
   },
   {
+    label: 'GPU scene benchmark script',
+    command: 'node',
+    args: ['--check', 'benchmarks/gpu-scene-session.mjs'],
+  },
+  {
     label: 'Viewer unit tests',
     command: 'npm',
     args: ['--prefix', 'apps/viewer', 'test'],
