@@ -126,6 +126,9 @@ async function main() {
     }
 
     const coldStats = await rpc('evaluation.stats');
+    if (sceneSessions) {
+      await rpc('evaluation.waitScene', { revision });
+    }
     const warmSamples = [];
     for (let sample = 0; sample < 7; sample += 1) {
       const started = performance.now();

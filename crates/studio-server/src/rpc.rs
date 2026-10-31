@@ -858,6 +858,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "validation.run".into(),
                 "evaluation.evaluate".into(),
                 "evaluation.stats".into(),
+                "evaluation.waitScene".into(),
                 "export.sourceGlb".into(),
                 "export.runtimePreview".into(),
                 "changeset.create".into(),
@@ -1131,6 +1132,24 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 generated_meshes: evaluated.stats.generated_meshes,
             })
             .map_err(serialize_error)
+        }
+        "evaluation.waitScene" => {
+            let params: RuntimePreviewParams =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let revision = params
+                ._revision
+                .unwrap_or(session.document.revision.as_u64());
+            let status =
+                pollster::block_on(session.compute.wait_scene(revision)).map_err(|error| {
+                    let diagnostic = error.diagnostic_code();
+                    RpcError::with_diagnostic(
+                        -32012,
+                        diagnostic,
+                        format!("{diagnostic}: {error}"),
+                        None,
+                    )
+                })?;
+            serde_json::to_value(status).map_err(serialize_error)
         }
         "export.sourceGlb" => {
             let output = export_source(&session.document, session.store.project_dir())
