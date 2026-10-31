@@ -8,6 +8,7 @@ mod events;
 pub mod preview;
 pub mod preview_packet;
 mod rpc;
+pub mod scene_session;
 pub mod toolchain;
 
 pub use events::ServerEvent;
