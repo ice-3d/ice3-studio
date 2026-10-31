@@ -28,6 +28,7 @@ console.log(JSON.stringify({
   warmStatsRatio: comparison.warmStatsRatio,
   parameterSpeedup: comparison.parameterSpeedup,
   topologySpeedup: comparison.topologySpeedup,
+  visibilitySpeedup: comparison.visibilitySpeedup,
   failures: comparison.failures,
   passed: comparison.passed,
 }, null, 2));

@@ -104,6 +104,43 @@ fn gpu_visibility_consumes_resident_instance_buffers() {
     assert_eq!(visible, vec![0]);
 }
 
+#[test]
+fn gpu_visibility_excludes_hidden_instances_inside_the_frustum() {
+    let Some(backend) = NativeGpuBackend::for_test_gpu() else {
+        return;
+    };
+    let session = backend
+        .create_scene_session("hidden-visibility-test")
+        .unwrap();
+    let mut scene_patch = patch(
+        1,
+        0,
+        true,
+        Some(geometry("geometry-1", 1.0)),
+        instance("node-000001", 0.0),
+    );
+    let mut hidden = instance("node-000002", 0.0);
+    hidden.visible = false;
+    scene_patch.instances.push(hidden);
+    backend.apply_scene_patch(&session, scene_patch).unwrap();
+
+    let visible = backend
+        .visible_scene_instances(
+            &session,
+            [
+                [1.0, 0.0, 0.0, 100.0],
+                [-1.0, 0.0, 0.0, 100.0],
+                [0.0, 1.0, 0.0, 100.0],
+                [0.0, -1.0, 0.0, 100.0],
+                [0.0, 0.0, 1.0, 100.0],
+                [0.0, 0.0, -1.0, 100.0],
+            ],
+        )
+        .unwrap();
+
+    assert_eq!(visible, vec![0]);
+}
+
 fn geometry(id: &str, width: f32) -> SceneGeometryChange {
     let content = NodeContent::CustomMesh(TriangleMesh {
         positions: vec![[0.0, 0.0, 0.0], [width, 0.0, 0.0], [0.0, width, 0.0]],

@@ -22,7 +22,9 @@ use studio_core::large_scene::evaluate::{
     EvaluatedScene, evaluate_large_scene_with_cache_and_evaluator, evaluated_scene_bounds,
 };
 use studio_core::scene_contract::ScenePatch;
-use studio_core::scene_contract::SceneVisibilityRequest;
+use studio_core::scene_contract::{
+    SceneSessionState, SceneVisibilityRequest, SceneVisibilityResult,
+};
 use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_gpu::NativeGpuBackend;
@@ -1157,7 +1159,11 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             serde_json::to_value(output).map_err(serialize_error)
         }
         "evaluation.stats" => {
-            let (evaluated, _) = evaluate_session_scene(session)?;
+            ensure_scene_snapshot(session)?;
+            let evaluated = session
+                .scene_snapshot
+                .as_ref()
+                .expect("scene snapshot was ensured");
             serde_json::to_value(EvaluatedSceneStats {
                 source_nodes: evaluated.stats.source_nodes,
                 expanded_nodes: evaluated.stats.expanded_nodes,
@@ -1191,16 +1197,32 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         "evaluation.visibleInstances" => {
             let request: SceneVisibilityRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
-            let result = pollster::block_on(session.compute.visible_scene_instances(request))
-                .map_err(|error| {
-                    let diagnostic = error.diagnostic_code();
-                    RpcError::with_diagnostic(
-                        -32012,
-                        diagnostic,
-                        format!("{diagnostic}: {error}"),
-                        None,
-                    )
-                })?;
+            let current_revision = session.document.revision.as_u64();
+            if request.target_revision != current_revision {
+                return Err(RpcError::with_diagnostic(
+                    -32010,
+                    DiagnosticCode::RevisionConflict.as_str(),
+                    format!(
+                        "{}: target revision {} does not match current revision {}",
+                        DiagnosticCode::RevisionConflict.as_str(),
+                        request.target_revision,
+                        current_revision
+                    ),
+                    None,
+                ));
+            }
+            let gpu_ready = session.compute.scene_status().is_some_and(|status| {
+                status.state == SceneSessionState::Idle
+                    && status.published_revision == request.target_revision
+            });
+            let result = if gpu_ready {
+                match pollster::block_on(session.compute.visible_scene_instances(request)) {
+                    Ok(result) => result,
+                    Err(_) => visible_scene_instances_cpu(session, request)?,
+                }
+            } else {
+                visible_scene_instances_cpu(session, request)?
+            };
             serde_json::to_value(result).map_err(serialize_error)
         }
         "export.sourceGlb" => {
@@ -1500,6 +1522,46 @@ pub(crate) fn evaluate_session_scene(
         .as_ref()
         .expect("scene snapshot was ensured");
     Ok((scene.clone(), evaluated_scene_bounds(scene)))
+}
+
+fn visible_scene_instances_cpu(
+    session: &mut Session,
+    request: SceneVisibilityRequest,
+) -> Result<SceneVisibilityResult, RpcError> {
+    let (scene, bounds) = evaluate_session_scene(session)?;
+    let visible_indices = scene
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, node)| node.visible)
+        .filter_map(|(index, node)| {
+            let bounds = bounds.get(&node.id)?;
+            let centre = [
+                (bounds.min.x + bounds.max.x) * 0.5,
+                (bounds.min.y + bounds.max.y) * 0.5,
+                (bounds.min.z + bounds.max.z) * 0.5,
+            ];
+            let extent = [
+                (bounds.max.x - bounds.min.x) * 0.5,
+                (bounds.max.y - bounds.min.y) * 0.5,
+                (bounds.max.z - bounds.min.z) * 0.5,
+            ];
+            let radius =
+                (extent[0] * extent[0] + extent[1] * extent[1] + extent[2] * extent[2]).sqrt();
+            request
+                .planes
+                .iter()
+                .all(|plane| {
+                    plane[0] * centre[0] + plane[1] * centre[1] + plane[2] * centre[2] + plane[3]
+                        >= -radius
+                })
+                .then_some(index as u32)
+        })
+        .collect();
+    Ok(SceneVisibilityResult {
+        revision: session.document.revision.as_u64(),
+        visible_indices,
+    })
 }
 
 fn ensure_scene_snapshot(session: &mut Session) -> Result<(), RpcError> {

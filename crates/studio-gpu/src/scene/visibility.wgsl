@@ -17,6 +17,9 @@ fn cull_instances(@builtin(global_invocation_id) invocation: vec3<u32>) {
     }
     let centre = instance_bounds[index].xyz;
     let radius = instance_bounds[index].w;
+    if (radius < 0.0) {
+        return;
+    }
     for (var plane_index = 0u; plane_index < 6u; plane_index += 1u) {
         let plane = planes.values[plane_index];
         if (dot(plane.xyz, centre) + plane.w < -radius) {

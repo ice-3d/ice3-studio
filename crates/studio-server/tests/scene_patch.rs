@@ -102,6 +102,64 @@ fn initial_patch_contains_every_derived_identity() {
 }
 
 #[test]
+fn instance_matrices_include_parent_world_transforms() {
+    let mut document = Document::new("hierarchical-scene-patch");
+    let mut parent = SceneNode::group(NodeId::from("node-000001"), "Parent");
+    parent.transform.translation.x = 100.0;
+    let mut child = SceneNode::group(NodeId::from("node-000002"), "Child");
+    child.parent_id = Some(parent.id.clone());
+    child.content = NodeContent::Primitive(Primitive::Box {
+        width: 1.0,
+        height: 1.0,
+        depth: 1.0,
+    });
+    document.scene.nodes_mut().extend([parent, child]);
+
+    let scene = evaluate_large_scene(&document).unwrap();
+    let patch = build_full_scene_patch(&document, &scene, None).unwrap();
+    let child = patch
+        .instances
+        .iter()
+        .find(|instance| instance.node_id == "node-000002")
+        .expect("child instance should be present");
+
+    assert_eq!(child.matrix[12], 100.0);
+}
+
+#[test]
+fn parent_transform_update_refreshes_descendant_world_matrices() {
+    let mut document = Document::new("hierarchical-incremental-scene-patch");
+    let mut parent = SceneNode::group(NodeId::from("node-000001"), "Parent");
+    let mut child = SceneNode::group(NodeId::from("node-000002"), "Child");
+    child.parent_id = Some(parent.id.clone());
+    child.content = NodeContent::Primitive(Primitive::Box {
+        width: 1.0,
+        height: 1.0,
+        depth: 1.0,
+    });
+    document.scene.nodes_mut().extend([parent.clone(), child]);
+    let previous_scene = evaluate_large_scene(&document).unwrap();
+    let index = SceneSourceIndex::capture(&document, &previous_scene, None).unwrap();
+
+    parent.transform.translation.x = 100.0;
+    document.scene.nodes_mut()[0] = parent;
+    let diff = studio_core::diff::DocumentDiff {
+        updated_node_ids: vec![NodeId::from("node-000001")],
+        ..Default::default()
+    };
+    let mut store = MemoryGeometryStore::default();
+    let patch =
+        build_scene_patch(&document, &diff, &previous_scene, &index, &mut store, None).unwrap();
+    let child = patch
+        .instances
+        .iter()
+        .find(|instance| instance.node_id == "node-000002")
+        .expect("descendant instance should be updated");
+
+    assert_eq!(child.matrix[12], 100.0);
+}
+
+#[test]
 fn newly_added_source_node_emits_geometry_and_instance_changes() {
     let document = one_box_document();
     let previous_scene = studio_core::large_scene::evaluate::EvaluatedScene::default();

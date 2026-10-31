@@ -43,7 +43,9 @@ test('scene comparison separates CPU incrementality from GPU acceleration', () =
       parameterUpdateMs: { p50: 300 },
       topologyUpdateMs: { p50: 400 },
       warmStatsMs: { p50: 2 },
+      instanceVisibilityMs: { p50: 9 },
     },
+    visibleInstanceCount: 480,
   };
   const incrementalCpu = {
     measurements: {
@@ -51,7 +53,9 @@ test('scene comparison separates CPU incrementality from GPU acceleration', () =
       parameterUpdateMs: { p50: 200 },
       topologyUpdateMs: { p50: 250 },
       warmStatsMs: { p50: 2.1 },
+      instanceVisibilityMs: { p50: 6 },
     },
+    visibleInstanceCount: 480,
     compute: { sceneSession: { state: 'idle' } },
   };
   const gpuIncremental = {
@@ -60,7 +64,9 @@ test('scene comparison separates CPU incrementality from GPU acceleration', () =
       parameterUpdateMs: { p50: 100 },
       topologyUpdateMs: { p50: 200 },
       warmStatsMs: { p50: 2.2 },
+      instanceVisibilityMs: { p50: 2 },
     },
+    visibleInstanceCount: 480,
     compute: { sceneSession: { state: 'idle' } },
   };
 
@@ -72,10 +78,40 @@ test('scene comparison separates CPU incrementality from GPU acceleration', () =
     cpuIncrementalSpeedup: 3,
     gpuOverIncrementalSpeedup: 2,
     gpuTotalSpeedup: 6,
-    warmStatsRatio: 1.1,
+    warmStatsRatio: 1.0476190476190477,
     parameterSpeedup: 3,
     topologySpeedup: 2,
+    visibilitySpeedup: 3,
     passed: true,
     },
   );
+});
+
+test('scene comparison ignores sub-millisecond warm stats scheduling noise', () => {
+  const measurements = (incremental, parameter, topology, stats, visibility) => ({
+    incrementalUpdateMs: { p50: incremental },
+    parameterUpdateMs: { p50: parameter },
+    topologyUpdateMs: { p50: topology },
+    warmStatsMs: { p50: stats },
+    instanceVisibilityMs: { p50: visibility },
+  });
+  const fullCpu = {
+    measurements: measurements(1200, 300, 400, 0.4, 3),
+    visibleInstanceCount: 243,
+  };
+  const incrementalCpu = {
+    measurements: measurements(100, 100, 100, 0.24, 2.8),
+    visibleInstanceCount: 243,
+    compute: { sceneSession: { state: 'idle' } },
+  };
+  const gpu = {
+    measurements: measurements(90, 90, 90, 0.27, 1),
+    visibleInstanceCount: 243,
+    compute: { sceneSession: { state: 'idle' } },
+  };
+
+  const comparison = evaluateSceneComparison(fullCpu, incrementalCpu, gpu);
+
+  assert.deepEqual(comparison.failures, []);
+  assert.equal(comparison.passed, true);
 });

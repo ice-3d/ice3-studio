@@ -155,12 +155,15 @@ impl InstanceTable {
         self.records
             .iter()
             .map(|record| {
+                if !record.visible {
+                    return [0.0, 0.0, 0.0, -1.0];
+                }
                 let Some(bounds) = record
                     .geometry_id
                     .as_ref()
                     .and_then(|id| geometry_bounds.get(id))
                 else {
-                    return [0.0, 0.0, 0.0, 0.0];
+                    return [0.0, 0.0, 0.0, -1.0];
                 };
                 let centre = [
                     (bounds.min.x + bounds.max.x) * 0.5,

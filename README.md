@@ -74,21 +74,25 @@ handle 测量的是无哈希、无上传、无 fence 的缓存命中，不代表
 场景会话，`npm run benchmark:gpu-scene` 会输出大型工业场景对照。精确尺寸 buffer 分配后，
 完整 6.1M 有效三角形的 233 个共享几何和 1,938 个实例约占用 46 MiB GPU 内存。
 CPU incremental scene session 默认开启，transform-only revision 的 p50 已从全量路径
-约 1.28 s 降到约 116 ms，获得约 11× 提升。GPU incremental 路径约 119 ms，相对 CPU
-增量路径没有额外优势，因此 GPU scene session 仍保持实验性和默认关闭。
+约 1.282 s 降到约 114 ms，获得约 11.3× 提升。GPU incremental 路径约 116 ms，相对 CPU
+增量路径约为 0.98×，没有额外性能优势，因此 GPU scene session 仍保持实验性和默认关闭。
 生产 preview 路径会在上一 revision packet 可用时写入增量 packet；transform-only 更新不包含
 geometry payload，geometry 更新只回读受影响的 scene geometry。失败不会回滚已提交 Document。
 
 三方同场 benchmark 显示：CPU 增量相对 CPU 全量的 transform 提升约 11.0×；GPU 相对
-CPU 增量约为 0.97×。实例 transform 在 GPU 实验路径中只上传变化的 64-byte matrix
-range。实验
-`evaluation.visibleInstances` 使用 resident instance bounds 和 GPU compute 生成可见实例索引；
-完整大型场景的宽视锥查询返回全部 1,938 个实例，p50 约 0.9 ms。该接口和场景会话一起
-保持显式实验状态。
+CPU 增量的整体提升约为 11.1×，这说明主要收益来自增量场景架构，而非 GPU kernel。
+实例 transform 在 GPU 实验路径中只上传变化的 64-byte matrix range。
+`evaluation.visibleInstances` 在 CPU 默认路径中使用同一组世界空间包围球执行回退；
+场景会话启用时使用 resident instance bounds 和 GPU compute。窄视锥基准中 CPU 与 GPU
+均返回 243 个实例；CPU p50/p95 为 2.361/3.830 ms，GPU 为 0.584/1.267 ms，
+p50 约快 4.04×。该接口和场景会话一起保持显式实验状态。
 
-同场分解显示 transform revision 的约 118 ms 中，场景 apply 约 116 ms、scene wait
-约 0.4 ms、stats 约 1.6 ms；GPU scene planning 约 1.5 ms。当前主要成本已转移到
+同场分解显示 GPU transform revision 的约 116 ms 中，场景 apply 约 115 ms、scene wait
+约 0.49 ms、stats 约 0.25 ms；GPU scene planning 约 1.3 ms。当前主要成本已转移到
 Document 事务、持久化和 RPC 边界。
+
+默认基准不配置 Toolchain Sidecar，因此 `runtimePreviewMs.samples` 为 0；Toolchain
+预览协议和浏览器 E2E 由 `npm run verify` 单独覆盖。
 
 ## AI 辅助开发
 

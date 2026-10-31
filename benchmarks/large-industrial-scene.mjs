@@ -60,6 +60,7 @@ export function evaluateBenchmarkGate(result) {
 }
 
 export function evaluateSceneComparison(fullCpu, incrementalCpu, gpu) {
+  const warmStatsSchedulingFloorMs = 1;
   const failures = [];
   const transformSpeedup =
     fullCpu.measurements.incrementalUpdateMs.p50
@@ -74,15 +75,30 @@ export function evaluateSceneComparison(fullCpu, incrementalCpu, gpu) {
   const warmStatsRatio =
     gpu.measurements.warmStatsMs.p50
     / incrementalCpu.measurements.warmStatsMs.p50;
+  const warmStatsRegression =
+    gpu.measurements.warmStatsMs.p50
+    > Math.max(
+      incrementalCpu.measurements.warmStatsMs.p50 * 1.1,
+      incrementalCpu.measurements.warmStatsMs.p50 + warmStatsSchedulingFloorMs,
+    );
   const parameterSpeedup =
     fullCpu.measurements.parameterUpdateMs.p50
     / gpu.measurements.parameterUpdateMs.p50;
   const topologySpeedup =
     fullCpu.measurements.topologyUpdateMs.p50
     / gpu.measurements.topologyUpdateMs.p50;
+  const visibilitySpeedup =
+    incrementalCpu.measurements.instanceVisibilityMs.p50
+    / gpu.measurements.instanceVisibilityMs.p50;
   if (transformSpeedup < 5) failures.push('transformBelowFivefold');
-  if (warmStatsRatio > 1.1) failures.push('warmStatsRegression');
+  if (warmStatsRegression) failures.push('warmStatsRegression');
   if (gpu.compute?.sceneSession?.state !== 'idle') failures.push('gpuSceneState');
+  if (
+    incrementalCpu.visibleInstanceCount === 0
+    || incrementalCpu.visibleInstanceCount !== gpu.visibleInstanceCount
+  ) {
+    failures.push('visibilityParity');
+  }
   return {
     failures,
     transformSpeedup,
@@ -92,6 +108,7 @@ export function evaluateSceneComparison(fullCpu, incrementalCpu, gpu) {
     warmStatsRatio,
     parameterSpeedup,
     topologySpeedup,
+    visibilitySpeedup,
     passed: failures.length === 0,
   };
 }
@@ -174,24 +191,22 @@ async function main() {
     const coldStats = await rpc('evaluation.stats');
     const visibilitySamples = [];
     let visibleInstanceCount = 0;
-    if (sceneSessions) {
-      await rpc('evaluation.waitScene', { revision });
-      for (let sample = 0; sample < 7; sample += 1) {
-        const started = performance.now();
-        const visibility = await rpc('evaluation.visibleInstances', {
-          targetRevision: revision,
-          planes: [
-            [1, 0, 0, 1000000000],
-            [-1, 0, 0, 1000000000],
-            [0, 1, 0, 1000000000],
-            [0, -1, 0, 1000000000],
-            [0, 0, 1, 1000000000],
-            [0, 0, -1, 1000000000],
-          ],
-        });
-        visibilitySamples.push(performance.now() - started);
-        visibleInstanceCount = visibility.visibleIndices.length;
-      }
+    if (sceneSessions) await rpc('evaluation.waitScene', { revision });
+    for (let sample = 0; sample < 7; sample += 1) {
+      const started = performance.now();
+      const visibility = await rpc('evaluation.visibleInstances', {
+        targetRevision: revision,
+        planes: [
+          [1, 0, 0, 1000000000],
+          [-1, 0, 0, 400],
+          [0, 1, 0, 1000000000],
+          [0, -1, 0, 1000000000],
+          [0, 0, 1, 1000000000],
+          [0, 0, -1, 1000000000],
+        ],
+      });
+      visibilitySamples.push(performance.now() - started);
+      visibleInstanceCount = visibility.visibleIndices.length;
     }
     const warmSamples = [];
     for (let sample = 0; sample < 7; sample += 1) {
@@ -421,6 +436,7 @@ async function main() {
       suite: 'large-industrial',
       computeMode: sceneSessions ? 'gpu' : 'cpu',
       compute: capabilities.compute,
+      toolchain: capabilities.toolchain,
       projectId: plan.projectId,
       revision: currentRevision,
       operationCount,

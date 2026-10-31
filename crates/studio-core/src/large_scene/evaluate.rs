@@ -705,6 +705,11 @@ fn append_legacy_node(
         })?;
         Some(key)
     };
+    if let Some(mesh_key) = &mesh_key
+        && let Some(mesh) = scene.meshes.get(mesh_key)
+    {
+        scene.stats.effective_triangles += mesh.indices.len() / 3;
+    }
     scene.nodes.push(EvaluatedSceneNode {
         id: node.id.as_str().to_owned(),
         owner_id: node.id.as_str().to_owned(),

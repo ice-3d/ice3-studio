@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use glam::Mat4;
 use studio_core::diff::DocumentDiff;
 use studio_core::document::{Document, NodeContent};
 use studio_core::geometry::{EvaluatedMesh, TriangleMesh};
@@ -22,6 +23,7 @@ const CPU_KERNEL_VERSION: &str = "geometry-kernel-v1";
 pub struct SceneSourceIndex {
     revision: u64,
     nodes: BTreeMap<NodeId, SourceNodeSnapshot>,
+    node_children: BTreeMap<NodeId, BTreeSet<NodeId>>,
     component_instances: BTreeMap<ComponentId, BTreeSet<NodeId>>,
     component_parents: BTreeMap<ComponentId, BTreeSet<ComponentId>>,
     material_nodes: BTreeMap<MaterialId, BTreeSet<NodeId>>,
@@ -47,6 +49,7 @@ impl SceneSourceIndex {
         let mut nodes = BTreeMap::new();
         let mut component_instances = BTreeMap::<ComponentId, BTreeSet<NodeId>>::new();
         let mut material_nodes = BTreeMap::<MaterialId, BTreeSet<NodeId>>::new();
+        let mut node_children = BTreeMap::<NodeId, BTreeSet<NodeId>>::new();
         for node in document.scene.nodes() {
             let key = ResidencyKey::for_content(&node.content, "", CPU_KERNEL_VERSION)?;
             nodes.insert(
@@ -55,6 +58,12 @@ impl SceneSourceIndex {
                     content_digest: key.attribute,
                 },
             );
+            if let Some(parent_id) = &node.parent_id {
+                node_children
+                    .entry(parent_id.clone())
+                    .or_default()
+                    .insert(node.id.clone());
+            }
             match &node.content {
                 NodeContent::ComponentInstance(instance) => {
                     component_instances
@@ -127,6 +136,7 @@ impl SceneSourceIndex {
         Ok(Self {
             revision: document.revision.as_u64(),
             nodes,
+            node_children,
             component_instances,
             component_parents,
             material_nodes,
@@ -186,6 +196,16 @@ impl SceneSourceIndex {
                 selected.extend(nodes.iter().cloned());
             }
         }
+        let mut cursor = selected.clone();
+        while let Some(parent) = cursor.pop_first() {
+            if let Some(children) = self.node_children.get(&parent) {
+                for child in children {
+                    if selected.insert(child.clone()) {
+                        cursor.insert(child.clone());
+                    }
+                }
+            }
+        }
         Some(selected)
     }
 
@@ -205,9 +225,18 @@ pub fn build_full_scene_patch(
 ) -> Result<ScenePatch, LargeSceneError> {
     let mut geometry = BTreeMap::new();
     let mut instances = Vec::new();
+    let scene_nodes = scene
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect::<BTreeMap<_, _>>();
+    let previous_nodes = BTreeMap::new();
     for node in &scene.nodes {
         append_geometry(scene, scene, node, None, &mut geometry)?;
-        instances.push(instance_change(node));
+        instances.push(instance_change(
+            node,
+            world_matrix(node, &scene_nodes, &previous_nodes),
+        ));
     }
     Ok(ScenePatch {
         base_revision: 0,
@@ -293,7 +322,10 @@ pub fn build_scene_patch_with_scene<S: GeometryStore>(
                         &mut geometry,
                     )?;
                 }
-                instances.push(instance_change(node));
+                instances.push(instance_change(
+                    node,
+                    world_matrix(node, &scene_by_id, &previous_by_id),
+                ));
             }
         }
     }
@@ -394,7 +426,7 @@ fn mesh_content(mesh: &EvaluatedMesh) -> NodeContent {
     })
 }
 
-fn instance_change(node: &EvaluatedSceneNode) -> SceneInstanceChange {
+fn instance_change(node: &EvaluatedSceneNode, matrix: [f32; 16]) -> SceneInstanceChange {
     SceneInstanceChange {
         node_id: node.id.clone(),
         geometry_id: node
@@ -403,10 +435,35 @@ fn instance_change(node: &EvaluatedSceneNode) -> SceneInstanceChange {
             .map(|id| id.0.clone())
             .or_else(|| node.mesh_key.clone()),
         transform: node.transform,
-        matrix: transform_matrix(node.transform),
+        matrix,
         material_id: node.material_id.as_ref().map(ToString::to_string),
         visible: node.visible,
     }
+}
+
+fn world_matrix(
+    node: &EvaluatedSceneNode,
+    scene_nodes: &BTreeMap<&str, &EvaluatedSceneNode>,
+    previous_nodes: &BTreeMap<&str, &EvaluatedSceneNode>,
+) -> [f32; 16] {
+    let mut chain = Vec::new();
+    let mut current = Some(node);
+    while let Some(candidate) = current {
+        chain.push(candidate.transform);
+        current = candidate.parent_id.as_deref().and_then(|parent_id| {
+            scene_nodes
+                .get(parent_id)
+                .copied()
+                .or_else(|| previous_nodes.get(parent_id).copied())
+        });
+    }
+    chain
+        .iter()
+        .rev()
+        .fold(Mat4::IDENTITY, |world, transform| {
+            world * Mat4::from_cols_array(&transform_matrix(*transform))
+        })
+        .to_cols_array()
 }
 
 fn node_belongs_to_source(node: &EvaluatedSceneNode, source: &NodeId) -> bool {
