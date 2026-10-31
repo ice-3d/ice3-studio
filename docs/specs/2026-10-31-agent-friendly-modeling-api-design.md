@@ -421,7 +421,8 @@ Sparse patches use the following general rules:
 
 - At least one patchable field must be present.
 - An absent field means no change.
-- Explicit `null` clears a nullable singular field.
+- Explicit `null` on a field means no change. Clearing a nullable value requires
+  the operation's explicit `clear*` field.
 - `setMetadata` merges supplied keys.
 - `removeMetadataKeys` removes supplied keys and is idempotent for missing keys.
 - Setting and removing the same metadata key in one operation is invalid.
@@ -457,7 +458,8 @@ Only a field present in JSON changes state.
 Unknown parameter names, duplicate set/remove names, and type mismatches fail
 validation.
 
-`materialId` sets a material. `clearMaterial: true` clears it. Supplying both is
+`materialId` sets a material; `null` means no change. `clearMaterial: true`
+clears it. Supplying both a non-null material ID and `clearMaterial: true` is
 invalid.
 
 Child-part overrides are not patched in this phase. Callers continue to use
@@ -511,7 +513,8 @@ MaterialPatch {
 }
 ```
 
-Supplying `edgeColor` and `clearEdgeColor: true` together is invalid.
+`clearEdgeColor: true` clears the edge color. Supplying a non-null `edgeColor`
+and `clearEdgeColor: true` together is invalid.
 
 ### 11.5 Diff And Approval
 
