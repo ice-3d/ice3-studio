@@ -31,6 +31,7 @@ impl GeometryCacheMetadata {
 pub struct GeometryCacheEntry {
     pub mesh: EvaluatedMesh,
     pub metadata: GeometryCacheMetadata,
+    pub resident_geometry_id: Option<ResidentGeometryId>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -55,6 +56,7 @@ pub trait GeometryStore {
         self.load(key).map(|mesh| GeometryCacheEntry {
             mesh,
             metadata: GeometryCacheMetadata::cpu(),
+            resident_geometry_id: None,
         })
     }
     fn store_entry(&mut self, key: String, entry: GeometryCacheEntry) {
@@ -78,6 +80,7 @@ impl GeometryStore for MemoryGeometryStore {
             GeometryCacheEntry {
                 mesh,
                 metadata: GeometryCacheMetadata::cpu(),
+                resident_geometry_id: None,
             },
         );
     }

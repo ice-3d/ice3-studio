@@ -55,6 +55,7 @@ fn persists_backend_kernel_and_parity_metadata() {
             kernel_version: "geometry-kernel-v1".into(),
             parity_status: "passed".into(),
         },
+        resident_geometry_id: None,
     };
     cache.store_entry("gpu-mesh".into(), entry.clone());
     assert_eq!(cache.load_entry("gpu-mesh"), Some(entry));

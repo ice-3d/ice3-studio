@@ -87,6 +87,7 @@ impl GeometryStore for GeometryDiskCache {
             GeometryCacheEntry {
                 mesh,
                 metadata: GeometryCacheMetadata::cpu(),
+                resident_geometry_id: None,
             },
         );
     }
@@ -233,5 +234,6 @@ fn decode(bytes: &[u8]) -> Option<GeometryCacheEntry> {
             },
         },
         metadata,
+        resident_geometry_id: None,
     })
 }

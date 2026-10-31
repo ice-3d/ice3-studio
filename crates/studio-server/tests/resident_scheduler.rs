@@ -343,6 +343,17 @@ fn large_scene_propagates_resident_ids_and_updates_without_re_evaluation() {
         Some(ResidentGeometryId("resident-part".into()))
     );
     assert_eq!(evaluator.calls.load(Ordering::SeqCst), 1);
+    let cached = evaluate_large_scene_with_cache_and_evaluator(
+        &component_document(),
+        &mut store,
+        Some(&evaluator),
+    )
+    .unwrap();
+    assert_eq!(
+        cached.nodes[0].resident_geometry_id,
+        Some(ResidentGeometryId("resident-part".into()))
+    );
+    assert_eq!(evaluator.calls.load(Ordering::SeqCst), 1);
 
     let node_id = scene.nodes[0].id.clone();
     update_transform_only(&mut scene, &node_id, Transform::IDENTITY).unwrap();

@@ -978,11 +978,9 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
         parameters,
         &selected_metadata,
     )?;
-    if let Some(mesh) =
+    if let Some((mesh, resident_geometry_id)) =
         load_matching_cache_entry(store, stats, meshes, &selected_key, &selected_metadata)
     {
-        let resident_geometry_id =
-            evaluator.and_then(|evaluator| evaluator.resident_geometry_id(&node_content));
         return Ok((mesh, selected_key, resident_geometry_id));
     }
 
@@ -1005,10 +1003,10 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
         &evaluation.metadata,
     )?;
     if actual_key != selected_key
-        && let Some(mesh) =
+        && let Some((mesh, resident_geometry_id)) =
             load_matching_cache_entry(store, stats, meshes, &actual_key, &evaluation.metadata)
     {
-        return Ok((mesh, actual_key, evaluation.resident_geometry_id));
+        return Ok((mesh, actual_key, resident_geometry_id));
     }
 
     stats.cache_misses += 1;
@@ -1018,6 +1016,7 @@ fn load_or_evaluate_part_mesh<S: GeometryStore>(
         crate::large_scene::cache::GeometryCacheEntry {
             mesh: evaluation.mesh.clone(),
             metadata: evaluation.metadata,
+            resident_geometry_id: evaluation.resident_geometry_id.clone(),
         },
     );
     meshes.insert(actual_key.clone(), evaluation.mesh.clone());
@@ -1030,9 +1029,12 @@ fn load_matching_cache_entry<S: GeometryStore>(
     meshes: &mut BTreeMap<String, EvaluatedMesh>,
     key: &str,
     expected_metadata: &GeometryCacheMetadata,
-) -> Option<EvaluatedMesh> {
+) -> Option<(EvaluatedMesh, Option<ResidentGeometryId>)> {
     if let Some(mesh) = meshes.get(key) {
-        return Some(mesh.clone());
+        let resident_geometry_id = store
+            .load_entry(key)
+            .and_then(|entry| entry.resident_geometry_id);
+        return Some((mesh.clone(), resident_geometry_id));
     }
     let cached = store.load_entry(key)?;
     if &cached.metadata != expected_metadata {
@@ -1040,7 +1042,7 @@ fn load_matching_cache_entry<S: GeometryStore>(
     }
     stats.cache_hits += 1;
     meshes.insert(key.to_owned(), cached.mesh.clone());
-    Some(cached.mesh)
+    Some((cached.mesh, cached.resident_geometry_id))
 }
 
 fn load_or_evaluate_mesh<S: GeometryStore>(
