@@ -772,20 +772,27 @@ impl ComputeService {
 
         pollster::block_on(async {
             let content_key = resident_content_key(&content);
-            self.remember_content(content);
-            let resident = self
-                .evaluate_for(GeometryEvaluationPurpose::Preview)
+            let handle = self
+                .register_geometry("compute-node-000001".into(), content)
                 .await?;
-            let resident_id = resident.entries.first().map(|entry| entry.id.clone());
+            self.remember_content(
+                self.registered_geometry
+                    .lock()
+                    .expect("registered geometry poisoned")
+                    .get(&handle.id)
+                    .expect("registered handle must exist")
+                    .content
+                    .clone(),
+            );
+            let resident = self.evaluate_handle(&handle).await?;
+            let resident_id = Some(resident.handle.id.clone());
             if let Some(resident_id) = &resident_id {
                 self.resident_by_content
                     .lock()
                     .expect("resident content index poisoned")
                     .insert(content_key, resident_id.clone());
             }
-            let snapshot = self
-                .snapshot_for(GeometryEvaluationPurpose::Diagnostics)
-                .await?;
+            let snapshot = self.snapshot_handle(&resident.handle).await?;
             let node_id = NodeId::from("compute-node-000001");
             let mesh = snapshot.meshes.get(&node_id).cloned().ok_or_else(|| {
                 ComputeError::ResidencyUnavailable {

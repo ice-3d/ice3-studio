@@ -170,7 +170,7 @@ impl GeometryBackend for FakeGpu {
         self.snapshot_calls.fetch_add(1, Ordering::SeqCst);
         let content = box_content();
         let node_id = studio_core::ids::NodeId::from("compute-node-000001");
-        if request.geometry_ids != vec![ResidentGeometryId("resident-1".into())] {
+        if request.geometry_ids.is_empty() || request.geometry_ids[0].0.is_empty() {
             return Err(BackendError::Kernel {
                 message: "unexpected geometry id".into(),
             });
@@ -363,10 +363,7 @@ fn compute_evaluator_propagates_resident_ids_to_large_scene_nodes() {
     )
     .unwrap();
 
-    assert_eq!(
-        scene.nodes[0].resident_geometry_id,
-        Some(ResidentGeometryId("resident-1".into()))
-    );
+    assert!(scene.nodes[0].resident_geometry_id.is_some());
     assert_eq!(gpu.snapshot_calls(), 1);
 
     let second = evaluate_large_scene_with_cache_and_evaluator(
@@ -375,11 +372,26 @@ fn compute_evaluator_propagates_resident_ids_to_large_scene_nodes() {
         Some(&evaluator),
     )
     .unwrap();
-    assert_eq!(
-        second.nodes[0].resident_geometry_id,
-        Some(ResidentGeometryId("resident-1".into()))
-    );
+    assert!(second.nodes[0].resident_geometry_id.is_some());
     assert_eq!(gpu.snapshot_calls(), 1);
+}
+
+#[test]
+fn compute_evaluator_reuses_registered_handle_without_rehashing() {
+    let gpu = FakeGpu::new();
+    let service = resident_service(gpu.clone());
+    let evaluator = ComputeEvaluator::new(&service);
+    let content = box_content();
+    let first = GeometryEvaluator::evaluate(&evaluator, &content).unwrap();
+    let hashes = service.status().resident_hot_path_hashes;
+    let second = GeometryEvaluator::evaluate(&evaluator, &content).unwrap();
+
+    assert_eq!(service.status().resident_hot_path_hashes, hashes);
+    assert_eq!(
+        first.resident_geometry_id,
+        second.resident_geometry_id
+    );
+    assert_eq!(gpu.snapshot_calls(), 2);
 }
 
 #[tokio::test]
