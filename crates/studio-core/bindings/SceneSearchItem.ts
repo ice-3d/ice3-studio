@@ -5,4 +5,4 @@ import type { MaterialId } from "./MaterialId";
 import type { SceneContentKind } from "./SceneContentKind";
 import type { SceneSearchScope } from "./SceneSearchScope";
 
-export type SceneSearchItem = { id: string, scope: SceneSearchScope, kind: SceneContentKind, name: string | null, parentId: string | null, ownerId: string | null, visible: boolean | null, componentDefinitionId: ComponentId | null, materialId: MaterialId | null, geometryId: string | null, bounds: Bounds | null, metadata: { [key in string]?: string } | null, };
+export type SceneSearchItem = { id: string, scope: SceneSearchScope, kind: SceneContentKind, name?: string, parentId?: string, ownerId?: string, visible?: boolean, componentDefinitionId?: ComponentId, materialId?: MaterialId, geometryId?: string, bounds?: Bounds, metadata?: { [key in string]?: string }, };

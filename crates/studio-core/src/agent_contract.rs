@@ -226,7 +226,7 @@ pub struct SceneContext {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", optional_fields)]
 #[ts(export)]
 pub struct SceneSearchItem {
     pub id: String,
@@ -269,6 +269,7 @@ pub struct SceneSearchResult {
 pub struct EvaluationQueryRequest {
     pub node_ids: Vec<String>,
     #[serde(default = "default_evaluation_include")]
+    #[ts(as = "Option<_>", optional)]
     pub include: Vec<EvaluationInclude>,
 }
 
@@ -289,8 +290,10 @@ pub struct EvaluationQueryItem {
     pub topology_digest: Option<String>,
     pub attribute_digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub positions: Option<Vec<[f32; 3]>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub indices: Option<Vec<u32>>,
 }
 

@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use studio_core::agent_contract::{
-    AgentLimits, EvaluationInclude, EvaluationQueryRequest, RuntimePreviewRequest,
-    SceneSearchField, SceneSearchRequest, SceneSearchScope,
+    AgentLimits, EvaluationInclude, EvaluationQueryItem, EvaluationQueryRequest,
+    RuntimePreviewRequest, SceneSearchField, SceneSearchItem, SceneSearchRequest, SceneSearchScope,
 };
 use ts_rs::TS;
 
@@ -50,6 +50,18 @@ fn agent_request_typescript_marks_omittable_fields_optional() {
     assert!(search.contains("query?: string | null"));
     assert!(search.contains("metadata?:"));
     assert!(search.contains("limit?: number"));
+
+    let evaluation = EvaluationQueryRequest::decl();
+    assert!(evaluation.contains("include?: Array<EvaluationInclude>"));
+
+    let search_item = SceneSearchItem::decl();
+    assert!(search_item.contains("name?: string"));
+    assert!(search_item.contains("metadata?:"));
+
+    let evaluation_item = EvaluationQueryItem::decl();
+    assert!(evaluation_item.contains("geometryId: string | null"));
+    assert!(evaluation_item.contains("positions?: Array<[number, number, number]>"));
+    assert!(evaluation_item.contains("indices?: Array<number>"));
 
     let preview = RuntimePreviewRequest::decl();
     assert!(preview.contains("revision?: bigint | null"));

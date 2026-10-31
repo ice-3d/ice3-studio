@@ -75,6 +75,7 @@ pub struct ChangeSetEvaluateParams {
     change_set_id: ChangeSetId,
     expected_version: u64,
     #[serde(default)]
+    #[ts(as = "Option<_>", optional)]
     include_candidate: bool,
 }
 
