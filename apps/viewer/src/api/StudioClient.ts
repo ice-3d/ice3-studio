@@ -93,6 +93,13 @@ export type StudioCapabilities = {
   compute: ComputeStatus;
 };
 
+export type StudioPreview = {
+  revision: number;
+  url: string;
+  packetUrl: string | null;
+  glbUrl: string;
+};
+
 export type ChangeSetEvaluation = {
   changeSetId: string;
   version: number;
@@ -148,15 +155,33 @@ export class StudioClient {
     return this.rpc('validation.run', {});
   }
 
-  preview(revision: number): Promise<{ revision: number; url: string }> {
-    return this.rpc('export.runtimePreview', { revision }).then((value) => ({
+  async preview(revision: number): Promise<StudioPreview> {
+    const value = await this.rpc<{ packetUrl?: string | null }>(
+      'export.runtimePreview',
+      { revision },
+    );
+    const glbUrl = `/previews/${revision}`;
+    const packetUrl = value.packetUrl ?? null;
+    return {
       revision,
-      url: `/previews/${revision}`,
-    }));
+      url: packetUrl ?? glbUrl,
+      packetUrl,
+      glbUrl,
+    };
   }
 
-  candidatePreview(candidateDigest: string): Promise<{ url: string }> {
-    return this.rpc('export.runtimePreview', { candidateDigest });
+  async candidatePreview(
+    candidateDigest: string,
+  ): Promise<{ url: string; packetUrl: string | null }> {
+    const preview = await this.rpc<{ url: string; packetUrl?: string | null }>(
+      'export.runtimePreview',
+      { candidateDigest },
+    );
+    const packetUrl = preview.packetUrl ?? null;
+    return {
+      url: packetUrl ?? preview.url,
+      packetUrl,
+    };
   }
 
   createChangeSet(baseRevision: number, title: string): Promise<{ id: string; version: number }> {
