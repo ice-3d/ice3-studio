@@ -404,6 +404,7 @@ export function applyReferenceOverrides(
     node: ImportedNode,
     inheritedBinding: StudioReferenceBinding | undefined,
     path: readonly string[] = [],
+    childIndex = 0,
   ): void => {
     const nodePath = node.name ? [...path, node.name] : path;
     if (!originalNodeState.has(node)) {
@@ -416,6 +417,14 @@ export function applyReferenceOverrides(
     const original = originalNodeState.get(node)!;
     const directBinding = matchingMaterialBinding(node, bindingsBySelection);
     const binding = directBinding ?? inheritedBinding;
+    const isExternalFacilityStair = (
+      pathName(path).includes('Site.Facility.')
+      && childIndex === 6
+    );
+    const isLegacySitePad = nodePath.some((part) => part.startsWith('SitePads'));
+    node.visible = isExternalFacilityStair || isLegacySitePad
+      ? false
+      : original.visible;
     if (!original.material) {
       // Group nodes carry no material but still propagate semantic context.
     } else if (binding?.materialColor) {
@@ -423,13 +432,17 @@ export function applyReferenceOverrides(
     } else {
       node.material = referenceRoleMaterial(original.material, nodePath);
     }
-    for (const child of node.children ?? []) {
-      applyMaterials(child, binding, nodePath);
+    for (const [index, child] of (node.children ?? []).entries()) {
+      applyMaterials(child, binding, nodePath, index);
     }
   };
   if (scene && typeof scene === 'object') {
     applyMaterials(scene as ImportedNode, undefined);
   }
+}
+
+function pathName(path: readonly string[]): string {
+  return path.join('/');
 }
 
 function matchingMaterialBinding(
@@ -485,7 +498,7 @@ function presentedReferenceMaterial(material: ImportedMaterial): ImportedMateria
 const sourceMaterialColors = Object.freeze<Record<string, string>>({
   '#66635c': '#d6d7d2',
   '#6e7a7d': '#a8b1b5',
-  '#ced4d5': '#e6e7e3',
+  '#ced4d5': '#2f6f78',
   '#265c66': '#1f6675',
   '#2e383b': '#465158',
   '#4d5c61': '#6c7b80',

@@ -96,6 +96,7 @@ test('maps infrastructure and pipe colors by real-world material role', () => {
   assert.equal(referenceSurfaceColor(['AE-101'], '#265c66'), '#1f6675');
   assert.equal(referenceSurfaceColor(['AE-101'], '#66635c'), '#d6d7d2');
   assert.equal(referenceSurfaceColor(['AE-101'], '#6e7a7d'), '#a8b1b5');
+  assert.equal(referenceSurfaceColor(['AE-101'], '#ced4d5'), '#2f6f78');
 });
 
 test('inherits equipment color through mesh children without tinting shared geometry', () => {
@@ -130,6 +131,31 @@ test('inherits equipment color through mesh children without tinting shared geom
   assert.equal(mixed.material?.color, lightenReferenceColor('#334455'));
 });
 
+test('removes the legacy external stair primitive from facilities', () => {
+  const children = Array.from({ length: 7 }, (_, index) => (
+    fakeNode(`site/facility/part-${index}`, { color: '#66635c' })
+  ));
+  const building = fakeNode('Site.Facility.FAC-CTRL-101', null, children);
+  applyReferenceOverrides(
+    fakeNode('Buildings', null, [building]),
+    [],
+    new WeakMap(),
+  );
+  assert.equal(children[6]?.visible, false);
+  assert.equal(children[5]?.visible, true);
+});
+
+test('hides legacy paving blocks so the grass base remains continuous', () => {
+  const pad = fakeNode('SitePads.00', { color: '#66635c' });
+  const ground = fakeNode('Ground', null, [pad]);
+  applyReferenceOverrides(
+    fakeNode('Site', null, [ground]),
+    [],
+    new WeakMap(),
+  );
+  assert.equal(pad.visible, false);
+});
+
 function largeReferenceDescriptor() {
   return {
     descriptor: {
@@ -162,6 +188,7 @@ function fakeNode(
   children: FakeNode[] = [],
 ): FakeNode {
   return {
+    name: selectionId,
     selectionId,
     semanticSelectionIds: [] as string[],
     visible: true,
@@ -175,6 +202,7 @@ function fakeNode(
 }
 
 type FakeNode = {
+  name: string;
   selectionId: string;
   semanticSelectionIds: string[];
   visible: boolean;
