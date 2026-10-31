@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path as AxumPath, Query, State};
+use axum::extract::{DefaultBodyLimit, Path as AxumPath, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
@@ -15,10 +15,20 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction};
 use studio_core::document::Document;
-use studio_core::geometry::{Bounds, evaluate_node_content, world_bounds};
+use studio_core::geometry::Bounds;
+use studio_core::gpu_contract::{GeometryBackend, GeometryBackendMode};
 use studio_core::ids::NodeId;
+use studio_core::large_scene::evaluate::{
+    EvaluatedScene, evaluate_large_scene_with_cache_and_evaluator, evaluated_scene_bounds,
+};
+use studio_core::scene_contract::ScenePatch;
+use studio_core::scene_contract::{
+    SceneSessionState, SceneVisibilityRequest, SceneVisibilityResult,
+};
 use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
+use studio_gpu::NativeGpuBackend;
+use studio_project::layered_geometry_cache::{DEFAULT_LAYERED_CACHE_BYTES, LayeredGeometryCache};
 use studio_project::{ProjectStore, WorkspacePath};
 use tokio::sync::broadcast;
 use tower_http::services::{ServeDir, ServeFile};
@@ -27,7 +37,15 @@ use ts_rs::TS;
 use crate::ServerEvent;
 use crate::auth::{approval_cookie, bearer_token};
 use crate::capabilities::{WriteMode, authorize_write};
+use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
 use crate::preview::{PreviewAdapter, export_source};
+use crate::preview_packet::PACKET_MEDIA_TYPE;
+use crate::scene_session::{
+    SceneSourceIndex, build_full_scene_patch, build_scene_patch_with_scene,
+};
+use crate::toolchain::{ToolchainService, ToolchainStatus};
+
+const MAX_RPC_BODY_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -40,6 +58,10 @@ pub struct ServerConfig {
     pub approval_token: Option<String>,
     pub write_mode: WriteMode,
     pub viewer_dir: Option<PathBuf>,
+    pub compute_mode: GeometryBackendMode,
+    pub preview_packet_enabled: bool,
+    pub scene_sessions_enabled: bool,
+    pub incremental_scene_cache: bool,
 }
 
 impl ServerConfig {
@@ -54,6 +76,10 @@ impl ServerConfig {
             approval_token: None,
             write_mode: WriteMode::Autonomous,
             viewer_dir: None,
+            compute_mode: GeometryBackendMode::Cpu,
+            preview_packet_enabled: false,
+            scene_sessions_enabled: false,
+            incremental_scene_cache: true,
         }
     }
 
@@ -113,6 +139,22 @@ pub struct Capabilities {
     pub api_version: String,
     pub schema_version: u32,
     pub methods: Vec<String>,
+    pub toolchain: ToolchainStatus,
+    pub compute: ComputeStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EvaluatedSceneStats {
+    pub source_nodes: usize,
+    pub expanded_nodes: usize,
+    pub unique_meshes: usize,
+    pub effective_triangles: usize,
+    pub unique_triangles: usize,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+    pub generated_meshes: usize,
 }
 
 pub(crate) struct Session {
@@ -120,10 +162,17 @@ pub(crate) struct Session {
     pub(crate) project_id: String,
     pub(crate) store: ProjectStore,
     pub(crate) document: Document,
+    pub(crate) scene_cache: LayeredGeometryCache,
+    pub(crate) scene_snapshot: Option<EvaluatedScene>,
+    pub(crate) scene_snapshot_revision: Option<u64>,
+    pub(crate) scene_source_index: Option<SceneSourceIndex>,
+    pub(crate) last_scene_patch: Option<ScenePatch>,
     pub(crate) token: String,
     pub(crate) events: broadcast::Sender<ServerEvent>,
     pub(crate) closed: bool,
     pub(crate) toolchain_cli: Option<PathBuf>,
+    pub(crate) toolchain: Arc<ToolchainService>,
+    pub(crate) compute: Arc<ComputeService>,
     pub(crate) approval_token: String,
     pub(crate) write_mode: WriteMode,
     pub(crate) bootstrap_token: Option<String>,
@@ -141,6 +190,14 @@ struct SessionCredentials {
     approval_token: String,
     write_mode: WriteMode,
     bootstrap_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ComputeOptions {
+    mode: GeometryBackendMode,
+    preview_packet_enabled: bool,
+    scene_sessions_enabled: bool,
+    incremental_scene_cache: bool,
 }
 
 pub struct TestServer {
@@ -205,11 +262,9 @@ impl TestServer {
     }
 
     pub async fn set_toolchain_cli(&self, path: PathBuf) {
-        self.state
-            .session
-            .lock()
-            .expect("session lock")
-            .toolchain_cli = Some(path);
+        let mut session = self.state.session.lock().expect("session lock");
+        session.toolchain_cli = Some(path.clone());
+        session.toolchain.reconfigure(path);
     }
 
     pub async fn stop(mut self) {
@@ -291,6 +346,12 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         config.fixture.as_deref(),
         config.port,
         config.toolchain_cli,
+        ComputeOptions {
+            mode: config.compute_mode,
+            preview_packet_enabled: config.preview_packet_enabled,
+            scene_sessions_enabled: config.scene_sessions_enabled,
+            incremental_scene_cache: config.incremental_scene_cache,
+        },
     )
     .await
     .expect("test server state");
@@ -326,6 +387,12 @@ pub async fn start_test_server_at(root: &Path) -> TestServer {
         None,
         config.port,
         config.toolchain_cli,
+        ComputeOptions {
+            mode: config.compute_mode,
+            preview_packet_enabled: config.preview_packet_enabled,
+            scene_sessions_enabled: config.scene_sessions_enabled,
+            incremental_scene_cache: config.incremental_scene_cache,
+        },
     )
     .await
     .expect("restart test server state");
@@ -373,6 +440,12 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
         config.fixture.as_deref(),
         config.port,
         toolchain_cli,
+        ComputeOptions {
+            mode: config.compute_mode,
+            preview_packet_enabled: config.preview_packet_enabled,
+            scene_sessions_enabled: config.scene_sessions_enabled,
+            incremental_scene_cache: config.incremental_scene_cache,
+        },
     )
     .await?;
     println!("{}", listener.local_addr()?);
@@ -394,6 +467,7 @@ async fn initialize_state(
     fixture: Option<&std::path::Path>,
     port: u16,
     toolchain_cli: Option<PathBuf>,
+    compute: ComputeOptions,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
     let path = WorkspacePath::new(root, project_id)?;
@@ -417,16 +491,41 @@ async fn initialize_state(
         }
     }
     let (events, _) = broadcast::channel(64);
+    let toolchain = Arc::new(ToolchainService::new_with_launch_root(
+        store.project_dir(),
+        root,
+        toolchain_cli.clone(),
+    ));
+    let gpu: Arc<dyn GeometryBackend> = Arc::new(NativeGpuBackend::new(GeometryBackendMode::Gpu));
+    let compute = Arc::new(ComputeService::new(
+        crate::compute::ComputePolicy {
+            mode: compute.mode,
+            preview_packet_enabled: compute.preview_packet_enabled,
+            scene_sessions_enabled: compute.scene_sessions_enabled,
+            incremental_scene_cache: compute.incremental_scene_cache,
+            ..crate::compute::ComputePolicy::default()
+        },
+        (compute.mode != GeometryBackendMode::Cpu).then_some(gpu),
+    ));
+    let _ = pollster::block_on(compute.initialize());
+    let scene_cache = LayeredGeometryCache::new(store.project_dir(), DEFAULT_LAYERED_CACHE_BYTES)?;
     let state = AppState {
         session: Arc::new(Mutex::new(Session {
             workspace_root: root.to_path_buf(),
             project_id: project_id.into(),
             store,
             document,
+            scene_cache,
+            scene_snapshot: None,
+            scene_snapshot_revision: None,
+            scene_source_index: None,
+            last_scene_patch: None,
             token: credentials.agent_token,
             events,
             closed: false,
             toolchain_cli,
+            toolchain,
+            compute,
             approval_token: credentials.approval_token,
             write_mode: credentials.write_mode,
             bootstrap_token: credentials.bootstrap_token,
@@ -447,11 +546,19 @@ fn build_router(state: AppState, viewer_dir: Option<PathBuf>) -> Router {
     let router = Router::new()
         .route("/health", get(health))
         .route("/session/bootstrap", get(bootstrap_session))
-        .route("/rpc", post(rpc))
+        .route(
+            "/rpc",
+            post(rpc).layer(DefaultBodyLimit::max(MAX_RPC_BODY_BYTES)),
+        )
         .route("/ws", get(websocket))
         .route("/schemas/{name}", get(schema_file))
         .route("/previews/{revision}", get(preview_file))
         .route("/previews/candidates/{digest}", get(candidate_preview_file))
+        .route("/preview-packets/{revision}", get(preview_packet_file))
+        .route(
+            "/preview-packets/candidates/{digest}",
+            get(candidate_preview_packet_file),
+        )
         .with_state(state);
     if let Some(viewer_dir) = viewer_dir {
         router
@@ -570,6 +677,23 @@ async fn rpc(
             .into_response();
     }
     let request_id = request.id.clone();
+    if let Some(result) = dispatch_unlocked_preview(&state, &request).await {
+        let response = match result {
+            Ok(result) => RpcResponse {
+                jsonrpc: "2.0".into(),
+                id: request_id,
+                result: Some(result),
+                error: None,
+            },
+            Err(error) => RpcResponse {
+                jsonrpc: "2.0".into(),
+                id: request_id,
+                result: None,
+                error: Some(error),
+            },
+        };
+        return (StatusCode::OK, Json(response)).into_response();
+    }
     let response = match tokio::task::spawn_blocking(move || {
         let mut session = state.session.lock().expect("session lock");
         dispatch(&mut session, &request)
@@ -601,6 +725,133 @@ async fn rpc(
         },
     };
     (StatusCode::OK, Json(response)).into_response()
+}
+
+async fn dispatch_unlocked_preview(
+    state: &AppState,
+    request: &RpcRequest,
+) -> Option<Result<serde_json::Value, RpcError>> {
+    if request.method != "export.runtimePreview" {
+        return None;
+    }
+    let params: RuntimePreviewParams = serde_json::from_value(request.params.clone()).ok()?;
+    if let Some(digest) = params.candidate_digest {
+        let prepared = {
+            let mut session = state.session.lock().expect("session lock");
+            if session.closed {
+                return Some(Err(RpcError::with_diagnostic(
+                    -32010,
+                    DiagnosticCode::ProjectNotFound.as_str(),
+                    "ICE3_STUDIO_PROJECT_NOT_FOUND: no project is open".into(),
+                    None,
+                )));
+            }
+            (
+                crate::changeset::prepare_candidate_preview(&mut session, &digest),
+                Arc::clone(&session.toolchain),
+                Arc::clone(&session.compute),
+                session.compute.policy().preview_packet_enabled,
+            )
+        };
+        let (prepared, toolchain, compute, preview_packets_enabled) = prepared;
+        let prepared = match prepared {
+            Ok(prepared) => prepared,
+            Err(error) => return Some(Err(error)),
+        };
+        let result = tokio::task::spawn_blocking(move || {
+            PreviewAdapter::from_service(toolchain)
+                .with_compute(compute)
+                .with_preview_packets(preview_packets_enabled)
+                .generate_candidate(&prepared.document, &prepared.project_dir, &prepared.digest)
+        })
+        .await
+        .unwrap_or_else(|error| {
+            Err(crate::preview::PreviewError::Toolchain(
+                studio_toolchain_client::ToolchainClientError::Crashed {
+                    message: format!("preview worker failed: {error}"),
+                },
+            ))
+        });
+        return Some(match result {
+            Ok(preview) => serde_json::to_value(preview).map_err(serialize_error),
+            Err(error) => {
+                let mut session = state.session.lock().expect("session lock");
+                if let Err(record_error) = crate::changeset::record_candidate_preview_failure(
+                    &mut session,
+                    &digest,
+                    error.to_string(),
+                ) {
+                    return Some(Err(record_error));
+                }
+                Err(preview_error(error))
+            }
+        });
+    }
+    let (
+        document,
+        project_dir,
+        project_id,
+        toolchain,
+        compute,
+        preview_packets_enabled,
+        closed,
+        scene_preview,
+    ) = {
+        let mut session = state.session.lock().expect("session lock");
+        if session.compute.policy().scene_sessions_enabled {
+            let _ = ensure_scene_snapshot(&mut session);
+        }
+        let scene_preview = session
+            .last_scene_patch
+            .clone()
+            .zip(session.scene_snapshot.clone())
+            .map(|(patch, scene)| crate::preview::ScenePreviewContext {
+                scene: Arc::new(scene),
+                patch,
+            });
+        (
+            session.document.clone(),
+            session.store.project_dir().to_path_buf(),
+            session.project_id.clone(),
+            Arc::clone(&session.toolchain),
+            Arc::clone(&session.compute),
+            session.compute.policy().preview_packet_enabled,
+            session.closed,
+            scene_preview,
+        )
+    };
+    if closed {
+        return Some(Err(RpcError::with_diagnostic(
+            -32010,
+            DiagnosticCode::ProjectNotFound.as_str(),
+            "ICE3_STUDIO_PROJECT_NOT_FOUND: no project is open".into(),
+            None,
+        )));
+    }
+    Some(
+        tokio::task::spawn_blocking(move || {
+            let adapter = PreviewAdapter::from_service(toolchain)
+                .with_compute(compute)
+                .with_preview_packets(preview_packets_enabled);
+            let adapter = match scene_preview {
+                Some(scene) => adapter.with_scene_preview(scene),
+                None => adapter,
+            };
+            adapter
+                .generate(&document, &project_dir, &project_id)
+                .map_err(preview_error)
+                .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error))
+        })
+        .await
+        .unwrap_or_else(|error| {
+            Err(RpcError::with_diagnostic(
+                -32603,
+                DiagnosticCode::RuntimePreviewFailed.as_str(),
+                format!("preview worker failed: {error}"),
+                None,
+            ))
+        }),
+    )
 }
 
 fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::Value, RpcError> {
@@ -644,6 +895,9 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "scene.bounds".into(),
                 "validation.run".into(),
                 "evaluation.evaluate".into(),
+                "evaluation.stats".into(),
+                "evaluation.waitScene".into(),
+                "evaluation.visibleInstances".into(),
                 "export.sourceGlb".into(),
                 "export.runtimePreview".into(),
                 "changeset.create".into(),
@@ -656,6 +910,8 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "changeset.commit".into(),
                 "changeset.discard".into(),
             ],
+            toolchain: session.toolchain.status(),
+            compute: session.compute.status(),
         })
         .expect("serializable capabilities")),
         "project.get" | "document.get" => {
@@ -664,6 +920,9 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         "document.apply" => {
             let apply: ApplyRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            if session.compute.policy().incremental_scene_cache {
+                let _ = ensure_scene_snapshot(session);
+            }
             let history_event = serde_json::json!({
                 "kind": "apply",
                 "request": &apply
@@ -682,11 +941,16 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 let _ = session.events.send(ServerEvent::RevisionCommitted {
                     revision: result.revision,
                 });
+                stage_committed_scene(session, &result.diff);
             }
             serde_json::to_value(result).map_err(serialize_error)
         }
         "document.undo" => {
+            if session.compute.policy().incremental_scene_cache {
+                let _ = ensure_scene_snapshot(session);
+            }
             session.document = session.store.undo().map_err(project_error)?;
+            stage_scene_full_rebuild(session);
             let event = ServerEvent::RevisionCommitted {
                 revision: session.document.revision,
             };
@@ -694,7 +958,11 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             serde_json::to_value(&session.document).map_err(serialize_error)
         }
         "document.redo" => {
+            if session.compute.policy().incremental_scene_cache {
+                let _ = ensure_scene_snapshot(session);
+            }
             session.document = session.store.redo().map_err(project_error)?;
+            stage_scene_full_rebuild(session);
             let event = ServerEvent::RevisionCommitted {
                 revision: session.document.revision,
             };
@@ -709,6 +977,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             "saved": true
         })),
         "project.close" => {
+            let _ = pollster::block_on(session.compute.close_scene_session());
             session.store.close();
             session.closed = true;
             Ok(serde_json::json!({ "closed": true }))
@@ -726,14 +995,33 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                     )
                 },
             )?;
+            let project_dir = path.project_dir().to_path_buf();
             let store = ProjectStore::create(path).map_err(project_error)?;
             let document = Document::new(params.project_id.clone());
             store.write_snapshot(&document).map_err(project_error)?;
+            let toolchain = Arc::new(ToolchainService::new_with_launch_root(
+                &project_dir,
+                &session.workspace_root,
+                session.toolchain_cli.clone(),
+            ));
+            session.toolchain.shutdown();
             session.store.close();
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
+            session.scene_cache =
+                LayeredGeometryCache::new(session.store.project_dir(), DEFAULT_LAYERED_CACHE_BYTES)
+                    .map_err(|error| {
+                        RpcError::with_diagnostic(
+                            -32012,
+                            DiagnosticCode::GeometryCacheFailed.as_str(),
+                            format!("{}: {error}", DiagnosticCode::GeometryCacheFailed.as_str()),
+                            None,
+                        )
+                    })?;
+            session.toolchain = toolchain;
             session.closed = false;
+            reset_scene_session(session);
             Ok(serde_json::json!({ "opened": true }))
         }
         "project.open" => {
@@ -750,25 +1038,45 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 },
             )?;
             let same_project = session.store.project_dir() == path.project_dir();
+            let project_dir = path.project_dir().to_path_buf();
             if same_project {
                 session.store.close();
                 session.closed = true;
             }
             let store = ProjectStore::open(path).map_err(project_error)?;
             let document = store.load_current().map_err(project_error)?;
+            let toolchain = Arc::new(ToolchainService::new_with_launch_root(
+                &project_dir,
+                &session.workspace_root,
+                session.toolchain_cli.clone(),
+            ));
             if !same_project {
                 session.store.close();
             }
+            session.toolchain.shutdown();
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
+            session.scene_cache =
+                LayeredGeometryCache::new(session.store.project_dir(), DEFAULT_LAYERED_CACHE_BYTES)
+                    .map_err(|error| {
+                        RpcError::with_diagnostic(
+                            -32012,
+                            DiagnosticCode::GeometryCacheFailed.as_str(),
+                            format!("{}: {error}", DiagnosticCode::GeometryCacheFailed.as_str()),
+                            None,
+                        )
+                    })?;
+            session.toolchain = toolchain;
             session.closed = false;
+            reset_scene_session(session);
             Ok(serde_json::json!({ "opened": true }))
         }
         "scene.get" => serde_json::to_value(&session.document.scene).map_err(serialize_error),
         "scene.query" => {
             let query: SceneQuery =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let (_, bounds_by_id) = evaluate_session_scene(session)?;
             let relation_nodes = if query.relation_type.is_some() || query.related_node_id.is_some()
             {
                 let mut nodes = HashSet::new();
@@ -822,9 +1130,9 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 })
                 .filter(|node| {
                     query.bounds.is_none_or(|bounds| {
-                        world_bounds(&session.document, node)
-                            .ok()
-                            .flatten()
+                        bounds_by_id
+                            .get(node.id.as_str())
+                            .copied()
                             .is_some_and(|candidate| bounds_intersect(candidate, bounds))
                     })
                 })
@@ -832,24 +1140,90 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             serde_json::to_value(nodes).map_err(serialize_error)
         }
         "scene.bounds" => {
-            let mut output = BTreeMap::new();
-            for node in session.document.scene.nodes() {
-                if let Ok(Some(bounds)) = world_bounds(&session.document, node) {
-                    output.insert(node.id.as_str().to_owned(), bounds);
-                }
-            }
+            let (_, output) = evaluate_session_scene(session)?;
             serde_json::to_value(output).map_err(serialize_error)
         }
         "validation.run" => {
             serde_json::to_value(validate_document(&session.document)).map_err(serialize_error)
         }
         "evaluation.evaluate" => {
+            let (evaluated, _) = evaluate_session_scene(session)?;
             let mut output = BTreeMap::new();
-            for node in session.document.scene.nodes() {
-                let mesh = evaluate_node_content(&node.content).map_err(geometry_error)?;
-                output.insert(node.id.as_str().to_owned(), mesh);
+            for node in evaluated.nodes {
+                if let Some(mesh_key) = node.mesh_key
+                    && let Some(mesh) = evaluated.meshes.get(&mesh_key)
+                {
+                    output.insert(node.id, mesh.clone());
+                }
             }
             serde_json::to_value(output).map_err(serialize_error)
+        }
+        "evaluation.stats" => {
+            ensure_scene_snapshot(session)?;
+            let evaluated = session
+                .scene_snapshot
+                .as_ref()
+                .expect("scene snapshot was ensured");
+            serde_json::to_value(EvaluatedSceneStats {
+                source_nodes: evaluated.stats.source_nodes,
+                expanded_nodes: evaluated.stats.expanded_nodes,
+                unique_meshes: evaluated.stats.unique_meshes,
+                effective_triangles: evaluated.stats.effective_triangles,
+                unique_triangles: evaluated.stats.unique_triangles,
+                cache_hits: evaluated.stats.cache_hits,
+                cache_misses: evaluated.stats.cache_misses,
+                generated_meshes: evaluated.stats.generated_meshes,
+            })
+            .map_err(serialize_error)
+        }
+        "evaluation.waitScene" => {
+            let params: RuntimePreviewParams =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let revision = params
+                ._revision
+                .unwrap_or(session.document.revision.as_u64());
+            let status =
+                pollster::block_on(session.compute.wait_scene(revision)).map_err(|error| {
+                    let diagnostic = error.diagnostic_code();
+                    RpcError::with_diagnostic(
+                        -32012,
+                        diagnostic,
+                        format!("{diagnostic}: {error}"),
+                        None,
+                    )
+                })?;
+            serde_json::to_value(status).map_err(serialize_error)
+        }
+        "evaluation.visibleInstances" => {
+            let request: SceneVisibilityRequest =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let current_revision = session.document.revision.as_u64();
+            if request.target_revision != current_revision {
+                return Err(RpcError::with_diagnostic(
+                    -32010,
+                    DiagnosticCode::RevisionConflict.as_str(),
+                    format!(
+                        "{}: target revision {} does not match current revision {}",
+                        DiagnosticCode::RevisionConflict.as_str(),
+                        request.target_revision,
+                        current_revision
+                    ),
+                    None,
+                ));
+            }
+            let gpu_ready = session.compute.scene_status().is_some_and(|status| {
+                status.state == SceneSessionState::Idle
+                    && status.published_revision == request.target_revision
+            });
+            let result = if gpu_ready {
+                match pollster::block_on(session.compute.visible_scene_instances(request)) {
+                    Ok(result) => result,
+                    Err(_) => visible_scene_instances_cpu(session, request)?,
+                }
+            } else {
+                visible_scene_instances_cpu(session, request)?
+            };
+            serde_json::to_value(result).map_err(serialize_error)
         }
         "export.sourceGlb" => {
             let output = export_source(&session.document, session.store.project_dir())
@@ -863,17 +1237,9 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 return crate::changeset::export_candidate_preview(session, &digest)
                     .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error));
             }
-            let cli = session.toolchain_cli.clone().ok_or_else(|| {
-                RpcError::with_diagnostic(
-                    -32020,
-                    DiagnosticCode::RuntimePreviewFailed.as_str(),
-                    "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED: STUDIO_TOOLCHAIN_CLI is not configured"
-                        .into(),
-                    None,
-                )
-            })?;
-            let adapter =
-                PreviewAdapter::new(&session.workspace_root, cli).map_err(preview_error)?;
+            let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain))
+                .with_compute(Arc::clone(&session.compute))
+                .with_preview_packets(session.compute.policy().preview_packet_enabled);
             let output = adapter
                 .generate(
                     &session.document,
@@ -977,7 +1343,7 @@ async fn preview_file(
         session
             .store
             .project_dir()
-            .join("cache/preview")
+            .join("cache/toolchain/preview")
             .join(format!("{revision:08}.glb"))
     };
     match tokio::fs::read(path).await {
@@ -1003,13 +1369,58 @@ async fn candidate_preview_file(
         session
             .store
             .project_dir()
-            .join("cache/preview")
+            .join("cache/toolchain/candidates")
             .join(format!("{digest}.glb"))
     };
     match tokio::fs::read(path).await {
         Ok(bytes) => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, "model/gltf-binary")],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn preview_packet_file(
+    State(state): State<AppState>,
+    AxumPath(revision): AxumPath<u64>,
+) -> Response {
+    let path = {
+        let session = state.session.lock().expect("session lock");
+        session
+            .store
+            .project_dir()
+            .join("cache/preview-packets")
+            .join(format!("{revision:08}.ice3pgp"))
+    };
+    serve_preview_packet(path).await
+}
+
+async fn candidate_preview_packet_file(
+    State(state): State<AppState>,
+    AxumPath(digest): AxumPath<String>,
+) -> Response {
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = {
+        let session = state.session.lock().expect("session lock");
+        session
+            .store
+            .project_dir()
+            .join("cache/preview-packets")
+            .join(format!("{digest}.ice3pgp"))
+    };
+    serve_preview_packet(path).await
+}
+
+async fn serve_preview_packet(path: PathBuf) -> Response {
+    match tokio::fs::read(path).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, PACKET_MEDIA_TYPE)],
             bytes,
         )
             .into_response(),
@@ -1100,6 +1511,224 @@ fn bounds_intersect(left: Bounds, right: Bounds) -> bool {
         && left.max.y >= right.min.y
         && left.min.z <= right.max.z
         && left.max.z >= right.min.z
+}
+
+pub(crate) fn evaluate_session_scene(
+    session: &mut Session,
+) -> Result<(EvaluatedScene, BTreeMap<String, Bounds>), RpcError> {
+    ensure_scene_snapshot(session)?;
+    let scene = session
+        .scene_snapshot
+        .as_ref()
+        .expect("scene snapshot was ensured");
+    Ok((scene.clone(), evaluated_scene_bounds(scene)))
+}
+
+fn visible_scene_instances_cpu(
+    session: &mut Session,
+    request: SceneVisibilityRequest,
+) -> Result<SceneVisibilityResult, RpcError> {
+    let (scene, bounds) = evaluate_session_scene(session)?;
+    let mut visible_indices = Vec::new();
+    let mut visible_node_ids = Vec::new();
+    for (index, node) in scene.nodes.iter().enumerate() {
+        if !node.visible {
+            continue;
+        }
+        let Some(bounds) = bounds.get(&node.id) else {
+            continue;
+        };
+        let centre = [
+            (bounds.min.x + bounds.max.x) * 0.5,
+            (bounds.min.y + bounds.max.y) * 0.5,
+            (bounds.min.z + bounds.max.z) * 0.5,
+        ];
+        let extent = [
+            (bounds.max.x - bounds.min.x) * 0.5,
+            (bounds.max.y - bounds.min.y) * 0.5,
+            (bounds.max.z - bounds.min.z) * 0.5,
+        ];
+        let radius = (extent[0] * extent[0] + extent[1] * extent[1] + extent[2] * extent[2]).sqrt();
+        if request.planes.iter().all(|plane| {
+            plane[0] * centre[0] + plane[1] * centre[1] + plane[2] * centre[2] + plane[3] >= -radius
+        }) {
+            visible_indices.push(index as u32);
+            visible_node_ids.push(node.id.clone());
+        }
+    }
+    Ok(SceneVisibilityResult {
+        revision: session.document.revision.as_u64(),
+        visible_indices,
+        visible_node_ids,
+    })
+}
+
+fn ensure_scene_snapshot(session: &mut Session) -> Result<(), RpcError> {
+    if session.scene_snapshot_revision == Some(session.document.revision.as_u64())
+        && session.scene_snapshot.is_some()
+    {
+        return Ok(());
+    }
+    let evaluator = ComputeEvaluator::new(&session.compute);
+    let evaluated = evaluate_large_scene_with_cache_and_evaluator(
+        &session.document,
+        &mut session.scene_cache,
+        Some(&evaluator),
+    )
+    .map_err(large_scene_error)?;
+    session
+        .compute
+        .record_cache_hits(evaluated.stats.cache_hits);
+    session.scene_snapshot_revision = Some(session.document.revision.as_u64());
+    session.scene_snapshot = Some(evaluated.clone());
+    if session.scene_source_index.is_none() {
+        session.scene_source_index = Some(
+            SceneSourceIndex::capture(&session.document, &evaluated, Some(&evaluator))
+                .map_err(large_scene_error)?,
+        );
+        if session.compute.scene_status().is_some() {
+            let patch = build_full_scene_patch(&session.document, &evaluated, Some(&evaluator))
+                .map_err(large_scene_error)?;
+            let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
+            session.last_scene_patch = Some(patch);
+        }
+    }
+    Ok(())
+}
+
+fn reset_scene_session(session: &mut Session) {
+    session.scene_snapshot = None;
+    session.scene_snapshot_revision = None;
+    session.scene_source_index = None;
+    session.last_scene_patch = None;
+    let _ = pollster::block_on(session.compute.close_scene_session());
+    if session.compute.policy().scene_sessions_enabled {
+        let _ = pollster::block_on(session.compute.open_scene_session(&session.project_id));
+    }
+}
+
+pub(crate) fn stage_committed_scene(session: &mut Session, diff: &studio_core::diff::DocumentDiff) {
+    if !session.compute.policy().incremental_scene_cache {
+        return;
+    }
+    let (Some(previous_scene), Some(index)) = (
+        session.scene_snapshot.as_ref(),
+        session.scene_source_index.as_ref(),
+    ) else {
+        return;
+    };
+    let evaluator = ComputeEvaluator::new(&session.compute);
+    match build_scene_patch_with_scene(
+        &session.document,
+        diff,
+        previous_scene,
+        index,
+        &mut session.scene_cache,
+        Some(&evaluator),
+    ) {
+        Ok(built) => {
+            if session.compute.policy().scene_sessions_enabled {
+                let _ = pollster::block_on(session.compute.apply_scene_patch(built.patch.clone()));
+            }
+            merge_scene_snapshot(session, &built);
+            session.last_scene_patch = Some(built.patch);
+        }
+        Err(error) => {
+            session.compute.record_scene_failure(error.to_string());
+            session.last_scene_patch = None;
+        }
+    }
+}
+
+fn merge_scene_snapshot(session: &mut Session, built: &crate::scene_session::BuiltScenePatch) {
+    if session.scene_snapshot.is_none() {
+        session.scene_snapshot = Some(built.scene.clone());
+        session.scene_snapshot_revision = Some(built.patch.target_revision);
+        session.scene_source_index =
+            SceneSourceIndex::capture(&session.document, &built.scene, None).ok();
+        return;
+    }
+    let old_ids = built.affected_source_nodes.as_ref().map(|affected| {
+        let old_index = session.scene_source_index.as_ref();
+        affected
+            .iter()
+            .flat_map(|source| {
+                old_index
+                    .into_iter()
+                    .flat_map(move |index| index.expanded_node_ids(source).map(str::to_owned))
+            })
+            .collect::<HashSet<_>>()
+    });
+    let scene = session
+        .scene_snapshot
+        .as_mut()
+        .expect("scene snapshot checked above");
+    let new_ids = built
+        .scene
+        .nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<HashSet<_>>();
+    if let Some(old_ids) = old_ids {
+        scene
+            .nodes
+            .retain(|node| !old_ids.contains(&node.id) && !new_ids.contains(node.id.as_str()));
+    } else {
+        scene
+            .nodes
+            .retain(|node| !new_ids.contains(node.id.as_str()));
+    }
+    scene.nodes.extend(built.scene.nodes.iter().cloned());
+    scene.meshes.extend(built.scene.meshes.clone());
+    scene
+        .resident_geometry_ids
+        .extend(built.scene.resident_geometry_ids.clone());
+    scene.nodes.sort_by(|left, right| left.id.cmp(&right.id));
+    scene.stats.source_nodes = session.document.scene.nodes().len();
+    scene.stats.expanded_nodes = scene.nodes.len();
+    scene.stats.unique_meshes = scene.meshes.len();
+    scene.stats.unique_triangles = scene
+        .meshes
+        .values()
+        .map(|mesh| mesh.indices.len() / 3)
+        .sum();
+    scene.stats.effective_triangles = scene
+        .nodes
+        .iter()
+        .filter_map(|node| node.mesh_key.as_ref())
+        .filter_map(|key| scene.meshes.get(key))
+        .map(|mesh| mesh.indices.len() / 3)
+        .sum();
+    session.scene_snapshot_revision = Some(built.patch.target_revision);
+    session.scene_source_index = SceneSourceIndex::capture(&session.document, scene, None).ok();
+}
+
+fn stage_scene_full_rebuild(session: &mut Session) {
+    if !session.compute.policy().incremental_scene_cache {
+        return;
+    }
+    let evaluator = ComputeEvaluator::new(&session.compute);
+    let evaluated = evaluate_large_scene_with_cache_and_evaluator(
+        &session.document,
+        &mut session.scene_cache,
+        Some(&evaluator),
+    );
+    match evaluated {
+        Ok(scene) => match build_full_scene_patch(&session.document, &scene, Some(&evaluator)) {
+            Ok(patch) => {
+                if session.compute.policy().scene_sessions_enabled {
+                    let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
+                }
+                session.scene_snapshot = Some(scene.clone());
+                session.scene_snapshot_revision = Some(patch.target_revision);
+                session.scene_source_index =
+                    SceneSourceIndex::capture(&session.document, &scene, Some(&evaluator)).ok();
+                session.last_scene_patch = Some(patch);
+            }
+            Err(error) => session.compute.record_scene_failure(error.to_string()),
+        },
+        Err(error) => session.compute.record_scene_failure(error.to_string()),
+    }
 }
 
 fn mutating(method: &str) -> bool {
@@ -1212,11 +1841,39 @@ pub(crate) fn project_error(error: studio_project::ProjectError) -> RpcError {
     )
 }
 
-fn geometry_error(error: studio_core::geometry::GeometryError) -> RpcError {
+fn large_scene_error(error: studio_core::large_scene::evaluate::LargeSceneError) -> RpcError {
+    use studio_core::large_scene::evaluate::LargeSceneError;
+
+    let code = match &error {
+        LargeSceneError::Parameter(_) => DiagnosticCode::ParameterInvalid,
+        LargeSceneError::Connection(_) => DiagnosticCode::ConnectionInvalid,
+        LargeSceneError::Layout(_) => DiagnosticCode::InstanceSetInvalid,
+        LargeSceneError::Geometry(_) => DiagnosticCode::GeometryInvalid,
+        LargeSceneError::InvalidComponentReference => DiagnosticCode::ComponentInvalid,
+        LargeSceneError::NodeNotFound(_) => DiagnosticCode::ReferenceInvalid,
+        LargeSceneError::Backend(error) => match error {
+            studio_core::gpu_contract::BackendError::Unavailable { .. } => {
+                DiagnosticCode::GpuUnavailable
+            }
+            studio_core::gpu_contract::BackendError::Incompatible { .. } => {
+                DiagnosticCode::GpuIncompatible
+            }
+            studio_core::gpu_contract::BackendError::BudgetExceeded => {
+                DiagnosticCode::GpuBudgetExceeded
+            }
+            studio_core::gpu_contract::BackendError::Kernel { .. } => {
+                DiagnosticCode::GpuKernelFailed
+            }
+            studio_core::gpu_contract::BackendError::DeviceLost { .. } => {
+                DiagnosticCode::GpuDeviceLost
+            }
+            studio_core::gpu_contract::BackendError::Parity => DiagnosticCode::GpuParityFailed,
+        },
+    };
     RpcError::with_diagnostic(
         -32012,
-        DiagnosticCode::GeometryInvalid.as_str(),
-        format!("{}: {error}", DiagnosticCode::GeometryInvalid.as_str()),
+        code.as_str(),
+        format!("{}: {error}", code.as_str()),
         None,
     )
 }
@@ -1224,6 +1881,22 @@ fn geometry_error(error: studio_core::geometry::GeometryError) -> RpcError {
 fn preview_error(error: crate::preview::PreviewError) -> RpcError {
     let diagnostic = match &error {
         crate::preview::PreviewError::Export(_) => DiagnosticCode::ExportFailed,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Unavailable { .. },
+        ) => DiagnosticCode::ToolchainUnavailable,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Incompatible { .. },
+        ) => DiagnosticCode::ToolchainIncompatible,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Timeout { .. },
+        ) => DiagnosticCode::ToolchainTimeout,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Protocol { .. }
+            | studio_toolchain_client::ToolchainClientError::Crashed { .. },
+        ) => DiagnosticCode::ToolchainProtocolInvalid,
+        crate::preview::PreviewError::Toolchain(
+            studio_toolchain_client::ToolchainClientError::Rejected { .. },
+        ) => DiagnosticCode::ToolchainJobFailed,
         _ => DiagnosticCode::RuntimePreviewFailed,
     };
     RpcError::with_diagnostic(

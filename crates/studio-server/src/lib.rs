@@ -3,12 +3,16 @@
 mod auth;
 pub mod capabilities;
 mod changeset;
+pub mod compute;
 mod events;
 pub mod preview;
+pub mod preview_packet;
 mod rpc;
+pub mod scene_session;
+pub mod toolchain;
 
 pub use events::ServerEvent;
 pub use rpc::{
-    Capabilities, RpcError, RpcRequest, RpcResponse, ServerConfig, TestServer, serve,
-    start_test_server, start_test_server_at,
+    Capabilities, EvaluatedSceneStats, RpcError, RpcRequest, RpcResponse, ServerConfig, TestServer,
+    serve, start_test_server, start_test_server_at,
 };

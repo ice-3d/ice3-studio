@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::document::{Document, SceneNode};
-use crate::geometry::{evaluate_node_content, world_bounds};
+use crate::geometry::{Bounds, evaluate_node_content};
+use crate::large_scene::evaluate::{evaluate_large_scene, evaluated_scene_bounds};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[ts(export)]
@@ -52,9 +53,60 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_PERSISTENCE_FAILED")]
     #[ts(rename = "ICE3_STUDIO_PERSISTENCE_FAILED")]
     PersistenceFailed,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE")]
+    ToolchainUnavailable,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE")]
+    ToolchainIncompatible,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_TIMEOUT")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_TIMEOUT")]
+    ToolchainTimeout,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID")]
+    ToolchainProtocolInvalid,
+    #[serde(rename = "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED")]
+    ToolchainJobFailed,
+    #[serde(rename = "ICE3_STUDIO_COMPONENT_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_COMPONENT_INVALID")]
+    ComponentInvalid,
+    #[serde(rename = "ICE3_STUDIO_PARAMETER_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_PARAMETER_INVALID")]
+    ParameterInvalid,
+    #[serde(rename = "ICE3_STUDIO_INSTANCE_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_INSTANCE_INVALID")]
+    InstanceInvalid,
+    #[serde(rename = "ICE3_STUDIO_INSTANCE_SET_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_INSTANCE_SET_INVALID")]
+    InstanceSetInvalid,
+    #[serde(rename = "ICE3_STUDIO_CONNECTION_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_CONNECTION_INVALID")]
+    ConnectionInvalid,
+    #[serde(rename = "ICE3_STUDIO_GEOMETRY_CACHE_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_GEOMETRY_CACHE_FAILED")]
+    GeometryCacheFailed,
+    #[serde(rename = "ICE3_STUDIO_GPU_UNAVAILABLE")]
+    #[ts(rename = "ICE3_STUDIO_GPU_UNAVAILABLE")]
+    GpuUnavailable,
+    #[serde(rename = "ICE3_STUDIO_GPU_INCOMPATIBLE")]
+    #[ts(rename = "ICE3_STUDIO_GPU_INCOMPATIBLE")]
+    GpuIncompatible,
+    #[serde(rename = "ICE3_STUDIO_GPU_BUDGET_EXCEEDED")]
+    #[ts(rename = "ICE3_STUDIO_GPU_BUDGET_EXCEEDED")]
+    GpuBudgetExceeded,
+    #[serde(rename = "ICE3_STUDIO_GPU_KERNEL_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_GPU_KERNEL_FAILED")]
+    GpuKernelFailed,
+    #[serde(rename = "ICE3_STUDIO_GPU_DEVICE_LOST")]
+    #[ts(rename = "ICE3_STUDIO_GPU_DEVICE_LOST")]
+    GpuDeviceLost,
+    #[serde(rename = "ICE3_STUDIO_GPU_PARITY_FAILED")]
+    #[ts(rename = "ICE3_STUDIO_GPU_PARITY_FAILED")]
+    GpuParityFailed,
 }
 
-pub const DIAGNOSTIC_CODES: [&str; 14] = [
+pub const DIAGNOSTIC_CODES: &[&str] = &[
     "ICE3_STUDIO_API_INVALID",
     "ICE3_STUDIO_API_VERSION_UNSUPPORTED",
     "ICE3_STUDIO_AUTH_REQUIRED",
@@ -69,6 +121,23 @@ pub const DIAGNOSTIC_CODES: [&str; 14] = [
     "ICE3_STUDIO_EXPORT_FAILED",
     "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
     "ICE3_STUDIO_PERSISTENCE_FAILED",
+    "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+    "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+    "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+    "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+    "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
+    "ICE3_STUDIO_COMPONENT_INVALID",
+    "ICE3_STUDIO_PARAMETER_INVALID",
+    "ICE3_STUDIO_INSTANCE_INVALID",
+    "ICE3_STUDIO_INSTANCE_SET_INVALID",
+    "ICE3_STUDIO_CONNECTION_INVALID",
+    "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+    "ICE3_STUDIO_GPU_UNAVAILABLE",
+    "ICE3_STUDIO_GPU_INCOMPATIBLE",
+    "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+    "ICE3_STUDIO_GPU_KERNEL_FAILED",
+    "ICE3_STUDIO_GPU_DEVICE_LOST",
+    "ICE3_STUDIO_GPU_PARITY_FAILED",
 ];
 
 impl DiagnosticCode {
@@ -88,6 +157,23 @@ impl DiagnosticCode {
             Self::ExportFailed => "ICE3_STUDIO_EXPORT_FAILED",
             Self::RuntimePreviewFailed => "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
             Self::PersistenceFailed => "ICE3_STUDIO_PERSISTENCE_FAILED",
+            Self::ToolchainUnavailable => "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
+            Self::ToolchainIncompatible => "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
+            Self::ToolchainTimeout => "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
+            Self::ToolchainProtocolInvalid => "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
+            Self::ToolchainJobFailed => "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
+            Self::ComponentInvalid => "ICE3_STUDIO_COMPONENT_INVALID",
+            Self::ParameterInvalid => "ICE3_STUDIO_PARAMETER_INVALID",
+            Self::InstanceInvalid => "ICE3_STUDIO_INSTANCE_INVALID",
+            Self::InstanceSetInvalid => "ICE3_STUDIO_INSTANCE_SET_INVALID",
+            Self::ConnectionInvalid => "ICE3_STUDIO_CONNECTION_INVALID",
+            Self::GeometryCacheFailed => "ICE3_STUDIO_GEOMETRY_CACHE_FAILED",
+            Self::GpuUnavailable => "ICE3_STUDIO_GPU_UNAVAILABLE",
+            Self::GpuIncompatible => "ICE3_STUDIO_GPU_INCOMPATIBLE",
+            Self::GpuBudgetExceeded => "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
+            Self::GpuKernelFailed => "ICE3_STUDIO_GPU_KERNEL_FAILED",
+            Self::GpuDeviceLost => "ICE3_STUDIO_GPU_DEVICE_LOST",
+            Self::GpuParityFailed => "ICE3_STUDIO_GPU_PARITY_FAILED",
         }
     }
 }
@@ -147,6 +233,15 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
         .iter()
         .map(|node| (node.id.clone(), node))
         .collect();
+    let has_overlap_constraint = document
+        .constraints
+        .iter()
+        .any(|constraint| constraint.constraint_type == "no_overlap");
+    let constraint_bounds = if has_overlap_constraint {
+        derived_source_bounds(document)
+    } else {
+        HashMap::new()
+    };
     for (index, node) in document.scene.nodes().iter().enumerate() {
         if let Some(parent) = &node.parent_id
             && !node_by_id.contains_key(parent)
@@ -272,7 +367,7 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
             ));
         }
         if constraint.constraint_type == "no_overlap"
-            && overlapping_nodes(document, &constraint.node_ids, &node_by_id)
+            && overlapping_nodes(&constraint.node_ids, &node_by_id, &constraint_bounds)
         {
             diagnostics.push(Diagnostic {
                 code: DiagnosticCode::ConstraintFailed,
@@ -283,6 +378,7 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
             });
         }
     }
+    diagnostics.extend(crate::large_scene::validate::validate_large_scene(document));
     diagnostics
 }
 
@@ -325,17 +421,14 @@ fn has_parent_cycle(node: &SceneNode, nodes: &HashMap<crate::ids::NodeId, &Scene
 }
 
 fn overlapping_nodes(
-    document: &Document,
     node_ids: &[crate::ids::NodeId],
     nodes: &HashMap<crate::ids::NodeId, &SceneNode>,
+    bounds_by_node: &HashMap<crate::ids::NodeId, Bounds>,
 ) -> bool {
     let bounds: Vec<_> = node_ids
         .iter()
-        .filter_map(|id| {
-            nodes
-                .get(id)
-                .and_then(|node| world_bounds(document, node).ok().flatten())
-        })
+        .filter(|id| nodes.contains_key(id))
+        .filter_map(|id| bounds_by_node.get(id).copied())
         .collect();
     for left in 0..bounds.len() {
         for right in left + 1..bounds.len() {
@@ -353,6 +446,46 @@ fn overlapping_nodes(
         }
     }
     false
+}
+
+fn derived_source_bounds(document: &Document) -> HashMap<crate::ids::NodeId, Bounds> {
+    let Ok(evaluated) = evaluate_large_scene(document) else {
+        return HashMap::new();
+    };
+    let bounds = evaluated_scene_bounds(&evaluated);
+    let mut output = HashMap::new();
+    for node in &evaluated.nodes {
+        let Some(node_bounds) = bounds.get(&node.id) else {
+            continue;
+        };
+        let source_id = document
+            .scene
+            .nodes()
+            .iter()
+            .find(|source| {
+                node.owner_id == source.id.as_str()
+                    || node
+                        .owner_id
+                        .strip_prefix(source.id.as_str())
+                        .is_some_and(|suffix| suffix.starts_with('/'))
+            })
+            .map(|source| source.id.clone());
+        let Some(source_id) = source_id else {
+            continue;
+        };
+        output
+            .entry(source_id)
+            .and_modify(|current: &mut Bounds| {
+                current.min.x = current.min.x.min(node_bounds.min.x);
+                current.min.y = current.min.y.min(node_bounds.min.y);
+                current.min.z = current.min.z.min(node_bounds.min.z);
+                current.max.x = current.max.x.max(node_bounds.max.x);
+                current.max.y = current.max.y.max(node_bounds.max.y);
+                current.max.z = current.max.z.max(node_bounds.max.z);
+            })
+            .or_insert(*node_bounds);
+    }
+    output
 }
 
 fn reference(

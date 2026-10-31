@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use studio_cli::schema;
+use studio_core::gpu_contract::GeometryBackendMode;
 use studio_server::capabilities::WriteMode;
 use studio_server::{ServerConfig, serve};
 
@@ -31,6 +32,8 @@ enum Command {
         port: u16,
         #[arg(long, default_value = "review-required")]
         write_mode: String,
+        #[arg(long, default_value = "cpu", value_parser = parse_compute_mode)]
+        native_gpu: GeometryBackendMode,
     },
 }
 
@@ -45,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             fixture,
             port,
             write_mode,
+            native_gpu,
         } => {
             let write_mode = WriteMode::parse(&write_mode)?;
             serve(ServerConfig {
@@ -57,9 +61,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 approval_token: None,
                 write_mode,
                 viewer_dir: std::env::var_os("STUDIO_VIEWER_DIR").map(PathBuf::from),
+                compute_mode: native_gpu,
+                preview_packet_enabled: std::env::var("STUDIO_PREVIEW_PACKETS")
+                    .is_ok_and(|value| value == "1"),
+                scene_sessions_enabled: std::env::var("STUDIO_GPU_SCENE_SESSIONS")
+                    .is_ok_and(|value| value == "1"),
+                incremental_scene_cache: std::env::var("STUDIO_INCREMENTAL_SCENE_CACHE")
+                    .map_or(true, |value| value != "0"),
             })
             .await?;
         }
     }
     Ok(())
+}
+
+fn parse_compute_mode(value: &str) -> Result<GeometryBackendMode, String> {
+    match value {
+        "cpu" => Ok(GeometryBackendMode::Cpu),
+        "auto" => Ok(GeometryBackendMode::Auto),
+        "gpu" => Ok(GeometryBackendMode::Gpu),
+        _ => Err("native GPU mode must be cpu, auto, or gpu".into()),
+    }
 }

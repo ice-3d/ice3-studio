@@ -4,11 +4,14 @@ pub mod diff;
 pub mod document;
 pub mod export;
 pub mod geometry;
+pub mod gpu_contract;
 pub mod ids;
+pub mod large_scene;
 pub mod math;
 pub mod operation;
+pub mod scene_contract;
 pub mod validation;
 
-pub const PROJECT_SCHEMA_VERSION: u32 = 1;
+pub const PROJECT_SCHEMA_VERSION: u32 = 2;
 pub const API_VERSION: &str = "1.0";
 pub use validation::DIAGNOSTIC_CODES;

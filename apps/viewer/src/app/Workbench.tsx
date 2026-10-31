@@ -8,6 +8,8 @@ import { FormRenderer } from '../forms/FormRenderer';
 import { useChangeSet, useChangeSetStore } from '../changeset/ChangeSetProvider';
 import { AgentPanel } from '../agent/AgentPanel';
 import { useState } from 'react';
+import { ToolchainPanel } from '../toolchain/ToolchainPanel';
+import { ComputePanel } from '../compute/ComputePanel';
 
 export function Workbench() {
   const session = useSession();
@@ -18,6 +20,12 @@ export function Workbench() {
   const [drawer, setDrawer] = useState<'operations' | 'timeline' | 'diagnostics'>('operations');
   const nodes = session.document?.scene.nodes ?? [];
   const selected = nodes.find((node) => node.id === session.selectionIds[0]);
+  const definitionId = typeof selected?.content?.definitionId === 'string'
+    ? selected.content.definitionId
+    : null;
+  const selectedDefinition = definitionId
+    ? session.document?.components.find((definition) => definition.id === definitionId)
+    : undefined;
   return (
     <main className="workbench">
       <WorkbenchHeader />
@@ -49,8 +57,11 @@ export function Workbench() {
           </div>
           <div hidden={dock !== 'agent'}><AgentPanel /></div>
           <div hidden={dock !== 'inspect'}>
+            <ToolchainPanel status={session.toolchain} />
+            <ComputePanel status={session.compute} />
             <FormRenderer
               node={selected}
+              definition={selectedDefinition}
               onStage={async (operations) => {
                 await changeSetStore.addOperations(session.revision, operations);
               }}

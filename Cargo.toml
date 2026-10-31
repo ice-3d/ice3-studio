@@ -1,9 +1,11 @@
 [workspace]
 members = [
-  "crates/studio-core",
-  "crates/studio-project",
-  "crates/studio-server",
-  "crates/studio-cli",
+    "crates/studio-core",
+    "crates/studio-project",
+    "crates/studio-server",
+    "crates/studio-cli",
+    "crates/studio-toolchain-client",
+    "crates/studio-gpu",
 ]
 resolver = "3"
 
@@ -21,7 +23,11 @@ sha2 = "0.10"
 schemars = "1"
 ts-rs = { version = "11", default-features = false }
 futures-util = "0.3"
+async-trait = "0.1"
+bytemuck = { version = "1", features = ["derive"] }
 glam = { version = "0.30", features = ["serde"] }
+pollster = "0.4"
+wgpu = "30.0.1"
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["fs", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
 tempfile = "3"

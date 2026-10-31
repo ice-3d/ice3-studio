@@ -1,8 +1,12 @@
+mod common;
+
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 
 use studio_core::document::Document;
 use studio_server::preview::PreviewAdapter;
+
+use common::{FAILED_TOOLCHAIN, SUCCESS_TOOLCHAIN};
 
 fn fake_toolchain(root: &std::path::Path, body: &str) -> std::path::PathBuf {
     let path = root.join("fake-toolchain.mjs");
@@ -18,11 +22,8 @@ async fn writes_deterministic_source_and_publishes_successful_preview() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("project");
     fs::create_dir_all(&project).unwrap();
-    let adapter = fake_toolchain(
-        root.path(),
-        "import fs from 'node:fs'; const a=process.argv.slice(2); const i=a.indexOf('--output'); fs.copyFileSync(a[1], a[i+1]);",
-    );
-    let preview = PreviewAdapter::new(root.path(), adapter)
+    let adapter = fake_toolchain(&project, SUCCESS_TOOLCHAIN);
+    let preview = PreviewAdapter::new(&project, adapter)
         .unwrap()
         .generate(&Document::new("preview-test"), &project, "preview-test")
         .unwrap();
@@ -36,15 +37,12 @@ async fn retains_no_partial_preview_when_adapter_fails() {
     let root = tempfile::tempdir().unwrap();
     let project = root.path().join("failed-project");
     fs::create_dir_all(&project).unwrap();
-    let adapter = fake_toolchain(
-        root.path(),
-        "process.stderr.write('deliberate failure'); process.exit(7);",
-    );
-    let error = PreviewAdapter::new(root.path(), adapter)
+    let adapter = fake_toolchain(&project, FAILED_TOOLCHAIN);
+    let error = PreviewAdapter::new(&project, adapter)
         .unwrap()
         .generate(&Document::new("failed"), &project, "failed")
         .unwrap_err();
 
-    assert!(error.to_string().contains("7"));
+    assert!(error.to_string().contains("planned failure"));
     assert!(!project.join("cache/preview/00000000.glb").exists());
 }

@@ -12,7 +12,7 @@ use studio_project::changeset::{
     ChangeSet, ChangeSetEntry, ChangeSetEvaluation, ChangeSetId, ChangeSetSource, ChangeSetStatus,
 };
 use studio_server::preview::CandidatePreview;
-use studio_server::{Capabilities, RpcRequest, RpcResponse, ServerEvent};
+use studio_server::{Capabilities, EvaluatedSceneStats, RpcRequest, RpcResponse, ServerEvent};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -48,6 +48,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "scene.bounds",
             "validation.run",
             "evaluation.evaluate",
+            "evaluation.stats",
             "export.sourceGlb",
             "export.runtimePreview",
             "changeset.create",
@@ -69,6 +70,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "RpcRequest": schema_for!(RpcRequest),
             "RpcResponse": schema_for!(RpcResponse),
             "Capabilities": schema_for!(Capabilities),
+            "EvaluatedSceneStats": schema_for!(EvaluatedSceneStats),
             "ServerEvent": schema_for!(ServerEvent),
             "ChangeSet": schema_for!(ChangeSet),
             "ChangeSetId": schema_for!(ChangeSetId),

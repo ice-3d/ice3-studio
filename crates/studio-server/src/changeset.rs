@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rand::RngCore;
@@ -5,6 +6,7 @@ use serde::Deserialize;
 use studio_core::apply::{ApplyRequest, apply_transaction};
 use studio_core::changeset::{candidate_digest, evaluate_operations};
 use studio_core::diff::DocumentDiff;
+use studio_core::document::Document;
 use studio_core::ids::Revision;
 use studio_core::operation::Operation;
 use studio_core::validation::{Diagnostic, DiagnosticCode};
@@ -94,8 +96,29 @@ pub(crate) fn export_candidate_preview(
     session: &mut Session,
     digest: &str,
 ) -> Result<CandidatePreview, RpcError> {
+    let prepared = prepare_candidate_preview(session, digest)?;
+    let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain));
+    match adapter.generate_candidate(&prepared.document, &prepared.project_dir, &prepared.digest) {
+        Ok(preview) => Ok(preview),
+        Err(error) => {
+            record_candidate_preview_failure(session, digest, error.to_string())?;
+            Err(preview_error(error))
+        }
+    }
+}
+
+pub(crate) struct PreparedCandidatePreview {
+    pub document: Document,
+    pub project_dir: std::path::PathBuf,
+    pub digest: String,
+}
+
+pub(crate) fn prepare_candidate_preview(
+    session: &mut Session,
+    digest: &str,
+) -> Result<PreparedCandidatePreview, RpcError> {
     let store = session.store.change_set_store();
-    let mut change_set = store
+    let change_set = store
         .list()
         .map_err(project_error)?
         .into_iter()
@@ -111,27 +134,35 @@ pub(crate) fn export_candidate_preview(
     if current_digest != digest || !candidate.diagnostics.is_empty() {
         return Err(operation_error("candidate digest is stale or blocked"));
     }
-    let toolchain = session
-        .toolchain_cli
-        .clone()
-        .ok_or_else(|| preview_error("STUDIO_TOOLCHAIN_CLI is not configured"))?;
-    let adapter = PreviewAdapter::new(&session.workspace_root, toolchain).map_err(preview_error)?;
-    match adapter.generate_candidate(&candidate.document, session.store.project_dir(), digest) {
-        Ok(preview) => Ok(preview),
-        Err(error) => {
-            change_set.status = ChangeSetStatus::Blocked;
-            change_set.diagnostics.push(Diagnostic {
-                code: DiagnosticCode::RuntimePreviewFailed,
-                operation_index: None,
-                object_id: None,
-                pointer: "/candidate/preview".into(),
-                message: error.to_string(),
-            });
-            change_set.updated_at = now_ms();
-            store.save(&change_set).map_err(project_error)?;
-            Err(preview_error(error))
-        }
-    }
+    Ok(PreparedCandidatePreview {
+        document: candidate.document,
+        project_dir: session.store.project_dir().to_path_buf(),
+        digest: digest.into(),
+    })
+}
+
+pub(crate) fn record_candidate_preview_failure(
+    session: &mut Session,
+    digest: &str,
+    message: String,
+) -> Result<(), RpcError> {
+    let store = session.store.change_set_store();
+    let mut change_set = store
+        .list()
+        .map_err(project_error)?
+        .into_iter()
+        .find(|change_set| change_set.candidate_digest.as_deref() == Some(digest))
+        .ok_or_else(|| operation_error("candidate digest is not registered"))?;
+    change_set.status = ChangeSetStatus::Blocked;
+    change_set.diagnostics.push(Diagnostic {
+        code: DiagnosticCode::RuntimePreviewFailed,
+        operation_index: None,
+        object_id: None,
+        pointer: "/candidate/preview".into(),
+        message,
+    });
+    change_set.updated_at = now_ms();
+    store.save(&change_set).map_err(project_error)
 }
 
 fn create(session: &mut Session, params: CreateParams) -> Result<serde_json::Value, RpcError> {
@@ -281,6 +312,9 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
         return Err(operation_error("blocked ChangeSet cannot be committed"));
     }
     let previous = session.document.clone();
+    if session.compute.policy().incremental_scene_cache {
+        let _ = crate::rpc::evaluate_session_scene(session);
+    }
     let commit_key = params.idempotency_key.clone();
     let result = apply_transaction(
         &mut session.document,
@@ -306,6 +340,7 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
         return Err(project_error(error));
     }
     change_set.mark_committed(result.clone(), commit_key, now_ms());
+    crate::rpc::stage_committed_scene(session, &result.diff);
     change_sets.save(&change_set).map_err(project_error)?;
     let _ = session.events.send(ServerEvent::ChangeSetCommitted {
         change_set_id: change_set.id,

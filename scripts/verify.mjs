@@ -17,6 +17,11 @@ const steps = [
     args: ['test', '--workspace'],
   },
   {
+    label: 'Toolchain bundle contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/toolchain-bundle.test.mjs'],
+  },
+  {
     label: 'Generated schemas',
     command: 'cargo',
     args: [
@@ -35,6 +40,21 @@ const steps = [
     label: 'AI fixture API flow',
     command: 'node',
     args: ['scripts/run-ai-fixture.mjs', '--fixture', 'fixtures/wastewater-mini'],
+  },
+  {
+    label: 'Large industrial fixture',
+    command: 'node',
+    args: ['scripts/run-large-industrial-fixture.mjs'],
+  },
+  {
+    label: 'Native GPU benchmark script',
+    command: 'node',
+    args: ['--check', 'benchmarks/native-gpu.mjs'],
+  },
+  {
+    label: 'GPU scene benchmark script',
+    command: 'node',
+    args: ['--check', 'benchmarks/gpu-scene-session.mjs'],
   },
   {
     label: 'Viewer unit tests',

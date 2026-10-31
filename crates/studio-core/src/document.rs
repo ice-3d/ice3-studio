@@ -7,6 +7,8 @@ use ts_rs::TS;
 use crate::PROJECT_SCHEMA_VERSION;
 use crate::geometry::{Primitive, TriangleMesh};
 use crate::ids::{ConstraintId, MaterialId, NodeId, RelationId, Revision};
+use crate::large_scene::component::{ComponentDefinition, ComponentInstance, InstanceSet};
+use crate::large_scene::connection::ConnectionIntent;
 use crate::math::Transform;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -20,6 +22,8 @@ pub struct Document {
     pub materials: Vec<Material>,
     pub relations: Vec<Relation>,
     pub constraints: Vec<Constraint>,
+    #[serde(default)]
+    pub components: Vec<ComponentDefinition>,
     pub metadata: BTreeMap<String, String>,
     pub idempotency_keys: Vec<crate::apply::IdempotencyRecord>,
 }
@@ -34,6 +38,7 @@ impl Document {
             materials: Vec::new(),
             relations: Vec::new(),
             constraints: Vec::new(),
+            components: Vec::new(),
             metadata: BTreeMap::new(),
             idempotency_keys: Vec::new(),
         }
@@ -44,6 +49,22 @@ impl Document {
             .iter()
             .find(|record| record.key == key)
     }
+
+    pub fn migrate(mut self) -> Result<Self, DocumentSchemaError> {
+        match self.schema_version {
+            1 | 2 => {
+                self.schema_version = PROJECT_SCHEMA_VERSION;
+                Ok(self)
+            }
+            version => Err(DocumentSchemaError::Unsupported(version)),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum DocumentSchemaError {
+    #[error("unsupported document schema version {0}")]
+    Unsupported(u32),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -104,6 +125,9 @@ pub enum NodeContent {
         radius: f32,
         radial_segments: u32,
     },
+    ComponentInstance(ComponentInstance),
+    InstanceSet(InstanceSet),
+    Connection(ConnectionIntent),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]

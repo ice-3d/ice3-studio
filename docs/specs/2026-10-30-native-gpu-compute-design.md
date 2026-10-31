@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-003
 >
-> Status: Proposed
+> Status: Experimental
 >
 > Owner: ICE3 Studio maintainers
 
@@ -18,6 +18,38 @@ the source of truth.
 
 The existing browser WebGPU renderer remains separate. Rendering with GPU hardware does not count
 as Studio Core GPU acceleration.
+
+### Implementation Status
+
+The backend-neutral contract, native `wgpu` device lifecycle, Box/Plane/Cylinder/Sphere/Sweep
+geometry kernels, custom-mesh normals and bounds, CPU/GPU scheduler, safe fallback, cache identity,
+resident geometry, public capability evidence, and Workbench panel are implemented. The latest
+mode-specific benchmark measured 500k triangles at 2.68 ms CPU, 11.78 ms cold GPU, and a sub-timer
+resolution resident-handle hit; 2M triangles measured 9.17 ms CPU, 31.31 ms cold GPU, and a
+sub-timer resolution resident-handle hit. The resident path reported zero additional full hashes,
+uploads, or fences after registration. All tested workloads passed topology, finite-value, normal,
+and bounds parity. Cold and warm paths remain slower than CPU on the current integrated adapter,
+so automatic dispatch remains on the CPU reference and native GPU execution remains experimental.
+
+Resource-resident execution, dirty-channel updates, batched submission, and incremental browser
+delivery are defined separately by `ICE3-STUDIO-SPEC-006`.
+
+Delivered host behavior:
+
+- `cpu` never initializes or invokes native GPU work.
+- `gpu` requests native compute and returns a structured `ICE3_STUDIO_GPU_*` diagnostic when the
+  request cannot be satisfied.
+- `auto` requires a measured crossover, a healthy adapter, parity, and a job below both host and
+  adapter memory budgets. Current defaults intentionally keep its threshold above practical jobs
+  until a positive crossover is measured.
+- GPU admission is limited to two concurrent jobs, orders Interactive before Throughput before
+  Background, waits outside the async request loop, and falls back to CPU after auto-mode failure.
+- Supported kernels are Box, Plane, Cylinder, Sphere, Sweep, and custom indexed mesh face-normal
+  accumulation plus per-workgroup bounds reduction.
+- Cache keys include resolved geometry content, part and dependency digests, backend, kernel
+  version, and parity state. CPU and GPU entries are independently keyed.
+- `npm run benchmark:gpu` writes `output/native-gpu-benchmark.json` and fails closed unless 500k
+  and 2M workloads improve p50 by at least 10% while GPU p95 remains within 5% of CPU.
 
 ## 2. Goals
 
@@ -473,7 +505,7 @@ release acceptance target; CPU-only CI continues to run scheduler and contract t
 | Risk | Mitigation |
 |---|---|
 | GPU slower for small jobs | measured crossover and CPU dispatch |
-| AMD/NVIDIA/Apple output differences | tolerance parity and CPU canonical export |
+| Cross-device output differences | tolerance parity and CPU canonical export |
 | Device loss corrupts in-flight work | jobs are derived; no GPU commit authority |
 | Memory exhaustion | admission control, pooling, backpressure |
 | Complexity leaks into Core | backend-neutral contract and isolated `studio-gpu` crate |

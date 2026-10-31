@@ -18,16 +18,25 @@ external AI or script
         | JSON-RPC 2.0
         v
 Studio Server (loopback)
-        |
-        v
+        |-------------------+-------------------+
+        |                   |                   |
+        v                   v                   v
 Rust Studio Core
   document + operations + validation + geometry + export
+        |             Native GPU Compute
+        |               bounded wgpu kernels + CPU parity
+        |                   |
+        +-------------------+
         |
         +----> revision snapshots and history
         |
-        +----> source GLB ----> independent Toolchain
+        +----> source GLB
         |
         +----> revision event ----> thin Web Viewer
+        |
+        +----> studio-toolchain-client ----> pinned Toolchain Sidecar
+                                                  |
+                                                  +----> prepared GLB / preview / partition
 ```
 
 Studio Core has no dependency on the Viewer, Engine, Toolchain, or an AI provider SDK. Node.js
@@ -41,17 +50,37 @@ Owns stable types, generic modeling operations, primitive and sweep evaluation, 
 relations, constraints, diagnostics, document diffs, and standard GLB serialization. It has no
 file, process, network, or UI access.
 
+The `large_scene` module owns generic component definitions, instances, deterministic instance
+sets, typed parameter resolution, port-aware connections, and CPU reference expansion. It emits
+shared evaluated meshes and stable derived identities without becoming industry-specific.
+
 ### `studio-project`
 
 Owns project paths, writer locks, atomic snapshots, revision history, undo/redo, and snapshot
-integrity. A snapshot is persisted before the new revision becomes externally visible.
+integrity. It also owns the bounded content-addressed geometry cache under
+`cache/geometry/`. A snapshot is persisted before the new revision becomes externally visible.
+
+### `studio-gpu`
+
+Owns the local adapter/device lifecycle, bounded `wgpu` buffers, WGSL kernels, CPU/GPU parity
+checks, and backend statistics for native geometry compute. It does not read projects, serve HTTP,
+approve revisions, or replace browser WebGPU rendering. CPU remains the canonical evaluator and is
+the default automatic path until adapter-specific benchmarks demonstrate a positive crossover.
 
 ### `studio-server`
 
 Owns the local HTTP and WebSocket boundary. It validates authentication and parameters, applies
 one transaction at a time, persists accepted revisions, and publishes revision events. Blocking
 filesystem and Toolchain work runs on Tokio blocking workers so health and event delivery remain
-responsive.
+responsive. Scene bounds and evaluation read from the same cached derived scene so a request does
+not evaluate equivalent component instances twice. `ComputeService` enforces GPU memory,
+concurrency, priority, cancellation-safe admission, backend health, and automatic CPU fallback.
+
+### `studio-toolchain-client` and Toolchain sidecar
+
+Owns the pinned sidecar process, capability handshake, newline-delimited JSON-RPC request map,
+timeout, bounded stderr capture, restart policy, and project-relative asset paths. Toolchain
+prepares derived assets and never receives document mutation authority.
 
 ### `studio-cli`
 
@@ -64,13 +93,45 @@ and validation state. It does not mutate the document directly.
 
 ## Source of Truth
 
-The serializable `Document` plus its operation history is durable truth. Triangle meshes,
-world bounds, diagnostics, GLB buffers, and Toolchain previews are derived values. This keeps
-AI operations explainable, replayable, and diffable.
+The serializable `Document` plus its operation history is durable truth. Component definitions,
+instances, instance-set rules, and connection intents are source data. Triangle meshes, derived
+part identities, world bounds, diagnostics, GLB buffers, and Toolchain previews are derived
+values. This keeps AI operations explainable, replayable, and diffable.
 
 Every committed transaction increments the revision once. Stable object IDs survive renames,
 reloads, undo, and redo. Atomic snapshots and idempotency records make retries safe within the
 local project boundary.
+
+Native geometry may remain resident outside the Document, but it is always derived state. The
+server separates queueable resident work from explicit CPU snapshots, emits `ICE3PGP1` full or
+delta packets only when preview packets are host-enabled, and falls back to canonical GLB.
+Browser caches key geometry by stable packet identity and apply dirty ranges without recreating
+unchanged buffers. Native residency, browser WebGPU, and preview packets are experimental because
+the measured resident performance gate has not passed; the default remains CPU compute plus
+WebGL2 rendering.
+
+A revision-scoped CPU scene cache is the default. It retains the resolved scene index across
+committed revisions and reduces large-scene transform updates from about 1.28 seconds to about
+116 milliseconds. The experimental native GPU layer adds resident topology and instance buffers,
+but measured GPU incremental latency is about 0.92× the CPU incremental baseline, so native GPU
+remains default-off.
+
+When preview packets are enabled, the production runtime-preview path reuses the previous packet
+for transform-only revisions and reads back only scene geometries affected by attribute or topology
+changes. Missing scene state or a missing base packet selects the existing CPU full-packet fallback.
+
+The experimental scene session also keeps per-instance bounds resident and exposes a compute-based
+visibility query that consumes the uploaded matrices and bounds. Instance transforms update only
+their changed matrix ranges instead of re-uploading the complete instance table. The large-scene
+narrow-frustum query returns 243 instances through both paths. CPU and GPU p50 latencies are
+2.613 and 0.601 milliseconds respectively; p95 is 3.616 and 2.276 milliseconds. The result also
+includes stable node IDs because CPU scene positions and GPU instance slots are not interchangeable.
+The API remains experimental. When native scene sessions are disabled or unavailable, the server
+computes the same query from its cached CPU scene.
+
+Scene phase measurements show GPU planning and synchronization are now a small fraction of warm
+revision latency. Document transaction handling, durable snapshot writing, and the JSON-RPC
+boundary are the dominant remaining costs.
 
 ## Industry Layering
 
@@ -84,11 +145,13 @@ hard-coded process type in the modeling API.
 - Writes require a process-scoped bearer token.
 - Project IDs and resources are confined to the configured workspace.
 - Operations cannot submit paths, URLs, shell commands, scripts, or arbitrary expressions.
-- The Toolchain executable is configured by the host, never by an API request.
+- The Toolchain executable comes from a host-owned pinned manifest, never from an API request.
+- GPU requests cannot submit WGSL, select an arbitrary adapter, or bypass host budgets.
 - Diagnostics exclude credentials and out-of-workspace paths.
 
 ## Deferred Scope
 
 Boolean geometry, free-form curves, sculpting, collaborative editing, cloud tenancy, large
-static asset import, and incremental GPU transport are outside this MVP. Runtime LOD and spatial
-partitioning remain Toolchain responsibilities.
+static asset import, and persistent GPU buffer pooling are outside this MVP. Runtime LOD and
+spatial partitioning remain Toolchain responsibilities. Native GPU execution remains experimental
+until the release benchmark shows a stable latency gain.

@@ -39,11 +39,15 @@ STUDIO_VIEWER_DIR=apps/viewer/dist \
 cargo run -p studio-cli -- serve \
   --workspace . \
   --project wastewater-mini \
-  --fixture fixtures/wastewater-mini
+  --fixture fixtures/wastewater-mini \
+  --native-gpu cpu
 ```
 
 The server listens only on `127.0.0.1`, defaults to port `8120`, and prints its address, proposal
 token, and a one-time browser bootstrap URL. The fixture is seeded at revision 2.
+`--native-gpu cpu` is the release default. Experiment with `auto` or forced `gpu` only after
+running `npm run benchmark:gpu` on the target host; the host mode is a startup policy and is never
+controlled by an API request.
 
 For iterative frontend work, keep the server running and start watch output in another terminal:
 

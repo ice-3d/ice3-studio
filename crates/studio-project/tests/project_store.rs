@@ -1,3 +1,4 @@
+use sha2::Digest;
 use studio_core::document::Document;
 use studio_project::{ProjectStore, WorkspacePath};
 
@@ -12,7 +13,7 @@ fn creates_and_reopens_deterministic_project_state() {
     let reopened = ProjectStore::open(path).unwrap();
     let document = reopened.load_current().unwrap();
     assert_eq!(document.project_id, "wwtp-mini");
-    assert_eq!(document.schema_version, 1);
+    assert_eq!(document.schema_version, 2);
 }
 
 #[test]
@@ -106,4 +107,42 @@ fn rejects_a_project_symlink_that_escapes_the_workspace() {
     if let Ok(path) = WorkspacePath::new(root.path(), "linked-project") {
         assert!(ProjectStore::open(path).is_err());
     }
+}
+
+#[test]
+fn opens_a_version_one_project_and_writes_the_next_revision_as_version_two() {
+    let root = tempfile::tempdir().unwrap();
+    let path = WorkspacePath::new(root.path(), "legacy-schema").unwrap();
+    let store = ProjectStore::create(path.clone()).unwrap();
+    let mut legacy = Document::new("legacy-schema");
+    legacy.schema_version = 1;
+    let bytes = serde_json::to_vec(&legacy).unwrap();
+    let digest = format!("{:x}", sha2::Sha256::digest(&bytes));
+    std::fs::create_dir_all(root.path().join("legacy-schema/revisions")).unwrap();
+    std::fs::create_dir_all(root.path().join("legacy-schema/history")).unwrap();
+    std::fs::write(
+        root.path().join("legacy-schema/revisions/00000000.json"),
+        &bytes,
+    )
+    .unwrap();
+    std::fs::write(
+        root.path().join("legacy-schema/history/operations.jsonl"),
+        format!("{{\"revision\":0,\"digest\":\"{digest}\",\"event\":{{\"kind\":\"snapshot\"}}}}\n"),
+    )
+    .unwrap();
+    std::fs::write(
+        root.path().join("legacy-schema/project.json"),
+        format!(
+            "{{\"schemaVersion\":1,\"projectId\":\"legacy-schema\",\"currentRevision\":0,\"snapshotDigest\":\"{digest}\",\"undoStack\":[],\"redoStack\":[]}}"
+        ),
+    )
+    .unwrap();
+    drop(store);
+
+    let reopened = ProjectStore::open(path).unwrap();
+    let mut loaded = reopened.load_current().unwrap();
+    assert_eq!(loaded.schema_version, 2);
+    loaded.revision = loaded.revision.next();
+    reopened.write_snapshot(&loaded).unwrap();
+    assert_eq!(reopened.load_current().unwrap().schema_version, 2);
 }

@@ -8,10 +8,35 @@ export type StudioNode = {
   content?: Record<string, unknown>;
 };
 
+export type ParameterValue =
+  | { kind: 'number'; value: number }
+  | { kind: 'vector3'; value: { x: number; y: number; z: number } }
+  | { kind: 'color'; value: [number, number, number, number] }
+  | { kind: 'enumeration'; value: string };
+
+export type ComponentDefinition = {
+  id: string;
+  name: string;
+  parameters: Array<{
+    name: string;
+    valueType: Record<string, unknown> & { kind: string };
+    default: ParameterValue;
+    unit?: string | null;
+  }>;
+};
+
+export type ComponentInstance = {
+  definitionId: string;
+  parameters: Record<string, ParameterValue>;
+  overrides: Record<string, unknown>;
+  metadata: Record<string, string>;
+};
+
 export type StudioDocument = {
   projectId: string;
   revision: number;
   scene: { nodes: StudioNode[] };
+  components: ComponentDefinition[];
 };
 
 export type Diagnostic = {
@@ -33,6 +58,100 @@ export type DocumentDiff = {
   addedConstraintIds: string[];
   updatedConstraintIds: string[];
   removedConstraintIds: string[];
+};
+
+export type ToolchainStatus = {
+  state: 'starting' | 'ready' | 'busy' | 'unavailable' | 'incompatible' | 'failed';
+  contractVersion: string | null;
+  packageVersion: string | null;
+  capabilities: string[];
+  reason: string | null;
+};
+
+export type ComputeStatus = {
+  mode: 'auto' | 'cpu' | 'gpu';
+  incrementalSceneCache?: boolean;
+  selectedBackend: 'cpu' | 'gpu';
+  adapter: string;
+  tier: string;
+  memoryBudgetBytes: number;
+  health: 'probing' | 'ready' | 'unavailable' | string;
+  fallbackReason: string | null;
+  queueDepth: number;
+  maxConcurrentJobs: number;
+  gpuThresholdTriangles: number;
+  lastKernelMs: number;
+  lastUploadBytes: number;
+  lastReadbackBytes: number;
+  lastCacheHits: number;
+  lastEvaluationMode?: string;
+  residentBytes?: number;
+  peakResidentBytes?: number;
+  topologyHits?: number;
+  residentHits?: number;
+  evictions?: number;
+  previewPacketBytes?: number;
+  browserUploadBytes?: number;
+  snapshotReadbackBytes?: number;
+  residentGeometry?: {
+    enabled: boolean;
+    geometryCount: number;
+    residentBytes: number;
+    peakResidentBytes: number;
+    topologyHits: number;
+    residentHits: number;
+    evictions: number;
+  };
+  residentHotPathHashes?: number;
+  handleLookupMs?: number;
+  lastGeometryPhases?: {
+    lookupMs: number;
+    planningMs: number;
+    validationMs: number;
+    encodeMs: number;
+    submitMs: number;
+    gpuKernelMs: number | null;
+    waitMs: number;
+    snapshotMs: number;
+    transportMs: number;
+    browserUploadMs: number;
+  };
+  sceneSession?: {
+    enabled: boolean;
+    sessionId: string | null;
+    state: 'idle' | 'pending' | 'failed' | 'lost';
+    publishedRevision: number;
+    targetRevision: number;
+    pendingPatches: number;
+    pendingSubmissions: number;
+    geometryCount: number;
+    topologyCount: number;
+    attributeCount: number;
+    instanceCount: number;
+    residentBytes: number;
+    peakResidentBytes: number;
+    dirtyRangeBytes: number;
+    readbackBytes: number;
+    submissionCount?: number;
+    geometryDispatchCount?: number;
+    fallbackReason: string | null;
+    phases: Record<string, number>;
+  };
+};
+
+export type StudioCapabilities = {
+  apiVersion: string;
+  schemaVersion: number;
+  methods: string[];
+  toolchain: ToolchainStatus;
+  compute: ComputeStatus;
+};
+
+export type StudioPreview = {
+  revision: number;
+  url: string;
+  packetUrl: string | null;
+  glbUrl: string;
 };
 
 export type ChangeSetEvaluation = {
@@ -78,6 +197,10 @@ export class StudioClient {
     return fetch('/health', { credentials: 'include' }).then((response) => response.json());
   }
 
+  capabilities(): Promise<StudioCapabilities> {
+    return this.rpc('system.capabilities', {});
+  }
+
   document(): Promise<StudioDocument> {
     return this.rpc('document.get', {});
   }
@@ -86,15 +209,33 @@ export class StudioClient {
     return this.rpc('validation.run', {});
   }
 
-  preview(revision: number): Promise<{ revision: number; url: string }> {
-    return this.rpc('export.runtimePreview', { revision }).then((value) => ({
+  async preview(revision: number): Promise<StudioPreview> {
+    const value = await this.rpc<{ packetUrl?: string | null }>(
+      'export.runtimePreview',
+      { revision },
+    );
+    const glbUrl = `/previews/${revision}`;
+    const packetUrl = value.packetUrl ?? null;
+    return {
       revision,
-      url: `/previews/${revision}`,
-    }));
+      url: packetUrl ?? glbUrl,
+      packetUrl,
+      glbUrl,
+    };
   }
 
-  candidatePreview(candidateDigest: string): Promise<{ url: string }> {
-    return this.rpc('export.runtimePreview', { candidateDigest });
+  async candidatePreview(
+    candidateDigest: string,
+  ): Promise<{ url: string; packetUrl: string | null }> {
+    const preview = await this.rpc<{ url: string; packetUrl?: string | null }>(
+      'export.runtimePreview',
+      { candidateDigest },
+    );
+    const packetUrl = preview.packetUrl ?? null;
+    return {
+      url: packetUrl ?? preview.url,
+      packetUrl,
+    };
   }
 
   createChangeSet(baseRevision: number, title: string): Promise<{ id: string; version: number }> {

@@ -6,13 +6,83 @@ use ts_rs::TS;
 
 use crate::document::{Constraint, NodeContent, Relation};
 use crate::geometry::{Primitive, TriangleMesh};
-use crate::ids::{ConstraintId, MaterialId, NodeId, RelationId};
+use crate::ids::{ComponentId, ConstraintId, MaterialId, NodeId, RelationId};
+use crate::large_scene::component::{ComponentDefinition, ComponentInstance, InstanceSet};
+use crate::large_scene::connection::ConnectionIntent;
 use crate::math::Transform;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(tag = "type", deny_unknown_fields)]
 #[ts(export)]
 pub enum Operation {
+    #[serde(rename = "component.define")]
+    #[ts(rename = "component.define")]
+    ComponentDefine { definition: ComponentDefinition },
+    #[serde(rename = "component.update")]
+    #[ts(rename = "component.update")]
+    ComponentUpdate { definition: ComponentDefinition },
+    #[serde(rename = "component.delete")]
+    #[ts(rename = "component.delete")]
+    ComponentDelete { component_id: ComponentId },
+    #[serde(rename = "instance.create")]
+    #[ts(rename = "instance.create")]
+    InstanceCreate {
+        node_id: NodeId,
+        parent_id: Option<NodeId>,
+        name: String,
+        transform: Transform,
+        instance: ComponentInstance,
+        material_id: Option<MaterialId>,
+        #[serde(default)]
+        metadata: BTreeMap<String, String>,
+    },
+    #[serde(rename = "instance.update")]
+    #[ts(rename = "instance.update")]
+    InstanceUpdate {
+        node_id: NodeId,
+        instance: ComponentInstance,
+    },
+    #[serde(rename = "instance.delete")]
+    #[ts(rename = "instance.delete")]
+    InstanceDelete { node_id: NodeId },
+    #[serde(rename = "instanceSet.create")]
+    #[ts(rename = "instanceSet.create")]
+    InstanceSetCreate {
+        node_id: NodeId,
+        parent_id: Option<NodeId>,
+        name: String,
+        transform: Transform,
+        set: InstanceSet,
+        material_id: Option<MaterialId>,
+        #[serde(default)]
+        metadata: BTreeMap<String, String>,
+    },
+    #[serde(rename = "instanceSet.update")]
+    #[ts(rename = "instanceSet.update")]
+    InstanceSetUpdate { node_id: NodeId, set: InstanceSet },
+    #[serde(rename = "instanceSet.delete")]
+    #[ts(rename = "instanceSet.delete")]
+    InstanceSetDelete { node_id: NodeId },
+    #[serde(rename = "connection.create")]
+    #[ts(rename = "connection.create")]
+    ConnectionCreate {
+        node_id: NodeId,
+        parent_id: Option<NodeId>,
+        name: String,
+        transform: Transform,
+        connection: ConnectionIntent,
+        #[serde(default)]
+        metadata: BTreeMap<String, String>,
+    },
+    #[serde(rename = "connection.update")]
+    #[ts(rename = "connection.update")]
+    ConnectionUpdate {
+        node_id: NodeId,
+        connection: ConnectionIntent,
+    },
+    #[serde(rename = "connection.delete")]
+    #[ts(rename = "connection.delete")]
+    ConnectionDelete { node_id: NodeId },
     #[serde(rename = "node.create")]
     #[ts(rename = "node.create")]
     NodeCreate {

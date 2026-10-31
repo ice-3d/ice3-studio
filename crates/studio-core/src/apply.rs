@@ -6,7 +6,9 @@ use ts_rs::TS;
 
 use crate::diff::{DiffBuilder, DocumentDiff};
 use crate::document::{Document, Material, NodeContent};
-use crate::ids::{MaterialId, NodeId, RelationId, Revision};
+use crate::ids::{ComponentId, MaterialId, NodeId, RelationId, Revision};
+use crate::large_scene::component::PartContent;
+use crate::large_scene::connection::ConnectionIntent;
 use crate::operation::Operation;
 use crate::validation::{Diagnostic, DiagnosticCode, validate_document};
 
@@ -35,6 +37,7 @@ impl ApplyRequest {
 pub struct ApplyResult {
     pub previous_revision: Revision,
     pub revision: Revision,
+    pub changed_component_ids: Vec<ComponentId>,
     pub changed_node_ids: Vec<NodeId>,
     pub changed_material_ids: Vec<MaterialId>,
     pub changed_relation_ids: Vec<RelationId>,
@@ -59,6 +62,11 @@ impl ApplyResult {
         diagnostics: Vec<Diagnostic>,
         dry_run: bool,
     ) -> Self {
+        let mut changed_component_ids = diff.added_component_ids.clone();
+        changed_component_ids.extend(diff.updated_component_ids.iter().cloned());
+        changed_component_ids.extend(diff.removed_component_ids.iter().cloned());
+        changed_component_ids.sort();
+        changed_component_ids.dedup();
         let mut changed_node_ids = diff.added_node_ids.clone();
         changed_node_ids.extend(diff.updated_node_ids.iter().cloned());
         changed_node_ids.extend(diff.removed_node_ids.iter().cloned());
@@ -77,6 +85,7 @@ impl ApplyResult {
         Self {
             previous_revision,
             revision,
+            changed_component_ids,
             changed_node_ids,
             changed_material_ids,
             changed_relation_ids,
@@ -193,6 +202,200 @@ fn apply_operation(
     operation_index: usize,
 ) -> Result<(), TransactionError> {
     match operation {
+        Operation::ComponentDefine { definition } => {
+            let id = definition.id.clone();
+            if document
+                .components
+                .iter()
+                .any(|candidate| candidate.id == id)
+            {
+                return Err(operation_error(
+                    operation_index,
+                    &id,
+                    "/definition/id",
+                    "component definition already exists",
+                ));
+            }
+            document.components.push(definition);
+            diff.component_added(id);
+        }
+        Operation::ComponentUpdate { definition } => {
+            let id = definition.id.clone();
+            let existing = document
+                .components
+                .iter_mut()
+                .find(|candidate| candidate.id == id)
+                .ok_or_else(|| {
+                    operation_error(
+                        operation_index,
+                        &id,
+                        "/definition/id",
+                        "component definition does not exist",
+                    )
+                })?;
+            *existing = definition;
+            diff.component_updated(id);
+        }
+        Operation::ComponentDelete { component_id } => {
+            ensure_component_unreferenced(document, &component_id, operation_index)?;
+            let index = document
+                .components
+                .iter()
+                .position(|candidate| candidate.id == component_id)
+                .ok_or_else(|| {
+                    operation_error(
+                        operation_index,
+                        &component_id,
+                        "/componentId",
+                        "component definition does not exist",
+                    )
+                })?;
+            document.components.remove(index);
+            diff.component_removed(component_id);
+        }
+        Operation::InstanceCreate {
+            node_id,
+            parent_id,
+            name,
+            transform,
+            instance,
+            material_id,
+            metadata,
+        } => {
+            ensure_new_node(document, &node_id, operation_index)?;
+            document.scene.nodes_mut().push(crate::document::SceneNode {
+                id: node_id.clone(),
+                name,
+                parent_id,
+                transform,
+                material_id,
+                content: NodeContent::ComponentInstance(instance),
+                metadata,
+                visible: true,
+            });
+            diff.node_added(node_id);
+        }
+        Operation::InstanceUpdate { node_id, instance } => {
+            let node = node_mut(document, &node_id, operation_index, "/nodeId")?;
+            let NodeContent::ComponentInstance(current) = &mut node.content else {
+                return Err(operation_error(
+                    operation_index,
+                    &node_id,
+                    "/nodeId",
+                    "node is not a component instance",
+                ));
+            };
+            *current = instance;
+            diff.node_updated(node_id);
+        }
+        Operation::InstanceDelete { node_id } => {
+            delete_node(document, &node_id, operation_index, diff)?;
+        }
+        Operation::InstanceSetCreate {
+            node_id,
+            parent_id,
+            name,
+            transform,
+            set,
+            material_id,
+            metadata,
+        } => {
+            ensure_new_node(document, &node_id, operation_index)?;
+            document.scene.nodes_mut().push(crate::document::SceneNode {
+                id: node_id.clone(),
+                name,
+                parent_id,
+                transform,
+                material_id,
+                content: NodeContent::InstanceSet(set),
+                metadata,
+                visible: true,
+            });
+            diff.node_added(node_id);
+        }
+        Operation::InstanceSetUpdate { node_id, set } => {
+            let node = node_mut(document, &node_id, operation_index, "/nodeId")?;
+            let NodeContent::InstanceSet(current) = &mut node.content else {
+                return Err(operation_error(
+                    operation_index,
+                    &node_id,
+                    "/nodeId",
+                    "node is not an instance set",
+                ));
+            };
+            *current = set;
+            diff.node_updated(node_id);
+        }
+        Operation::InstanceSetDelete { node_id } => {
+            delete_node(document, &node_id, operation_index, diff)?;
+        }
+        Operation::ConnectionCreate {
+            node_id,
+            parent_id,
+            name,
+            transform,
+            connection,
+            metadata,
+        } => {
+            ensure_new_node(document, &node_id, operation_index)?;
+            ensure_connection_relation(document, &connection, operation_index, &node_id)?;
+            document.scene.nodes_mut().push(crate::document::SceneNode {
+                id: node_id.clone(),
+                name,
+                parent_id,
+                transform,
+                material_id: None,
+                content: NodeContent::Connection(connection),
+                metadata,
+                visible: true,
+            });
+            diff.node_added(node_id);
+        }
+        Operation::ConnectionUpdate {
+            node_id,
+            connection,
+        } => {
+            ensure_connection_relation(document, &connection, operation_index, &node_id)?;
+            let node = node_mut(document, &node_id, operation_index, "/nodeId")?;
+            let NodeContent::Connection(current) = &mut node.content else {
+                return Err(operation_error(
+                    operation_index,
+                    &node_id,
+                    "/nodeId",
+                    "node is not a connection",
+                ));
+            };
+            *current = connection;
+            diff.node_updated(node_id);
+        }
+        Operation::ConnectionDelete { node_id } => {
+            let connection = document
+                .scene
+                .nodes()
+                .iter()
+                .find(|node| node.id == node_id)
+                .and_then(|node| match &node.content {
+                    NodeContent::Connection(connection) => Some(connection.clone()),
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    operation_error(
+                        operation_index,
+                        &node_id,
+                        "/nodeId",
+                        "node is not a connection",
+                    )
+                })?;
+            if let Some(index) = document
+                .relations
+                .iter()
+                .position(|relation| relation.id == connection.relation_id)
+            {
+                let relation_id = document.relations.remove(index).id;
+                diff.relation_removed(relation_id);
+            }
+            delete_node(document, &node_id, operation_index, diff)?;
+        }
         Operation::MaterialUpsert {
             material_id,
             name,
@@ -395,6 +598,102 @@ fn node_mut<'a>(
         .iter_mut()
         .find(|node| node.id == *node_id)
         .ok_or_else(|| operation_error(operation_index, node_id, pointer, "node does not exist"))
+}
+
+fn ensure_new_node(
+    document: &Document,
+    node_id: &NodeId,
+    operation_index: usize,
+) -> Result<(), TransactionError> {
+    if document
+        .scene
+        .nodes()
+        .iter()
+        .any(|node| node.id == *node_id)
+    {
+        return Err(operation_error(
+            operation_index,
+            node_id,
+            "/nodeId",
+            "node already exists",
+        ));
+    }
+    Ok(())
+}
+
+fn delete_node(
+    document: &mut Document,
+    node_id: &NodeId,
+    operation_index: usize,
+    diff: &mut DiffBuilder,
+) -> Result<(), TransactionError> {
+    let index = document
+        .scene
+        .nodes()
+        .iter()
+        .position(|node| node.id == *node_id)
+        .ok_or_else(|| {
+            operation_error(operation_index, node_id, "/nodeId", "node does not exist")
+        })?;
+    document.scene.nodes_mut().remove(index);
+    diff.node_removed(node_id.clone());
+    Ok(())
+}
+
+fn ensure_component_unreferenced(
+    document: &Document,
+    component_id: &ComponentId,
+    operation_index: usize,
+) -> Result<(), TransactionError> {
+    let nested = document.components.iter().any(|definition| {
+        definition.parts.iter().any(|part| {
+            matches!(
+                &part.content,
+                PartContent::ComponentReference { definition_id, .. }
+                    if definition_id == component_id
+            )
+        })
+    });
+    let instantiated = document
+        .scene
+        .nodes()
+        .iter()
+        .any(|node| match &node.content {
+            NodeContent::ComponentInstance(instance) => instance.definition_id == *component_id,
+            NodeContent::InstanceSet(set) => set.definition_id == *component_id,
+            _ => false,
+        });
+    if nested || instantiated {
+        return Err(operation_error(
+            operation_index,
+            component_id,
+            "/componentId",
+            "component definition is still referenced",
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_connection_relation(
+    document: &Document,
+    connection: &ConnectionIntent,
+    operation_index: usize,
+    node_id: &NodeId,
+) -> Result<(), TransactionError> {
+    if document
+        .relations
+        .iter()
+        .any(|relation| relation.id == connection.relation_id)
+    {
+        Ok(())
+    } else {
+        Err(operation_error(
+            operation_index,
+            node_id,
+            "/connection/relationId",
+            "connection relation does not exist",
+        ))
+    }
 }
 
 fn operation_error(
