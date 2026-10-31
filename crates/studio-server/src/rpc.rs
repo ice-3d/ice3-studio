@@ -1529,38 +1529,37 @@ fn visible_scene_instances_cpu(
     request: SceneVisibilityRequest,
 ) -> Result<SceneVisibilityResult, RpcError> {
     let (scene, bounds) = evaluate_session_scene(session)?;
-    let visible_indices = scene
-        .nodes
-        .iter()
-        .enumerate()
-        .filter(|(_, node)| node.visible)
-        .filter_map(|(index, node)| {
-            let bounds = bounds.get(&node.id)?;
-            let centre = [
-                (bounds.min.x + bounds.max.x) * 0.5,
-                (bounds.min.y + bounds.max.y) * 0.5,
-                (bounds.min.z + bounds.max.z) * 0.5,
-            ];
-            let extent = [
-                (bounds.max.x - bounds.min.x) * 0.5,
-                (bounds.max.y - bounds.min.y) * 0.5,
-                (bounds.max.z - bounds.min.z) * 0.5,
-            ];
-            let radius =
-                (extent[0] * extent[0] + extent[1] * extent[1] + extent[2] * extent[2]).sqrt();
-            request
-                .planes
-                .iter()
-                .all(|plane| {
-                    plane[0] * centre[0] + plane[1] * centre[1] + plane[2] * centre[2] + plane[3]
-                        >= -radius
-                })
-                .then_some(index as u32)
-        })
-        .collect();
+    let mut visible_indices = Vec::new();
+    let mut visible_node_ids = Vec::new();
+    for (index, node) in scene.nodes.iter().enumerate() {
+        if !node.visible {
+            continue;
+        }
+        let Some(bounds) = bounds.get(&node.id) else {
+            continue;
+        };
+        let centre = [
+            (bounds.min.x + bounds.max.x) * 0.5,
+            (bounds.min.y + bounds.max.y) * 0.5,
+            (bounds.min.z + bounds.max.z) * 0.5,
+        ];
+        let extent = [
+            (bounds.max.x - bounds.min.x) * 0.5,
+            (bounds.max.y - bounds.min.y) * 0.5,
+            (bounds.max.z - bounds.min.z) * 0.5,
+        ];
+        let radius = (extent[0] * extent[0] + extent[1] * extent[1] + extent[2] * extent[2]).sqrt();
+        if request.planes.iter().all(|plane| {
+            plane[0] * centre[0] + plane[1] * centre[1] + plane[2] * centre[2] + plane[3] >= -radius
+        }) {
+            visible_indices.push(index as u32);
+            visible_node_ids.push(node.id.clone());
+        }
+    }
     Ok(SceneVisibilityResult {
         revision: session.document.revision.as_u64(),
         visible_indices,
+        visible_node_ids,
     })
 }
 

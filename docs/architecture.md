@@ -112,8 +112,8 @@ WebGL2 rendering.
 
 A revision-scoped CPU scene cache is the default. It retains the resolved scene index across
 committed revisions and reduces large-scene transform updates from about 1.28 seconds to about
-114 milliseconds. The experimental native GPU layer adds resident topology and instance buffers,
-but measured GPU incremental latency is about 0.98× the CPU incremental baseline, so native GPU
+116 milliseconds. The experimental native GPU layer adds resident topology and instance buffers,
+but measured GPU incremental latency is about 0.92× the CPU incremental baseline, so native GPU
 remains default-off.
 
 When preview packets are enabled, the production runtime-preview path reuses the previous packet
@@ -124,9 +124,10 @@ The experimental scene session also keeps per-instance bounds resident and expos
 visibility query that consumes the uploaded matrices and bounds. Instance transforms update only
 their changed matrix ranges instead of re-uploading the complete instance table. The large-scene
 narrow-frustum query returns 243 instances through both paths. CPU and GPU p50 latencies are
-2.361 and 0.584 milliseconds respectively; p95 is 3.830 and 1.267 milliseconds. The API remains
-experimental. When native scene sessions are disabled or unavailable, the server computes the
-same query from its cached CPU scene.
+2.613 and 0.601 milliseconds respectively; p95 is 3.616 and 2.276 milliseconds. The result also
+includes stable node IDs because CPU scene positions and GPU instance slots are not interchangeable.
+The API remains experimental. When native scene sessions are disabled or unavailable, the server
+computes the same query from its cached CPU scene.
 
 Scene phase measurements show GPU planning and synchronization are now a small fraction of warm
 revision latency. Document transaction handling, durable snapshot writing, and the JSON-RPC

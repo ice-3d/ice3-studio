@@ -102,6 +102,24 @@ fn gpu_visibility_consumes_resident_instance_buffers() {
         .unwrap();
 
     assert_eq!(visible, vec![0]);
+    let response = backend
+        .visible_scene_instances_response(
+            &session,
+            studio_core::scene_contract::SceneVisibilityRequest {
+                target_revision: 1,
+                planes: [
+                    [1.0, 0.0, 0.0, 10.0],
+                    [-1.0, 0.0, 0.0, 10.0],
+                    [0.0, 1.0, 0.0, 100.0],
+                    [0.0, -1.0, 0.0, 100.0],
+                    [0.0, 0.0, 1.0, 100.0],
+                    [0.0, 0.0, -1.0, 100.0],
+                ],
+            },
+        )
+        .unwrap();
+    assert_eq!(response.visible_indices, vec![0]);
+    assert_eq!(response.visible_node_ids, vec!["node-000001"]);
 }
 
 #[test]

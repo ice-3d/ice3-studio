@@ -46,6 +46,7 @@ test('scene comparison separates CPU incrementality from GPU acceleration', () =
       instanceVisibilityMs: { p50: 9 },
     },
     visibleInstanceCount: 480,
+    visibleNodeIdsSha256: 'visibility',
   };
   const incrementalCpu = {
     measurements: {
@@ -56,6 +57,7 @@ test('scene comparison separates CPU incrementality from GPU acceleration', () =
       instanceVisibilityMs: { p50: 6 },
     },
     visibleInstanceCount: 480,
+    visibleNodeIdsSha256: 'visibility',
     compute: { sceneSession: { state: 'idle' } },
   };
   const gpuIncremental = {
@@ -67,6 +69,7 @@ test('scene comparison separates CPU incrementality from GPU acceleration', () =
       instanceVisibilityMs: { p50: 2 },
     },
     visibleInstanceCount: 480,
+    visibleNodeIdsSha256: 'visibility',
     compute: { sceneSession: { state: 'idle' } },
   };
 
@@ -98,15 +101,18 @@ test('scene comparison ignores sub-millisecond warm stats scheduling noise', () 
   const fullCpu = {
     measurements: measurements(1200, 300, 400, 0.4, 3),
     visibleInstanceCount: 243,
+    visibleNodeIdsSha256: 'visibility',
   };
   const incrementalCpu = {
     measurements: measurements(100, 100, 100, 0.24, 2.8),
     visibleInstanceCount: 243,
+    visibleNodeIdsSha256: 'visibility',
     compute: { sceneSession: { state: 'idle' } },
   };
   const gpu = {
     measurements: measurements(90, 90, 90, 0.27, 1),
     visibleInstanceCount: 243,
+    visibleNodeIdsSha256: 'visibility',
     compute: { sceneSession: { state: 'idle' } },
   };
 
@@ -114,4 +120,36 @@ test('scene comparison ignores sub-millisecond warm stats scheduling noise', () 
 
   assert.deepEqual(comparison.failures, []);
   assert.equal(comparison.passed, true);
+});
+
+test('scene comparison rejects matching visibility counts with different node identities', () => {
+  const measurements = (visibility) => ({
+    incrementalUpdateMs: { p50: 100 },
+    parameterUpdateMs: { p50: 100 },
+    topologyUpdateMs: { p50: 100 },
+    warmStatsMs: { p50: 0.3 },
+    instanceVisibilityMs: { p50: visibility },
+  });
+  const fullCpu = {
+    measurements: measurements(3),
+    visibleInstanceCount: 243,
+    visibleNodeIdsSha256: 'cpu',
+  };
+  const incrementalCpu = {
+    measurements: measurements(3),
+    visibleInstanceCount: 243,
+    visibleNodeIdsSha256: 'cpu',
+    compute: { sceneSession: { state: 'idle' } },
+  };
+  const gpu = {
+    measurements: measurements(1),
+    visibleInstanceCount: 243,
+    visibleNodeIdsSha256: 'gpu',
+    compute: { sceneSession: { state: 'idle' } },
+  };
+
+  assert.ok(
+    evaluateSceneComparison(fullCpu, incrementalCpu, gpu).failures
+      .includes('visibilityParity'),
+  );
 });

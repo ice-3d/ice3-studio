@@ -360,19 +360,22 @@ impl PreviewAdapter {
                 .map(|change| change.geometry_id.clone())
                 .collect::<Vec<_>>();
             if !geometry_ids.is_empty() {
-                let mut loaded = pollster::block_on(compute.snapshot_scene_geometries(
+                let loaded = pollster::block_on(compute.snapshot_scene_geometries(
                     SceneGeometrySnapshotRequest {
                         target_revision: revision,
                         geometry_ids,
                     },
-                ))
-                .map_err(|error| {
-                    PreviewError::LargeScene(LargeSceneError::Backend(
-                        studio_core::gpu_contract::BackendError::Kernel {
-                            message: error.to_string(),
-                        },
-                    ))
-                })?;
+                ));
+                let Ok(mut loaded) = loaded else {
+                    return write_preview_packet(
+                        document,
+                        evaluated,
+                        project_dir,
+                        &format!("{revision:08}.ice3pgp"),
+                        backend,
+                        mode,
+                    );
+                };
                 for readback in &mut loaded {
                     readback.topology_changed = context.patch.geometry.iter().any(|change| {
                         change.geometry_id == readback.geometry_id

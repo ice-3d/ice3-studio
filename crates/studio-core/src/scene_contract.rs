@@ -62,6 +62,7 @@ pub enum SceneSessionState {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct SceneSessionStatus {
     pub enabled: bool,
@@ -113,6 +114,7 @@ pub struct SceneGeometryReadback {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct SceneVisibilityRequest {
     pub target_revision: u64,
@@ -121,10 +123,12 @@ pub struct SceneVisibilityRequest {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct SceneVisibilityResult {
     pub revision: u64,
     pub visible_indices: Vec<u32>,
+    pub visible_node_ids: Vec<String>,
 }
 
 pub fn changed_position_ranges(

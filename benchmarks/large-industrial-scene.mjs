@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   mkdir,
   mkdtemp,
@@ -14,6 +15,8 @@ import { performance } from 'node:perf_hooks';
 import { createInterface } from 'node:readline';
 import { pathToFileURL } from 'node:url';
 import { buildIndustrialScenePlan } from '../fixtures/large-industrial-site/operations.mjs';
+
+const VISIBILITY_SAMPLE_COUNT = 31;
 
 export function evaluateBenchmarkGate(result) {
   const failures = [];
@@ -96,6 +99,7 @@ export function evaluateSceneComparison(fullCpu, incrementalCpu, gpu) {
   if (
     incrementalCpu.visibleInstanceCount === 0
     || incrementalCpu.visibleInstanceCount !== gpu.visibleInstanceCount
+    || incrementalCpu.visibleNodeIdsSha256 !== gpu.visibleNodeIdsSha256
   ) {
     failures.push('visibilityParity');
   }
@@ -191,8 +195,9 @@ async function main() {
     const coldStats = await rpc('evaluation.stats');
     const visibilitySamples = [];
     let visibleInstanceCount = 0;
+    let visibleNodeIdsSha256 = null;
     if (sceneSessions) await rpc('evaluation.waitScene', { revision });
-    for (let sample = 0; sample < 7; sample += 1) {
+    for (let sample = 0; sample < VISIBILITY_SAMPLE_COUNT; sample += 1) {
       const started = performance.now();
       const visibility = await rpc('evaluation.visibleInstances', {
         targetRevision: revision,
@@ -207,6 +212,11 @@ async function main() {
       });
       visibilitySamples.push(performance.now() - started);
       visibleInstanceCount = visibility.visibleIndices.length;
+      const digest = digestVisibleNodes(visibility.visibleNodeIds);
+      if (visibleNodeIdsSha256 !== null && visibleNodeIdsSha256 !== digest) {
+        throw new Error('visible node identities changed between identical samples');
+      }
+      visibleNodeIdsSha256 = digest;
     }
     const warmSamples = [];
     for (let sample = 0; sample < 7; sample += 1) {
@@ -446,6 +456,7 @@ async function main() {
       documentBytes: Buffer.byteLength(JSON.stringify(document)),
       sourceGlbBytes: sourceBytes,
       visibleInstanceCount,
+      visibleNodeIdsSha256,
       measurements: {
         planConstructionMs: metric(planSamples),
         initialBuildMs: metric([initialBuildMs]),
@@ -489,6 +500,15 @@ async function main() {
     }
     await rm(workspace, { recursive: true, force: true });
   }
+}
+
+function digestVisibleNodes(nodeIds) {
+  const hash = createHash('sha256');
+  for (const nodeId of [...nodeIds].sort()) {
+    hash.update(nodeId);
+    hash.update('\0');
+  }
+  return hash.digest('hex');
 }
 
 function metric(samples) {

@@ -132,6 +132,10 @@ async fn visibility_falls_back_to_cpu_when_scene_sessions_are_disabled() {
 
     assert_eq!(visible["result"]["revision"], 1, "{visible}");
     assert_eq!(visible["result"]["visibleIndices"], serde_json::json!([0]));
+    assert_eq!(
+        visible["result"]["visibleNodeIds"],
+        serde_json::json!(["node-000001"])
+    );
 }
 
 #[tokio::test]

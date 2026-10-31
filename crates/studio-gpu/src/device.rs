@@ -1138,13 +1138,29 @@ impl NativeGpuBackend {
         session_id: &SceneSessionId,
         request: SceneVisibilityRequest,
     ) -> Result<SceneVisibilityResult, BackendError> {
+        let visible_indices =
+            NativeGpuBackend::visible_scene_instances(self, session_id, request.planes)?;
+        let visible_node_ids =
+            {
+                let state = self
+                    .state
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let session = state.scene_sessions.get(&session_id.0).ok_or_else(|| {
+                    BackendError::Kernel {
+                        message: "GPU scene session is unavailable".into(),
+                    }
+                })?;
+                visible_indices
+                    .iter()
+                    .filter_map(|index| session.instances.records().get(*index as usize))
+                    .map(|record| record.node_id.clone())
+                    .collect()
+            };
         Ok(SceneVisibilityResult {
             revision: request.target_revision,
-            visible_indices: NativeGpuBackend::visible_scene_instances(
-                self,
-                session_id,
-                request.planes,
-            )?,
+            visible_indices,
+            visible_node_ids,
         })
     }
 

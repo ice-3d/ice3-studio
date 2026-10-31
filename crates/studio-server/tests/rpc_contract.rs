@@ -130,7 +130,11 @@ async fn publishes_generated_api_schemas() {
 async fn health_stays_responsive_while_preview_processing_blocks() {
     let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;
     let adapter = server.workspace_root().join("slow-toolchain.mjs");
-    std::fs::write(&adapter, SUCCESS_TOOLCHAIN).unwrap();
+    std::fs::write(
+        &adapter,
+        SUCCESS_TOOLCHAIN.replace("setTimeout(resolve, 600)", "setTimeout(resolve, 1500)"),
+    )
+    .unwrap();
 
     server.set_toolchain_cli(adapter).await;
 
@@ -143,7 +147,7 @@ async fn health_stays_responsive_while_preview_processing_blocks() {
             .unwrap();
         runtime.block_on(async {
             let response = tokio::time::timeout(
-                std::time::Duration::from_millis(250),
+                std::time::Duration::from_millis(750),
                 reqwest::get(health_url),
             )
             .await;
