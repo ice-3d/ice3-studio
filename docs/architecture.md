@@ -116,6 +116,10 @@ geometries and 1,938 instances in about 46 MiB, and its transform revision is ab
 than the retained CPU baseline. Initial scene construction remains expensive, so the experimental
 session is still default-off and leaves CPU/WebGL2 active.
 
+When preview packets are enabled, the production runtime-preview path reuses the previous packet
+for transform-only revisions and reads back only scene geometries affected by attribute or topology
+changes. Missing scene state or a missing base packet selects the existing CPU full-packet fallback.
+
 ## Industry Layering
 
 Core primitives and operations are generic. Industrial concepts use metadata, relations, and
