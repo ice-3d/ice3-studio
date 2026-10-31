@@ -122,10 +122,16 @@ export class SceneAdapter {
   ): Promise<void> {
     if (!this.engine || !this.camera) throw new Error('scene is not mounted');
     this.referenceBindings = [...bindings];
+    if (
+      asset.preparedPreviewUrl
+      && new URLSearchParams(window.location.search).get('reference') === 'glb'
+    ) {
+      await this.showPreparedReference(asset.preparedPreviewUrl);
+      return;
+    }
     if (!asset.tilesetUrl) {
       if (asset.preparedPreviewUrl) {
-        await this.showGlb(asset.preparedPreviewUrl);
-        this.viewportElement?.setAttribute('data-reference-state', 'fallback');
+        await this.showPreparedReference(asset.preparedPreviewUrl);
         return;
       }
       throw new Error('reference asset has no streamable tileset or prepared preview');
@@ -171,8 +177,7 @@ export class SceneAdapter {
       });
     } catch (error) {
       if (asset.preparedPreviewUrl) {
-        await this.showGlb(asset.preparedPreviewUrl);
-        this.viewportElement?.setAttribute('data-reference-state', 'fallback');
+        await this.showPreparedReference(asset.preparedPreviewUrl);
         return;
       }
       this.viewportElement?.setAttribute('data-reference-state', 'failed');
@@ -225,6 +230,19 @@ export class SceneAdapter {
     this.engine.setScene(handle.scene);
     this.orbit = new ICEOrbitController(this.engine, this.camera).start();
     this.engine.requestRender('studio-preview-ready');
+  }
+
+  private async showPreparedReference(url: string): Promise<void> {
+    await this.showGlb(url);
+    if (!this.engine || !this.handle) return;
+    applyReferenceOverrides(
+      this.handle.scene,
+      this.referenceBindings,
+      this.originalNodeState,
+    );
+    this.engine.setScene(this.handle.scene);
+    this.viewportElement?.setAttribute('data-reference-state', 'fallback');
+    this.engine.requestRender('studio-reference-prepared-ready');
   }
 
   private publishPacketScene(scene: ICEScene): void {
@@ -347,7 +365,7 @@ type ImportedMaterial = {
   readonly shading?: 'directional';
 };
 
-function applyReferenceOverrides(
+export function applyReferenceOverrides(
   scene: unknown,
   bindings: readonly StudioReferenceBinding[],
   originalNodeState: WeakMap<ImportedNode, {
@@ -357,7 +375,6 @@ function applyReferenceOverrides(
   }>,
 ): void {
   const nodes = findImportedNodes(scene as ImportedNode);
-  const materializedNodes = new Set<ImportedNode>();
   for (const binding of bindings) {
     if (!binding.nodeId) continue;
     for (const node of nodes) {
@@ -376,21 +393,16 @@ function applyReferenceOverrides(
         node.setLocalMatrix(multiplyMatrices(transformMatrix(binding.transform), original.matrix));
       }
       node.visible = binding.visible ? original.visible : false;
-      const independentlyMaterialized = (node.semanticSelectionIds?.length ?? 0) <= 1;
-      if (binding.materialColor && independentlyMaterialized && original.material) {
-        const material = Object.create(
-          Object.getPrototypeOf(original.material),
-        ) as ImportedMaterial;
-        Object.assign(material, original.material, { color: binding.materialColor });
-        node.material = material;
-        materializedNodes.add(node);
-      } else if (original.material) {
-        node.material = original.material;
-      }
     }
   }
-  for (const node of nodes) {
-    if (materializedNodes.has(node)) continue;
+
+  const bindingsBySelection = new Map(
+    bindings.map((binding) => [binding.selectionId, binding]),
+  );
+  const applyMaterials = (
+    node: ImportedNode,
+    inheritedBinding: StudioReferenceBinding | undefined,
+  ): void => {
     if (!originalNodeState.has(node)) {
       originalNodeState.set(node, {
         matrix: currentLocalMatrix(node),
@@ -399,10 +411,44 @@ function applyReferenceOverrides(
       });
     }
     const original = originalNodeState.get(node)!;
-    if (original.material) {
+    const directBinding = matchingMaterialBinding(node, bindingsBySelection);
+    const binding = directBinding ?? inheritedBinding;
+    if (!original.material) {
+      // Group nodes carry no material but still propagate semantic context.
+    } else if (binding?.materialColor) {
+      node.material = cloneMaterial(original.material, binding.materialColor);
+    } else {
       node.material = presentedReferenceMaterial(original.material);
     }
+    for (const child of node.children ?? []) {
+      applyMaterials(child, binding);
+    }
+  };
+  if (scene && typeof scene === 'object') {
+    applyMaterials(scene as ImportedNode, undefined);
   }
+}
+
+function matchingMaterialBinding(
+  node: ImportedNode,
+  bindingsBySelection: ReadonlyMap<string, StudioReferenceBinding>,
+): StudioReferenceBinding | undefined {
+  const selectionIds = [
+    ...(node.selectionId ? [node.selectionId] : []),
+    ...(node.semanticSelectionIds ?? []),
+  ];
+  const matches = [...new Set(selectionIds
+    .map((selectionId) => bindingsBySelection.get(selectionId))
+    .filter((binding): binding is StudioReferenceBinding => Boolean(binding)))];
+  if (matches.length === 0) return undefined;
+  const colors = new Set(matches.map((binding) => binding.materialColor ?? ''));
+  return colors.size === 1 ? matches[0] : undefined;
+}
+
+function cloneMaterial(material: ImportedMaterial, color: string): ImportedMaterial {
+  const cloned = Object.create(Object.getPrototypeOf(material)) as ImportedMaterial;
+  Object.assign(cloned, material, { color });
+  return cloned;
 }
 
 export function lightenReferenceColor(color: string, amount = 0.42): string {

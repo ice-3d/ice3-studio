@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { SessionStore } from '../src/session/SessionStore';
 import {
+  applyReferenceOverrides,
   lightenReferenceColor,
   mapReferenceSelection,
 } from '../src/viewport/SceneAdapter';
@@ -74,6 +75,38 @@ test('lifts reference materials without discarding their hue', () => {
   assert.equal(lightenReferenceColor('invalid'), 'invalid');
 });
 
+test('inherits equipment color through mesh children without tinting shared geometry', () => {
+  const material = (color: string) => ({ color });
+  const child = fakeNode('site/child', material('#334455'));
+  const parent = fakeNode('site/equipment/AE-101', null, [child]);
+  const mixed = fakeNode('site/shared', material('#334455'));
+  mixed.semanticSelectionIds = ['site/equipment/AE-101', 'site/equipment/SC-101'];
+  const scene = fakeNode('site/root', null, [parent, mixed]);
+  applyReferenceOverrides(scene, [
+    {
+      selectionId: 'site/equipment/AE-101',
+      name: 'AE-101',
+      nodeId: 'node-ae-101',
+      transform: identityTransform(),
+      visible: true,
+      materialId: 'material-aerobic',
+      materialColor: '#26b8c6',
+    },
+    {
+      selectionId: 'site/equipment/SC-101',
+      name: 'SC-101',
+      nodeId: 'node-sc-101',
+      transform: identityTransform(),
+      visible: true,
+      materialId: 'material-secondary',
+      materialColor: '#82d8e8',
+    },
+  ], new WeakMap());
+
+  assert.equal(child.material?.color, '#26b8c6');
+  assert.equal(mixed.material?.color, lightenReferenceColor('#334455'));
+});
+
 function largeReferenceDescriptor() {
   return {
     descriptor: {
@@ -97,5 +130,43 @@ function largeReferenceDescriptor() {
     tilesetUrl: '/reference-assets/asset-000001/tileset.json',
     preparedPreviewUrl: '/reference-assets/asset-000001/prepared.glb',
     equipmentManifestUrl: '/reference-assets/asset-000001/equipment.json',
+  };
+}
+
+function fakeNode(
+  selectionId: string,
+  material: { color: string } | null,
+  children: FakeNode[] = [],
+): FakeNode {
+  return {
+    selectionId,
+    semanticSelectionIds: [] as string[],
+    visible: true,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    scale: { x: 1, y: 1, z: 1 },
+    ...(material ? { material } : {}),
+    children,
+    setLocalMatrix: () => undefined,
+  };
+}
+
+type FakeNode = {
+  selectionId: string;
+  semanticSelectionIds: string[];
+  visible: boolean;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  scale: { x: number; y: number; z: number };
+  material?: { color: string };
+  children: FakeNode[];
+  setLocalMatrix: () => undefined;
+};
+
+function identityTransform() {
+  return {
+    translation: { x: 0, y: 0, z: 0 },
+    rotation: [0, 0, 0, 1] as [number, number, number, number],
+    scale: { x: 1, y: 1, z: 1 },
   };
 }
