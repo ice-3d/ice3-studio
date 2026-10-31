@@ -912,6 +912,8 @@ fn dispatch(
                 "document.history".into(),
                 "scene.get".into(),
                 "scene.query".into(),
+                "scene.context".into(),
+                "scene.search".into(),
                 "scene.bounds".into(),
                 "validation.run".into(),
                 "evaluation.evaluate".into(),
@@ -1095,6 +1097,13 @@ fn dispatch(
             Ok(serde_json::json!({ "opened": true }))
         }
         "scene.get" => serde_json::to_value(&session.document.scene).map_err(serialize_error),
+        "scene.context" => serde_json::to_value(crate::agent::context(session, authority)?)
+            .map_err(serialize_error),
+        "scene.search" => {
+            let request: studio_core::agent_contract::SceneSearchRequest =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            serde_json::to_value(crate::agent::search(session, request)?).map_err(serialize_error)
+        }
         "scene.query" => {
             let query: SceneQuery =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
@@ -1585,7 +1594,7 @@ fn visible_scene_instances_cpu(
     })
 }
 
-fn ensure_scene_snapshot(session: &mut Session) -> Result<(), RpcError> {
+pub(crate) fn ensure_scene_snapshot(session: &mut Session) -> Result<(), RpcError> {
     if session.scene_snapshot_revision == Some(session.document.revision.as_u64())
         && session.scene_snapshot.is_some()
     {
