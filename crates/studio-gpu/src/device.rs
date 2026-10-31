@@ -1,12 +1,14 @@
+use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 use std::time::Instant;
 
-use crate::residency::GpuGeometryResidency;
+use crate::residency::{GpuGeometryResidency, ResidentBatchPlan};
 use crate::resources::{DeviceResources, ResourceStats};
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
-    GeometryBatch, GeometryBatchResult, GeometryExecutionStats,
+    GeometryBatch, GeometryBatchResult, GeometryEvaluationMode, GeometryExecutionStats,
+    GeometryResidentBatchResult,
 };
 use wgpu::{
     Adapter, BindGroupDescriptor, BindGroupEntry, BufferDescriptor, BufferUsages,
@@ -40,6 +42,8 @@ struct DeviceState {
     _queue: Option<Arc<Queue>>,
     _resources: Option<Arc<DeviceResources>>,
     _residency: Option<Arc<GpuGeometryResidency>>,
+    cancelled_jobs: HashSet<String>,
+    completed_resident_jobs: BTreeMap<String, GeometryResidentBatchResult>,
     stats: GeometryExecutionStats,
 }
 
@@ -67,6 +71,8 @@ impl NativeGpuBackend {
                 _queue: None,
                 _resources: None,
                 _residency: None,
+                cancelled_jobs: HashSet::new(),
+                completed_resident_jobs: BTreeMap::new(),
                 stats: GeometryExecutionStats::default(),
             })),
             limits: GpuHostLimits::default(),
@@ -307,6 +313,114 @@ impl NativeGpuBackend {
         }
     }
 
+    pub fn evaluate_resident(
+        &self,
+        batch: GeometryBatch,
+    ) -> Result<GeometryResidentBatchResult, BackendError> {
+        let plan = ResidentBatchPlan::from_batch(batch);
+        if self.is_cancelled(&plan.job_id) {
+            return Err(BackendError::Kernel {
+                message: "resident batch was cancelled".into(),
+            });
+        }
+        let ready = self.ready_device()?;
+        let mut entries = Vec::with_capacity(plan.nodes.len());
+        let mut submission_count = 0;
+        for node in plan.nodes {
+            let source =
+                match &node.content {
+                    studio_core::document::NodeContent::CustomMesh(mesh) => mesh.clone(),
+                    content => {
+                        let evaluated = studio_core::geometry::evaluate_node_content(content)
+                            .map_err(|error| BackendError::Kernel {
+                                message: error.to_string(),
+                            })?;
+                        studio_core::geometry::TriangleMesh {
+                            positions: evaluated
+                                .vertices
+                                .into_iter()
+                                .map(|vertex| vertex.position)
+                                .collect(),
+                            indices: evaluated.indices,
+                        }
+                    }
+                };
+            let (entry, submitted) = ready.residency.evaluate_content(
+                &ready.device,
+                &ready.queue,
+                &node.node_id,
+                &node.content,
+                &source,
+            )?;
+            submission_count += usize::from(submitted);
+            entries.push(entry);
+            if self.is_cancelled(&plan.job_id) {
+                return Err(BackendError::Kernel {
+                    message: "resident batch was cancelled".into(),
+                });
+            }
+        }
+        let mut evidence = entries
+            .last()
+            .map(|entry| entry.evidence.clone())
+            .unwrap_or_default();
+        evidence.mode = if submission_count == 0 {
+            GeometryEvaluationMode::Resident
+        } else {
+            GeometryEvaluationMode::Cold
+        };
+        evidence.submission_count = submission_count;
+        evidence.stats.readback_bytes = 0;
+        let result = GeometryResidentBatchResult {
+            job_id: plan.job_id.clone(),
+            backend: GeometryBackendKind::Gpu,
+            entries,
+            evidence,
+        };
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .completed_resident_jobs
+            .insert(plan.job_id, result.clone());
+        Ok(result)
+    }
+
+    pub fn poll_resident(&self, job_id: &str) -> Option<GeometryResidentBatchResult> {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .completed_resident_jobs
+            .remove(job_id)
+    }
+
+    pub fn wait_resident(&self, job_id: &str) -> Result<GeometryResidentBatchResult, BackendError> {
+        self.poll_resident(job_id)
+            .ok_or_else(|| BackendError::Kernel {
+                message: if self.is_cancelled(job_id) {
+                    "resident batch was cancelled".into()
+                } else {
+                    "resident batch result is not available".into()
+                },
+            })
+    }
+
+    fn mark_cancelled(&self, job_id: &str) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.cancelled_jobs.insert(job_id.to_owned());
+        state.completed_resident_jobs.remove(job_id);
+    }
+
+    fn is_cancelled(&self, job_id: &str) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .cancelled_jobs
+            .contains(job_id)
+    }
+
     pub fn resource_stats(&self) -> ResourceStats {
         self.state
             .lock()
@@ -485,7 +599,15 @@ impl GeometryBackend for NativeGpuBackend {
         })
     }
 
-    async fn cancel(&self, _job_id: &str) -> Result<(), BackendError> {
+    async fn evaluate_resident(
+        &self,
+        batch: GeometryBatch,
+    ) -> Result<GeometryResidentBatchResult, BackendError> {
+        NativeGpuBackend::evaluate_resident(self, batch)
+    }
+
+    async fn cancel(&self, job_id: &str) -> Result<(), BackendError> {
+        self.mark_cancelled(job_id);
         Ok(())
     }
 
@@ -779,6 +901,8 @@ mod tests {
             _queue: None,
             _resources: None,
             _residency: None,
+            cancelled_jobs: HashSet::new(),
+            completed_resident_jobs: BTreeMap::new(),
             stats: GeometryExecutionStats::default(),
         });
 

@@ -21,6 +21,7 @@ pub struct ResidentGeometryRecord {
     pub id: ResidentGeometryId,
     pub node_id: NodeId,
     pub key: ResidencyKey,
+    pub content: NodeContent,
     pub bounds: Bounds,
     pub vertex_count: usize,
     pub triangle_count: usize,
@@ -71,7 +72,25 @@ impl GpuGeometryResidency {
         mesh: &TriangleMesh,
     ) -> Result<GeometryResidentEntry, BackendError> {
         let content = NodeContent::CustomMesh(mesh.clone());
-        let key = ResidencyKey::for_content(&content, "", RESIDENT_KERNEL_VERSION)?;
+        self.evaluate_content(
+            device,
+            queue,
+            &NodeId::from("resident-mesh"),
+            &content,
+            mesh,
+        )
+        .map(|(entry, _)| entry)
+    }
+
+    pub(crate) fn evaluate_content(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        node_id: &NodeId,
+        content: &NodeContent,
+        evaluated_mesh: &TriangleMesh,
+    ) -> Result<(GeometryResidentEntry, bool), BackendError> {
+        let key = ResidencyKey::for_content(content, "", RESIDENT_KERNEL_VERSION)?;
         let mut state = self
             .state
             .lock()
@@ -95,29 +114,31 @@ impl GpuGeometryResidency {
                 GeometryEvaluationMode::Resident,
                 &state,
                 0,
+                node_id,
             );
             state.last_evidence = resident.evidence.clone();
-            return Ok(resident);
+            return Ok((resident, false));
         }
 
-        let gpu = create_resident_custom_mesh(device, queue, &self.resources, mesh)?;
+        let gpu = create_resident_custom_mesh(device, queue, &self.resources, evaluated_mesh)?;
         let bytes = gpu.byte_size();
         self.evict_for(&mut state, bytes)?;
-        let bounds = mesh_bounds(mesh)?;
+        let bounds = mesh_bounds(evaluated_mesh)?;
         let record = ResidentGeometryRecord {
             id: ResidentGeometryId(key.result.clone()),
-            node_id: NodeId::from("resident-mesh"),
+            node_id: node_id.clone(),
             key: key.clone(),
+            content: content.clone(),
             bounds,
-            vertex_count: mesh.positions.len(),
+            vertex_count: evaluated_mesh.positions.len(),
             triangle_count: gpu.triangle_count as usize,
             gpu,
-            source: mesh.clone(),
+            source: evaluated_mesh.clone(),
         };
         state.resident_bytes = state.resident_bytes.saturating_add(bytes);
         state.peak_resident_bytes = state.peak_resident_bytes.max(state.resident_bytes);
         state.generation = generation;
-        let entry = resident_entry(&record, GeometryEvaluationMode::Cold, &state, 1);
+        let entry = resident_entry(&record, GeometryEvaluationMode::Cold, &state, 1, node_id);
         state.entries.insert(
             key.result,
             StoredEntry {
@@ -127,7 +148,7 @@ impl GpuGeometryResidency {
             },
         );
         state.last_evidence = entry.evidence.clone();
-        Ok(entry)
+        Ok((entry, true))
     }
 
     pub(crate) fn snapshot(
@@ -247,6 +268,7 @@ fn resident_entry(
     mode: GeometryEvaluationMode,
     state: &StoreState,
     submission_count: usize,
+    node_id: &NodeId,
 ) -> GeometryResidentEntry {
     let mut evidence = evidence(
         mode,
@@ -260,7 +282,7 @@ fn resident_entry(
     evidence.evictions = state.evictions;
     GeometryResidentEntry {
         id: record.id.clone(),
-        node_id: record.node_id.clone(),
+        node_id: node_id.clone(),
         mode,
         dirty: Default::default(),
         bounds: record.bounds,
