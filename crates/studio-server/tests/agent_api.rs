@@ -73,6 +73,9 @@ async fn manifest_access_matches_request_authority() {
         "system.agentManifest",
         "scene.context",
         "scene.search",
+        "referenceAsset.register",
+        "referenceAsset.get",
+        "referenceAsset.bindings",
         "evaluation.query",
         "changeset.create",
         "changeset.get",
@@ -122,6 +125,9 @@ async fn manifest_access_matches_request_authority() {
     }
 
     for (tool_name, property) in [
+        ("referenceAsset.register", "sourcePath"),
+        ("referenceAsset.get", "assetId"),
+        ("referenceAsset.bindings", "assetId"),
         ("changeset.create", "baseRevision"),
         ("changeset.get", "changeSetId"),
         ("changeset.addOperations", "entries"),

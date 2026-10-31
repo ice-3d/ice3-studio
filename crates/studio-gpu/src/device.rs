@@ -1311,7 +1311,8 @@ impl GeometryBackend for NativeGpuBackend {
                 }
                 studio_core::document::NodeContent::ComponentInstance(_)
                 | studio_core::document::NodeContent::InstanceSet(_)
-                | studio_core::document::NodeContent::Connection(_) => {
+                | studio_core::document::NodeContent::Connection(_)
+                | studio_core::document::NodeContent::ReferenceInstance(_) => {
                     return Err(BackendError::Kernel {
                         message: "GPU batch contains unresolved scene content".into(),
                     });
@@ -1509,7 +1510,8 @@ fn estimate_transfer(content: &studio_core::document::NodeContent) -> (u64, u64)
         NodeContent::Group
         | NodeContent::ComponentInstance(_)
         | NodeContent::InstanceSet(_)
-        | NodeContent::Connection(_) => (0usize, 0usize, 0usize, 0usize),
+        | NodeContent::Connection(_)
+        | NodeContent::ReferenceInstance(_) => (0usize, 0usize, 0usize, 0usize),
         NodeContent::Primitive(Primitive::Box { .. }) => (0, 0, 24, 36),
         NodeContent::Primitive(Primitive::Plane { .. }) => (0, 0, 4, 6),
         NodeContent::Primitive(Primitive::Cylinder { segments, .. }) => {

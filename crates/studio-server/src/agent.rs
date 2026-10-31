@@ -57,6 +57,39 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 Some("SceneContext"),
             ),
             tool(
+                "referenceAsset.register",
+                "Register an immutable project-local reference asset for streaming.",
+                AgentSideEffect::Commit,
+                true,
+                AgentIdempotency::None,
+                access.can_commit,
+                "approval access is unavailable",
+                "ReferenceAssetRegisterParams",
+                Some("ReferenceAssetRegisterResult"),
+            ),
+            tool(
+                "referenceAsset.get",
+                "Read bounded reference metadata and streaming endpoints.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_read,
+                "read access is unavailable",
+                "ReferenceAssetGetParams",
+                Some("ReferenceAssetEndpoint"),
+            ),
+            tool(
+                "referenceAsset.bindings",
+                "Page stable equipment bindings without returning geometry.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_read,
+                "read access is unavailable",
+                "ReferenceAssetBindingsParams",
+                Some("ReferenceAssetBindingPageResult"),
+            ),
+            tool(
                 "scene.search",
                 "Search source or derived scene nodes with bounded pagination.",
                 AgentSideEffect::Read,
@@ -242,6 +275,14 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 ["changeset.getCandidate", "export.runtimePreview"],
             ),
             workflow("commit", ["changeset.commit"]),
+            workflow(
+                "import-reference",
+                [
+                    "referenceAsset.register",
+                    "referenceAsset.get",
+                    "referenceAsset.bindings",
+                ],
+            ),
             workflow("recover", ["scene.context", "changeset.evaluate"]),
         ],
     }
@@ -317,6 +358,7 @@ pub(crate) fn context(
         SceneContentKind::ComponentInstance,
         SceneContentKind::InstanceSet,
         SceneContentKind::Connection,
+        SceneContentKind::ReferenceInstance,
     ]
     .into_iter()
     .filter_map(|kind| {
@@ -912,6 +954,7 @@ fn content_kind(content: &NodeContent) -> SceneContentKind {
         NodeContent::ComponentInstance(_) => SceneContentKind::ComponentInstance,
         NodeContent::InstanceSet(_) => SceneContentKind::InstanceSet,
         NodeContent::Connection(_) => SceneContentKind::Connection,
+        NodeContent::ReferenceInstance(_) => SceneContentKind::ReferenceInstance,
     }
 }
 

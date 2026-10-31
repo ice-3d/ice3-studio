@@ -59,6 +59,7 @@ pub enum SceneContentKind {
     ComponentInstance,
     InstanceSet,
     Connection,
+    ReferenceInstance,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]

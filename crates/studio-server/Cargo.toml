@@ -21,6 +21,7 @@ studio-project = { path = "../studio-project" }
 studio-toolchain-client = { path = "../studio-toolchain-client" }
 thiserror.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 tower-http.workspace = true
 ts-rs.workspace = true
 

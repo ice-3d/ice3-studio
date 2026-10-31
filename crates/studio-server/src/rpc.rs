@@ -3,6 +3,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use axum::body::Body;
 use axum::extract::rejection::JsonRejection;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{DefaultBodyLimit, Path as AxumPath, Query, State};
@@ -32,6 +33,7 @@ use studio_gpu::NativeGpuBackend;
 use studio_project::layered_geometry_cache::{DEFAULT_LAYERED_CACHE_BYTES, LayeredGeometryCache};
 use studio_project::{ProjectStore, WorkspacePath};
 use tokio::sync::broadcast;
+use tokio_util::io::ReaderStream;
 use tower_http::services::{ServeDir, ServeFile};
 use ts_rs::TS;
 
@@ -557,6 +559,22 @@ fn build_router(state: AppState, viewer_dir: Option<PathBuf>) -> Router {
         )
         .route("/ws", get(websocket))
         .route("/schemas/{name}", get(schema_file))
+        .route(
+            "/reference-assets/{asset_id}/tileset.json",
+            get(reference_tileset_file),
+        )
+        .route(
+            "/reference-assets/{asset_id}/tiled/{*path}",
+            get(reference_tiled_file),
+        )
+        .route(
+            "/reference-assets/{asset_id}/prepared.glb",
+            get(reference_prepared_file),
+        )
+        .route(
+            "/reference-assets/{asset_id}/equipment.json",
+            get(reference_equipment_file),
+        )
         .route("/previews/{revision}", get(preview_file))
         .route("/previews/candidates/{digest}", get(candidate_preview_file))
         .route("/preview-packets/{revision}", get(preview_packet_file))
@@ -916,6 +934,9 @@ fn dispatch(
                 "scene.search".into(),
                 "scene.bounds".into(),
                 "validation.run".into(),
+                "referenceAsset.register".into(),
+                "referenceAsset.get".into(),
+                "referenceAsset.bindings".into(),
                 "evaluation.evaluate".into(),
                 "evaluation.stats".into(),
                 "evaluation.query".into(),
@@ -1179,6 +1200,14 @@ fn dispatch(
         "validation.run" => {
             serde_json::to_value(validate_document(&session.document)).map_err(serialize_error)
         }
+        method
+            if matches!(
+                method,
+                "referenceAsset.register" | "referenceAsset.get" | "referenceAsset.bindings"
+            ) =>
+        {
+            crate::reference_asset::dispatch(session, method, request.params.clone())
+        }
         "evaluation.evaluate" => {
             let (evaluated, _) = evaluate_session_scene(session)?;
             let mut output = BTreeMap::new();
@@ -1370,6 +1399,81 @@ async fn schema_file(AxumPath(name): AxumPath<String>) -> Response {
         .join(name);
     match tokio::fs::read_to_string(path).await {
         Ok(body) => (StatusCode::OK, body).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn reference_tileset_file(
+    State(state): State<AppState>,
+    AxumPath(asset_id): AxumPath<String>,
+) -> Response {
+    serve_reference_asset_file(
+        state,
+        asset_id,
+        Path::new("tiled/tileset.json"),
+        "application/json; charset=utf-8",
+    )
+    .await
+}
+
+async fn reference_tiled_file(
+    State(state): State<AppState>,
+    AxumPath((asset_id, relative)): AxumPath<(String, String)>,
+) -> Response {
+    let relative = PathBuf::from("tiled").join(relative);
+    let content_type = match relative.extension().and_then(|value| value.to_str()) {
+        Some("json") => "application/json; charset=utf-8",
+        Some("glb") => "model/gltf-binary",
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    serve_reference_asset_file(state, asset_id, &relative, content_type).await
+}
+
+async fn reference_prepared_file(
+    State(state): State<AppState>,
+    AxumPath(asset_id): AxumPath<String>,
+) -> Response {
+    serve_reference_asset_file(
+        state,
+        asset_id,
+        Path::new("prepared.glb"),
+        "model/gltf-binary",
+    )
+    .await
+}
+
+async fn reference_equipment_file(
+    State(state): State<AppState>,
+    AxumPath(asset_id): AxumPath<String>,
+) -> Response {
+    serve_reference_asset_file(
+        state,
+        asset_id,
+        Path::new("equipment.json"),
+        "application/json; charset=utf-8",
+    )
+    .await
+}
+
+async fn serve_reference_asset_file(
+    state: AppState,
+    asset_id: String,
+    relative: &Path,
+    content_type: &'static str,
+) -> Response {
+    let path = {
+        let session = state.session.lock().expect("session lock");
+        crate::reference_asset::resolve_asset_file(session.store.project_dir(), &asset_id, relative)
+    };
+    let Ok(path) = path else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match tokio::fs::File::open(path).await {
+        Ok(file) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, content_type)
+            .body(Body::from_stream(ReaderStream::new(file)))
+            .expect("valid reference asset response"),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -1784,6 +1888,7 @@ fn mutating(method: &str) -> bool {
             | "document.apply"
             | "document.undo"
             | "document.redo"
+            | "referenceAsset.register"
             | "export.sourceGlb"
             | "export.runtimePreview"
             | "changeset.create"

@@ -9,6 +9,7 @@ mod events;
 mod iteration_impact;
 pub mod preview;
 pub mod preview_packet;
+pub mod reference_asset;
 mod rpc;
 pub mod scene_session;
 pub mod toolchain;

@@ -20,6 +20,9 @@
     "scene.context",
     "scene.search",
     "validation.run",
+    "referenceAsset.register",
+    "referenceAsset.get",
+    "referenceAsset.bindings",
     "evaluation.evaluate",
     "evaluation.stats",
     "evaluation.query",
@@ -946,6 +949,19 @@
                 "routePolicy",
                 "relationId",
                 "metadata"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ReferenceInstanceContent",
+              "properties": {
+                "type": {
+                  "const": "reference_instance",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
               ],
               "type": "object"
             }
@@ -2376,6 +2392,21 @@
               "type": "object"
             }
           ]
+        },
+        "ReferenceInstanceContent": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "selectionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "selectionId"
+          ],
+          "type": "object"
         },
         "Relation": {
           "properties": {
@@ -4523,6 +4554,19 @@
                 "metadata"
               ],
               "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ReferenceInstanceContent",
+              "properties": {
+                "type": {
+                  "const": "reference_instance",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -5951,6 +5995,21 @@
               "type": "object"
             }
           ]
+        },
+        "ReferenceInstanceContent": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "selectionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "selectionId"
+          ],
+          "type": "object"
         },
         "Relation": {
           "properties": {
@@ -7057,6 +7116,19 @@
                 "metadata"
               ],
               "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ReferenceInstanceContent",
+              "properties": {
+                "type": {
+                  "const": "reference_instance",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -8485,6 +8557,21 @@
               "type": "object"
             }
           ]
+        },
+        "ReferenceInstanceContent": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "selectionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "selectionId"
+          ],
+          "type": "object"
         },
         "Relation": {
           "properties": {
@@ -9548,6 +9635,19 @@
                 "metadata"
               ],
               "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ReferenceInstanceContent",
+              "properties": {
+                "type": {
+                  "const": "reference_instance",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -10976,6 +11076,21 @@
               "type": "object"
             }
           ]
+        },
+        "ReferenceInstanceContent": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "selectionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "selectionId"
+          ],
+          "type": "object"
         },
         "Relation": {
           "properties": {
@@ -12260,6 +12375,19 @@
                 "metadata"
               ],
               "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ReferenceInstanceContent",
+              "properties": {
+                "type": {
+                  "const": "reference_instance",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -12770,6 +12898,21 @@
               "type": "object"
             }
           ]
+        },
+        "ReferenceInstanceContent": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "selectionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "selectionId"
+          ],
+          "type": "object"
         },
         "Relation": {
           "properties": {
@@ -14099,6 +14242,19 @@
                 "metadata"
               ],
               "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ReferenceInstanceContent",
+              "properties": {
+                "type": {
+                  "const": "reference_instance",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -15527,6 +15683,21 @@
               "type": "object"
             }
           ]
+        },
+        "ReferenceInstanceContent": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "selectionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "selectionId"
+          ],
+          "type": "object"
         },
         "Relation": {
           "properties": {
@@ -17159,6 +17330,19 @@
                 "metadata"
               ],
               "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ReferenceInstanceContent",
+              "properties": {
+                "type": {
+                  "const": "reference_instance",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -17669,6 +17853,21 @@
               "type": "object"
             }
           ]
+        },
+        "ReferenceInstanceContent": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "selectionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "selectionId"
+          ],
+          "type": "object"
         },
         "Relation": {
           "properties": {
@@ -19380,6 +19579,19 @@
                 "metadata"
               ],
               "type": "object"
+            },
+            {
+              "$ref": "#/$defs/ReferenceInstanceContent",
+              "properties": {
+                "type": {
+                  "const": "reference_instance",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
             }
           ]
         },
@@ -19890,6 +20102,21 @@
               "type": "object"
             }
           ]
+        },
+        "ReferenceInstanceContent": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "selectionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "assetId",
+            "selectionId"
+          ],
+          "type": "object"
         },
         "Relation": {
           "properties": {
@@ -21052,6 +21279,486 @@
       ],
       "title": "Operation"
     },
+    "ReferenceAssetBindingPageResult": {
+      "$defs": {
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "ReferenceAssetEquipment": {
+          "properties": {
+            "area": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bounds": {
+              "$ref": "#/$defs/Bounds"
+            },
+            "kind": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "materialIds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "processStage": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "selectionId": {
+              "type": "string"
+            },
+            "transform": {
+              "$ref": "#/$defs/Transform"
+            }
+          },
+          "required": [
+            "selectionId",
+            "name",
+            "bounds",
+            "transform",
+            "materialIds"
+          ],
+          "type": "object"
+        },
+        "Transform": {
+          "properties": {
+            "rotation": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "scale": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "translation": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "translation",
+            "rotation",
+            "scale"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReferenceAssetEquipment"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "title": "ReferenceAssetBindingPageResult",
+      "type": "object"
+    },
+    "ReferenceAssetBindingsParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": 25,
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "assetId"
+      ],
+      "title": "ReferenceAssetBindingsParams",
+      "type": "object"
+    },
+    "ReferenceAssetEndpoint": {
+      "$defs": {
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "ReferenceAssetDescriptor": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "bounds": {
+              "$ref": "#/$defs/Bounds"
+            },
+            "importedAt": {
+              "type": "string"
+            },
+            "preparedDigest": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sourceDigest": {
+              "type": "string"
+            },
+            "stats": {
+              "$ref": "#/$defs/ReferenceAssetStats"
+            },
+            "tilesetDigest": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "assetId",
+            "sourceDigest",
+            "bounds",
+            "stats",
+            "importedAt"
+          ],
+          "type": "object"
+        },
+        "ReferenceAssetStats": {
+          "properties": {
+            "effectiveTriangles": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "equipment": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "materials": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sourceNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "uniqueMeshes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "sourceNodes",
+            "effectiveTriangles",
+            "uniqueMeshes",
+            "materials",
+            "equipment"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "descriptor": {
+          "$ref": "#/$defs/ReferenceAssetDescriptor"
+        },
+        "equipmentManifestUrl": {
+          "type": "string"
+        },
+        "preparedPreviewUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tilesetUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "descriptor",
+        "equipmentManifestUrl"
+      ],
+      "title": "ReferenceAssetEndpoint",
+      "type": "object"
+    },
+    "ReferenceAssetGetParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "assetId"
+      ],
+      "title": "ReferenceAssetGetParams",
+      "type": "object"
+    },
+    "ReferenceAssetRegisterParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "equipmentManifestPath": {
+          "type": "string"
+        },
+        "preparedPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourcePath": {
+          "type": "string"
+        },
+        "tilesetPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "sourcePath",
+        "equipmentManifestPath"
+      ],
+      "title": "ReferenceAssetRegisterParams",
+      "type": "object"
+    },
+    "ReferenceAssetRegisterResult": {
+      "$defs": {
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "ReferenceAssetDescriptor": {
+          "properties": {
+            "assetId": {
+              "type": "string"
+            },
+            "bounds": {
+              "$ref": "#/$defs/Bounds"
+            },
+            "importedAt": {
+              "type": "string"
+            },
+            "preparedDigest": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sourceDigest": {
+              "type": "string"
+            },
+            "stats": {
+              "$ref": "#/$defs/ReferenceAssetStats"
+            },
+            "tilesetDigest": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "assetId",
+            "sourceDigest",
+            "bounds",
+            "stats",
+            "importedAt"
+          ],
+          "type": "object"
+        },
+        "ReferenceAssetStats": {
+          "properties": {
+            "effectiveTriangles": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "equipment": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "materials": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sourceNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "uniqueMeshes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "sourceNodes",
+            "effectiveTriangles",
+            "uniqueMeshes",
+            "materials",
+            "equipment"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "assetId": {
+          "type": "string"
+        },
+        "descriptor": {
+          "$ref": "#/$defs/ReferenceAssetDescriptor"
+        }
+      },
+      "required": [
+        "assetId",
+        "descriptor"
+      ],
+      "title": "ReferenceAssetRegisterResult",
+      "type": "object"
+    },
     "RpcRequest": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -21248,7 +21955,8 @@
             "sweep",
             "component_instance",
             "instance_set",
-            "connection"
+            "connection",
+            "reference_instance"
           ],
           "type": "string"
         },
@@ -21474,7 +22182,8 @@
             "sweep",
             "component_instance",
             "instance_set",
-            "connection"
+            "connection",
+            "reference_instance"
           ],
           "type": "string"
         },
@@ -21677,7 +22386,8 @@
             "sweep",
             "component_instance",
             "instance_set",
-            "connection"
+            "connection",
+            "reference_instance"
           ],
           "type": "string"
         },

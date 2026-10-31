@@ -86,7 +86,8 @@ impl ResidencyKey {
             ]),
             NodeContent::ComponentInstance(_)
             | NodeContent::InstanceSet(_)
-            | NodeContent::Connection(_) => canonical_hash("geometry-topology-v1", content)?,
+            | NodeContent::Connection(_)
+            | NodeContent::ReferenceInstance(_) => canonical_hash("geometry-topology-v1", content)?,
         };
 
         let attribute = canonical_hash(
