@@ -8,7 +8,10 @@ use ts_rs::TS;
 use crate::document::NodeContent;
 use crate::geometry::{Bounds, EvaluatedMesh};
 use crate::ids::NodeId;
-use crate::scene_contract::{ScenePatch, SceneSessionId, SceneSessionStatus, SceneSubmission};
+use crate::scene_contract::{
+    SceneGeometryReadback, SceneGeometrySnapshotRequest, ScenePatch, SceneSessionId,
+    SceneSessionStatus, SceneSubmission,
+};
 use crate::validation::Diagnostic;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -351,5 +354,15 @@ pub trait GeometryBackend: Send + Sync {
 
     fn scene_status(&self, _session: &SceneSessionId) -> Option<SceneSessionStatus> {
         None
+    }
+
+    async fn snapshot_scene_geometries(
+        &self,
+        _session: &SceneSessionId,
+        _request: SceneGeometrySnapshotRequest,
+    ) -> Result<Vec<SceneGeometryReadback>, BackendError> {
+        Err(BackendError::Unavailable {
+            reason: "scene geometry readback is unsupported".into(),
+        })
     }
 }

@@ -5,10 +5,11 @@ use studio_core::geometry::Primitive;
 use studio_core::gpu_contract::{GeometryBackendKind, GeometryEvaluationMode, ResidentGeometryId};
 use studio_core::ids::NodeId;
 use studio_core::large_scene::evaluate::evaluate_large_scene;
+use studio_core::scene_contract::SceneGeometryReadback;
 use studio_server::preview_packet::{
     PreviewGeometryManifest, PreviewGeometryNode, PreviewGeometryPacket, PreviewGeometryRange,
     PreviewGeometryRangeUsage, PreviewGeometryRecord, build_full_preview_packet,
-    build_preview_delta, decode_preview_packet, encode_preview_packet,
+    build_preview_delta, build_scene_preview_delta, decode_preview_packet, encode_preview_packet,
 };
 use studio_server::{ServerConfig, start_test_server};
 
@@ -83,6 +84,40 @@ fn transform_only_delta_contains_no_geometry_chunk() {
     assert_eq!(delta.manifest.geometries.len(), 0);
     assert_eq!(delta.manifest.nodes.len(), 1);
     assert_eq!(delta.manifest.parent_revision, Some(4));
+}
+
+#[test]
+fn scene_preview_delta_contains_only_changed_attributes() {
+    let base = sample_packet();
+    let mut document = Document::new("scene-preview-delta");
+    document.revision = studio_core::ids::Revision::new(5);
+    let delta = build_scene_preview_delta(
+        &base,
+        &document,
+        vec![PreviewGeometryNode {
+            node_id: "pump-1/body".into(),
+            parent_id: None,
+            name: "Pump/Body".into(),
+            matrix: base.manifest.nodes[0].matrix,
+            material_id: None,
+            geometry_id: Some("component/body".into()),
+            visible: true,
+        }],
+        vec![SceneGeometryReadback {
+            geometry_id: "component/body".into(),
+            positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]],
+            indices: vec![0, 1, 0],
+            topology_changed: false,
+        }],
+        Vec::new(),
+        Vec::new(),
+    );
+    let decoded = decode_preview_packet(&encode_preview_packet(&delta)).unwrap();
+
+    assert_eq!(decoded.manifest.parent_revision, Some(4));
+    assert_eq!(decoded.manifest.geometries.len(), 1);
+    assert_eq!(decoded.manifest.geometries[0].ranges.len(), 1);
+    assert_eq!(decoded.binary.len(), 2 * 3 * 4);
 }
 
 #[test]

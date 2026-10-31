@@ -9,6 +9,7 @@ use studio_core::gpu_contract::ResidentGeometryHandle;
 use studio_core::gpu_contract::{GeometryBackendKind, GeometryEvaluationMode, ResidentGeometryId};
 use studio_core::large_scene::evaluate::EvaluatedScene;
 use studio_core::math::Transform;
+use studio_core::scene_contract::SceneGeometryReadback;
 use thiserror::Error;
 use ts_rs::TS;
 
@@ -559,6 +560,95 @@ pub fn build_resident_preview_packet(
             materials,
             removed_node_ids: Vec::new(),
             removed_geometry_ids: Vec::new(),
+        },
+        binary,
+    }
+}
+
+pub fn build_scene_preview_delta(
+    base: &PreviewGeometryPacket,
+    document: &Document,
+    nodes: Vec<PreviewGeometryNode>,
+    readbacks: Vec<SceneGeometryReadback>,
+    removed_node_ids: Vec<String>,
+    removed_geometry_ids: Vec<String>,
+) -> PreviewGeometryPacket {
+    let mut binary = Vec::new();
+    let geometries = readbacks
+        .into_iter()
+        .map(|readback| {
+            let attribute_offset = binary.len() as u64;
+            for position in &readback.positions {
+                for value in position {
+                    binary.extend_from_slice(&value.to_le_bytes());
+                }
+            }
+            let attribute_length = binary.len() as u64 - attribute_offset;
+            let attribute_digest =
+                format!("{:x}", Sha256::digest(&binary[attribute_offset as usize..]));
+            let mut ranges = vec![PreviewGeometryRange {
+                byte_offset: attribute_offset,
+                byte_length: attribute_length,
+                usage: PreviewGeometryRangeUsage::VertexAttributes,
+            }];
+            let index_offset = binary.len() as u64;
+            if readback.topology_changed {
+                for index in &readback.indices {
+                    binary.extend_from_slice(&index.to_le_bytes());
+                }
+                ranges.push(PreviewGeometryRange {
+                    byte_offset: index_offset,
+                    byte_length: readback.indices.len() as u64 * 4,
+                    usage: PreviewGeometryRangeUsage::Indices,
+                });
+            }
+            PreviewGeometryRecord {
+                geometry_id: readback.geometry_id,
+                resident_geometry_id: None,
+                topology_digest: format!(
+                    "{:x}",
+                    Sha256::digest(
+                        readback
+                            .indices
+                            .iter()
+                            .flat_map(|index| index.to_le_bytes())
+                            .collect::<Vec<_>>()
+                    )
+                ),
+                attribute_digest,
+                vertex_count: readback.positions.len() as u32,
+                index_count: readback.indices.len() as u32,
+                index_width: 4,
+                ranges,
+            }
+        })
+        .collect();
+    let materials = document
+        .materials
+        .iter()
+        .map(|material| PreviewGeometryMaterial {
+            material_id: material.id.to_string(),
+            base_color: material.base_color,
+            metallic: 0.0,
+            roughness: 0.75,
+            opacity: material.opacity,
+        })
+        .collect();
+    let source_bytes = serde_json::to_vec(document).unwrap_or_default();
+    PreviewGeometryPacket {
+        manifest: PreviewGeometryManifest {
+            schema_version: PACKET_SCHEMA_VERSION,
+            transport_version: PACKET_TRANSPORT_VERSION,
+            revision: document.revision.as_u64(),
+            parent_revision: Some(base.manifest.revision),
+            source_digest: format!("{:x}", Sha256::digest(source_bytes)),
+            backend: GeometryBackendKind::Gpu,
+            residency_mode: GeometryEvaluationMode::Resident,
+            nodes,
+            geometries,
+            materials,
+            removed_node_ids,
+            removed_geometry_ids,
         },
         binary,
     }

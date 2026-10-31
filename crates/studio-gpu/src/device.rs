@@ -15,7 +15,8 @@ use studio_core::gpu_contract::{
     GeometryResidentEntry, ResidentGeometryHandle, ResidentGeometryId,
 };
 use studio_core::scene_contract::{
-    ScenePatch, SceneSessionId, SceneSessionState, SceneSessionStatus, SceneSubmission,
+    SceneGeometryReadback, SceneGeometrySnapshotRequest, ScenePatch, SceneSessionId,
+    SceneSessionState, SceneSessionStatus, SceneSubmission,
 };
 use wgpu::{
     Adapter, BindGroupDescriptor, BindGroupEntry, BufferDescriptor, BufferUsages,
@@ -782,6 +783,58 @@ impl NativeGpuBackend {
             .remove(&session_id.0);
     }
 
+    pub fn snapshot_scene_geometries(
+        &self,
+        session_id: &SceneSessionId,
+        request: SceneGeometrySnapshotRequest,
+    ) -> Result<Vec<SceneGeometryReadback>, BackendError> {
+        let ready = self.ready_device()?;
+        let ids =
+            {
+                let state = self
+                    .state
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let session = state.scene_sessions.get(&session_id.0).ok_or_else(|| {
+                    BackendError::Kernel {
+                        message: "GPU scene session is unavailable".into(),
+                    }
+                })?;
+                if request.target_revision > session.target_revision {
+                    return Err(BackendError::Kernel {
+                        message: "scene geometry readback references a future revision".into(),
+                    });
+                }
+                request
+                    .geometry_ids
+                    .iter()
+                    .map(|id| {
+                        session
+                            .geometries
+                            .get(id)
+                            .cloned()
+                            .map(|resident| (id.clone(), resident))
+                            .ok_or_else(|| BackendError::Kernel {
+                                message: format!("scene geometry is unavailable: {id}"),
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+        ids.into_iter()
+            .map(|(geometry_id, resident)| {
+                let mesh = ready
+                    .residency
+                    .snapshot(&ready.device, &ready.queue, &resident)?;
+                Ok(SceneGeometryReadback {
+                    geometry_id,
+                    positions: mesh.vertices.iter().map(|vertex| vertex.position).collect(),
+                    indices: mesh.indices,
+                    topology_changed: false,
+                })
+            })
+            .collect()
+    }
+
     #[doc(hidden)]
     pub fn fail_scene_for_test(&self, session_id: &SceneSessionId, reason: &str) {
         let mut state = self
@@ -986,6 +1039,14 @@ impl GeometryBackend for NativeGpuBackend {
 
     fn scene_status(&self, session: &SceneSessionId) -> Option<SceneSessionStatus> {
         NativeGpuBackend::scene_status(self, session)
+    }
+
+    async fn snapshot_scene_geometries(
+        &self,
+        session: &SceneSessionId,
+        request: SceneGeometrySnapshotRequest,
+    ) -> Result<Vec<SceneGeometryReadback>, BackendError> {
+        NativeGpuBackend::snapshot_scene_geometries(self, session, request)
     }
 
     async fn cancel(&self, job_id: &str) -> Result<(), BackendError> {

@@ -95,6 +95,20 @@ pub struct SceneSubmission {
     pub phases: GeometryPhaseEvidence,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SceneGeometrySnapshotRequest {
+    pub target_revision: u64,
+    pub geometry_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SceneGeometryReadback {
+    pub geometry_id: String,
+    pub positions: Vec<[f32; 3]>,
+    pub indices: Vec<u32>,
+    pub topology_changed: bool,
+}
+
 pub fn changed_position_ranges(
     previous: &TriangleMesh,
     next: &TriangleMesh,
