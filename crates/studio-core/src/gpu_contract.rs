@@ -6,7 +6,7 @@ use thiserror::Error;
 use ts_rs::TS;
 
 use crate::document::NodeContent;
-use crate::geometry::EvaluatedMesh;
+use crate::geometry::{Bounds, EvaluatedMesh};
 use crate::ids::NodeId;
 use crate::validation::Diagnostic;
 
@@ -36,6 +36,54 @@ pub enum GeometryJobPriority {
     Background,
     Throughput,
     Interactive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum GeometryEvaluationMode {
+    Cpu,
+    Cold,
+    Warm,
+    Resident,
+    Snapshot,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+#[repr(u16)]
+pub enum GeometryDirtyChannel {
+    Topology = 1 << 0,
+    Positions = 1 << 1,
+    Indices = 1 << 2,
+    Normals = 1 << 3,
+    Bounds = 1 << 4,
+    Visibility = 1 << 5,
+    Material = 1 << 6,
+    Transform = 1 << 7,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export)]
+pub struct GeometryDirtyMask(pub u16);
+
+impl GeometryDirtyMask {
+    pub const fn empty() -> Self {
+        Self(0)
+    }
+
+    pub fn insert(&mut self, channel: GeometryDirtyChannel) {
+        self.0 |= channel as u16;
+    }
+
+    pub const fn contains(self, channel: GeometryDirtyChannel) -> bool {
+        self.0 & channel as u16 != 0
+    }
+
+    pub const fn bits(self) -> u16 {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -69,6 +117,23 @@ pub struct GeometryExecutionStats {
     pub fallback_reason: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct GeometryEvaluationEvidence {
+    pub mode: GeometryEvaluationMode,
+    pub stats: GeometryExecutionStats,
+    pub submission_count: usize,
+    pub resident_geometries: usize,
+    pub resident_bytes: u64,
+    pub peak_resident_bytes: u64,
+    pub topology_hits: usize,
+    pub resident_hits: usize,
+    pub evictions: usize,
+    pub preview_packet_bytes: u64,
+    pub browser_upload_bytes: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct GeometryBatchResult {
     pub job_id: String,
@@ -76,6 +141,37 @@ pub struct GeometryBatchResult {
     pub meshes: BTreeMap<NodeId, EvaluatedMesh>,
     pub stats: GeometryExecutionStats,
     pub diagnostics: Vec<Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(transparent)]
+#[ts(export)]
+#[ts(type = "string")]
+pub struct ResidentGeometryId(pub String);
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct GeometryResidentEntry {
+    pub id: ResidentGeometryId,
+    pub node_id: NodeId,
+    pub mode: GeometryEvaluationMode,
+    pub dirty: GeometryDirtyMask,
+    pub bounds: Bounds,
+    pub vertex_count: usize,
+    pub triangle_count: usize,
+    pub evidence: GeometryEvaluationEvidence,
+}
+
+#[derive(Debug, Clone)]
+pub struct GeometryResidentBatchResult {
+    pub job_id: String,
+    pub backend: GeometryBackendKind,
+    pub entries: Vec<GeometryResidentEntry>,
+    pub evidence: GeometryEvaluationEvidence,
+}
+
+#[derive(Debug, Clone)]
+pub struct GeometrySnapshotRequest {
+    pub geometry_ids: Vec<ResidentGeometryId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -125,6 +221,22 @@ pub enum BackendError {
 pub trait GeometryBackend: Send + Sync {
     async fn initialize(&self) -> Result<BackendCapabilities, BackendError>;
     async fn evaluate(&self, batch: GeometryBatch) -> Result<GeometryBatchResult, BackendError>;
+    async fn evaluate_resident(
+        &self,
+        _batch: GeometryBatch,
+    ) -> Result<GeometryResidentBatchResult, BackendError> {
+        Err(BackendError::Incompatible {
+            reason: "resident geometry is unsupported".into(),
+        })
+    }
+    async fn snapshot(
+        &self,
+        _request: GeometrySnapshotRequest,
+    ) -> Result<GeometryBatchResult, BackendError> {
+        Err(BackendError::Incompatible {
+            reason: "geometry snapshots are unsupported".into(),
+        })
+    }
     async fn cancel(&self, job_id: &str) -> Result<(), BackendError>;
     fn stats(&self) -> GeometryExecutionStats;
 }
