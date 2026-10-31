@@ -1,3 +1,4 @@
+pub mod agent_contract;
 pub mod apply;
 pub mod changeset;
 pub mod diff;
