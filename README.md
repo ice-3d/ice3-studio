@@ -165,11 +165,17 @@ kernel 更快。只有窄视锥可见性查询 GPU 明显领先：同一组 243 
 
 性能门禁失败关闭，`auto` 继续选 CPU。6.1M 有效三角形的常驻资源约占 46 MiB GPU 内存。
 
-## 边界与延期
+## 边界与缺口
 
-已实现但实验性的能力：native GPU compute、resident geometry、preview packet、
-GPU scene session。未实现（`docs/architecture.md` 的 Deferred Scope）：布尔几何、
-自由曲线、雕刻、协作编辑、云租户、大静态资产导入、持久 GPU 缓冲池。
+已实现但实验性的能力：native GPU compute、resident geometry、preview packet、GPU scene
+session。功能已交付，但性能门禁未过，默认关闭。
+
+**产品范围内尚未实现**（待补齐的缺口，不是范围外决定）：布尔几何（开孔、管道穿插的并
+交差）、自由曲线与曲线驱动 sweep、雕刻与有机网格编辑、协作编辑、云租户与远程部署、大
+静态资产导入、跨项目 GPU 缓冲持久化。清单与理由见
+[Architecture](docs/architecture.md) 的 Not Yet Implemented。
+
+不属于本仓库职责：Runtime LOD 与空间分区由 Toolchain 负责。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。

@@ -163,9 +163,19 @@ code; when it disagrees with narrative documentation, it wins.
 - GPU requests cannot submit WGSL, select an arbitrary adapter, or bypass host budgets.
 - Diagnostics exclude credentials and out-of-workspace paths.
 
-## Deferred Scope
+## Not Yet Implemented
 
-Boolean geometry, free-form curves, sculpting, collaborative editing, cloud tenancy, large
-static asset import, and persistent GPU buffer pooling are outside this MVP. Runtime LOD and
-spatial partitioning remain Toolchain responsibilities. Native GPU execution remains experimental
+The following capabilities are in product scope but are not built yet. They are gaps to close,
+not out-of-scope decisions:
+
+- Boolean geometry (cut, union, intersect) for openings and pipe penetrations.
+- Free-form curves and curve-driven sweeps.
+- Sculpting and organic mesh editing.
+- Collaborative editing and concurrent multi-user sessions.
+- Cloud tenancy, accounts, and remote deployment.
+- Large static asset import as a modeling input.
+- Persistent GPU buffer pooling across projects.
+
+Two entries below are boundaries rather than deferrals. Runtime LOD and spatial partitioning
+remain Toolchain responsibilities. Native GPU execution is implemented and stays default-off
 until the release benchmark shows a stable latency gain.
