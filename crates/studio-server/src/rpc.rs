@@ -918,6 +918,7 @@ fn dispatch(
                 "validation.run".into(),
                 "evaluation.evaluate".into(),
                 "evaluation.stats".into(),
+                "evaluation.query".into(),
                 "evaluation.waitScene".into(),
                 "evaluation.visibleInstances".into(),
                 "export.sourceGlb".into(),
@@ -1206,6 +1207,12 @@ fn dispatch(
                 generated_meshes: evaluated.stats.generated_meshes,
             })
             .map_err(serialize_error)
+        }
+        "evaluation.query" => {
+            let request: studio_core::agent_contract::EvaluationQueryRequest =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            serde_json::to_value(crate::agent::evaluation_query(session, request)?)
+                .map_err(serialize_error)
         }
         "evaluation.waitScene" => {
             let params: RuntimePreviewParams =

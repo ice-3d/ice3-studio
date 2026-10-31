@@ -45,7 +45,9 @@ impl Default for AgentLimits {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema, TS,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
 #[ts(export)]
@@ -91,7 +93,9 @@ pub enum SceneSearchField {
     Metadata,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema, TS,
+)]
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
 #[ts(export)]

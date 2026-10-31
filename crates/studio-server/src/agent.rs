@@ -6,15 +6,17 @@ use studio_core::API_VERSION;
 use studio_core::PROJECT_SCHEMA_VERSION;
 use studio_core::agent_contract::{
     AgentIdempotency, AgentLimits, AgentManifest, AgentSideEffect, AgentTool, AgentWorkflow,
-    MAX_SEARCH_LIMIT, RelationTypeCount, SceneContentKind, SceneContentKindCount, SceneContext,
-    SceneCoordinateSystem, SceneCounts, SceneFacets, SceneSearchField, SceneSearchItem,
-    SceneSearchRequest, SceneSearchResult, SceneSearchScope,
+    EvaluationInclude, EvaluationQueryItem, EvaluationQueryRequest, EvaluationQueryResult,
+    MAX_EVALUATION_NODES, MAX_SEARCH_LIMIT, RelationTypeCount, SceneContentKind,
+    SceneContentKindCount, SceneContext, SceneCoordinateSystem, SceneCounts, SceneFacets,
+    SceneSearchField, SceneSearchItem, SceneSearchRequest, SceneSearchResult, SceneSearchScope,
 };
 use studio_core::document::NodeContent;
-use studio_core::geometry::Bounds;
+use studio_core::geometry::{Bounds, TriangleMesh};
 use studio_core::large_scene::evaluate::evaluated_scene_bounds;
 use studio_core::math::Vec3;
 use studio_core::validation::DiagnosticCode;
+use studio_gpu::ResidencyKey;
 
 use crate::capabilities::{RequestAuthority, agent_access};
 use crate::rpc::{RpcError, Session, ensure_scene_snapshot};
@@ -343,16 +345,18 @@ pub(crate) fn search(
     if request.limit == 0 || request.limit > MAX_SEARCH_LIMIT {
         return Err(api_invalid("/limit", "limit must be between 1 and 100"));
     }
-    if request.scope == SceneSearchScope::Derived {
-        return Err(api_invalid(
-            "/scope",
-            "derived scene search is not available in this delivery step",
-        ));
-    }
     if request.scope == SceneSearchScope::Source && request.owner_id.is_some() {
         return Err(api_invalid(
             "/ownerId",
             "ownerId is only valid for derived scene search",
+        ));
+    }
+    if request.scope == SceneSearchScope::Derived
+        && (request.relation_type.is_some() || request.related_node_id.is_some())
+    {
+        return Err(api_invalid(
+            "/relationType",
+            "relation filters are only valid for source scene search",
         ));
     }
 
@@ -371,94 +375,113 @@ pub(crate) fn search(
         .expect("scene snapshot was ensured");
     let bounds_by_id = evaluated_scene_bounds(scene);
     let relation_nodes = relation_node_filter(session, &request);
+    let mut items = Vec::new();
+    if matches!(
+        request.scope,
+        SceneSearchScope::Source | SceneSearchScope::Both
+    ) {
+        items.extend(source_items(session, scene, &bounds_by_id));
+    }
+    if matches!(
+        request.scope,
+        SceneSearchScope::Derived | SceneSearchScope::Both
+    ) {
+        items.extend(derived_items(session, scene, &bounds_by_id));
+    }
     let query = request.query.as_deref().map(str::to_lowercase);
-    let mut matches = session
-        .document
-        .scene
-        .nodes()
-        .iter()
-        .filter(|node| {
-            request
-                .node_id
+    items.retain(|item| {
+        request
+            .node_id
+            .as_ref()
+            .is_none_or(|node_id| item.id == *node_id)
+            && request
+                .owner_id
                 .as_ref()
-                .is_none_or(|node_id| node.id.as_str() == node_id)
-        })
-        .filter(|node| {
-            request.parent_id.as_ref().is_none_or(|parent_id| {
-                node.parent_id
+                .is_none_or(|owner_id| item.owner_id.as_ref() == Some(owner_id))
+            && request
+                .parent_id
+                .as_ref()
+                .is_none_or(|parent_id| item.parent_id.as_ref().is_some_and(|id| id == parent_id))
+            && request.metadata.iter().all(|(key, value)| {
+                item.metadata
                     .as_ref()
-                    .is_some_and(|id| id.as_str() == parent_id)
+                    .and_then(|metadata| metadata.get(key))
+                    == Some(value)
             })
-        })
-        .filter(|node| {
-            request
-                .metadata
-                .iter()
-                .all(|(key, value)| node.metadata.get(key) == Some(value))
-        })
-        .filter(|node| {
-            query.as_ref().is_none_or(|query| {
-                node.id.as_str().to_lowercase().contains(query)
-                    || node.name.to_lowercase().contains(query)
+            && query.as_ref().is_none_or(|query| {
+                item.id.to_lowercase().contains(query)
+                    || item
+                        .name
+                        .as_ref()
+                        .is_some_and(|name| name.to_lowercase().contains(query))
             })
-        })
-        .filter(|node| {
-            request
-                .content_kind
-                .is_none_or(|kind| content_kind(&node.content) == kind)
-        })
-        .filter(|node| {
-            request
+            && request.content_kind.is_none_or(|kind| item.kind == kind)
+            && request
                 .component_definition_id
                 .as_ref()
-                .is_none_or(|id| match &node.content {
-                    NodeContent::ComponentInstance(instance) => instance.definition_id == *id,
-                    NodeContent::InstanceSet(set) => set.definition_id == *id,
-                    _ => false,
-                })
-        })
-        .filter(|node| {
-            request
+                .is_none_or(|id| item.component_definition_id.as_ref() == Some(id))
+            && request
                 .material_id
                 .as_ref()
-                .is_none_or(|id| node.material_id.as_ref() == Some(id))
-        })
-        .filter(|node| {
-            request
+                .is_none_or(|id| item.material_id.as_ref() == Some(id))
+            && request
                 .visible
-                .is_none_or(|visible| node.visible == visible)
-        })
-        .filter(|node| {
-            relation_nodes
-                .as_ref()
-                .is_none_or(|nodes| nodes.contains(node.id.as_str()))
-        })
-        .filter(|node| {
-            request.bounds.is_none_or(|bounds| {
-                bounds_by_id
-                    .get(node.id.as_str())
-                    .copied()
+                .is_none_or(|visible| item.visible == Some(visible))
+            && relation_nodes.as_ref().is_none_or(|nodes| {
+                item.scope != SceneSearchScope::Source || nodes.contains(&item.id)
+            })
+            && request.bounds.is_none_or(|bounds| {
+                item.bounds
                     .is_some_and(|candidate| bounds_intersect(candidate, bounds))
             })
-        })
-        .collect::<Vec<_>>();
-    matches.sort_by(|left, right| left.id.cmp(&right.id));
+    });
+    items.sort_by_key(|item| {
+        (
+            match item.scope {
+                SceneSearchScope::Source => "source",
+                SceneSearchScope::Derived => "derived",
+                SceneSearchScope::Both => "both",
+            },
+            item.id.clone(),
+        )
+    });
 
-    let page_end = offset.saturating_add(request.limit).min(matches.len());
-    let page = if offset < matches.len() {
-        &matches[offset..page_end]
+    let page_end = offset.saturating_add(request.limit).min(items.len());
+    let page = if offset < items.len() {
+        &items[offset..page_end]
     } else {
         &[]
     };
+    let has_more = page_end < items.len();
+    let items = page
+        .iter()
+        .cloned()
+        .map(|item| project_item(item, fields.as_ref()))
+        .collect();
+    let next_cursor = has_more.then(|| encode_cursor(revision, page_end, &digest));
+    Ok(SceneSearchResult {
+        revision,
+        items,
+        next_cursor,
+    })
+}
+
+fn source_items(
+    session: &Session,
+    scene: &studio_core::large_scene::evaluate::EvaluatedScene,
+    bounds_by_id: &BTreeMap<String, Bounds>,
+) -> Vec<SceneSearchItem> {
     let evaluated_by_id = scene
         .nodes
         .iter()
         .map(|node| (node.id.as_str(), node))
         .collect::<BTreeMap<_, _>>();
-    let items = page
+    session
+        .document
+        .scene
+        .nodes()
         .iter()
         .map(|node| {
-            let selected = |field| fields.as_ref().is_none_or(|fields| fields.contains(&field));
             let component_definition_id = match &node.content {
                 NodeContent::ComponentInstance(instance) => Some(instance.definition_id.clone()),
                 NodeContent::InstanceSet(set) => Some(set.definition_id.clone()),
@@ -468,40 +491,243 @@ pub(crate) fn search(
                 id: node.id.to_string(),
                 scope: SceneSearchScope::Source,
                 kind: content_kind(&node.content),
-                name: selected(SceneSearchField::Name).then(|| node.name.clone()),
-                parent_id: selected(SceneSearchField::ParentId)
-                    .then(|| node.parent_id.as_ref().map(ToString::to_string))
-                    .flatten(),
-                owner_id: selected(SceneSearchField::OwnerId)
-                    .then_some(None)
-                    .flatten(),
-                visible: selected(SceneSearchField::Visible).then_some(node.visible),
-                component_definition_id: selected(SceneSearchField::ComponentDefinitionId)
-                    .then_some(component_definition_id)
-                    .flatten(),
-                material_id: selected(SceneSearchField::MaterialId)
-                    .then_some(node.material_id.clone())
-                    .flatten(),
-                geometry_id: selected(SceneSearchField::GeometryId)
-                    .then(|| {
-                        evaluated_by_id
-                            .get(node.id.as_str())
-                            .and_then(|node| node.mesh_key.clone())
-                    })
-                    .flatten(),
-                bounds: selected(SceneSearchField::Bounds)
-                    .then(|| bounds_by_id.get(node.id.as_str()).copied())
-                    .flatten(),
-                metadata: selected(SceneSearchField::Metadata).then(|| node.metadata.clone()),
+                name: Some(node.name.clone()),
+                parent_id: node.parent_id.as_ref().map(ToString::to_string),
+                owner_id: None,
+                visible: Some(node.visible),
+                component_definition_id,
+                material_id: node.material_id.clone(),
+                geometry_id: evaluated_by_id
+                    .get(node.id.as_str())
+                    .and_then(|node| node.mesh_key.clone()),
+                bounds: bounds_by_id.get(node.id.as_str()).copied(),
+                metadata: Some(node.metadata.clone()),
             }
         })
-        .collect();
-    let next_cursor =
-        (page_end < matches.len()).then(|| encode_cursor(revision, page_end, &digest));
-    Ok(SceneSearchResult {
-        revision,
+        .collect()
+}
+
+fn derived_items(
+    session: &Session,
+    scene: &studio_core::large_scene::evaluate::EvaluatedScene,
+    bounds_by_id: &BTreeMap<String, Bounds>,
+) -> Vec<SceneSearchItem> {
+    scene
+        .nodes
+        .iter()
+        .map(|node| {
+            let source = source_node_for_derived(session, node);
+            let component_definition_id = source.and_then(|source| match &source.content {
+                NodeContent::ComponentInstance(instance) => Some(instance.definition_id.clone()),
+                NodeContent::InstanceSet(set) => Some(set.definition_id.clone()),
+                _ => None,
+            });
+            SceneSearchItem {
+                id: node.id.clone(),
+                scope: SceneSearchScope::Derived,
+                kind: derived_kind(node),
+                name: Some(node.name.clone()),
+                parent_id: node.parent_id.clone(),
+                owner_id: Some(node.owner_id.clone()),
+                visible: Some(node.visible),
+                component_definition_id,
+                material_id: node.material_id.clone(),
+                geometry_id: node.mesh_key.clone(),
+                bounds: bounds_by_id.get(&node.id).copied(),
+                metadata: Some(node.metadata.clone()),
+            }
+        })
+        .collect()
+}
+
+fn source_node_for_derived<'a>(
+    session: &'a Session,
+    node: &studio_core::large_scene::evaluate::EvaluatedSceneNode,
+) -> Option<&'a studio_core::document::SceneNode> {
+    session
+        .document
+        .scene
+        .nodes()
+        .iter()
+        .filter(|source| {
+            node.owner_id == source.id.as_str()
+                || node
+                    .owner_id
+                    .strip_prefix(source.id.as_str())
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+                || node
+                    .id
+                    .strip_prefix(source.id.as_str())
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        })
+        .max_by_key(|source| source.id.as_str().len())
+}
+
+fn derived_kind(node: &studio_core::large_scene::evaluate::EvaluatedSceneNode) -> SceneContentKind {
+    if node
+        .mesh_key
+        .as_deref()
+        .is_some_and(|key| key.starts_with("connection-"))
+    {
+        SceneContentKind::Connection
+    } else if node.mesh_key.is_some() {
+        SceneContentKind::Mesh
+    } else {
+        SceneContentKind::Group
+    }
+}
+
+fn project_item(
+    mut item: SceneSearchItem,
+    fields: Option<&BTreeSet<SceneSearchField>>,
+) -> SceneSearchItem {
+    let Some(fields) = fields else {
+        return item;
+    };
+    if !fields.contains(&SceneSearchField::Name) {
+        item.name = None;
+    }
+    if !fields.contains(&SceneSearchField::ParentId) {
+        item.parent_id = None;
+    }
+    if !fields.contains(&SceneSearchField::OwnerId) {
+        item.owner_id = None;
+    }
+    if !fields.contains(&SceneSearchField::Visible) {
+        item.visible = None;
+    }
+    if !fields.contains(&SceneSearchField::ComponentDefinitionId) {
+        item.component_definition_id = None;
+    }
+    if !fields.contains(&SceneSearchField::MaterialId) {
+        item.material_id = None;
+    }
+    if !fields.contains(&SceneSearchField::GeometryId) {
+        item.geometry_id = None;
+    }
+    if !fields.contains(&SceneSearchField::Bounds) {
+        item.bounds = None;
+    }
+    if !fields.contains(&SceneSearchField::Metadata) {
+        item.metadata = None;
+    }
+    item
+}
+
+pub(crate) fn evaluation_query(
+    session: &mut Session,
+    request: EvaluationQueryRequest,
+) -> Result<EvaluationQueryResult, RpcError> {
+    if request.node_ids.is_empty() || request.node_ids.len() > MAX_EVALUATION_NODES {
+        return Err(api_invalid(
+            "/nodeIds",
+            "evaluation.query requires between 1 and 32 node IDs",
+        ));
+    }
+    let unique = request.node_ids.iter().collect::<BTreeSet<_>>();
+    if unique.len() != request.node_ids.len() {
+        return Err(api_invalid(
+            "/nodeIds",
+            "evaluation node IDs must be unique",
+        ));
+    }
+    let include = request
+        .include
+        .iter()
+        .copied()
+        .collect::<BTreeSet<EvaluationInclude>>();
+    if include.is_empty() || !include.contains(&EvaluationInclude::Summary) {
+        return Err(api_invalid(
+            "/include",
+            "include must contain summary; positions and indices require summary",
+        ));
+    }
+
+    ensure_scene_snapshot(session)?;
+    let scene = session
+        .scene_snapshot
+        .as_ref()
+        .expect("scene snapshot was ensured");
+    let scene_nodes = scene
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect::<BTreeMap<_, _>>();
+    let bounds_by_id = evaluated_scene_bounds(scene);
+    let include_positions = include.contains(&EvaluationInclude::Positions);
+    let include_indices = include.contains(&EvaluationInclude::Indices);
+    let items = request
+        .node_ids
+        .iter()
+        .map(|node_id| {
+            let node = scene_nodes.get(node_id.as_str()).ok_or_else(|| {
+                RpcError::with_diagnostic(
+                    -32010,
+                    DiagnosticCode::ReferenceInvalid.as_str(),
+                    format!(
+                        "{}: evaluated node does not exist: {node_id}",
+                        DiagnosticCode::ReferenceInvalid.as_str()
+                    ),
+                    Some(serde_json::json!({
+                        "category": "not_found",
+                        "retryable": false,
+                        "objectId": node_id
+                    })),
+                )
+            })?;
+            let Some(mesh_key) = &node.mesh_key else {
+                return Ok(EvaluationQueryItem {
+                    node_id: node_id.clone(),
+                    geometry_id: None,
+                    vertex_count: 0,
+                    index_count: 0,
+                    bounds: None,
+                    topology_digest: None,
+                    attribute_digest: None,
+                    positions: None,
+                    indices: None,
+                });
+            };
+            let mesh = scene.meshes.get(mesh_key).ok_or_else(|| {
+                RpcError::with_diagnostic(
+                    -32012,
+                    DiagnosticCode::GeometryInvalid.as_str(),
+                    format!(
+                        "{}: evaluated mesh is unavailable: {mesh_key}",
+                        DiagnosticCode::GeometryInvalid.as_str()
+                    ),
+                    None,
+                )
+            })?;
+            let content = NodeContent::CustomMesh(TriangleMesh {
+                positions: mesh.vertices.iter().map(|vertex| vertex.position).collect(),
+                indices: mesh.indices.clone(),
+            });
+            let key = ResidencyKey::for_content(&content, "", "geometry-kernel-v1")
+                .map_err(|error| api_invalid("", &error.to_string()))?;
+            let digests = key.digest_set("", "geometry-kernel-v1");
+            Ok(EvaluationQueryItem {
+                node_id: node_id.clone(),
+                geometry_id: Some(
+                    node.resident_geometry_id
+                        .as_ref()
+                        .map(|id| id.0.clone())
+                        .unwrap_or_else(|| mesh_key.clone()),
+                ),
+                vertex_count: mesh.vertices.len(),
+                index_count: mesh.indices.len(),
+                bounds: bounds_by_id.get(&node.id).copied(),
+                topology_digest: Some(digests.topology),
+                attribute_digest: Some(digests.attribute),
+                positions: include_positions
+                    .then(|| mesh.vertices.iter().map(|vertex| vertex.position).collect()),
+                indices: include_indices.then(|| mesh.indices.clone()),
+            })
+        })
+        .collect::<Result<Vec<_>, RpcError>>()?;
+    Ok(EvaluationQueryResult {
+        revision: session.document.revision.as_u64(),
         items,
-        next_cursor,
     })
 }
 
