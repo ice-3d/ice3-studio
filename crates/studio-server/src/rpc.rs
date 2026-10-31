@@ -717,16 +717,18 @@ async fn dispatch_unlocked_preview(
             (
                 crate::changeset::prepare_candidate_preview(&mut session, &digest),
                 Arc::clone(&session.toolchain),
+                Arc::clone(&session.compute),
                 session.compute.policy().preview_packet_enabled,
             )
         };
-        let (prepared, toolchain, preview_packets_enabled) = prepared;
+        let (prepared, toolchain, compute, preview_packets_enabled) = prepared;
         let prepared = match prepared {
             Ok(prepared) => prepared,
             Err(error) => return Some(Err(error)),
         };
         let result = tokio::task::spawn_blocking(move || {
             PreviewAdapter::from_service(toolchain)
+                .with_compute(compute)
                 .with_preview_packets(preview_packets_enabled)
                 .generate_candidate(&prepared.document, &prepared.project_dir, &prepared.digest)
         })
@@ -753,13 +755,22 @@ async fn dispatch_unlocked_preview(
             }
         });
     }
-    let (document, project_dir, project_id, toolchain, preview_packets_enabled, closed) = {
+    let (
+        document,
+        project_dir,
+        project_id,
+        toolchain,
+        compute,
+        preview_packets_enabled,
+        closed,
+    ) = {
         let session = state.session.lock().expect("session lock");
         (
             session.document.clone(),
             session.store.project_dir().to_path_buf(),
             session.project_id.clone(),
             Arc::clone(&session.toolchain),
+            Arc::clone(&session.compute),
             session.compute.policy().preview_packet_enabled,
             session.closed,
         )
@@ -775,6 +786,7 @@ async fn dispatch_unlocked_preview(
     Some(
         tokio::task::spawn_blocking(move || {
             PreviewAdapter::from_service(toolchain)
+                .with_compute(compute)
                 .with_preview_packets(preview_packets_enabled)
                 .generate(&document, &project_dir, &project_id)
                 .map_err(preview_error)
@@ -1086,6 +1098,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                     .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error));
             }
             let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain))
+                .with_compute(Arc::clone(&session.compute))
                 .with_preview_packets(session.compute.policy().preview_packet_enabled);
             let output = adapter
                 .generate(

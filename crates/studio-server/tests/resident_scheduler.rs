@@ -19,11 +19,15 @@ use studio_core::large_scene::component::{
     ScalarBinding,
 };
 use studio_core::large_scene::evaluate::{
-    evaluate_large_scene_with_cache_and_evaluator, update_material_only, update_transform_only,
+    evaluate_large_scene, evaluate_large_scene_with_cache_and_evaluator, update_material_only,
+    update_transform_only,
 };
 use studio_core::math::Transform;
 use studio_server::compute::{
     ComputeEvaluator, ComputePolicy, ComputeService, GeometryEvaluationPurpose, SnapshotPolicy,
+};
+use studio_server::preview_packet::{
+    PreviewGeometrySourceView, build_resident_preview_packet,
 };
 
 struct FakeGpu {
@@ -427,6 +431,51 @@ async fn stale_handle_falls_back_without_mutating_revision() {
     };
     assert!(service.evaluate_handle(&stale).await.is_err());
     assert_eq!(document.revision, revision);
+}
+
+#[test]
+fn transform_only_preview_reuses_resident_source_without_readback() {
+    let gpu = FakeGpu::new();
+    let service = resident_service(gpu.clone());
+    let handle = pollster::block_on(
+        service.register_geometry("pump-1".into(), box_content()),
+    )
+    .unwrap();
+    let evaluated = pollster::block_on(service.evaluate_handle(&handle)).unwrap();
+    let before = gpu.snapshot_calls();
+    let source = service.preview_source_view(&evaluated.handle).unwrap();
+    let document = component_document();
+    let scene = evaluate_large_scene(&document).unwrap();
+    let packet = build_resident_preview_packet(&document, &scene, &[source], false);
+    assert_eq!(packet.manifest.residency_mode, GeometryEvaluationMode::Resident);
+    assert!(packet.manifest.geometries.is_empty());
+    assert!(packet.binary.is_empty());
+    assert_eq!(gpu.snapshot_calls(), before);
+}
+
+#[test]
+fn gpu_derived_attribute_requests_explicit_snapshot() {
+    let source = PreviewGeometrySourceView {
+        handle: ResidentGeometryHandle {
+            id: ResidentGeometryId("geometry-1".into()),
+            geometry_id: "pump-1".into(),
+            digests: studio_core::gpu_contract::GeometryDigestSet {
+                topology: "a".repeat(64),
+                attribute: "b".repeat(64),
+                dependency: "c".repeat(64),
+                kernel_version: "geometry-kernel-v1".into(),
+                parity_version: "parity-1e-5-v1".into(),
+            },
+            vertex_count: 3,
+            triangle_count: 1,
+            device_generation: 1,
+            state: studio_core::gpu_contract::ResidentGeometryState::Ready,
+        },
+        positions: Arc::new(vec![[0.0, 0.0, 0.0]; 3]),
+        indices: Arc::new(vec![0, 1, 2]),
+        needs_gpu_normals: true,
+    };
+    assert!(source.requires_snapshot());
 }
 
 #[tokio::test]

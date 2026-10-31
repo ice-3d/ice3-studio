@@ -585,6 +585,40 @@ impl ComputeService {
         }
     }
 
+    pub fn preview_source_view(
+        &self,
+        handle: &ResidentGeometryHandle,
+    ) -> Result<crate::preview_packet::PreviewGeometrySourceView, ComputeError> {
+        let content = self
+            .registered_geometry
+            .lock()
+            .expect("registered geometry poisoned")
+            .get(&handle.id)
+            .map(|registered| registered.content.clone())
+            .ok_or_else(|| ComputeError::ResidencyUnavailable {
+                reason: "resident geometry handle is unknown".into(),
+            })?;
+        let (positions, indices) = match &content {
+            NodeContent::CustomMesh(mesh) => (mesh.positions.clone(), mesh.indices.clone()),
+            _ => {
+                let mesh = studio_core::geometry::evaluate_node_content(&content)?;
+                (
+                    mesh.vertices
+                        .into_iter()
+                        .map(|vertex| vertex.position)
+                        .collect(),
+                    mesh.indices,
+                )
+            }
+        };
+        Ok(crate::preview_packet::PreviewGeometrySourceView {
+            handle: handle.clone(),
+            positions: Arc::new(positions),
+            indices: Arc::new(indices),
+            needs_gpu_normals: false,
+        })
+    }
+
     pub async fn evaluate(&self, content: NodeContent) -> Result<ComputeResult, ComputeError> {
         self.evaluate_with_priority(content, GeometryJobPriority::Interactive)
             .await

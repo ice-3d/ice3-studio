@@ -1,10 +1,12 @@
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use studio_core::document::Document;
 use studio_core::gpu_contract::{GeometryBackendKind, GeometryEvaluationMode, ResidentGeometryId};
+use studio_core::gpu_contract::ResidentGeometryHandle;
 use studio_core::large_scene::evaluate::EvaluatedScene;
 use studio_core::math::Transform;
 use thiserror::Error;
@@ -107,6 +109,20 @@ pub struct PreviewGeometryMaterial {
     pub metallic: f32,
     pub roughness: f32,
     pub opacity: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct PreviewGeometrySourceView {
+    pub handle: ResidentGeometryHandle,
+    pub positions: Arc<Vec<[f32; 3]>>,
+    pub indices: Arc<Vec<u32>>,
+    pub needs_gpu_normals: bool,
+}
+
+impl PreviewGeometrySourceView {
+    pub fn requires_snapshot(&self) -> bool {
+        self.needs_gpu_normals
+    }
 }
 
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -439,6 +455,105 @@ pub fn build_full_preview_packet(
             source_digest: format!("{:x}", Sha256::digest(source_bytes)),
             backend,
             residency_mode,
+            nodes,
+            geometries,
+            materials,
+            removed_node_ids: Vec::new(),
+            removed_geometry_ids: Vec::new(),
+        },
+        binary,
+    }
+}
+
+pub fn build_resident_preview_packet(
+    document: &Document,
+    scene: &EvaluatedScene,
+    sources: &[PreviewGeometrySourceView],
+    include_geometry: bool,
+) -> PreviewGeometryPacket {
+    let source_by_node = sources
+        .iter()
+        .map(|source| (source.handle.geometry_id.as_str(), source))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let nodes = scene
+        .nodes
+        .iter()
+        .map(|node| {
+            let source = source_by_node.get(node.id.as_str());
+            PreviewGeometryNode {
+                node_id: node.id.clone(),
+                parent_id: node.parent_id.clone(),
+                name: node.name.clone(),
+                matrix: transform_matrix(node.transform),
+                material_id: node.material_id.as_ref().map(ToString::to_string),
+                geometry_id: source.map(|source| source.handle.geometry_id.clone()),
+                visible: node.visible,
+            }
+        })
+        .collect();
+    let mut binary = Vec::new();
+    let geometries = if include_geometry {
+        sources
+            .iter()
+            .map(|source| {
+                let position_offset = binary.len() as u64;
+                for position in source.positions.iter() {
+                    for value in position {
+                        binary.extend_from_slice(&value.to_le_bytes());
+                    }
+                }
+                let position_bytes = binary.len() as u64 - position_offset;
+                let index_offset = binary.len() as u64;
+                for index in source.indices.iter() {
+                    binary.extend_from_slice(&index.to_le_bytes());
+                }
+                PreviewGeometryRecord {
+                    geometry_id: source.handle.geometry_id.clone(),
+                    resident_geometry_id: Some(source.handle.id.clone()),
+                    topology_digest: source.handle.digests.topology.clone(),
+                    attribute_digest: source.handle.digests.attribute.clone(),
+                    vertex_count: source.handle.vertex_count as u32,
+                    index_count: source.handle.triangle_count as u32 * 3,
+                    index_width: 4,
+                    ranges: vec![
+                        PreviewGeometryRange {
+                            byte_offset: position_offset,
+                            byte_length: position_bytes,
+                            usage: PreviewGeometryRangeUsage::VertexAttributes,
+                        },
+                        PreviewGeometryRange {
+                            byte_offset: index_offset,
+                            byte_length: (source.indices.len() as u64) * 4,
+                            usage: PreviewGeometryRangeUsage::Indices,
+                        },
+                    ],
+                }
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let materials = document
+        .materials
+        .iter()
+        .map(|material| PreviewGeometryMaterial {
+            material_id: material.id.to_string(),
+            base_color: material.base_color,
+            metallic: 0.0,
+            roughness: 0.75,
+            opacity: material.opacity,
+        })
+        .collect();
+    let source_bytes = serde_json::to_vec(document).unwrap_or_default();
+    PreviewGeometryPacket {
+        manifest: PreviewGeometryManifest {
+            schema_version: PACKET_SCHEMA_VERSION,
+            transport_version: PACKET_TRANSPORT_VERSION,
+            revision: document.revision.as_u64(),
+            parent_revision: None,
+            source_digest: format!("{:x}", Sha256::digest(source_bytes)),
+            backend: GeometryBackendKind::Gpu,
+            residency_mode: GeometryEvaluationMode::Resident,
             nodes,
             geometries,
             materials,
