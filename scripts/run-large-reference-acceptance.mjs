@@ -15,16 +15,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
-const workspaceRoot = resolve(studioRoot, '../../..');
 const viewerDist = join(studioRoot, 'apps/viewer/dist');
-const sourceAssetRoot = join(
-  workspaceRoot,
-  'ice3-engine/examples/m1/assets/wastewater-plant',
-);
-const equipmentManifest = join(
-  workspaceRoot,
-  'ice3-agent-console/public/assets/wastewater-plant/equipment.json',
-);
 
 export function assertReferenceAcceptance(report) {
   assert.ok(report.documentBytes < 2 * 1024 * 1024, 'Document response exceeds 2 MB');
@@ -47,13 +38,27 @@ export function assertReferenceAcceptance(report) {
 
 async function main() {
   await access(join(viewerDist, 'index.html'));
+  const workspaceRoot = await findWorkspaceRoot(studioRoot);
+  const sourceAssetRoot = join(
+    workspaceRoot,
+    'ice3-engine/examples/m1/assets/wastewater-plant',
+  );
+  const equipmentManifest = join(
+    workspaceRoot,
+    'ice3-agent-console/public/assets/wastewater-plant/equipment.json',
+  );
   const outputDir = join(studioRoot, 'output');
   await mkdir(outputDir, { recursive: true });
   const projectId = `reference-acceptance-${Date.now().toString(36)}`;
   const agentToken = `agent-${projectId}`;
   const approvalToken = `approval-${projectId}`;
   const manifest = JSON.parse(await readFile(equipmentManifest, 'utf8'));
-  const server = await startServer(projectId, agentToken, approvalToken);
+  const server = await startServer(
+    projectId,
+    agentToken,
+    approvalToken,
+    workspaceRoot,
+  );
   const projectDir = join(workspaceRoot, projectId);
   let browser;
   try {
@@ -199,6 +204,13 @@ async function main() {
     const landscapeBounds = JSON.parse(
       await viewport.getAttribute('data-projected-bounds'),
     );
+    const canvas = viewer.locator('canvas[data-layer="scene"]');
+    const screenshotPath = join(outputDir, 'large-reference-acceptance.png');
+    const selectedScreenshotPath = join(
+      outputDir,
+      'large-reference-acceptance-selected.png',
+    );
+    await canvas.screenshot({ path: screenshotPath });
 
     const selectionTags = [
       manifest.equipment[0]?.tag,
@@ -213,7 +225,10 @@ async function main() {
       if (await object.count() === 0) continue;
       await object.click();
       await viewer.getByRole('treeitem', { selected: true }).waitFor();
-      await viewer.waitForTimeout(250);
+      await waitRenderStable(viewer, canvas);
+      flickerFrames += await countStableFlickerFrames(viewer);
+      await exerciseCamera(viewer, canvas);
+      await waitRenderStable(viewer, canvas);
       flickerFrames += await countStableFlickerFrames(viewer);
       selectionMapped = true;
     }
@@ -222,10 +237,7 @@ async function main() {
     ));
     selectionMapped &&= offsets.some(([factor, units]) => factor < 0 && units < 0);
 
-    const canvas = viewer.locator('canvas[data-layer="scene"]');
-    await canvas.screenshot({
-      path: join(outputDir, 'large-reference-acceptance.png'),
-    });
+    await canvas.screenshot({ path: selectedScreenshotPath });
     assert.deepEqual(pageErrors, []);
 
     const report = {
@@ -271,7 +283,8 @@ async function main() {
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
     console.log(JSON.stringify({
       report: reportPath,
-      screenshot: join(outputDir, 'large-reference-acceptance.png'),
+      screenshot: screenshotPath,
+      selectedScreenshot: selectedScreenshotPath,
       documentBytes: report.documentBytes,
       contextBytes: report.contextBytes,
       bindingPageBytes: report.bindingPageBytes,
@@ -384,7 +397,7 @@ async function rawRpc(baseUrl, method, params, credentials = {}) {
   return response.json();
 }
 
-async function startServer(projectId, agentToken, approvalToken) {
+async function startServer(projectId, agentToken, approvalToken, workspaceRoot) {
   const process = spawn('cargo', [
     'run',
     '-q',
@@ -434,6 +447,26 @@ async function startServer(projectId, agentToken, approvalToken) {
   return { baseUrl, process };
 }
 
+async function findWorkspaceRoot(start) {
+  let candidate = start;
+  while (true) {
+    try {
+      await access(join(candidate, 'ice3-engine/examples/m1/assets/wastewater-plant'));
+      await access(join(
+        candidate,
+        'ice3-agent-console/public/assets/wastewater-plant/equipment.json',
+      ));
+      return candidate;
+    } catch {
+      const parent = dirname(candidate);
+      if (parent === candidate) {
+        throw new Error('Could not locate the local ICE3 workspace');
+      }
+      candidate = parent;
+    }
+  }
+}
+
 async function stopServer(process) {
   if (process.exitCode !== null) return;
   process.kill('SIGTERM');
@@ -459,6 +492,29 @@ async function countStableFlickerFrames(page) {
     previous = digest;
   }
   return changes;
+}
+
+async function waitRenderStable(page, canvas) {
+  let previous = null;
+  await waitFor(async () => {
+    await page.waitForTimeout(250);
+    const digest = createHash('sha256').update(await canvas.screenshot()).digest('hex');
+    const stable = previous === digest;
+    previous = digest;
+    return stable;
+  }, 15_000, 'Rendered reference scene did not settle');
+}
+
+async function exerciseCamera(page, canvas) {
+  const box = await canvas.boundingBox();
+  if (!box) return;
+  const x = box.x + box.width * 0.55;
+  const y = box.y + box.height * 0.5;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + Math.min(180, box.width * 0.2), y + 60, { steps: 8 });
+  await page.mouse.up();
+  await page.mouse.wheel(0, -180);
 }
 
 async function waitFor(predicate, timeoutMs, message) {

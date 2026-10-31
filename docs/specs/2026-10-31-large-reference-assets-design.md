@@ -376,7 +376,7 @@ It committed 204 semantic binding nodes and produced:
 - 70,984-byte `document.get` result;
 - 731-byte `scene.context` result;
 - 41,545-byte first binding page;
-- 341.9 ms from Viewer navigation to the first visible coarse tile;
+- 335.4 ms from Viewer navigation to the first visible coarse tile;
 - 5,757,962 effective triangles and 1,632 unique meshes;
 - safe portrait and landscape bounds with no camera clipping;
 - zero selected-surface changes across stable screenshot frames;
@@ -384,5 +384,6 @@ It committed 204 semantic binding nodes and produced:
 
 The editable responses remain bounded because the copied source, Prepared, and tiled
 files are served outside JSON-RPC. The reproducible report and screenshot are written
-to `output/large-reference-acceptance.json` and
-`output/large-reference-acceptance.png`.
+to `output/large-reference-acceptance.json`,
+`output/large-reference-acceptance.png`, and the rotated/zoomed selection view
+`output/large-reference-acceptance-selected.png`.

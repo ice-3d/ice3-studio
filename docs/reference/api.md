@@ -163,7 +163,8 @@ PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH \
   node scripts/run-large-reference-acceptance.mjs
 ```
 
-The command writes `output/large-reference-acceptance.json` and a canvas screenshot beside it.
+The command writes `output/large-reference-acceptance.json`, an initial canvas screenshot, and a
+rotated/zoomed selection screenshot beside it.
 
 ## Transaction Contract
 

@@ -110,7 +110,19 @@ impl ReferenceAssetStore {
         let source_glb = parse_glb(&source_path)?;
         let prepared_glb = prepared_path.as_deref().map(parse_glb).transpose()?;
         let glb = prepared_glb.as_ref().unwrap_or(&source_glb);
-        let manifest = parse_manifest(&manifest_path)?;
+        let manifest = parse_manifest_data(&manifest_path)?;
+        let mismatched_asset_id = [
+            source_glb.asset_id.as_deref(),
+            prepared_glb
+                .as_ref()
+                .and_then(|glb| glb.asset_id.as_deref()),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|asset_id| asset_id != manifest.asset_id);
+        if mismatched_asset_id {
+            return Err(ReferenceAssetError::InvalidManifest);
+        }
 
         let references = self.project_dir.join("references");
         fs::create_dir_all(&references).map_err(ReferenceAssetError::Io)?;
@@ -136,7 +148,7 @@ impl ReferenceAssetStore {
                 effective_triangles: glb.effective_triangles,
                 unique_meshes: glb.unique_meshes,
                 materials: glb.materials,
-                equipment: manifest.len(),
+                equipment: manifest.entries.len(),
             },
             imported_at: timestamp_now(),
         };
@@ -305,6 +317,7 @@ impl ReferenceAssetStore {
 
 #[derive(Debug)]
 struct GlbMetadata {
+    asset_id: Option<String>,
     source_nodes: usize,
     unique_meshes: usize,
     materials: usize,
@@ -416,8 +429,17 @@ fn parse_glb(path: &Path) -> Result<GlbMetadata, ReferenceAssetError> {
         .and_then(|value| value.get("bounds"))
         .map(parse_bounds)
         .transpose()?;
+    let asset_id = ice3
+        .and_then(|value| value.get("assetId"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            json.pointer("/scenes/0/extras/ice3.assetId")
+                .and_then(Value::as_str)
+        })
+        .map(str::to_owned);
     let effective_triangles = effective_triangle_count(&json)?;
     Ok(GlbMetadata {
+        asset_id,
         source_nodes,
         unique_meshes,
         materials,
@@ -530,6 +552,11 @@ struct EquipmentManifest {
     equipment: Vec<EquipmentManifestEntry>,
 }
 
+struct ParsedManifest {
+    asset_id: String,
+    entries: Vec<ReferenceAssetEquipment>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EquipmentManifestEntry {
@@ -548,6 +575,10 @@ struct ManifestBounds {
 }
 
 fn parse_manifest(path: &Path) -> Result<Vec<ReferenceAssetEquipment>, ReferenceAssetError> {
+    Ok(parse_manifest_data(path)?.entries)
+}
+
+fn parse_manifest_data(path: &Path) -> Result<ParsedManifest, ReferenceAssetError> {
     let metadata = fs::metadata(path).map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             ReferenceAssetError::Missing
@@ -621,7 +652,10 @@ fn parse_manifest(path: &Path) -> Result<Vec<ReferenceAssetEquipment>, Reference
     {
         return Err(ReferenceAssetError::InvalidManifest);
     }
-    Ok(entries)
+    Ok(ParsedManifest {
+        asset_id: manifest.asset_id,
+        entries,
+    })
 }
 
 fn hash_file(path: &Path) -> Result<String, ReferenceAssetError> {

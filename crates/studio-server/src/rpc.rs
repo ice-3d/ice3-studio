@@ -16,7 +16,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use studio_core::agent_contract::{AgentAccess, AgentLimits};
 use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction, evaluate_operations};
-use studio_core::document::Document;
+use studio_core::document::{Document, NodeContent};
 use studio_core::geometry::Bounds;
 use studio_core::gpu_contract::{GeometryBackend, GeometryBackendMode};
 use studio_core::ids::NodeId;
@@ -967,16 +967,37 @@ fn dispatch(
         "document.apply" => {
             let apply: ApplyRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
-            let candidate = evaluate_operations(&session.document, &apply.operations)
-                .map_err(transaction_error)?;
-            let reference_diagnostics = crate::reference_asset::validate_reference_document(
-                session.store.project_dir(),
-                &candidate.document,
-            );
-            if !reference_diagnostics.is_empty() {
-                return Err(crate::reference_asset::reference_diagnostics_error(
-                    reference_diagnostics,
-                ));
+            let replayed = session
+                .document
+                .idempotency_record(&apply.idempotency_key)
+                .is_some();
+            let has_references = session
+                .document
+                .scene
+                .nodes()
+                .iter()
+                .any(|node| matches!(node.content, NodeContent::ReferenceInstance(_)))
+                || apply.operations.iter().any(|operation| {
+                    matches!(
+                        operation,
+                        studio_core::operation::Operation::NodeCreate {
+                            content: NodeContent::ReferenceInstance(_),
+                            ..
+                        }
+                    )
+                });
+            if !replayed && has_references {
+                let candidate = evaluate_operations(&session.document, &apply.operations)
+                    .map_err(transaction_error)?;
+                let reference_diagnostics = crate::reference_asset::validate_reference_document(
+                    session.store.project_dir(),
+                    &candidate.document,
+                );
+                if !reference_diagnostics.is_empty() {
+                    return Err(crate::reference_asset::reference_diagnostics_error(
+                        reference_diagnostics,
+                    ));
+                }
             }
             if session.compute.policy().incremental_scene_cache {
                 let _ = ensure_scene_snapshot(session);
@@ -986,9 +1007,11 @@ fn dispatch(
                 "request": &apply
             });
             let previous = session.document.clone();
+            let previous_revision = session.document.revision;
             let result =
                 apply_transaction(&mut session.document, apply).map_err(transaction_error)?;
-            if !result.dry_run {
+            let committed = !result.dry_run && session.document.revision != previous_revision;
+            if committed {
                 if let Err(error) = session
                     .store
                     .write_snapshot_with_history(&session.document, &history_event)

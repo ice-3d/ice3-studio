@@ -208,11 +208,21 @@ pub(crate) fn validate_reference_document(
 ) -> Vec<Diagnostic> {
     let store = ReferenceAssetStore::new(project_dir);
     let mut selections = BTreeMap::<String, Option<BTreeSet<String>>>::new();
+    let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();
     for (index, node) in document.scene.nodes().iter().enumerate() {
         let NodeContent::ReferenceInstance(reference) = &node.content else {
             continue;
         };
+        if !seen.insert((reference.asset_id.clone(), reference.selection_id.clone())) {
+            diagnostics.push(reference_diagnostic(
+                Some(index),
+                node.id.as_str(),
+                format!("/scene/nodes/{index}/content/selectionId"),
+                "reference selection ID is already bound to another node",
+            ));
+            continue;
+        }
         let available = selections
             .entry(reference.asset_id.clone())
             .or_insert_with(|| load_selection_ids(&store, &reference.asset_id));
@@ -287,6 +297,23 @@ pub(crate) fn export_reference_source(session: &Session) -> Result<Option<Source
     if !diagnostics.is_empty() {
         return Err(reference_diagnostics_error(diagnostics));
     }
+    let store = ReferenceAssetStore::new(session.store.project_dir());
+    let mut referenced = BTreeMap::<String, BTreeSet<String>>::new();
+    for (_, reference) in &references {
+        referenced
+            .entry(reference.asset_id.clone())
+            .or_default()
+            .insert(reference.selection_id.clone());
+    }
+    for (asset_id, selections) in &referenced {
+        let expected = load_selection_ids(&store, asset_id)
+            .ok_or_else(|| reference_asset_error(ReferenceAssetError::Missing))?;
+        if *selections != expected {
+            return Err(export_unsupported(
+                "adding or deleting reference equipment bindings cannot be exported as the source GLB",
+            ));
+        }
+    }
     if references.iter().any(|(node, _)| {
         node.transform != studio_core::math::Transform::IDENTITY
             || node.material_id.is_some()
@@ -296,7 +323,6 @@ pub(crate) fn export_reference_source(session: &Session) -> Result<Option<Source
             "authored reference transforms, materials, or visibility cannot be exported as the source GLB",
         ));
     }
-    let store = ReferenceAssetStore::new(session.store.project_dir());
     let mut source_digest = None;
     let mut source_path = None;
     for (_, reference) in references {

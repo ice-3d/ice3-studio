@@ -109,6 +109,24 @@ fn replacement_with_mismatched_digest_is_atomic() {
     assert!(!fixture.project().join("references/asset-000001").exists());
 }
 
+#[test]
+fn rejects_manifest_and_glb_asset_id_mismatch() {
+    let fixture = Fixture::new();
+    write_glb_with_asset_id(
+        &fixture.root.path().join("refs/other-asset.glb"),
+        None,
+        "another-asset",
+    );
+    let mismatched = ReferenceAssetSource {
+        source_path: PathBuf::from("refs/other-asset.glb"),
+        ..fixture.source()
+    };
+
+    let error = fixture.store().register(&mismatched).unwrap_err();
+    assert!(matches!(error, ReferenceAssetError::InvalidManifest));
+    assert!(!fixture.project().join("references/asset-000001").exists());
+}
+
 fn write_manifest(path: &Path) {
     let mut equipment = Vec::new();
     for index in 0..204 {
@@ -141,8 +159,12 @@ fn write_manifest(path: &Path) {
 }
 
 fn write_glb(path: &Path, digest_override: Option<String>) {
+    write_glb_with_asset_id(path, digest_override, "ice3-virtual-wwtp");
+}
+
+fn write_glb_with_asset_id(path: &Path, digest_override: Option<String>, asset_id: &str) {
     let mut ice3 = json!({
-        "assetId": "ice3-virtual-wwtp",
+        "assetId": asset_id,
         "bounds": {
             "min": [-625.0, -1.0, -390.0],
             "max": [625.0, 31.0, 390.0]

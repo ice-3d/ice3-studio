@@ -59,17 +59,7 @@ async fn transform_and_material_edits_on_bindings_are_local() {
 #[tokio::test]
 async fn context_aggregates_reference_stats_without_inline_geometry() {
     let (server, asset_id) = reference_fixture_server("reference-context").await;
-    let operations = (1..=204)
-        .map(|index| {
-            let tag = if index == 1 {
-                "AE-101".to_owned()
-            } else {
-                format!("EQ-{index:03}")
-            };
-            binding_create(&format!("node-{index:06}"), &asset_id, &tag)
-        })
-        .collect();
-    commit_operations(&server, operations).await;
+    commit_operations(&server, all_bindings(&asset_id)).await;
 
     let context = rpc_with_bearer(&server, server.agent_token(), "scene.context", json!({})).await;
     assert_eq!(context["result"]["counts"]["sourceNodes"], 204, "{context}");
@@ -118,6 +108,29 @@ async fn unknown_reference_assets_and_selection_ids_block_evaluation() {
             "{evaluated}"
         );
     }
+    let duplicate = create_change_set(
+        &server,
+        vec![
+            binding_create("node-000001", &asset_id, "AE-101"),
+            binding_create("node-000002", &asset_id, "AE-101"),
+        ],
+    )
+    .await;
+    let duplicate_evaluation = rpc_with_bearer(
+        &server,
+        server.agent_token(),
+        "changeset.evaluate",
+        json!({
+            "changeSetId": duplicate["id"],
+            "expectedVersion": duplicate["version"],
+            "includeCandidate": false
+        }),
+    )
+    .await;
+    assert_eq!(
+        duplicate_evaluation["result"]["status"], "blocked",
+        "{duplicate_evaluation}"
+    );
 
     let rejected = rpc_with_approval_cookie(
         &server,
@@ -147,11 +160,7 @@ async fn unknown_reference_assets_and_selection_ids_block_evaluation() {
 #[tokio::test]
 async fn baseline_reference_export_uses_registered_source() {
     let (server, asset_id) = reference_fixture_server("reference-export").await;
-    commit_operations(
-        &server,
-        vec![binding_create("node-000001", &asset_id, "AE-101")],
-    )
-    .await;
+    commit_operations(&server, all_bindings(&asset_id)).await;
     let registered = rpc_with_bearer(
         &server,
         server.agent_token(),
@@ -164,6 +173,58 @@ async fn baseline_reference_export_uses_registered_source() {
     assert_eq!(
         exported["result"]["sourceDigest"], registered["result"]["descriptor"]["sourceDigest"],
         "{exported}"
+    );
+}
+
+#[tokio::test]
+async fn deleting_a_baseline_binding_blocks_source_export() {
+    let (server, asset_id) = reference_fixture_server("reference-export-delete").await;
+    commit_operations(&server, all_bindings(&asset_id)).await;
+    let deleted = rpc_with_approval_cookie(
+        &server,
+        "document.apply",
+        json!({
+            "expectedRevision": 2,
+            "dryRun": false,
+            "idempotencyKey": "delete-reference-binding",
+            "operations": [{
+                "type": "node.delete",
+                "node_id": "node-000001"
+            }]
+        }),
+    )
+    .await;
+    assert_eq!(deleted["result"]["revision"], 3, "{deleted}");
+    let exported = rpc_with_approval_cookie(&server, "export.sourceGlb", json!({})).await;
+    assert_eq!(
+        exported["error"]["diagnosticCode"], "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
+        "{exported}"
+    );
+}
+
+#[tokio::test]
+async fn repeated_direct_apply_preserves_idempotent_reference_result() {
+    let (server, asset_id) = reference_fixture_server("reference-idempotency").await;
+    let request = json!({
+        "expectedRevision": 1,
+        "dryRun": false,
+        "idempotencyKey": "create-reference-binding-once",
+        "operations": [binding_create("node-000001", &asset_id, "AE-101")]
+    });
+    let first = rpc_with_approval_cookie(&server, "document.apply", request.clone()).await;
+    let second = rpc_with_approval_cookie(&server, "document.apply", request).await;
+
+    assert_eq!(first["result"]["revision"], 2, "{first}");
+    assert_eq!(second["result"]["revision"], 2, "{second}");
+    assert_eq!(second["result"]["previousRevision"], 1, "{second}");
+    let document = rpc_with_bearer(&server, server.agent_token(), "document.get", json!({})).await;
+    assert_eq!(document["result"]["revision"], 2, "{document}");
+    assert_eq!(
+        document["result"]["scene"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
     );
 }
 
@@ -223,6 +284,19 @@ fn binding_create(node_id: &str, asset_id: &str, selection_tag: &str) -> serde_j
         "material_id": null,
         "metadata": {}
     })
+}
+
+fn all_bindings(asset_id: &str) -> Vec<serde_json::Value> {
+    (1..=204)
+        .map(|index| {
+            let tag = if index == 1 {
+                "AE-101".to_owned()
+            } else {
+                format!("EQ-{index:03}")
+            };
+            binding_create(&format!("node-{index:06}"), asset_id, &tag)
+        })
+        .collect()
 }
 
 async fn create_change_set(
