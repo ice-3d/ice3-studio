@@ -121,6 +121,12 @@ When preview packets are enabled, the production runtime-preview path reuses the
 for transform-only revisions and reads back only scene geometries affected by attribute or topology
 changes. Missing scene state or a missing base packet selects the existing CPU full-packet fallback.
 
+The experimental scene session also keeps per-instance bounds resident and exposes a compute-based
+visibility query that consumes the uploaded matrices and bounds. Instance transforms update only
+their changed matrix ranges instead of re-uploading the complete instance table. The controlled
+visibility test passes, while the large-scene visibility path remains gated because it currently
+returns an empty candidate set.
+
 ## Industry Layering
 
 Core primitives and operations are generic. Industrial concepts use metadata, relations, and

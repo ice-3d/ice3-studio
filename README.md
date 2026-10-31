@@ -78,6 +78,12 @@ transform-only revision 的 p50 已从默认 CPU 路径约 1.28 s 降到约 117 
 生产 preview 路径会在上一 revision packet 可用时写入增量 packet；transform-only 更新不包含
 geometry payload，geometry 更新只回读受影响的 scene geometry。失败不会回滚已提交 Document。
 
+同场 CPU/GPU benchmark 当前测得 transform、参数更新和拓扑更新分别约快 10.9×、11.7×
+和 10.9×。实例 transform 只上传变化的 64-byte matrix range。实验
+`evaluation.visibleInstances` 使用 resident instance bounds 和 GPU compute 生成可见实例索引；
+受控双实例测试已通过，但完整大型场景当前错误返回 0 个可见实例，benchmark 因此失败关闭；
+该接口和场景会话一起保持显式实验状态。
+
 ## AI 辅助开发
 
 本项目在设计和实现过程中大量使用了 AI 辅助开发。

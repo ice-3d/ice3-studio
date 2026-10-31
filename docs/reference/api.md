@@ -60,6 +60,8 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 | `scene.bounds` | No | none | World-space bounds by node ID |
 | `validation.run` | No | none | Diagnostic array |
 | `evaluation.evaluate` | No | none | Evaluated mesh by node ID |
+| `evaluation.waitScene` | No | `{ revision? }` | Published experimental GPU scene status |
+| `evaluation.visibleInstances` | No | `{ targetRevision, planes[6][4] }` | GPU-visible scene instance indices |
 | `export.sourceGlb` | Yes | none | Source GLB export metadata |
 | `export.runtimePreview` | Yes | `{ revision? }` | Prepared preview metadata |
 

@@ -17,7 +17,8 @@ use studio_core::gpu_contract::{
 use studio_core::ids::NodeId;
 use studio_core::scene_contract::{
     SceneGeometryReadback, SceneGeometrySnapshotRequest, ScenePatch, SceneSessionId,
-    SceneSessionState, SceneSessionStatus, SceneSubmission,
+    SceneSessionState, SceneSessionStatus, SceneSubmission, SceneVisibilityRequest,
+    SceneVisibilityResult,
 };
 use wgpu::{
     Adapter, BindGroupDescriptor, BindGroupEntry, BufferDescriptor, BufferUsages,
@@ -600,6 +601,7 @@ impl NativeGpuBackend {
 
         if patch.full_rebuild {
             session.geometries.clear();
+            session.geometry_topologies.clear();
             session.instances = Default::default();
         }
         let result: Result<SceneSubmission, BackendError> = (|| {
@@ -609,7 +611,10 @@ impl NativeGpuBackend {
             let mut dirty_range_bytes = 0u64;
             let mut pending = Vec::new();
             let mut cold_inputs = Vec::new();
+            let mut cold_geometries = Vec::new();
             for change in patch.geometry {
+                let geometry_id = change.geometry_id.clone();
+                let topology_digest = change.digests.topology.clone();
                 let previous = change
                     .previous_geometry_id
                     .as_ref()
@@ -636,6 +641,12 @@ impl NativeGpuBackend {
                     geometry_dispatch_count += 1;
                     submission_count += 1;
                     pending.push(entry.id.clone());
+                    session
+                        .geometry_bounds
+                        .insert(geometry_id.clone(), entry.bounds);
+                    session
+                        .geometry_topologies
+                        .insert(geometry_id.clone(), topology_digest);
                     session.geometries.insert(change.geometry_id, entry.id);
                 } else {
                     let mesh = match &change.content {
@@ -658,6 +669,7 @@ impl NativeGpuBackend {
                     upload_bytes = upload_bytes
                         .saturating_add(mesh.positions.len() as u64 * 16)
                         .saturating_add(mesh.indices.len() as u64 * 8);
+                    cold_geometries.push((change.geometry_id.clone(), topology_digest));
                     cold_inputs.push(ResidentBatchInput {
                         node_id: NodeId::from(change.geometry_id.clone()),
                         content: change.content,
@@ -681,37 +693,89 @@ impl NativeGpuBackend {
                 submission_count = submission_count.saturating_add(outcome.submission_count);
                 geometry_dispatch_count =
                     geometry_dispatch_count.saturating_add(outcome.entries.len());
-                for entry in outcome.entries {
-                    let geometry_id = entry.node_id.to_string();
+                for (entry, (geometry_id, topology_digest)) in
+                    outcome.entries.into_iter().zip(cold_geometries)
+                {
                     pending.push(entry.id.clone());
+                    session
+                        .geometry_bounds
+                        .insert(geometry_id.clone(), entry.bounds);
+                    session
+                        .geometry_topologies
+                        .insert(geometry_id.clone(), topology_digest);
                     session.geometries.insert(geometry_id, entry.id);
                 }
             }
             let instance_update = session.instances.apply_changes(patch.instances);
             let removed = session.instances.remove_nodes(&patch.removed_node_ids);
-            let matrix_data = session.instances.matrix_data();
-            let previous_instance_buffer = session.instance_buffer.take();
-            if matrix_data.is_empty() {
+            let instance_count = session.instances.records().len();
+            if instance_count == 0 {
+                let previous_instance_buffer = session.instance_buffer.take();
                 if let Some(buffer) = previous_instance_buffer {
                     ready.resources.buffers().release(buffer);
                 }
-            } else {
+                session.instance_capacity = 0;
+            } else if session.instance_buffer.is_none()
+                || instance_count > session.instance_capacity
+            {
+                let matrix_data = session.instances.matrix_data();
                 let bytes = bytemuck::cast_slice(&matrix_data);
+                let previous_instance_buffer = session.instance_buffer.take();
                 let buffer = ready.resources.buffers().acquire(
                     &ready.device,
                     crate::resources::BufferRole::DynamicAttribute,
-                    BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                    BufferUsages::VERTEX | BufferUsages::STORAGE | BufferUsages::COPY_DST,
                     bytes.len() as u64,
                     "ICE3 scene instance matrices",
                 )?;
                 ready.queue.write_buffer(&buffer.buffer, 0, bytes);
+                upload_bytes = upload_bytes.saturating_add(bytes.len() as u64);
                 if let Some(previous) = previous_instance_buffer {
                     ready.resources.buffers().release(previous);
                 }
                 session.instance_buffer = Some(buffer);
+                session.instance_capacity = instance_count;
+            } else {
+                let buffer = session
+                    .instance_buffer
+                    .as_ref()
+                    .expect("instance buffer checked above");
+                for (range, matrix_data) in session
+                    .instances
+                    .matrix_range_data(&instance_update.changed_ranges)
+                {
+                    let bytes = bytemuck::cast_slice(&matrix_data);
+                    ready
+                        .queue
+                        .write_buffer(&buffer.buffer, range.start as u64 * 64, bytes);
+                    upload_bytes = upload_bytes.saturating_add(bytes.len() as u64);
+                }
+            }
+            let bounds_data = session.instances.bounds_data(&session.geometry_bounds);
+            let previous_bounds_buffer = session.instance_bounds_buffer.take();
+            if bounds_data.is_empty() {
+                if let Some(buffer) = previous_bounds_buffer {
+                    ready.resources.buffers().release(buffer);
+                }
+            } else {
+                let bytes = bytemuck::cast_slice(&bounds_data);
+                let buffer = ready.resources.buffers().acquire(
+                    &ready.device,
+                    crate::resources::BufferRole::DynamicAttribute,
+                    BufferUsages::STORAGE | BufferUsages::COPY_DST,
+                    bytes.len() as u64,
+                    "ICE3 scene instance bounds",
+                )?;
+                ready.queue.write_buffer(&buffer.buffer, 0, bytes);
+                if let Some(previous) = previous_bounds_buffer {
+                    ready.resources.buffers().release(previous);
+                }
+                session.instance_bounds_buffer = Some(buffer);
             }
             for id in &patch.removed_geometry_ids {
                 session.geometries.remove(id);
+                session.geometry_bounds.remove(id);
+                session.geometry_topologies.remove(id);
             }
             session.pending_geometries.extend(pending.iter().cloned());
             session.pending_submission_count = session
@@ -874,6 +938,206 @@ impl NativeGpuBackend {
                 })
             })
             .collect()
+    }
+
+    pub fn visible_scene_instances(
+        &self,
+        session_id: &SceneSessionId,
+        planes: [[f32; 4]; 6],
+    ) -> Result<Vec<u32>, BackendError> {
+        let ready = self.ready_device()?;
+        let (matrices, bounds, count) =
+            {
+                let state = self
+                    .state
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let session = state.scene_sessions.get(&session_id.0).ok_or_else(|| {
+                    BackendError::Kernel {
+                        message: "GPU scene session is unavailable".into(),
+                    }
+                })?;
+                (
+                    session
+                        .instance_buffer
+                        .as_ref()
+                        .map(|buffer| buffer.buffer.clone()),
+                    session
+                        .instance_bounds_buffer
+                        .as_ref()
+                        .map(|buffer| buffer.buffer.clone()),
+                    session.instances.records().len() as u32,
+                )
+            };
+        let (Some(matrices), Some(bounds)) = (matrices, bounds) else {
+            return Ok(Vec::new());
+        };
+        let params = ready.resources.buffers().acquire(
+            &ready.device,
+            crate::resources::BufferRole::DynamicAttribute,
+            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            96,
+            "ICE3 visibility planes",
+        )?;
+        ready
+            .queue
+            .write_buffer(&params.buffer, 0, bytemuck::cast_slice(&planes));
+        let output = ready.resources.buffers().acquire(
+            &ready.device,
+            crate::resources::BufferRole::DeviceOutput,
+            BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+            count as u64 * 4,
+            "ICE3 visible instance indices",
+        )?;
+        let counter = ready.resources.buffers().acquire(
+            &ready.device,
+            crate::resources::BufferRole::DeviceOutput,
+            BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
+            4,
+            "ICE3 visible instance count",
+        )?;
+        ready
+            .queue
+            .write_buffer(&counter.buffer, 0, &0u32.to_le_bytes());
+        let bind_group = ready.device.create_bind_group(&BindGroupDescriptor {
+            label: Some("ICE3 visibility bindings"),
+            layout: ready.resources.pipelines().visibility_layout(),
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: matrices.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: bounds.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 2,
+                    resource: params.buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 3,
+                    resource: output.buffer.as_entire_binding(),
+                },
+                BindGroupEntry {
+                    binding: 4,
+                    resource: counter.buffer.as_entire_binding(),
+                },
+            ],
+        });
+        let mut encoder = ready
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("ICE3 visibility encoder"),
+            });
+        {
+            let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+                label: Some("ICE3 visibility compute"),
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(
+                ready
+                    .resources
+                    .pipelines()
+                    .get(crate::resources::PipelineKey::InstanceVisibility)?,
+            );
+            pass.set_bind_group(0, &bind_group, &[]);
+            pass.dispatch_workgroups(count.div_ceil(64), 1, 1);
+        }
+        let output_staging = ready
+            .resources
+            .staging()
+            .acquire(&ready.device, count as u64 * 4)?;
+        let count_staging = ready.resources.staging().acquire(&ready.device, 4)?;
+        encoder.copy_buffer_to_buffer(
+            &output.buffer,
+            0,
+            &output_staging.buffer,
+            0,
+            count as u64 * 4,
+        );
+        encoder.copy_buffer_to_buffer(&counter.buffer, 0, &count_staging.buffer, 0, 4);
+        ready.queue.submit([encoder.finish()]);
+        let (output_sender, output_receiver) = mpsc::channel();
+        output_staging
+            .buffer
+            .slice(..count as u64 * 4)
+            .map_async(MapMode::Read, move |result| {
+                let _ = output_sender.send(result);
+            });
+        let (count_sender, count_receiver) = mpsc::channel();
+        count_staging
+            .buffer
+            .slice(..4)
+            .map_async(MapMode::Read, move |result| {
+                let _ = count_sender.send(result);
+            });
+        ready
+            .device
+            .poll(PollType::Wait {
+                submission_index: None,
+                timeout: Some(Duration::from_secs(30)),
+            })
+            .map_err(|error| BackendError::Kernel {
+                message: format!("visibility wait failed: {error}"),
+            })?;
+        output_receiver
+            .recv()
+            .map_err(|_| BackendError::Kernel {
+                message: "visibility output mapping callback was lost".into(),
+            })?
+            .map_err(|error| BackendError::Kernel {
+                message: format!("visibility output mapping failed: {error}"),
+            })?;
+        count_receiver
+            .recv()
+            .map_err(|_| BackendError::Kernel {
+                message: "visibility count mapping callback was lost".into(),
+            })?
+            .map_err(|error| BackendError::Kernel {
+                message: format!("visibility count mapping failed: {error}"),
+            })?;
+        let count_mapped = count_staging
+            .buffer
+            .slice(..4)
+            .get_mapped_range()
+            .map_err(|error| BackendError::Kernel {
+                message: format!("visibility count mapping failed: {error}"),
+            })?;
+        let visible_count = u32::from_le_bytes(count_mapped[..4].try_into().unwrap()) as usize;
+        drop(count_mapped);
+        count_staging.buffer.unmap();
+        let output_mapped = output_staging
+            .buffer
+            .slice(..visible_count as u64 * 4)
+            .get_mapped_range()
+            .map_err(|error| BackendError::Kernel {
+                message: format!("visibility output mapping failed: {error}"),
+            })?;
+        let mut visible = bytemuck::cast_slice::<u8, u32>(&output_mapped).to_vec();
+        drop(output_mapped);
+        output_staging.buffer.unmap();
+        ready.resources.staging().complete(1);
+        ready.resources.buffers().release(params);
+        ready.resources.buffers().release(output);
+        ready.resources.buffers().release(counter);
+        visible.sort_unstable();
+        Ok(visible)
+    }
+
+    pub fn visible_scene_instances_response(
+        &self,
+        session_id: &SceneSessionId,
+        request: SceneVisibilityRequest,
+    ) -> Result<SceneVisibilityResult, BackendError> {
+        Ok(SceneVisibilityResult {
+            revision: request.target_revision,
+            visible_indices: NativeGpuBackend::visible_scene_instances(
+                self,
+                session_id,
+                request.planes,
+            )?,
+        })
     }
 
     #[doc(hidden)]
@@ -1088,6 +1352,14 @@ impl GeometryBackend for NativeGpuBackend {
         request: SceneGeometrySnapshotRequest,
     ) -> Result<Vec<SceneGeometryReadback>, BackendError> {
         NativeGpuBackend::snapshot_scene_geometries(self, session, request)
+    }
+
+    async fn visible_scene_instances(
+        &self,
+        session: &SceneSessionId,
+        request: SceneVisibilityRequest,
+    ) -> Result<SceneVisibilityResult, BackendError> {
+        NativeGpuBackend::visible_scene_instances_response(self, session, request)
     }
 
     async fn cancel(&self, job_id: &str) -> Result<(), BackendError> {

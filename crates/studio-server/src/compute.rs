@@ -19,7 +19,7 @@ use studio_core::large_scene::cache::{
 };
 use studio_core::scene_contract::{
     SceneGeometryReadback, SceneGeometrySnapshotRequest, ScenePatch, SceneSessionId,
-    SceneSessionStatus, SceneSubmission,
+    SceneSessionStatus, SceneSubmission, SceneVisibilityRequest, SceneVisibilityResult,
 };
 use studio_core::validation::DiagnosticCode;
 use studio_gpu::ResidencyKey;
@@ -495,6 +495,27 @@ impl ComputeService {
                 reason: "no native GPU backend was configured".into(),
             })?;
         Ok(gpu.snapshot_scene_geometries(&session, request).await?)
+    }
+
+    pub async fn visible_scene_instances(
+        &self,
+        request: SceneVisibilityRequest,
+    ) -> Result<SceneVisibilityResult, ComputeError> {
+        let session = self
+            .active_scene_session
+            .lock()
+            .expect("scene session poisoned")
+            .clone()
+            .ok_or_else(|| ComputeError::ResidencyUnavailable {
+                reason: "no GPU scene session is open".into(),
+            })?;
+        let gpu = self
+            .gpu
+            .as_ref()
+            .ok_or_else(|| ComputeError::GpuUnavailable {
+                reason: "no native GPU backend was configured".into(),
+            })?;
+        Ok(gpu.visible_scene_instances(&session, request).await?)
     }
 
     pub async fn register_geometry(

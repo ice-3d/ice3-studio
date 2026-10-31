@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use studio_core::geometry::Bounds;
 use studio_core::scene_contract::{ElementRange, SceneInstanceChange};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -122,6 +123,74 @@ impl InstanceTable {
                     [matrix[8], matrix[9], matrix[10], matrix[11]],
                     [matrix[12], matrix[13], matrix[14], matrix[15]],
                 ]
+            })
+            .collect()
+    }
+
+    pub fn matrix_range_data(&self, ranges: &[ElementRange]) -> Vec<(ElementRange, Vec<[f32; 4]>)> {
+        ranges
+            .iter()
+            .filter_map(|range| {
+                let start = range.start as usize;
+                let end = start.checked_add(range.count as usize)?;
+                let records = self.records.get(start..end)?;
+                let data = records
+                    .iter()
+                    .flat_map(|record| {
+                        let matrix = record.matrix;
+                        [
+                            [matrix[0], matrix[1], matrix[2], matrix[3]],
+                            [matrix[4], matrix[5], matrix[6], matrix[7]],
+                            [matrix[8], matrix[9], matrix[10], matrix[11]],
+                            [matrix[12], matrix[13], matrix[14], matrix[15]],
+                        ]
+                    })
+                    .collect();
+                Some((*range, data))
+            })
+            .collect()
+    }
+
+    pub fn bounds_data(&self, geometry_bounds: &BTreeMap<String, Bounds>) -> Vec<[f32; 4]> {
+        self.records
+            .iter()
+            .map(|record| {
+                let Some(bounds) = record
+                    .geometry_id
+                    .as_ref()
+                    .and_then(|id| geometry_bounds.get(id))
+                else {
+                    return [0.0, 0.0, 0.0, 0.0];
+                };
+                let centre = [
+                    (bounds.min.x + bounds.max.x) * 0.5,
+                    (bounds.min.y + bounds.max.y) * 0.5,
+                    (bounds.min.z + bounds.max.z) * 0.5,
+                ];
+                let extent = [
+                    (bounds.max.x - bounds.min.x) * 0.5,
+                    (bounds.max.y - bounds.min.y) * 0.5,
+                    (bounds.max.z - bounds.min.z) * 0.5,
+                ];
+                let m = record.matrix;
+                let world_centre = [
+                    m[0] * centre[0] + m[4] * centre[1] + m[8] * centre[2] + m[12],
+                    m[1] * centre[0] + m[5] * centre[1] + m[9] * centre[2] + m[13],
+                    m[2] * centre[0] + m[6] * centre[1] + m[10] * centre[2] + m[14],
+                ];
+                let scale = [0usize, 4, 8]
+                    .into_iter()
+                    .map(|offset| {
+                        (m[offset] * m[offset]
+                            + m[offset + 1] * m[offset + 1]
+                            + m[offset + 2] * m[offset + 2])
+                            .sqrt()
+                    })
+                    .fold(0.0f32, f32::max);
+                let radius =
+                    (extent[0] * extent[0] + extent[1] * extent[1] + extent[2] * extent[2]).sqrt()
+                        * scale;
+                [world_centre[0], world_centre[1], world_centre[2], radius]
             })
             .collect()
     }

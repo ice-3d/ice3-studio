@@ -33,6 +33,8 @@ fn pending_revisions_publish_in_order_and_transform_updates_skip_geometry() {
         .unwrap();
     assert_eq!(second.geometry_dispatch_count, 0);
     assert_eq!(second.readback_bytes, 0);
+    assert_eq!(second.upload_bytes, 64);
+    assert_eq!(second.instance_range_count, 1);
 
     let ready = backend.wait_scene_revision(&session, 2).unwrap();
     assert_eq!(ready.published_revision, 2);
@@ -64,6 +66,40 @@ fn device_failure_never_publishes_the_target_revision() {
     assert_eq!(status.published_revision, 1);
     assert_eq!(status.target_revision, 2);
     assert_eq!(status.state, SceneSessionState::Failed);
+}
+
+#[test]
+fn gpu_visibility_consumes_resident_instance_buffers() {
+    let Some(backend) = NativeGpuBackend::for_test_gpu() else {
+        return;
+    };
+    let session = backend.create_scene_session("visibility-test").unwrap();
+    let mut scene_patch = patch(
+        1,
+        0,
+        true,
+        Some(geometry("geometry-1", 1.0)),
+        instance("node-000001", 0.0),
+    );
+    scene_patch.geometry.push(geometry("geometry-2", 1.0));
+    scene_patch.instances.push(instance("node-000002", 100.0));
+    backend.apply_scene_patch(&session, scene_patch).unwrap();
+
+    let visible = backend
+        .visible_scene_instances(
+            &session,
+            [
+                [1.0, 0.0, 0.0, 10.0],
+                [-1.0, 0.0, 0.0, 10.0],
+                [0.0, 1.0, 0.0, 100.0],
+                [0.0, -1.0, 0.0, 100.0],
+                [0.0, 0.0, 1.0, 100.0],
+                [0.0, 0.0, -1.0, 100.0],
+            ],
+        )
+        .unwrap();
+
+    assert_eq!(visible, vec![0]);
 }
 
 fn geometry(id: &str, width: f32) -> SceneGeometryChange {

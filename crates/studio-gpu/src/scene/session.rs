@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use studio_core::geometry::Bounds;
 use studio_core::gpu_contract::{GeometryPhaseEvidence, ResidentGeometryId};
 use studio_core::scene_contract::{SceneSessionId, SceneSessionState, SceneSessionStatus};
 
@@ -13,7 +14,11 @@ pub(crate) struct GpuSceneSession {
     pub state: SceneSessionState,
     pub instances: InstanceTable,
     pub instance_buffer: Option<BufferLease>,
+    pub instance_capacity: usize,
+    pub instance_bounds_buffer: Option<BufferLease>,
+    pub geometry_bounds: BTreeMap<String, Bounds>,
     pub geometries: BTreeMap<String, ResidentGeometryId>,
+    pub geometry_topologies: BTreeMap<String, String>,
     pub pending_geometries: Vec<ResidentGeometryId>,
     pub pending_submission_count: usize,
     pub submission_count: usize,
@@ -32,7 +37,11 @@ impl GpuSceneSession {
             state: SceneSessionState::Idle,
             instances: InstanceTable::default(),
             instance_buffer: None,
+            instance_capacity: 0,
+            instance_bounds_buffer: None,
+            geometry_bounds: BTreeMap::new(),
             geometries: BTreeMap::new(),
+            geometry_topologies: BTreeMap::new(),
             pending_geometries: Vec::new(),
             pending_submission_count: 0,
             submission_count: 0,
@@ -59,9 +68,9 @@ impl GpuSceneSession {
             pending_submissions: self.pending_submission_count,
             geometry_count: self.geometries.len(),
             topology_count: self
-                .geometries
+                .geometry_topologies
                 .values()
-                .map(|id| id.0.as_str())
+                .map(String::as_str)
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
             attribute_count: self.geometries.len(),

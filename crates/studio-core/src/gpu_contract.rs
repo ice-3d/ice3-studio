@@ -10,7 +10,7 @@ use crate::geometry::{Bounds, EvaluatedMesh};
 use crate::ids::NodeId;
 use crate::scene_contract::{
     SceneGeometryReadback, SceneGeometrySnapshotRequest, ScenePatch, SceneSessionId,
-    SceneSessionStatus, SceneSubmission,
+    SceneSessionStatus, SceneSubmission, SceneVisibilityRequest, SceneVisibilityResult,
 };
 use crate::validation::Diagnostic;
 
@@ -363,6 +363,16 @@ pub trait GeometryBackend: Send + Sync {
     ) -> Result<Vec<SceneGeometryReadback>, BackendError> {
         Err(BackendError::Unavailable {
             reason: "scene geometry readback is unsupported".into(),
+        })
+    }
+
+    async fn visible_scene_instances(
+        &self,
+        _session: &SceneSessionId,
+        _request: SceneVisibilityRequest,
+    ) -> Result<SceneVisibilityResult, BackendError> {
+        Err(BackendError::Unavailable {
+            reason: "scene visibility is unsupported".into(),
         })
     }
 }

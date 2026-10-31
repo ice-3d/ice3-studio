@@ -22,6 +22,7 @@ use studio_core::large_scene::evaluate::{
     EvaluatedScene, evaluate_large_scene_with_cache_and_evaluator, evaluated_scene_bounds,
 };
 use studio_core::scene_contract::ScenePatch;
+use studio_core::scene_contract::SceneVisibilityRequest;
 use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_gpu::NativeGpuBackend;
@@ -887,6 +888,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 "evaluation.evaluate".into(),
                 "evaluation.stats".into(),
                 "evaluation.waitScene".into(),
+                "evaluation.visibleInstances".into(),
                 "export.sourceGlb".into(),
                 "export.runtimePreview".into(),
                 "changeset.create".into(),
@@ -1178,6 +1180,21 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                     )
                 })?;
             serde_json::to_value(status).map_err(serialize_error)
+        }
+        "evaluation.visibleInstances" => {
+            let request: SceneVisibilityRequest =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let result = pollster::block_on(session.compute.visible_scene_instances(request))
+                .map_err(|error| {
+                    let diagnostic = error.diagnostic_code();
+                    RpcError::with_diagnostic(
+                        -32012,
+                        diagnostic,
+                        format!("{diagnostic}: {error}"),
+                        None,
+                    )
+                })?;
+            serde_json::to_value(result).map_err(serialize_error)
         }
         "export.sourceGlb" => {
             let output = export_source(&session.document, session.store.project_dir())

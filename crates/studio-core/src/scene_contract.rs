@@ -111,6 +111,22 @@ pub struct SceneGeometryReadback {
     pub topology_changed: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SceneVisibilityRequest {
+    pub target_revision: u64,
+    pub planes: [[f32; 4]; 6],
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SceneVisibilityResult {
+    pub revision: u64,
+    pub visible_indices: Vec<u32>,
+}
+
 pub fn changed_position_ranges(
     previous: &TriangleMesh,
     next: &TriangleMesh,

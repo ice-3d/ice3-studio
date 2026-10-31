@@ -53,7 +53,37 @@ export function evaluateBenchmarkGate(result) {
   ) {
     failures.push('gpuTransformBelowFivefold');
   }
+  if (result.computeMode === 'gpu' && result.visibleInstanceCount === 0) {
+    failures.push('gpuVisibilityEmpty');
+  }
   return failures;
+}
+
+export function evaluateSceneComparison(cpu, gpu) {
+  const failures = [];
+  const transformSpeedup =
+    cpu.measurements.incrementalUpdateMs.p50
+    / gpu.measurements.incrementalUpdateMs.p50;
+  const warmStatsRatio =
+    gpu.measurements.warmStatsMs.p50
+    / cpu.measurements.warmStatsMs.p50;
+  const parameterSpeedup =
+    cpu.measurements.parameterUpdateMs.p50
+    / gpu.measurements.parameterUpdateMs.p50;
+  const topologySpeedup =
+    cpu.measurements.topologyUpdateMs.p50
+    / gpu.measurements.topologyUpdateMs.p50;
+  if (transformSpeedup < 5) failures.push('transformBelowFivefold');
+  if (warmStatsRatio > 1.1) failures.push('warmStatsRegression');
+  if (gpu.compute?.sceneSession?.state !== 'idle') failures.push('gpuSceneState');
+  return {
+    failures,
+    transformSpeedup,
+    warmStatsRatio,
+    parameterSpeedup,
+    topologySpeedup,
+    passed: failures.length === 0,
+  };
 }
 
 async function main() {
@@ -132,8 +162,26 @@ async function main() {
     }
 
     const coldStats = await rpc('evaluation.stats');
+    const visibilitySamples = [];
+    let visibleInstanceCount = 0;
     if (sceneSessions) {
       await rpc('evaluation.waitScene', { revision });
+      for (let sample = 0; sample < 7; sample += 1) {
+        const started = performance.now();
+        const visibility = await rpc('evaluation.visibleInstances', {
+          targetRevision: revision,
+          planes: [
+            [1, 0, 0, 1000000000],
+            [-1, 0, 0, 1000000000],
+            [0, 1, 0, 1000000000],
+            [0, -1, 0, 1000000000],
+            [0, 0, 1, 1000000000],
+            [0, 0, -1, 1000000000],
+          ],
+        });
+        visibilitySamples.push(performance.now() - started);
+        visibleInstanceCount = visibility.visibleIndices.length;
+      }
     }
     const warmSamples = [];
     for (let sample = 0; sample < 7; sample += 1) {
@@ -202,6 +250,99 @@ async function main() {
       incrementalSamples.push(performance.now() - incrementalStarted);
     }
 
+    const createdParameter = await rpc('document.apply', {
+      expectedRevision: currentRevision,
+      dryRun: false,
+      idempotencyKey: 'benchmark-parameter-create',
+      operations: [{
+        type: 'node.create',
+        node_id: 'node-900001',
+        parent_id: null,
+        name: 'Parameter Workload',
+        transform: {
+          translation: { x: 0, y: 0, z: 0 },
+          rotation: [0, 0, 0, 1],
+          scale: { x: 1, y: 1, z: 1 },
+        },
+        content: {
+          type: 'primitive',
+          kind: 'box',
+          width: 1,
+          height: 1,
+          depth: 1,
+        },
+        material_id: null,
+        metadata: {},
+      }],
+    });
+    currentRevision = createdParameter.revision;
+    await rpc('evaluation.stats');
+    if (sceneSessions) {
+      await rpc('evaluation.waitScene', { revision: currentRevision });
+    }
+
+    const parameterSamples = [];
+    for (let sample = 0; sample < 7; sample += 1) {
+      const started = performance.now();
+      const updated = await rpc('document.apply', {
+        expectedRevision: currentRevision,
+        dryRun: false,
+        idempotencyKey: `benchmark-parameter-${sample}`,
+        operations: [{
+          type: 'primitive.update',
+          node_id: 'node-900001',
+          primitive: {
+            type: 'primitive',
+            kind: 'box',
+            width: 1 + sample * 0.1,
+            height: 1,
+            depth: 1,
+          },
+        }],
+      });
+      currentRevision = updated.revision;
+      if (sceneSessions) {
+        await rpc('evaluation.waitScene', { revision: currentRevision });
+      }
+      await rpc('evaluation.stats');
+      parameterSamples.push(performance.now() - started);
+    }
+
+    const topologySamples = [];
+    for (let sample = 0; sample < 3; sample += 1) {
+      const started = performance.now();
+      const updated = await rpc('document.apply', {
+        expectedRevision: currentRevision,
+        dryRun: false,
+        idempotencyKey: `benchmark-topology-${sample}`,
+        operations: [{
+          type: 'primitive.update',
+          node_id: 'node-900001',
+          primitive: sample % 2 === 0
+            ? {
+                type: 'primitive',
+                kind: 'cylinder',
+                radius: 1,
+                height: 1 + sample * 0.1,
+                segments: 32,
+              }
+            : {
+                type: 'primitive',
+                kind: 'sphere',
+                radius: 1,
+                segments: 32,
+                rings: 16,
+              },
+        }],
+      });
+      currentRevision = updated.revision;
+      if (sceneSessions) {
+        await rpc('evaluation.waitScene', { revision: currentRevision });
+      }
+      await rpc('evaluation.stats');
+      topologySamples.push(performance.now() - started);
+    }
+
     const exportSamples = [];
     let sourceBytes = 0;
     for (let sample = 0; sample < 7; sample += 1) {
@@ -251,6 +392,7 @@ async function main() {
       incremental: incrementalStats,
       documentBytes: Buffer.byteLength(JSON.stringify(document)),
       sourceGlbBytes: sourceBytes,
+      visibleInstanceCount,
       measurements: {
         planConstructionMs: metric(planSamples),
         initialBuildMs: metric([initialBuildMs]),
@@ -258,6 +400,9 @@ async function main() {
         fullUpdateMs: metric(fullUpdateSamples),
         warmStatsMs: metric(warmSamples),
         incrementalUpdateMs: metric(incrementalSamples),
+        parameterUpdateMs: metric(parameterSamples),
+        topologyUpdateMs: metric(topologySamples),
+        instanceVisibilityMs: metric(visibilitySamples),
         sourceGlbExportMs: metric(exportSamples),
         reopenMs: metric(reopenSamples),
         runtimePreviewMs: metric(previewSamples),
@@ -270,6 +415,7 @@ async function main() {
     const temporary = `${destination}.tmp`;
     await writeFile(temporary, `${JSON.stringify(result, null, 2)}\n`);
     await rename(temporary, destination);
+    console.log(`BENCHMARK_JSON:${JSON.stringify(result)}`);
     console.log(JSON.stringify(result, null, 2));
     if (!result.passed) {
       throw new Error(`large industrial benchmark failed: ${result.failedMetrics.join(', ')}`);
