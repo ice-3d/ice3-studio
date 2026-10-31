@@ -35,6 +35,9 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_REFERENCE_INVALID")]
     #[ts(rename = "ICE3_STUDIO_REFERENCE_INVALID")]
     ReferenceInvalid,
+    #[serde(rename = "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED")]
+    #[ts(rename = "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED")]
+    ReferenceExportUnsupported,
     #[serde(rename = "ICE3_STUDIO_GEOMETRY_INVALID")]
     #[ts(rename = "ICE3_STUDIO_GEOMETRY_INVALID")]
     GeometryInvalid,
@@ -115,6 +118,7 @@ pub const DIAGNOSTIC_CODES: &[&str] = &[
     "ICE3_STUDIO_REVISION_CONFLICT",
     "ICE3_STUDIO_OPERATION_INVALID",
     "ICE3_STUDIO_REFERENCE_INVALID",
+    "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
     "ICE3_STUDIO_GEOMETRY_INVALID",
     "ICE3_STUDIO_CONSTRAINT_FAILED",
     "ICE3_STUDIO_BUDGET_EXCEEDED",
@@ -151,6 +155,7 @@ impl DiagnosticCode {
             Self::RevisionConflict => "ICE3_STUDIO_REVISION_CONFLICT",
             Self::OperationInvalid => "ICE3_STUDIO_OPERATION_INVALID",
             Self::ReferenceInvalid => "ICE3_STUDIO_REFERENCE_INVALID",
+            Self::ReferenceExportUnsupported => "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
             Self::GeometryInvalid => "ICE3_STUDIO_GEOMETRY_INVALID",
             Self::ConstraintFailed => "ICE3_STUDIO_CONSTRAINT_FAILED",
             Self::BudgetExceeded => "ICE3_STUDIO_BUDGET_EXCEEDED",

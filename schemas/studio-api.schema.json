@@ -2725,6 +2725,7 @@
             "ICE3_STUDIO_REVISION_CONFLICT",
             "ICE3_STUDIO_OPERATION_INVALID",
             "ICE3_STUDIO_REFERENCE_INVALID",
+            "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
             "ICE3_STUDIO_GEOMETRY_INVALID",
             "ICE3_STUDIO_CONSTRAINT_FAILED",
             "ICE3_STUDIO_BUDGET_EXCEEDED",
@@ -3949,6 +3950,7 @@
             "ICE3_STUDIO_REVISION_CONFLICT",
             "ICE3_STUDIO_OPERATION_INVALID",
             "ICE3_STUDIO_REFERENCE_INVALID",
+            "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
             "ICE3_STUDIO_GEOMETRY_INVALID",
             "ICE3_STUDIO_CONSTRAINT_FAILED",
             "ICE3_STUDIO_BUDGET_EXCEEDED",
@@ -11683,6 +11685,7 @@
             "ICE3_STUDIO_REVISION_CONFLICT",
             "ICE3_STUDIO_OPERATION_INVALID",
             "ICE3_STUDIO_REFERENCE_INVALID",
+            "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
             "ICE3_STUDIO_GEOMETRY_INVALID",
             "ICE3_STUDIO_CONSTRAINT_FAILED",
             "ICE3_STUDIO_BUDGET_EXCEEDED",
@@ -16360,6 +16363,7 @@
             "ICE3_STUDIO_REVISION_CONFLICT",
             "ICE3_STUDIO_OPERATION_INVALID",
             "ICE3_STUDIO_REFERENCE_INVALID",
+            "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
             "ICE3_STUDIO_GEOMETRY_INVALID",
             "ICE3_STUDIO_CONSTRAINT_FAILED",
             "ICE3_STUDIO_BUDGET_EXCEEDED",
@@ -16707,6 +16711,7 @@
             "ICE3_STUDIO_REVISION_CONFLICT",
             "ICE3_STUDIO_OPERATION_INVALID",
             "ICE3_STUDIO_REFERENCE_INVALID",
+            "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
             "ICE3_STUDIO_GEOMETRY_INVALID",
             "ICE3_STUDIO_CONSTRAINT_FAILED",
             "ICE3_STUDIO_BUDGET_EXCEEDED",
@@ -22009,6 +22014,11 @@
               "minimum": 0,
               "type": "integer"
             },
+            "effectiveTriangles": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
             "instanceSets": {
               "format": "uint",
               "minimum": 0,
@@ -22024,6 +22034,11 @@
               "minimum": 0,
               "type": "integer"
             },
+            "referenceAssets": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
             "relations": {
               "format": "uint",
               "minimum": 0,
@@ -22033,11 +22048,19 @@
               "format": "uint",
               "minimum": 0,
               "type": "integer"
+            },
+            "uniqueMeshes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
             }
           },
           "required": [
             "sourceNodes",
             "derivedNodes",
+            "referenceAssets",
+            "effectiveTriangles",
+            "uniqueMeshes",
             "componentDefinitions",
             "instances",
             "instanceSets",

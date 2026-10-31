@@ -347,6 +347,8 @@ pub(crate) fn context(
         .scene_snapshot
         .as_ref()
         .expect("scene snapshot was ensured");
+    let references =
+        crate::reference_asset::reference_stats(session.store.project_dir(), &session.document)?;
     let bounds_by_id = evaluated_scene_bounds(scene);
     let bounds = union_bounds(bounds_by_id.values().copied());
 
@@ -418,6 +420,9 @@ pub(crate) fn context(
         counts: SceneCounts {
             source_nodes: scene.stats.source_nodes,
             derived_nodes: scene.stats.expanded_nodes,
+            reference_assets: references.reference_assets,
+            effective_triangles: references.effective_triangles,
+            unique_meshes: references.unique_meshes,
             component_definitions: session.document.components.len(),
             instances,
             instance_sets,

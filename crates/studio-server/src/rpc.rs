@@ -15,7 +15,7 @@ use rand::RngCore;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use studio_core::agent_contract::{AgentAccess, AgentLimits};
-use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction};
+use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction, evaluate_operations};
 use studio_core::document::Document;
 use studio_core::geometry::Bounds;
 use studio_core::gpu_contract::{GeometryBackend, GeometryBackendMode};
@@ -967,6 +967,17 @@ fn dispatch(
         "document.apply" => {
             let apply: ApplyRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let candidate = evaluate_operations(&session.document, &apply.operations)
+                .map_err(transaction_error)?;
+            let reference_diagnostics = crate::reference_asset::validate_reference_document(
+                session.store.project_dir(),
+                &candidate.document,
+            );
+            if !reference_diagnostics.is_empty() {
+                return Err(crate::reference_asset::reference_diagnostics_error(
+                    reference_diagnostics,
+                ));
+            }
             if session.compute.policy().incremental_scene_cache {
                 let _ = ensure_scene_snapshot(session);
             }
@@ -1226,11 +1237,20 @@ fn dispatch(
                 .scene_snapshot
                 .as_ref()
                 .expect("scene snapshot was ensured");
+            let references = crate::reference_asset::reference_stats(
+                session.store.project_dir(),
+                &session.document,
+            )?;
             serde_json::to_value(EvaluatedSceneStats {
                 source_nodes: evaluated.stats.source_nodes,
                 expanded_nodes: evaluated.stats.expanded_nodes,
-                unique_meshes: evaluated.stats.unique_meshes,
-                effective_triangles: evaluated.stats.effective_triangles,
+                unique_meshes: evaluated
+                    .stats
+                    .unique_meshes
+                    .saturating_add(references.unique_meshes),
+                effective_triangles: evaluated.stats.effective_triangles.saturating_add(
+                    usize::try_from(references.effective_triangles).unwrap_or(usize::MAX),
+                ),
                 unique_triangles: evaluated.stats.unique_triangles,
                 cache_hits: evaluated.stats.cache_hits,
                 cache_misses: evaluated.stats.cache_misses,
@@ -1294,6 +1314,9 @@ fn dispatch(
             serde_json::to_value(result).map_err(serialize_error)
         }
         "export.sourceGlb" => {
+            if let Some(output) = crate::reference_asset::export_reference_source(session)? {
+                return serde_json::to_value(output).map_err(serialize_error);
+            }
             let output = export_source(&session.document, session.store.project_dir())
                 .map_err(preview_error)?;
             serde_json::to_value(output).map_err(serialize_error)

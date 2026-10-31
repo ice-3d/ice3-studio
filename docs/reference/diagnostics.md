@@ -39,6 +39,7 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_REVISION_CONFLICT` | `expectedRevision` is stale |
 | `ICE3_STUDIO_OPERATION_INVALID` | An operation type or operation input is invalid |
 | `ICE3_STUDIO_REFERENCE_INVALID` | A node, material, relation, or constraint reference is invalid |
+| `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` | Authored reference overrides cannot be composed into the unchanged source GLB |
 | `ICE3_STUDIO_GEOMETRY_INVALID` | A primitive, mesh, index, or transform is invalid |
 | `ICE3_STUDIO_CONSTRAINT_FAILED` | A relationship or spatial constraint is violated |
 | `ICE3_STUDIO_BUDGET_EXCEEDED` | A configured project budget is exceeded |

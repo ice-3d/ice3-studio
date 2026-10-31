@@ -162,6 +162,9 @@ impl Default for SceneSearchRequest {
 pub struct SceneCounts {
     pub source_nodes: usize,
     pub derived_nodes: usize,
+    pub reference_assets: usize,
+    pub effective_triangles: u64,
+    pub unique_meshes: usize,
     pub component_definitions: usize,
     pub instances: usize,
     pub instance_sets: usize,
