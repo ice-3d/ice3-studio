@@ -113,8 +113,9 @@ WebGL2 rendering.
 An opt-in revision-scoped GPU scene session retains shared topology, replaceable attributes, and
 an instance table across committed revisions. The large industrial scene fits its 233 shared
 geometries and 1,938 instances in about 46 MiB, and its transform revision is about 11× faster
-than the retained CPU baseline. Initial scene construction remains expensive, so the experimental
-session is still default-off and leaves CPU/WebGL2 active.
+than the retained CPU baseline. Incremental relation/connection revisions avoid a full scene
+rebuild, reducing initial GPU construction to about 3.8 seconds. The experimental session remains
+default-off and leaves CPU/WebGL2 active.
 
 When preview packets are enabled, the production runtime-preview path reuses the previous packet
 for transform-only revisions and reads back only scene geometries affected by attribute or topology
