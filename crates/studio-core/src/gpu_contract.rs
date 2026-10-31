@@ -134,6 +134,24 @@ pub struct GeometryEvaluationEvidence {
     pub browser_upload_bytes: u64,
 }
 
+impl Default for GeometryEvaluationEvidence {
+    fn default() -> Self {
+        Self {
+            mode: GeometryEvaluationMode::Cpu,
+            stats: GeometryExecutionStats::default(),
+            submission_count: 0,
+            resident_geometries: 0,
+            resident_bytes: 0,
+            peak_resident_bytes: 0,
+            topology_hits: 0,
+            resident_hits: 0,
+            evictions: 0,
+            preview_packet_bytes: 0,
+            browser_upload_bytes: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GeometryBatchResult {
     pub job_id: String,

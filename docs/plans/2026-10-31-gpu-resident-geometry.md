@@ -527,7 +527,7 @@ fn snapshot_is_the_only_custom_mesh_path_that_reads_back() {
     assert_eq!(snapshot.vertices.len(), mesh.positions.len());
     assert!(
         backend.resident_stats().stats.readback_bytes - before
-            >= snapshot.vertices.len() as u64 * 24
+            >= snapshot.vertices.len() as u64 * 16
     );
 }
 ```

@@ -6,11 +6,12 @@ use studio_core::geometry::{Bounds, EvaluatedMesh, TriangleMesh, Vertex};
 use studio_core::gpu_contract::BackendError;
 use studio_core::math::Vec3;
 use wgpu::{
-    BindGroupDescriptor, BindGroupEntry, Buffer, BufferAsyncError, BufferDescriptor, BufferUsages,
-    CommandEncoderDescriptor, ComputePassDescriptor, Device, MapMode, PollType, Queue,
+    BindGroupDescriptor, BindGroupEntry, BindingResource, Buffer, BufferAsyncError, BufferBinding,
+    BufferDescriptor, BufferUsages, CommandEncoderDescriptor, ComputePassDescriptor, Device,
+    MapMode, PollType, Queue,
 };
 
-use crate::resources::{PipelineCache, PipelineKey};
+use crate::resources::{BufferLease, BufferRole, DeviceResources, PipelineCache, PipelineKey};
 
 const MAX_MESH_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -166,6 +167,321 @@ pub fn evaluate_custom_mesh(
         indices: mesh.indices.clone(),
         bounds,
     })
+}
+
+pub(crate) struct ResidentMeshGpu {
+    params: BufferLease,
+    positions: BufferLease,
+    indices: BufferLease,
+    offsets: BufferLease,
+    incidence: BufferLease,
+    face_normals: BufferLease,
+    normals: BufferLease,
+    bounds: BufferLease,
+    pub(crate) vertex_count: u32,
+    pub(crate) triangle_count: u32,
+    workgroup_count: u32,
+}
+
+impl ResidentMeshGpu {
+    pub(crate) fn byte_size(&self) -> u64 {
+        [
+            &self.params,
+            &self.positions,
+            &self.indices,
+            &self.offsets,
+            &self.incidence,
+            &self.face_normals,
+            &self.normals,
+            &self.bounds,
+        ]
+        .into_iter()
+        .map(|lease| lease.buffer.size())
+        .sum()
+    }
+
+    pub(crate) fn snapshot_readback_bytes(&self) -> u64 {
+        self.vertex_count as u64 * 16 + self.workgroup_count as u64 * 32
+    }
+
+    pub(crate) fn release(self, resources: &DeviceResources) {
+        resources.buffers().release(self.params);
+        resources.buffers().release(self.positions);
+        resources.buffers().release(self.indices);
+        resources.buffers().release(self.offsets);
+        resources.buffers().release(self.incidence);
+        resources.buffers().release(self.face_normals);
+        resources.buffers().release(self.normals);
+        resources.buffers().release(self.bounds);
+    }
+}
+
+pub(crate) fn create_resident_custom_mesh(
+    device: &Device,
+    queue: &Queue,
+    resources: &DeviceResources,
+    mesh: &TriangleMesh,
+) -> Result<ResidentMeshGpu, BackendError> {
+    let geometry = validate_mesh_input(mesh)?;
+    let adjacency = build_adjacency(mesh, geometry.vertex_count)?;
+    validate_memory_budget(&geometry, adjacency.offsets.len())?;
+
+    let positions = mesh
+        .positions
+        .iter()
+        .map(|position| [position[0], position[1], position[2], 1.0])
+        .collect::<Vec<_>>();
+    let params = MeshParams {
+        vertex_count: geometry.vertex_count,
+        triangle_count: geometry.triangle_count,
+        workgroup_count: geometry.workgroup_count,
+        reserved: 0,
+    };
+
+    let params_lease = resources.buffers().acquire(
+        device,
+        BufferRole::DynamicAttribute,
+        BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        std::mem::size_of::<MeshParams>() as u64,
+        "ICE3 resident mesh parameters",
+    )?;
+    queue.write_buffer(&params_lease.buffer, 0, bytemuck::bytes_of(&params));
+    let position_lease = acquire_upload(
+        device,
+        queue,
+        resources,
+        "ICE3 resident mesh positions",
+        BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        bytemuck::cast_slice(&positions),
+    )?;
+    let index_lease = acquire_upload(
+        device,
+        queue,
+        resources,
+        "ICE3 resident mesh indices",
+        BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        bytemuck::cast_slice(&mesh.indices),
+    )?;
+    let offset_lease = acquire_upload(
+        device,
+        queue,
+        resources,
+        "ICE3 resident mesh offsets",
+        BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        bytemuck::cast_slice(&adjacency.offsets),
+    )?;
+    let incidence_lease = acquire_upload(
+        device,
+        queue,
+        resources,
+        "ICE3 resident mesh incidence",
+        BufferUsages::STORAGE | BufferUsages::COPY_DST,
+        bytemuck::cast_slice(&adjacency.incidence),
+    )?;
+    let face_normal_lease = acquire_output(
+        device,
+        resources,
+        "ICE3 resident mesh face normals",
+        geometry.triangle_count as u64 * 16,
+        BufferUsages::STORAGE,
+    )?;
+    let normal_lease = acquire_output(
+        device,
+        resources,
+        "ICE3 resident mesh normals",
+        geometry.vertex_count as u64 * 16,
+        BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+    )?;
+    let bounds_lease = acquire_output(
+        device,
+        resources,
+        "ICE3 resident mesh bounds",
+        geometry.workgroup_count as u64 * 32,
+        BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+    )?;
+
+    let face_pipeline = resources.pipelines().get(PipelineKey::MeshFaceNormals)?;
+    let normal_pipeline = resources.pipelines().get(PipelineKey::MeshNormals)?;
+    let bounds_pipeline = resources.pipelines().get(PipelineKey::MeshBounds)?;
+    let layout = resources.pipelines().mesh_layout();
+    let bind_group = device.create_bind_group(&BindGroupDescriptor {
+        label: Some("ICE3 resident mesh bindings"),
+        layout,
+        entries: &[
+            lease_binding(0, &params_lease),
+            lease_binding(1, &position_lease),
+            lease_binding(2, &index_lease),
+            lease_binding(3, &offset_lease),
+            lease_binding(4, &incidence_lease),
+            lease_binding(5, &face_normal_lease),
+            lease_binding(6, &normal_lease),
+            lease_binding(7, &bounds_lease),
+        ],
+    });
+    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+        label: Some("ICE3 resident mesh encoder"),
+    });
+    {
+        let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor {
+            label: Some("ICE3 resident mesh compute"),
+            timestamp_writes: None,
+        });
+        pass.set_bind_group(0, &bind_group, &[]);
+        pass.set_pipeline(face_pipeline);
+        pass.dispatch_workgroups(geometry.triangle_count.div_ceil(64), 1, 1);
+        pass.set_pipeline(normal_pipeline);
+        pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
+        pass.set_pipeline(bounds_pipeline);
+        pass.dispatch_workgroups(geometry.workgroup_count, 1, 1);
+    }
+    queue.submit([encoder.finish()]);
+    device
+        .poll(PollType::Wait {
+            submission_index: None,
+            timeout: Some(Duration::from_secs(30)),
+        })
+        .map_err(|error| BackendError::Kernel {
+            message: format!("resident mesh completion failed: {error}"),
+        })?;
+
+    Ok(ResidentMeshGpu {
+        params: params_lease,
+        positions: position_lease,
+        indices: index_lease,
+        offsets: offset_lease,
+        incidence: incidence_lease,
+        face_normals: face_normal_lease,
+        normals: normal_lease,
+        bounds: bounds_lease,
+        vertex_count: geometry.vertex_count,
+        triangle_count: geometry.triangle_count,
+        workgroup_count: geometry.workgroup_count,
+    })
+}
+
+pub(crate) fn snapshot_resident_custom_mesh(
+    device: &Device,
+    queue: &Queue,
+    resources: &DeviceResources,
+    gpu: &ResidentMeshGpu,
+    source: &TriangleMesh,
+) -> Result<EvaluatedMesh, BackendError> {
+    let normal_bytes = gpu.vertex_count as u64 * 16;
+    let bounds_bytes = gpu.workgroup_count as u64 * 32;
+    let normal_staging = resources.staging().acquire(device, normal_bytes)?;
+    let bounds_staging = resources.staging().acquire(device, bounds_bytes)?;
+    let mut encoder = device.create_command_encoder(&CommandEncoderDescriptor {
+        label: Some("ICE3 resident mesh snapshot"),
+    });
+    encoder.copy_buffer_to_buffer(
+        &gpu.normals.buffer,
+        0,
+        &normal_staging.buffer,
+        0,
+        normal_bytes,
+    );
+    encoder.copy_buffer_to_buffer(
+        &gpu.bounds.buffer,
+        0,
+        &bounds_staging.buffer,
+        0,
+        bounds_bytes,
+    );
+    queue.submit([encoder.finish()]);
+    let normal_mapping = map_async(&normal_staging.buffer);
+    let bounds_mapping = map_async(&bounds_staging.buffer);
+    device
+        .poll(PollType::Wait {
+            submission_index: None,
+            timeout: Some(Duration::from_secs(30)),
+        })
+        .map_err(|error| BackendError::Kernel {
+            message: format!("resident mesh snapshot failed: {error}"),
+        })?;
+    wait_for_mapping(&normal_mapping, "normal")?;
+    wait_for_mapping(&bounds_mapping, "bounds")?;
+    let normals = {
+        let mapped = normal_staging
+            .buffer
+            .slice(0..normal_bytes)
+            .get_mapped_range()
+            .map_err(|error| BackendError::Kernel {
+                message: format!("resident normal snapshot mapping failed: {error}"),
+            })?;
+        bytemuck::cast_slice::<u8, [f32; 4]>(&mapped).to_vec()
+    };
+    normal_staging.buffer.unmap();
+    let bounds = {
+        let mapped = bounds_staging
+            .buffer
+            .slice(0..bounds_bytes)
+            .get_mapped_range()
+            .map_err(|error| BackendError::Kernel {
+                message: format!("resident bounds snapshot mapping failed: {error}"),
+            })?;
+        bytemuck::cast_slice::<u8, [f32; 4]>(&mapped).to_vec()
+    };
+    bounds_staging.buffer.unmap();
+    resources.staging().complete(1);
+    let bounds = reduce_partial_bounds(&bounds)?;
+    let vertices = source
+        .positions
+        .iter()
+        .copied()
+        .zip(
+            normals
+                .iter()
+                .map(|normal| [normal[0], normal[1], normal[2]]),
+        )
+        .map(|(position, normal)| Vertex { position, normal })
+        .collect();
+    Ok(EvaluatedMesh {
+        vertices,
+        indices: source.indices.clone(),
+        bounds,
+    })
+}
+
+fn acquire_upload(
+    device: &Device,
+    queue: &Queue,
+    resources: &DeviceResources,
+    label: &str,
+    usage: BufferUsages,
+    bytes: &[u8],
+) -> Result<BufferLease, BackendError> {
+    let lease = resources.buffers().acquire(
+        device,
+        BufferRole::StaticTopology,
+        usage,
+        bytes.len() as u64,
+        label,
+    )?;
+    queue.write_buffer(&lease.buffer, 0, bytes);
+    Ok(lease)
+}
+
+fn acquire_output(
+    device: &Device,
+    resources: &DeviceResources,
+    label: &str,
+    bytes: u64,
+    usage: BufferUsages,
+) -> Result<BufferLease, BackendError> {
+    resources
+        .buffers()
+        .acquire(device, BufferRole::DeviceOutput, usage, bytes, label)
+}
+
+fn lease_binding<'a>(binding: u32, lease: &'a BufferLease) -> BindGroupEntry<'a> {
+    BindGroupEntry {
+        binding,
+        resource: BindingResource::Buffer(BufferBinding {
+            buffer: &lease.buffer,
+            offset: 0,
+            size: std::num::NonZeroU64::new(lease.requested_bytes),
+        }),
+    }
 }
 
 #[derive(Debug)]

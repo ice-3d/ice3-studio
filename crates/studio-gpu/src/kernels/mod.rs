@@ -1,4 +1,4 @@
-mod mesh;
+pub(crate) mod mesh;
 mod primitives;
 
 pub use mesh::evaluate_custom_mesh;
