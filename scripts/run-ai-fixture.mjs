@@ -4,6 +4,20 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
+import { assertImpactInvariants } from './agent-iteration-impact-check.mjs';
+
+assertImpactInvariants({
+  scope: 'local',
+  fullSceneRebuildRequired: false,
+  generatedGeometry: 0,
+  cacheHits: 64,
+  candidateDigest: 'fixture-digest',
+  reasons: ['instance_parameters'],
+}, {
+  expectedScope: 'local',
+  maxGeneratedGeometry: 0,
+});
+
 const fixtureArg = process.argv.indexOf('--fixture');
 const fixture = fixtureArg >= 0 ? process.argv[fixtureArg + 1] : undefined;
 if (!fixture) {

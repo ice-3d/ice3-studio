@@ -5,6 +5,8 @@ use studio_core::agent_contract::{
 };
 use studio_core::diff::DocumentDiff;
 use studio_core::document::Document;
+use studio_core::geometry::EvaluatedMesh;
+use studio_core::large_scene::cache::{GeometryCacheEntry, GeometryStore, MemoryGeometryStore};
 use studio_core::operation::Operation;
 use studio_core::validation::DiagnosticCode;
 
@@ -28,12 +30,13 @@ pub(crate) fn analyze_impact(
         .as_ref()
         .ok_or_else(|| impact_error("scene source index is unavailable"))?;
     let evaluator = ComputeEvaluator::new(&session.compute);
+    let mut scratch = ReadThroughGeometryStore::new(&session.scene_cache);
     let built = build_scene_patch_with_scene(
         candidate,
         diff,
         previous_scene,
         index,
-        &mut session.scene_cache,
+        &mut scratch,
         Some(&evaluator),
     )
     .map_err(|error| impact_error(&error.to_string()))?;
@@ -193,4 +196,38 @@ fn impact_error(message: &str) -> RpcError {
         format!("{}: {message}", DiagnosticCode::GeometryInvalid.as_str()),
         None,
     )
+}
+
+struct ReadThroughGeometryStore<'a, S> {
+    source: &'a S,
+    scratch: MemoryGeometryStore,
+}
+
+impl<'a, S: GeometryStore> ReadThroughGeometryStore<'a, S> {
+    fn new(source: &'a S) -> Self {
+        Self {
+            source,
+            scratch: MemoryGeometryStore::default(),
+        }
+    }
+}
+
+impl<S: GeometryStore> GeometryStore for ReadThroughGeometryStore<'_, S> {
+    fn load(&self, key: &str) -> Option<EvaluatedMesh> {
+        self.scratch.load(key).or_else(|| self.source.load(key))
+    }
+
+    fn store(&mut self, key: String, mesh: EvaluatedMesh) {
+        self.scratch.store(key, mesh);
+    }
+
+    fn load_entry(&self, key: &str) -> Option<GeometryCacheEntry> {
+        self.scratch
+            .load_entry(key)
+            .or_else(|| self.source.load_entry(key))
+    }
+
+    fn store_entry(&mut self, key: String, entry: GeometryCacheEntry) {
+        self.scratch.store_entry(key, entry);
+    }
 }

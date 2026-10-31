@@ -152,6 +152,33 @@ async fn blocked_candidate_impact_is_unavailable() {
     assert!(result["candidateDigest"].is_null(), "{result}");
 }
 
+#[tokio::test]
+async fn repeated_impact_analysis_does_not_warm_the_committed_scene_cache() {
+    let server = start_test_server(ServerConfig::review_required("impact-no-cache-write")).await;
+    seed_parameterized_scene(&server).await;
+    warm_stats(&server).await;
+    let changes = create_change_set_with_operations(
+        &server,
+        vec![instance_patch_parameter("node-000001", "width", 3.0)],
+    )
+    .await;
+
+    let first = request_impact(&server, &changes).await;
+    let second = request_impact(&server, &changes).await;
+
+    assert_eq!(first["generatedGeometry"], 1, "{first}");
+    assert_eq!(first["cacheMisses"], 1, "{first}");
+    assert_eq!(
+        first["generatedGeometry"], second["generatedGeometry"],
+        "{first}\n{second}"
+    );
+    assert_eq!(first["cacheHits"], second["cacheHits"], "{first}\n{second}");
+    assert_eq!(
+        first["cacheMisses"], second["cacheMisses"],
+        "{first}\n{second}"
+    );
+}
+
 async fn request_impact(server: &TestServer, change_set: &serde_json::Value) -> serde_json::Value {
     request_impact_result(server, change_set).await["impact"].clone()
 }
