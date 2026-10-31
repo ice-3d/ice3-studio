@@ -28,6 +28,7 @@
 | `ICE3-STUDIO-SPEC-009` | [Agent-Friendly Modeling API](specs/2026-10-31-agent-friendly-modeling-api-design.md) | Implemented | 面向外部 Agent 的有界上下文、分页发现、派生几何查询与稀疏 patch 契约 |
 | `ICE3-STUDIO-SPEC-010` | [Agent Iteration Impact Analysis](specs/2026-10-31-agent-iteration-impact-design.md) | Implemented | 局部修改影响范围、几何重建与缓存复用契约 |
 | `ICE3-STUDIO-SPEC-011` | [Large Reference Asset Editing](specs/2026-10-31-large-reference-assets-design.md) | Proposed | 外部大型资产、轻量语义绑定、流式预览和稳定取景 |
+| `ICE3-STUDIO-PLAN-014` | [Large Reference Asset Editing 实施计划](plans/2026-10-31-large-reference-assets.md) | Proposed | 引用资产存储、绑定编辑、流式 Viewer 与真实大模型验收 |
 | `ICE3-STUDIO-PLAN-011` | [Revision-Scoped GPU Scene Session 实施计划](plans/2026-10-31-gpu-scene-session.md) | Experimental | CPU 增量场景、GPU residency、preview delta 和量化门禁 |
 | `ICE3-STUDIO-PLAN-012` | [Agent-Friendly Modeling API 实施计划](plans/2026-10-31-agent-friendly-modeling-api.md) | Implemented | Agent manifest、上下文查询、派生场景发现和稀疏 patch 的 TDD 交付步骤 |
 | `ICE3-STUDIO-PLAN-013` | [Agent Iteration Impact Analysis 实施计划](plans/2026-10-31-agent-iteration-impact.md) | Implemented | 局部修改影响、缓存证据、权限、Schema 和当前 Agent 验收 |
