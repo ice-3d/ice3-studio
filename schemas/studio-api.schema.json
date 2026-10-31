@@ -900,6 +900,119 @@
             {
               "additionalProperties": false,
               "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "setParameterDefaults": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/ParameterValue"
+                  },
+                  "type": "object"
+                },
+                "type": {
+                  "const": "component.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "componentId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "diameter": {
+                  "format": "float",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "from": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/InstancePortRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "medium": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nodeId": {
+                  "type": "string"
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "routePolicy": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/RoutePolicy"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/InstancePortRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "const": "connection.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "nodeId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
                 "definition": {
                   "$ref": "#/$defs/ComponentDefinition"
                 },
@@ -4296,6 +4409,119 @@
             {
               "additionalProperties": false,
               "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "setParameterDefaults": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/ParameterValue"
+                  },
+                  "type": "object"
+                },
+                "type": {
+                  "const": "component.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "componentId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "diameter": {
+                  "format": "float",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "from": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/InstancePortRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "medium": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nodeId": {
+                  "type": "string"
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "routePolicy": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/RoutePolicy"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/InstancePortRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "const": "connection.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "nodeId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
                 "definition": {
                   "$ref": "#/$defs/ComponentDefinition"
                 },
@@ -6695,6 +6921,119 @@
               "required": [
                 "type",
                 "materialId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "componentId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "setParameterDefaults": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/ParameterValue"
+                  },
+                  "type": "object"
+                },
+                "type": {
+                  "const": "component.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "componentId"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "properties": {
+                "diameter": {
+                  "format": "float",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "from": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/InstancePortRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "medium": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "nodeId": {
+                  "type": "string"
+                },
+                "removeMetadataKeys": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "routePolicy": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/RoutePolicy"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "setMetadata": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "to": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/InstancePortRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": {
+                  "const": "connection.patch",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "nodeId"
               ],
               "type": "object"
             },
@@ -13579,6 +13918,119 @@
           "required": [
             "type",
             "materialId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "componentId": {
+              "type": "string"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "removeMetadataKeys": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "setMetadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "setParameterDefaults": {
+              "additionalProperties": {
+                "$ref": "#/$defs/ParameterValue"
+              },
+              "type": "object"
+            },
+            "type": {
+              "const": "component.patch",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "componentId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "diameter": {
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "from": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InstancePortRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "medium": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "removeMetadataKeys": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "routePolicy": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RoutePolicy"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "setMetadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/InstancePortRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "const": "connection.patch",
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "nodeId"
           ],
           "type": "object"
         },

@@ -12,7 +12,7 @@ use crate::ids::{ComponentId, MaterialId, NodeId, RelationId, Revision};
 use crate::large_scene::component::PartContent;
 use crate::large_scene::connection::ConnectionIntent;
 use crate::operation::Operation;
-use crate::patch::{InstancePatch, MaterialPatch};
+use crate::patch::{ComponentPatch, ConnectionPatch, InstancePatch, MaterialPatch};
 use crate::validation::{Diagnostic, DiagnosticCode, validate_document};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -210,6 +210,12 @@ fn apply_operation(
         }
         Operation::MaterialPatch(patch) => {
             apply_material_patch(document, patch, diff, operation_index)?;
+        }
+        Operation::ComponentPatch(patch) => {
+            apply_component_patch(document, patch, diff, operation_index)?;
+        }
+        Operation::ConnectionPatch(patch) => {
+            apply_connection_patch(document, patch, diff, operation_index)?;
         }
         Operation::ComponentDefine { definition } => {
             let id = definition.id.clone();
@@ -782,6 +788,161 @@ fn apply_material_patch(
         material.edge_color = None;
     }
     diff.material_updated(patch.material_id);
+    Ok(())
+}
+
+fn apply_component_patch(
+    document: &mut Document,
+    patch: ComponentPatch,
+    diff: &mut DiffBuilder,
+    operation_index: usize,
+) -> Result<(), TransactionError> {
+    if !patch.has_input() {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.component_id,
+            "",
+            "patch must contain at least one field",
+        ));
+    }
+    if patch
+        .remove_metadata_keys
+        .iter()
+        .any(|key| patch.set_metadata.contains_key(key))
+    {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.component_id,
+            "/removeMetadataKeys",
+            "a metadata key cannot be set and removed in one patch",
+        ));
+    }
+    let component_id = patch.component_id.clone();
+    let component = document
+        .components
+        .iter_mut()
+        .find(|component| component.id == component_id)
+        .ok_or_else(|| {
+            operation_error(
+                operation_index,
+                &component_id,
+                "/componentId",
+                "component definition does not exist",
+            )
+        })?;
+    let parameter_names = component
+        .parameters
+        .iter()
+        .map(|parameter| parameter.name.as_str())
+        .collect::<BTreeSet<_>>();
+    if patch
+        .set_parameter_defaults
+        .keys()
+        .any(|name| !parameter_names.contains(name.as_str()))
+    {
+        return Err(invalid_patch(
+            operation_index,
+            &component_id,
+            "/setParameterDefaults",
+            "patch contains an unknown component parameter",
+        ));
+    }
+    if let Some(name) = patch.name {
+        component.name = name;
+    }
+    for parameter in &mut component.parameters {
+        if let Some(value) = patch.set_parameter_defaults.get(&parameter.name) {
+            parameter.default = value.clone();
+        }
+    }
+    for (key, value) in patch.set_metadata {
+        component.metadata.insert(key, value);
+    }
+    for key in patch
+        .remove_metadata_keys
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+    {
+        component.metadata.remove(&key);
+    }
+    diff.component_updated(component_id);
+    Ok(())
+}
+
+fn apply_connection_patch(
+    document: &mut Document,
+    patch: ConnectionPatch,
+    diff: &mut DiffBuilder,
+    operation_index: usize,
+) -> Result<(), TransactionError> {
+    if !patch.has_input() {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.node_id,
+            "",
+            "patch must contain at least one field",
+        ));
+    }
+    if patch
+        .remove_metadata_keys
+        .iter()
+        .any(|key| patch.set_metadata.contains_key(key))
+    {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.node_id,
+            "/removeMetadataKeys",
+            "a metadata key cannot be set and removed in one patch",
+        ));
+    }
+    let node_id = patch.node_id.clone();
+    let mut connection = document
+        .scene
+        .nodes()
+        .iter()
+        .find(|node| node.id == node_id)
+        .and_then(|node| match &node.content {
+            NodeContent::Connection(connection) => Some(connection.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| {
+            invalid_patch(
+                operation_index,
+                &node_id,
+                "/nodeId",
+                "node is not a connection",
+            )
+        })?;
+    if let Some(from) = patch.from {
+        connection.from = from;
+    }
+    if let Some(to) = patch.to {
+        connection.to = to;
+    }
+    if let Some(medium) = patch.medium {
+        connection.medium = medium;
+    }
+    if let Some(diameter) = patch.diameter {
+        connection.diameter = diameter;
+    }
+    if let Some(route_policy) = patch.route_policy {
+        connection.route_policy = route_policy;
+    }
+    ensure_connection_relation(document, &connection, operation_index, &node_id)?;
+
+    let node = node_mut(document, &node_id, operation_index, "/nodeId")?;
+    for (key, value) in patch.set_metadata {
+        node.metadata.insert(key, value);
+    }
+    for key in patch
+        .remove_metadata_keys
+        .into_iter()
+        .collect::<BTreeSet<_>>()
+    {
+        node.metadata.remove(&key);
+    }
+    node.content = NodeContent::Connection(connection);
+    diff.node_updated(node_id);
     Ok(())
 }
 

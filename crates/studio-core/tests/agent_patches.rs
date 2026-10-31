@@ -1,15 +1,16 @@
 use std::collections::BTreeMap;
 
 use studio_core::apply::{ApplyRequest, TransactionError, apply_transaction};
-use studio_core::document::{Document, NodeContent, SceneNode};
-use studio_core::ids::{ComponentId, MaterialId, NodeId, Revision};
+use studio_core::document::{Document, NodeContent, Relation, SceneNode};
+use studio_core::ids::{ComponentId, MaterialId, NodeId, RelationId, Revision};
 use studio_core::large_scene::component::{
-    ComponentDefinition, ComponentInstance, ComponentParameter, ComponentPart, ParameterType,
-    ParameterValue, PartContent, PartOverride, PartTransform, ScalarBinding,
+    ComponentDefinition, ComponentInstance, ComponentParameter, ComponentPart, ComponentPort,
+    ParameterType, ParameterValue, PartContent, PartOverride, PartTransform, ScalarBinding,
 };
+use studio_core::large_scene::connection::{ConnectionIntent, InstancePortRef, RoutePolicy};
 use studio_core::math::Vec3;
 use studio_core::operation::Operation;
-use studio_core::patch::{InstancePatch, MaterialPatch};
+use studio_core::patch::{ComponentPatch, ConnectionPatch, InstancePatch, MaterialPatch};
 
 #[test]
 fn instance_patch_changes_only_named_fields() {
@@ -207,6 +208,157 @@ fn instance_patch_rejects_unknown_parameter_name() {
     assert_eq!(document.revision, Revision::new(0));
 }
 
+#[test]
+fn component_patch_changes_only_requested_definition_fields() {
+    let mut document = fixture_document();
+    let original = document.components[0].clone();
+    let result = apply_transaction(
+        &mut document,
+        request(Operation::ComponentPatch(ComponentPatch {
+            component_id: ComponentId::from("component-000001"),
+            name: Some("Pump v2".into()),
+            set_parameter_defaults: [("capacity".into(), ParameterValue::Number(5.0))]
+                .into_iter()
+                .collect(),
+            set_metadata: [("service".into(), "process".into())].into_iter().collect(),
+            remove_metadata_keys: vec!["category".into()],
+        })),
+    )
+    .unwrap();
+
+    let patched = &document.components[0];
+    assert_eq!(patched.name, "Pump v2");
+    assert_eq!(patched.parameters[0].default, ParameterValue::Number(5.0));
+    assert!(!patched.metadata.contains_key("category"));
+    assert_eq!(patched.metadata["service"], "process");
+    assert_eq!(
+        patched.parameters[0].value_type,
+        original.parameters[0].value_type
+    );
+    assert_eq!(patched.parameters[1], original.parameters[1]);
+    assert_eq!(patched.parts, original.parts);
+    assert_eq!(patched.ports, original.ports);
+    assert_eq!(result.diff.updated_component_ids, vec![patched.id.clone()]);
+}
+
+#[test]
+fn component_patch_rejects_empty_input() {
+    let mut document = fixture_document();
+    let error = apply_transaction(
+        &mut document,
+        request(Operation::ComponentPatch(ComponentPatch {
+            component_id: ComponentId::from("component-000001"),
+            name: None,
+            set_parameter_defaults: BTreeMap::new(),
+            set_metadata: BTreeMap::new(),
+            remove_metadata_keys: Vec::new(),
+        })),
+    );
+    assert!(error.is_err());
+}
+
+#[test]
+fn connection_patch_changes_only_requested_connection_fields() {
+    let mut document = connection_fixture_document();
+    let original_node = document.scene.nodes()[2].clone();
+    let NodeContent::Connection(original_connection) = &original_node.content else {
+        panic!("fixture node must be a connection");
+    };
+    let original_connection = original_connection.clone();
+    let result = apply_transaction(
+        &mut document,
+        request(Operation::ConnectionPatch(ConnectionPatch {
+            node_id: NodeId::from("node-000010"),
+            from: None,
+            to: None,
+            medium: None,
+            diameter: Some(2.5),
+            route_policy: None,
+            set_metadata: [("insulated".into(), "true".into())].into_iter().collect(),
+            remove_metadata_keys: vec!["line".into()],
+        })),
+    )
+    .unwrap();
+
+    let node = &document.scene.nodes()[2];
+    let NodeContent::Connection(connection) = &node.content else {
+        panic!("fixture node must remain a connection");
+    };
+    assert_eq!(connection.diameter, 2.5);
+    assert_eq!(connection.from, original_connection.from);
+    assert_eq!(connection.to, original_connection.to);
+    assert_eq!(connection.medium, original_connection.medium);
+    assert_eq!(connection.route_policy, original_connection.route_policy);
+    assert_eq!(connection.relation_id, original_connection.relation_id);
+    assert_eq!(node.transform, original_node.transform);
+    assert!(!node.metadata.contains_key("line"));
+    assert_eq!(node.metadata["insulated"], "true");
+    assert_eq!(result.diff.updated_node_ids, vec![node.id.clone()]);
+}
+
+#[test]
+fn connection_patch_updates_endpoint_and_route_together() {
+    let mut document = connection_fixture_document();
+    apply_transaction(
+        &mut document,
+        request(Operation::ConnectionPatch(ConnectionPatch {
+            node_id: NodeId::from("node-000010"),
+            from: Some(InstancePortRef::Instance {
+                node_id: NodeId::from("node-000002"),
+                port: "outlet".into(),
+            }),
+            to: Some(InstancePortRef::Instance {
+                node_id: NodeId::from("node-000001"),
+                port: "outlet".into(),
+            }),
+            medium: None,
+            diameter: None,
+            route_policy: Some(RoutePolicy::Direct),
+            set_metadata: BTreeMap::new(),
+            remove_metadata_keys: Vec::new(),
+        })),
+    )
+    .unwrap();
+
+    let NodeContent::Connection(connection) = &document.scene.nodes()[2].content else {
+        panic!("fixture node must remain a connection");
+    };
+    assert_eq!(
+        connection.from,
+        InstancePortRef::Instance {
+            node_id: NodeId::from("node-000002"),
+            port: "outlet".into(),
+        }
+    );
+    assert_eq!(
+        connection.to,
+        InstancePortRef::Instance {
+            node_id: NodeId::from("node-000001"),
+            port: "outlet".into(),
+        }
+    );
+    assert_eq!(connection.route_policy, RoutePolicy::Direct);
+}
+
+#[test]
+fn connection_patch_rejects_empty_input() {
+    let mut document = connection_fixture_document();
+    let error = apply_transaction(
+        &mut document,
+        request(Operation::ConnectionPatch(ConnectionPatch {
+            node_id: NodeId::from("node-000010"),
+            from: None,
+            to: None,
+            medium: None,
+            diameter: None,
+            route_policy: None,
+            set_metadata: BTreeMap::new(),
+            remove_metadata_keys: Vec::new(),
+        })),
+    );
+    assert!(error.is_err());
+}
+
 fn request(operation: Operation) -> ApplyRequest {
     ApplyRequest {
         expected_revision: Revision::new(0),
@@ -262,19 +414,79 @@ fn fixture_document() -> Document {
             metadata: BTreeMap::new(),
             visible: true,
         }],
-        ports: Vec::new(),
-        metadata: BTreeMap::new(),
+        ports: vec![ComponentPort {
+            name: "outlet".into(),
+            part_id: "body".into(),
+            position: Vec3::default(),
+            direction: Vec3 {
+                x: 1.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            medium: "water".into(),
+            diameter: 1.0,
+        }],
+        metadata: [("category".into(), "pump".into())].into_iter().collect(),
     });
-    let mut node = SceneNode::group(NodeId::from("node-000001"), "Pump A");
-    node.transform.translation = Vec3 {
-        x: 3.0,
-        y: 0.0,
-        z: 0.0,
-    };
+    let mut node = instance_node("node-000001", "Pump A", 3.0, component_id.clone());
     node.material_id = Some(MaterialId::from("material-000001"));
     node.metadata = [("role".into(), "pump".into()), ("area".into(), "A".into())]
         .into_iter()
         .collect();
+    let NodeContent::ComponentInstance(instance) = &mut node.content else {
+        unreachable!();
+    };
+    instance.overrides.insert(
+        "body".into(),
+        PartOverride {
+            material_id: None,
+            visible: Some(true),
+            metadata: Some([("finish".into(), "paint".into())].into_iter().collect()),
+            parameters: BTreeMap::new(),
+        },
+    );
+    document.scene.nodes_mut().push(node);
+    document
+}
+
+fn connection_fixture_document() -> Document {
+    let mut document = fixture_document();
+    let component_id = document.components[0].id.clone();
+    document
+        .scene
+        .nodes_mut()
+        .push(instance_node("node-000002", "Pump B", 7.0, component_id));
+    document.relations.push(Relation {
+        id: RelationId::from("relation-000001"),
+        relation_type: "process".into(),
+        from_node_id: NodeId::from("node-000001"),
+        to_node_id: NodeId::from("node-000002"),
+        metadata: BTreeMap::new(),
+    });
+    let mut connection_node = SceneNode::group(NodeId::from("node-000010"), "Process line");
+    connection_node.metadata.insert("line".into(), "A".into());
+    connection_node.content = NodeContent::Connection(ConnectionIntent {
+        from: InstancePortRef::Instance {
+            node_id: NodeId::from("node-000001"),
+            port: "outlet".into(),
+        },
+        to: InstancePortRef::Instance {
+            node_id: NodeId::from("node-000002"),
+            port: "outlet".into(),
+        },
+        medium: "water".into(),
+        diameter: 1.0,
+        route_policy: RoutePolicy::Orthogonal,
+        relation_id: RelationId::from("relation-000001"),
+        metadata: BTreeMap::new(),
+    });
+    document.scene.nodes_mut().push(connection_node);
+    document
+}
+
+fn instance_node(id: &str, name: &str, x: f32, component_id: ComponentId) -> SceneNode {
+    let mut node = SceneNode::group(NodeId::from(id), name);
+    node.transform.translation = Vec3 { x, y: 0.0, z: 0.0 };
     node.content = NodeContent::ComponentInstance(ComponentInstance {
         definition_id: component_id,
         parameters: [
@@ -283,19 +495,8 @@ fn fixture_document() -> Document {
         ]
         .into_iter()
         .collect(),
-        overrides: [(
-            "body".into(),
-            PartOverride {
-                material_id: None,
-                visible: Some(true),
-                metadata: Some([("finish".into(), "paint".into())].into_iter().collect()),
-                parameters: BTreeMap::new(),
-            },
-        )]
-        .into_iter()
-        .collect(),
+        overrides: BTreeMap::new(),
         metadata: BTreeMap::new(),
     });
-    document.scene.nodes_mut().push(node);
-    document
+    node
 }
