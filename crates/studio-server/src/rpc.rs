@@ -24,7 +24,7 @@ use studio_core::large_scene::evaluate::{
 use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_gpu::NativeGpuBackend;
-use studio_project::geometry_cache::GeometryDiskCache;
+use studio_project::layered_geometry_cache::{DEFAULT_LAYERED_CACHE_BYTES, LayeredGeometryCache};
 use studio_project::{ProjectStore, WorkspacePath};
 use tokio::sync::broadcast;
 use tower_http::services::{ServeDir, ServeFile};
@@ -151,6 +151,7 @@ pub(crate) struct Session {
     pub(crate) project_id: String,
     pub(crate) store: ProjectStore,
     pub(crate) document: Document,
+    pub(crate) scene_cache: LayeredGeometryCache,
     pub(crate) token: String,
     pub(crate) events: broadcast::Sender<ServerEvent>,
     pub(crate) closed: bool,
@@ -482,12 +483,14 @@ async fn initialize_state(
         (compute.mode != GeometryBackendMode::Cpu).then_some(gpu),
     ));
     let _ = pollster::block_on(compute.initialize());
+    let scene_cache = LayeredGeometryCache::new(store.project_dir(), DEFAULT_LAYERED_CACHE_BYTES)?;
     let state = AppState {
         session: Arc::new(Mutex::new(Session {
             workspace_root: root.to_path_buf(),
             project_id: project_id.into(),
             store,
             document,
+            scene_cache,
             token: credentials.agent_token,
             events,
             closed: false,
@@ -936,6 +939,16 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
+            session.scene_cache =
+                LayeredGeometryCache::new(session.store.project_dir(), DEFAULT_LAYERED_CACHE_BYTES)
+                    .map_err(|error| {
+                        RpcError::with_diagnostic(
+                            -32012,
+                            DiagnosticCode::GeometryCacheFailed.as_str(),
+                            format!("{}: {error}", DiagnosticCode::GeometryCacheFailed.as_str()),
+                            None,
+                        )
+                    })?;
             session.toolchain = toolchain;
             session.closed = false;
             Ok(serde_json::json!({ "opened": true }))
@@ -973,6 +986,16 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
+            session.scene_cache =
+                LayeredGeometryCache::new(session.store.project_dir(), DEFAULT_LAYERED_CACHE_BYTES)
+                    .map_err(|error| {
+                        RpcError::with_diagnostic(
+                            -32012,
+                            DiagnosticCode::GeometryCacheFailed.as_str(),
+                            format!("{}: {error}", DiagnosticCode::GeometryCacheFailed.as_str()),
+                            None,
+                        )
+                    })?;
             session.toolchain = toolchain;
             session.closed = false;
             Ok(serde_json::json!({ "opened": true }))
@@ -1366,20 +1389,12 @@ fn bounds_intersect(left: Bounds, right: Bounds) -> bool {
 }
 
 fn evaluate_session_scene(
-    session: &Session,
+    session: &mut Session,
 ) -> Result<(EvaluatedScene, BTreeMap<String, Bounds>), RpcError> {
-    let mut cache = GeometryDiskCache::new(session.store.project_dir()).map_err(|error| {
-        RpcError::with_diagnostic(
-            -32012,
-            DiagnosticCode::GeometryCacheFailed.as_str(),
-            format!("{}: {error}", DiagnosticCode::GeometryCacheFailed.as_str()),
-            None,
-        )
-    })?;
     let evaluator = ComputeEvaluator::new(&session.compute);
     let evaluated = evaluate_large_scene_with_cache_and_evaluator(
         &session.document,
-        &mut cache,
+        &mut session.scene_cache,
         Some(&evaluator),
     )
     .map_err(large_scene_error)?;
