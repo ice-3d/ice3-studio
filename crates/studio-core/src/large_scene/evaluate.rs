@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use crate::document::{Document, NodeContent, SceneNode};
 use crate::geometry::{Bounds, EvaluatedMesh, GeometryError, Primitive};
 use crate::gpu_contract::{BackendError, ResidentGeometryId};
-use crate::ids::{ComponentId, MaterialId};
+use crate::ids::{ComponentId, MaterialId, NodeId};
 use crate::large_scene::cache::{
     GeometryCacheMetadata, GeometryEvaluation, GeometryEvaluator, GeometryStore,
     MemoryGeometryStore,
@@ -98,6 +98,24 @@ pub fn evaluate_large_scene_with_cache_and_evaluator<S: GeometryStore>(
     store: &mut S,
     evaluator: Option<&dyn GeometryEvaluator>,
 ) -> Result<EvaluatedScene, LargeSceneError> {
+    evaluate_large_scene_selected_inner(document, store, evaluator, None)
+}
+
+pub fn evaluate_large_scene_selected<S: GeometryStore>(
+    document: &Document,
+    store: &mut S,
+    evaluator: Option<&dyn GeometryEvaluator>,
+    selected_source_nodes: &BTreeSet<NodeId>,
+) -> Result<EvaluatedScene, LargeSceneError> {
+    evaluate_large_scene_selected_inner(document, store, evaluator, Some(selected_source_nodes))
+}
+
+fn evaluate_large_scene_selected_inner<S: GeometryStore>(
+    document: &Document,
+    store: &mut S,
+    evaluator: Option<&dyn GeometryEvaluator>,
+    selected_source_nodes: Option<&BTreeSet<NodeId>>,
+) -> Result<EvaluatedScene, LargeSceneError> {
     let definitions = document
         .components
         .iter()
@@ -111,7 +129,12 @@ pub fn evaluate_large_scene_with_cache_and_evaluator<S: GeometryStore>(
         ..EvaluatedScene::default()
     };
 
-    for node in document.scene.nodes() {
+    for node in document
+        .scene
+        .nodes()
+        .iter()
+        .filter(|node| selected_source_nodes.is_none_or(|selected| selected.contains(&node.id)))
+    {
         match &node.content {
             NodeContent::ComponentInstance(instance) => {
                 let definition = definitions
