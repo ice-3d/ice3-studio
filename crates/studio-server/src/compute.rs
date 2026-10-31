@@ -1219,6 +1219,10 @@ impl ComputeService {
         self.last_cache_hits.store(cache_hits, Ordering::Relaxed);
     }
 
+    pub fn record_scene_failure(&self, reason: String) {
+        let _ = self.runtime_failure.set(reason);
+    }
+
     pub fn cache_metadata(&self, content: &NodeContent) -> GeometryCacheMetadata {
         let triangles = estimate_triangles(content);
         let estimated_bytes = estimate_geometry_bytes(content);

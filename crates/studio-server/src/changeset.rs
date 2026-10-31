@@ -312,6 +312,9 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
         return Err(operation_error("blocked ChangeSet cannot be committed"));
     }
     let previous = session.document.clone();
+    if session.compute.policy().scene_sessions_enabled {
+        let _ = crate::rpc::evaluate_session_scene(session);
+    }
     let commit_key = params.idempotency_key.clone();
     let result = apply_transaction(
         &mut session.document,
@@ -337,6 +340,7 @@ fn commit(session: &mut Session, params: CommitParams) -> Result<serde_json::Val
         return Err(project_error(error));
     }
     change_set.mark_committed(result.clone(), commit_key, now_ms());
+    crate::rpc::stage_committed_scene(session, &result.diff);
     change_sets.save(&change_set).map_err(project_error)?;
     let _ = session.events.send(ServerEvent::ChangeSetCommitted {
         change_set_id: change_set.id,

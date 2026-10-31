@@ -21,6 +21,7 @@ use studio_core::ids::NodeId;
 use studio_core::large_scene::evaluate::{
     EvaluatedScene, evaluate_large_scene_with_cache_and_evaluator, evaluated_scene_bounds,
 };
+use studio_core::scene_contract::ScenePatch;
 use studio_core::validation::{DiagnosticCode, validate_document};
 use studio_core::{API_VERSION, PROJECT_SCHEMA_VERSION};
 use studio_gpu::NativeGpuBackend;
@@ -36,6 +37,7 @@ use crate::capabilities::{WriteMode, authorize_write};
 use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
 use crate::preview::{PreviewAdapter, export_source};
 use crate::preview_packet::PACKET_MEDIA_TYPE;
+use crate::scene_session::{SceneSourceIndex, build_full_scene_patch, build_scene_patch};
 use crate::toolchain::{ToolchainService, ToolchainStatus};
 
 const MAX_RPC_BODY_BYTES: usize = 64 * 1024 * 1024;
@@ -154,6 +156,10 @@ pub(crate) struct Session {
     pub(crate) store: ProjectStore,
     pub(crate) document: Document,
     pub(crate) scene_cache: LayeredGeometryCache,
+    pub(crate) scene_snapshot: Option<EvaluatedScene>,
+    pub(crate) scene_snapshot_revision: Option<u64>,
+    pub(crate) scene_source_index: Option<SceneSourceIndex>,
+    pub(crate) last_scene_patch: Option<ScenePatch>,
     pub(crate) token: String,
     pub(crate) events: broadcast::Sender<ServerEvent>,
     pub(crate) closed: bool,
@@ -498,6 +504,10 @@ async fn initialize_state(
             store,
             document,
             scene_cache,
+            scene_snapshot: None,
+            scene_snapshot_revision: None,
+            scene_source_index: None,
+            last_scene_patch: None,
             token: credentials.agent_token,
             events,
             closed: false,
@@ -870,6 +880,9 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
         "document.apply" => {
             let apply: ApplyRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            if session.compute.policy().scene_sessions_enabled {
+                let _ = evaluate_session_scene(session);
+            }
             let history_event = serde_json::json!({
                 "kind": "apply",
                 "request": &apply
@@ -888,11 +901,16 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 let _ = session.events.send(ServerEvent::RevisionCommitted {
                     revision: result.revision,
                 });
+                stage_committed_scene(session, &result.diff);
             }
             serde_json::to_value(result).map_err(serialize_error)
         }
         "document.undo" => {
+            if session.compute.policy().scene_sessions_enabled {
+                let _ = evaluate_session_scene(session);
+            }
             session.document = session.store.undo().map_err(project_error)?;
+            stage_scene_full_rebuild(session);
             let event = ServerEvent::RevisionCommitted {
                 revision: session.document.revision,
             };
@@ -900,7 +918,11 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             serde_json::to_value(&session.document).map_err(serialize_error)
         }
         "document.redo" => {
+            if session.compute.policy().scene_sessions_enabled {
+                let _ = evaluate_session_scene(session);
+            }
             session.document = session.store.redo().map_err(project_error)?;
+            stage_scene_full_rebuild(session);
             let event = ServerEvent::RevisionCommitted {
                 revision: session.document.revision,
             };
@@ -915,6 +937,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
             "saved": true
         })),
         "project.close" => {
+            let _ = pollster::block_on(session.compute.close_scene_session());
             session.store.close();
             session.closed = true;
             Ok(serde_json::json!({ "closed": true }))
@@ -958,6 +981,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                     })?;
             session.toolchain = toolchain;
             session.closed = false;
+            reset_scene_session(session);
             Ok(serde_json::json!({ "opened": true }))
         }
         "project.open" => {
@@ -1005,6 +1029,7 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                     })?;
             session.toolchain = toolchain;
             session.closed = false;
+            reset_scene_session(session);
             Ok(serde_json::json!({ "opened": true }))
         }
         "scene.get" => serde_json::to_value(&session.document.scene).map_err(serialize_error),
@@ -1395,9 +1420,14 @@ fn bounds_intersect(left: Bounds, right: Bounds) -> bool {
         && left.max.z >= right.min.z
 }
 
-fn evaluate_session_scene(
+pub(crate) fn evaluate_session_scene(
     session: &mut Session,
 ) -> Result<(EvaluatedScene, BTreeMap<String, Bounds>), RpcError> {
+    if session.scene_snapshot_revision == Some(session.document.revision.as_u64())
+        && let Some(scene) = &session.scene_snapshot
+    {
+        return Ok((scene.clone(), evaluated_scene_bounds(scene)));
+    }
     let evaluator = ComputeEvaluator::new(&session.compute);
     let evaluated = evaluate_large_scene_with_cache_and_evaluator(
         &session.document,
@@ -1409,7 +1439,90 @@ fn evaluate_session_scene(
         .compute
         .record_cache_hits(evaluated.stats.cache_hits);
     let bounds = evaluated_scene_bounds(&evaluated);
+    session.scene_snapshot_revision = Some(session.document.revision.as_u64());
+    session.scene_snapshot = Some(evaluated.clone());
+    if session.scene_source_index.is_none() {
+        session.scene_source_index = Some(
+            SceneSourceIndex::capture(&session.document, &evaluated, Some(&evaluator))
+                .map_err(large_scene_error)?,
+        );
+        if session.compute.scene_status().is_some() {
+            let patch = build_full_scene_patch(&session.document, &evaluated, Some(&evaluator))
+                .map_err(large_scene_error)?;
+            let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
+            session.last_scene_patch = Some(patch);
+        }
+    }
     Ok((evaluated, bounds))
+}
+
+fn reset_scene_session(session: &mut Session) {
+    session.scene_snapshot = None;
+    session.scene_snapshot_revision = None;
+    session.scene_source_index = None;
+    session.last_scene_patch = None;
+    let _ = pollster::block_on(session.compute.close_scene_session());
+    if session.compute.policy().scene_sessions_enabled {
+        let _ = pollster::block_on(session.compute.open_scene_session(&session.project_id));
+    }
+}
+
+pub(crate) fn stage_committed_scene(session: &mut Session, diff: &studio_core::diff::DocumentDiff) {
+    if !session.compute.policy().scene_sessions_enabled {
+        return;
+    }
+    let (Some(previous_scene), Some(index)) = (
+        session.scene_snapshot.as_ref(),
+        session.scene_source_index.as_ref(),
+    ) else {
+        return;
+    };
+    let evaluator = ComputeEvaluator::new(&session.compute);
+    match build_scene_patch(
+        &session.document,
+        diff,
+        previous_scene,
+        index,
+        &mut session.scene_cache,
+        Some(&evaluator),
+    ) {
+        Ok(patch) => {
+            let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
+            session.last_scene_patch = Some(patch);
+        }
+        Err(error) => {
+            session.compute.record_scene_failure(error.to_string());
+            session.last_scene_patch = None;
+        }
+    }
+    session.scene_snapshot = None;
+    session.scene_snapshot_revision = None;
+    session.scene_source_index = None;
+}
+
+fn stage_scene_full_rebuild(session: &mut Session) {
+    if !session.compute.policy().scene_sessions_enabled {
+        return;
+    }
+    let evaluator = ComputeEvaluator::new(&session.compute);
+    let evaluated = evaluate_large_scene_with_cache_and_evaluator(
+        &session.document,
+        &mut session.scene_cache,
+        Some(&evaluator),
+    );
+    match evaluated {
+        Ok(scene) => match build_full_scene_patch(&session.document, &scene, Some(&evaluator)) {
+            Ok(patch) => {
+                let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
+                session.last_scene_patch = Some(patch);
+            }
+            Err(error) => session.compute.record_scene_failure(error.to_string()),
+        },
+        Err(error) => session.compute.record_scene_failure(error.to_string()),
+    }
+    session.scene_snapshot = None;
+    session.scene_snapshot_revision = None;
+    session.scene_source_index = None;
 }
 
 fn mutating(method: &str) -> bool {
