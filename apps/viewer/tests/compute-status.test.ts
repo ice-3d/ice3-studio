@@ -120,3 +120,47 @@ test('reports resident phase evidence separately', () => {
   assert.match(view.metrics, /kernel 1\.3 ms/);
   assert.match(view.metrics, /wait 0 ms/);
 });
+
+test('reports pending scene revisions without calling them published', () => {
+  const view = formatComputeStatus({
+    mode: 'auto',
+    selectedBackend: 'gpu',
+    adapter: 'integrated',
+    tier: 'full',
+    memoryBudgetBytes: 2 * 1024 * 1024 * 1024,
+    health: 'ready',
+    fallbackReason: null,
+    queueDepth: 0,
+    maxConcurrentJobs: 2,
+    gpuThresholdTriangles: 250000,
+    lastKernelMs: 0,
+    lastUploadBytes: 0,
+    lastReadbackBytes: 0,
+    lastCacheHits: 0,
+    sceneSession: {
+      enabled: true,
+      sessionId: 'scene-1',
+      state: 'pending',
+      publishedRevision: 8,
+      targetRevision: 9,
+      pendingPatches: 1,
+      pendingSubmissions: 1,
+      geometryCount: 233,
+      topologyCount: 233,
+      attributeCount: 233,
+      instanceCount: 1938,
+      residentBytes: 4096,
+      peakResidentBytes: 8192,
+      dirtyRangeBytes: 0,
+      readbackBytes: 0,
+      submissionCount: 1,
+      geometryDispatchCount: 0,
+      fallbackReason: null,
+      phases: {},
+    },
+  });
+
+  assert.match(view.detail, /scene pending 8 → 9/);
+  assert.match(view.metrics, /1938 instances/);
+  assert.match(view.metrics, /dirty 0 B/);
+});

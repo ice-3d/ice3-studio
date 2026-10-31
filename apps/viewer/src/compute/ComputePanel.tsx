@@ -36,6 +36,16 @@ export function formatComputeStatus(status: ComputeStatus | null): {
   const kernelMs = phases?.gpuKernelMs ?? status.lastKernelMs;
   const lookupMs = status.handleLookupMs ?? phases?.lookupMs ?? 0;
   const waitMs = phases?.waitMs ?? 0;
+  const scene = status.sceneSession;
+  const sceneDetail = scene?.enabled
+    ? scene.state === 'pending'
+      ? `scene pending ${scene.publishedRevision} → ${scene.targetRevision}`
+      : scene.state === 'failed' || scene.state === 'lost'
+        ? `scene ${scene.state}`
+        : scene.publishedRevision > 0
+          ? `scene ready r${scene.publishedRevision}`
+          : 'scene ready'
+    : null;
   const metrics = [
     `${formatBytes(status.memoryBudgetBytes)} budget`,
     `${formatBytes(status.lastUploadBytes)} upload`,
@@ -53,16 +63,24 @@ export function formatComputeStatus(status: ComputeStatus | null): {
     `kernel ${formatMillis(kernelMs)} ms`,
     `wait ${formatMillis(waitMs)} ms`,
     `${status.residentHotPathHashes ?? 0} hot-path hashes`,
+    ...(scene?.enabled
+      ? [
+          `${scene.instanceCount} instances`,
+          `dirty ${formatBytes(scene.dirtyRangeBytes)}`,
+          `scene readback ${formatBytes(scene.readbackBytes)}`,
+          `${scene.pendingPatches} pending patches`,
+        ]
+      : []),
   ].join(' · ');
   return {
     title: `Native compute · ${backend}`,
-    detail: `${mode} · ${status.tier} · ${kernel} · readback ${formatBytes(status.lastReadbackBytes)}`,
+    detail: `${mode} · ${status.tier} · ${kernel} · readback ${formatBytes(status.lastReadbackBytes)}${sceneDetail ? ` · ${sceneDetail}` : ''}`,
     state: status.health === 'ready'
       ? 'ready'
       : status.fallbackReason
         ? 'fallback'
         : 'unavailable',
-    fallbackReason: status.fallbackReason,
+    fallbackReason: status.fallbackReason ?? scene?.fallbackReason ?? null,
     metrics,
   };
 }

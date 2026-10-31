@@ -115,6 +115,27 @@ export type ComputeStatus = {
     transportMs: number;
     browserUploadMs: number;
   };
+  sceneSession?: {
+    enabled: boolean;
+    sessionId: string | null;
+    state: 'idle' | 'pending' | 'failed' | 'lost';
+    publishedRevision: number;
+    targetRevision: number;
+    pendingPatches: number;
+    pendingSubmissions: number;
+    geometryCount: number;
+    topologyCount: number;
+    attributeCount: number;
+    instanceCount: number;
+    residentBytes: number;
+    peakResidentBytes: number;
+    dirtyRangeBytes: number;
+    readbackBytes: number;
+    submissionCount?: number;
+    geometryDispatchCount?: number;
+    fallbackReason: string | null;
+    phases: Record<string, number>;
+  };
 };
 
 export type StudioCapabilities = {
