@@ -1567,9 +1567,7 @@ pub(crate) fn stage_committed_scene(session: &mut Session, diff: &studio_core::d
     ) {
         Ok(built) => {
             if session.compute.policy().scene_sessions_enabled {
-                let _ = pollster::block_on(
-                    session.compute.apply_scene_patch(built.patch.clone()),
-                );
+                let _ = pollster::block_on(session.compute.apply_scene_patch(built.patch.clone()));
             }
             merge_scene_snapshot(session, &built);
             session.last_scene_patch = Some(built.patch);
@@ -1658,9 +1656,7 @@ fn stage_scene_full_rebuild(session: &mut Session) {
         Ok(scene) => match build_full_scene_patch(&session.document, &scene, Some(&evaluator)) {
             Ok(patch) => {
                 if session.compute.policy().scene_sessions_enabled {
-                    let _ = pollster::block_on(
-                        session.compute.apply_scene_patch(patch.clone()),
-                    );
+                    let _ = pollster::block_on(session.compute.apply_scene_patch(patch.clone()));
                 }
                 session.scene_snapshot = Some(scene.clone());
                 session.scene_snapshot_revision = Some(patch.target_revision);
