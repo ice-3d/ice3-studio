@@ -112,6 +112,7 @@ pub struct ComputeStatus {
     pub last_evaluation_mode: String,
     pub resident_geometry: ResidentGeometryStatus,
     pub preview_packet_version: Option<String>,
+    pub preview_geometry_packet: Option<String>,
     pub pipelines_warmed: bool,
 }
 
@@ -782,6 +783,7 @@ impl ComputeService {
                 .policy
                 .preview_packet_enabled
                 .then(|| "ICE3PGP1".into()),
+            preview_geometry_packet: self.policy.preview_packet_enabled.then(|| "1".into()),
             pipelines_warmed: self.pipeline_warmed.load(Ordering::Acquire),
         }
     }

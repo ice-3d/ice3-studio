@@ -2465,6 +2465,12 @@
         "digest": {
           "type": "string"
         },
+        "packetUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "url": {
           "type": "string"
         }
@@ -2536,6 +2542,12 @@
             },
             "pipelinesWarmed": {
               "type": "boolean"
+            },
+            "previewGeometryPacket": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "previewPacketVersion": {
               "type": [

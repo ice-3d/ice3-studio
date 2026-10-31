@@ -6,6 +6,7 @@ mod changeset;
 pub mod compute;
 mod events;
 pub mod preview;
+pub mod preview_packet;
 mod rpc;
 pub mod toolchain;
 

@@ -35,6 +35,7 @@ use crate::auth::{approval_cookie, bearer_token};
 use crate::capabilities::{WriteMode, authorize_write};
 use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
 use crate::preview::{PreviewAdapter, export_source};
+use crate::preview_packet::PACKET_MEDIA_TYPE;
 use crate::toolchain::{ToolchainService, ToolchainStatus};
 
 const MAX_RPC_BODY_BYTES: usize = 64 * 1024 * 1024;
@@ -51,6 +52,7 @@ pub struct ServerConfig {
     pub write_mode: WriteMode,
     pub viewer_dir: Option<PathBuf>,
     pub compute_mode: GeometryBackendMode,
+    pub preview_packet_enabled: bool,
 }
 
 impl ServerConfig {
@@ -66,6 +68,7 @@ impl ServerConfig {
             write_mode: WriteMode::Autonomous,
             viewer_dir: None,
             compute_mode: GeometryBackendMode::Cpu,
+            preview_packet_enabled: false,
         }
     }
 
@@ -171,6 +174,12 @@ struct SessionCredentials {
     approval_token: String,
     write_mode: WriteMode,
     bootstrap_token: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ComputeOptions {
+    mode: GeometryBackendMode,
+    preview_packet_enabled: bool,
 }
 
 pub struct TestServer {
@@ -319,7 +328,10 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         config.fixture.as_deref(),
         config.port,
         config.toolchain_cli,
-        config.compute_mode,
+        ComputeOptions {
+            mode: config.compute_mode,
+            preview_packet_enabled: config.preview_packet_enabled,
+        },
     )
     .await
     .expect("test server state");
@@ -355,7 +367,10 @@ pub async fn start_test_server_at(root: &Path) -> TestServer {
         None,
         config.port,
         config.toolchain_cli,
-        config.compute_mode,
+        ComputeOptions {
+            mode: config.compute_mode,
+            preview_packet_enabled: config.preview_packet_enabled,
+        },
     )
     .await
     .expect("restart test server state");
@@ -403,7 +418,10 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
         config.fixture.as_deref(),
         config.port,
         toolchain_cli,
-        config.compute_mode,
+        ComputeOptions {
+            mode: config.compute_mode,
+            preview_packet_enabled: config.preview_packet_enabled,
+        },
     )
     .await?;
     println!("{}", listener.local_addr()?);
@@ -425,7 +443,7 @@ async fn initialize_state(
     fixture: Option<&std::path::Path>,
     port: u16,
     toolchain_cli: Option<PathBuf>,
-    compute_mode: GeometryBackendMode,
+    compute: ComputeOptions,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
     let path = WorkspacePath::new(root, project_id)?;
@@ -457,10 +475,11 @@ async fn initialize_state(
     let gpu: Arc<dyn GeometryBackend> = Arc::new(NativeGpuBackend::new(GeometryBackendMode::Gpu));
     let compute = Arc::new(ComputeService::new(
         crate::compute::ComputePolicy {
-            mode: compute_mode,
+            mode: compute.mode,
+            preview_packet_enabled: compute.preview_packet_enabled,
             ..crate::compute::ComputePolicy::default()
         },
-        (compute_mode != GeometryBackendMode::Cpu).then_some(gpu),
+        (compute.mode != GeometryBackendMode::Cpu).then_some(gpu),
     ));
     let _ = pollster::block_on(compute.initialize());
     let state = AppState {
@@ -503,6 +522,11 @@ fn build_router(state: AppState, viewer_dir: Option<PathBuf>) -> Router {
         .route("/schemas/{name}", get(schema_file))
         .route("/previews/{revision}", get(preview_file))
         .route("/previews/candidates/{digest}", get(candidate_preview_file))
+        .route("/preview-packets/{revision}", get(preview_packet_file))
+        .route(
+            "/preview-packets/candidates/{digest}",
+            get(candidate_preview_packet_file),
+        )
         .with_state(state);
     if let Some(viewer_dir) = viewer_dir {
         router
@@ -693,19 +717,18 @@ async fn dispatch_unlocked_preview(
             (
                 crate::changeset::prepare_candidate_preview(&mut session, &digest),
                 Arc::clone(&session.toolchain),
+                session.compute.policy().preview_packet_enabled,
             )
         };
-        let (prepared, toolchain) = prepared;
+        let (prepared, toolchain, preview_packets_enabled) = prepared;
         let prepared = match prepared {
             Ok(prepared) => prepared,
             Err(error) => return Some(Err(error)),
         };
         let result = tokio::task::spawn_blocking(move || {
-            PreviewAdapter::from_service(toolchain).generate_candidate(
-                &prepared.document,
-                &prepared.project_dir,
-                &prepared.digest,
-            )
+            PreviewAdapter::from_service(toolchain)
+                .with_preview_packets(preview_packets_enabled)
+                .generate_candidate(&prepared.document, &prepared.project_dir, &prepared.digest)
         })
         .await
         .unwrap_or_else(|error| {
@@ -730,13 +753,14 @@ async fn dispatch_unlocked_preview(
             }
         });
     }
-    let (document, project_dir, project_id, toolchain, closed) = {
+    let (document, project_dir, project_id, toolchain, preview_packets_enabled, closed) = {
         let session = state.session.lock().expect("session lock");
         (
             session.document.clone(),
             session.store.project_dir().to_path_buf(),
             session.project_id.clone(),
             Arc::clone(&session.toolchain),
+            session.compute.policy().preview_packet_enabled,
             session.closed,
         )
     };
@@ -751,6 +775,7 @@ async fn dispatch_unlocked_preview(
     Some(
         tokio::task::spawn_blocking(move || {
             PreviewAdapter::from_service(toolchain)
+                .with_preview_packets(preview_packets_enabled)
                 .generate(&document, &project_dir, &project_id)
                 .map_err(preview_error)
                 .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error))
@@ -1060,7 +1085,8 @@ fn dispatch(session: &mut Session, request: &RpcRequest) -> Result<serde_json::V
                 return crate::changeset::export_candidate_preview(session, &digest)
                     .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error));
             }
-            let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain));
+            let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain))
+                .with_preview_packets(session.compute.policy().preview_packet_enabled);
             let output = adapter
                 .generate(
                     &session.document,
@@ -1197,6 +1223,51 @@ async fn candidate_preview_file(
         Ok(bytes) => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, "model/gltf-binary")],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn preview_packet_file(
+    State(state): State<AppState>,
+    AxumPath(revision): AxumPath<u64>,
+) -> Response {
+    let path = {
+        let session = state.session.lock().expect("session lock");
+        session
+            .store
+            .project_dir()
+            .join("cache/preview-packets")
+            .join(format!("{revision:08}.ice3pgp"))
+    };
+    serve_preview_packet(path).await
+}
+
+async fn candidate_preview_packet_file(
+    State(state): State<AppState>,
+    AxumPath(digest): AxumPath<String>,
+) -> Response {
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let path = {
+        let session = state.session.lock().expect("session lock");
+        session
+            .store
+            .project_dir()
+            .join("cache/preview-packets")
+            .join(format!("{digest}.ice3pgp"))
+    };
+    serve_preview_packet(path).await
+}
+
+async fn serve_preview_packet(path: PathBuf) -> Response {
+    match tokio::fs::read(path).await {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, PACKET_MEDIA_TYPE)],
             bytes,
         )
             .into_response(),

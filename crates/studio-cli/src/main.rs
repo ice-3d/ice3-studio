@@ -62,6 +62,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 write_mode,
                 viewer_dir: std::env::var_os("STUDIO_VIEWER_DIR").map(PathBuf::from),
                 compute_mode: native_gpu,
+                preview_packet_enabled: std::env::var("STUDIO_PREVIEW_PACKETS")
+                    .is_ok_and(|value| value == "1"),
             })
             .await?;
         }
