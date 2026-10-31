@@ -47,6 +47,11 @@ const steps = [
     args: ['scripts/run-large-industrial-fixture.mjs'],
   },
   {
+    label: 'Large reference acceptance contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/large-reference-acceptance.test.mjs'],
+  },
+  {
     label: 'Native GPU benchmark script',
     command: 'node',
     args: ['--check', 'benchmarks/native-gpu.mjs'],

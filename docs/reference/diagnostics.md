@@ -39,6 +39,7 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_REVISION_CONFLICT` | `expectedRevision` is stale |
 | `ICE3_STUDIO_OPERATION_INVALID` | An operation type or operation input is invalid |
 | `ICE3_STUDIO_REFERENCE_INVALID` | A node, material, relation, or constraint reference is invalid |
+| `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` | Authored reference overrides cannot be composed into the unchanged source GLB |
 | `ICE3_STUDIO_GEOMETRY_INVALID` | A primitive, mesh, index, or transform is invalid |
 | `ICE3_STUDIO_CONSTRAINT_FAILED` | A relationship or spatial constraint is violated |
 | `ICE3_STUDIO_BUDGET_EXCEEDED` | A configured project budget is exceeded |
@@ -75,6 +76,9 @@ stable diagnostic code remains the primary machine contract.
 - An idempotency key can be retried with the same semantic request; reusing it for different
   content is rejected.
 - A runtime preview failure keeps the previous valid preview.
+- Reference export with authored overrides fails closed with
+  `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED`; remove/reset the overrides or export the source
+  baseline instead.
 - A persistence failure keeps the previous snapshot loadable.
 - An explicit GPU-only failure returns its stable GPU diagnostic; automatic mode retries eligible
   work on the CPU and keeps the current revision unchanged.

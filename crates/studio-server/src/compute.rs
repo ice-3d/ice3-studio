@@ -1545,7 +1545,8 @@ fn estimate_triangles(content: &NodeContent) -> usize {
         NodeContent::Group
         | NodeContent::ComponentInstance(_)
         | NodeContent::InstanceSet(_)
-        | NodeContent::Connection(_) => 0,
+        | NodeContent::Connection(_)
+        | NodeContent::ReferenceInstance(_) => 0,
         NodeContent::Primitive(primitive) => match primitive {
             Primitive::Box { .. } => 12,
             Primitive::Plane { .. } => 2,
@@ -1585,7 +1586,8 @@ fn estimate_vertex_count(content: &NodeContent) -> usize {
         NodeContent::Group
         | NodeContent::ComponentInstance(_)
         | NodeContent::InstanceSet(_)
-        | NodeContent::Connection(_) => 0,
+        | NodeContent::Connection(_)
+        | NodeContent::ReferenceInstance(_) => 0,
     }
 }
 
@@ -1604,7 +1606,8 @@ fn estimate_geometry_bytes(content: &NodeContent) -> u64 {
         NodeContent::Group
         | NodeContent::ComponentInstance(_)
         | NodeContent::InstanceSet(_)
-        | NodeContent::Connection(_) => (0usize, 0usize),
+        | NodeContent::Connection(_)
+        | NodeContent::ReferenceInstance(_) => (0usize, 0usize),
         NodeContent::Primitive(Primitive::Box { .. }) => (24, 36),
         NodeContent::Primitive(Primitive::Plane { .. }) => (4, 6),
         NodeContent::Primitive(Primitive::Cylinder { segments, .. }) => {

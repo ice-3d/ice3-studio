@@ -22,6 +22,10 @@ use studio_server::changeset::{
     ChangeSetRemoveParams,
 };
 use studio_server::preview::CandidatePreview;
+use studio_server::reference_asset::{
+    ReferenceAssetBindingPageResult, ReferenceAssetBindingsParams, ReferenceAssetEndpoint,
+    ReferenceAssetGetParams, ReferenceAssetRegisterParams, ReferenceAssetRegisterResult,
+};
 use studio_server::{Capabilities, EvaluatedSceneStats, RpcRequest, RpcResponse, ServerEvent};
 use thiserror::Error;
 
@@ -60,6 +64,9 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "scene.context",
             "scene.search",
             "validation.run",
+            "referenceAsset.register",
+            "referenceAsset.get",
+            "referenceAsset.bindings",
             "evaluation.evaluate",
             "evaluation.stats",
             "evaluation.query",
@@ -107,6 +114,12 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "ConnectionPatch": schema_for!(ConnectionPatch),
             "MaterialPatch": schema_for!(MaterialPatch),
             "RuntimePreviewRequest": schema_for!(RuntimePreviewRequest),
+            "ReferenceAssetRegisterParams": schema_for!(ReferenceAssetRegisterParams),
+            "ReferenceAssetGetParams": schema_for!(ReferenceAssetGetParams),
+            "ReferenceAssetBindingsParams": schema_for!(ReferenceAssetBindingsParams),
+            "ReferenceAssetRegisterResult": schema_for!(ReferenceAssetRegisterResult),
+            "ReferenceAssetEndpoint": schema_for!(ReferenceAssetEndpoint),
+            "ReferenceAssetBindingPageResult": schema_for!(ReferenceAssetBindingPageResult),
             "ChangeSetCreateParams": schema_for!(ChangeSetCreateParams),
             "ChangeSetGetParams": schema_for!(ChangeSetGetParams),
             "ChangeSetNewEntry": schema_for!(ChangeSetNewEntry),

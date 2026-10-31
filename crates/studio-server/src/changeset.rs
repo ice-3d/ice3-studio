@@ -173,7 +173,13 @@ pub(crate) fn prepare_candidate_preview(
         .load_revision(change_set.base_revision)
         .map_err(project_error)?;
     let operations = change_set.operations();
-    let candidate = evaluate_operations(&base, &operations).map_err(transaction_error)?;
+    let mut candidate = evaluate_operations(&base, &operations).map_err(transaction_error)?;
+    candidate
+        .diagnostics
+        .extend(crate::reference_asset::validate_reference_document(
+            session.store.project_dir(),
+            &candidate.document,
+        ));
     let current_digest = candidate_digest(&base, &operations).map_err(transaction_error)?;
     if current_digest != digest || !candidate.diagnostics.is_empty() {
         return Err(operation_error("candidate digest is stale or blocked"));
@@ -551,7 +557,13 @@ fn evaluate(
             diagnostics,
         });
     }
-    let candidate = evaluate_operations(&base, &operations).map_err(transaction_error)?;
+    let mut candidate = evaluate_operations(&base, &operations).map_err(transaction_error)?;
+    candidate
+        .diagnostics
+        .extend(crate::reference_asset::validate_reference_document(
+            session.store.project_dir(),
+            &candidate.document,
+        ));
     let digest = if candidate.diagnostics.is_empty() {
         Some(candidate_digest(&base, &operations).map_err(transaction_error)?)
     } else {

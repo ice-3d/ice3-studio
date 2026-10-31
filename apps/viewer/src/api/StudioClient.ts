@@ -3,9 +3,64 @@ export type StudioNode = {
   name: string;
   parentId: string | null;
   visible?: boolean;
+  materialId?: string | null;
   metadata: Record<string, string>;
-  transform?: Record<string, unknown>;
+  transform?: StudioTransform;
   content?: Record<string, unknown>;
+};
+
+export type StudioVec3 = {
+  x: number;
+  y: number;
+  z: number;
+};
+
+export type StudioTransform = {
+  translation: StudioVec3;
+  rotation: [number, number, number, number];
+  scale: StudioVec3;
+};
+
+export type StudioBounds = {
+  min: StudioVec3;
+  max: StudioVec3;
+};
+
+export type StudioReferenceAsset = {
+  descriptor: {
+    assetId: string;
+    sourceDigest: string;
+    preparedDigest: string | null;
+    tilesetDigest: string | null;
+    bounds: StudioBounds;
+    stats: {
+      sourceNodes: number;
+      effectiveTriangles: number;
+      uniqueMeshes: number;
+      materials: number;
+      equipment: number;
+    };
+    importedAt: string;
+  };
+  tilesetUrl: string | null;
+  preparedPreviewUrl: string | null;
+  equipmentManifestUrl: string;
+};
+
+export type StudioReferenceBindingEntry = {
+  selectionId: string;
+  name: string;
+  kind?: string | null;
+  processStage?: string | null;
+  area?: string | null;
+  bounds?: StudioBounds;
+  transform?: StudioTransform;
+  materialIds?: string[];
+};
+
+export type StudioReferenceBindingPage = {
+  items: StudioReferenceBindingEntry[];
+  nextCursor: string | null;
 };
 
 export type ParameterValue =
@@ -37,6 +92,13 @@ export type StudioDocument = {
   revision: number;
   scene: { nodes: StudioNode[] };
   components: ComponentDefinition[];
+  materials?: StudioMaterial[];
+};
+
+export type StudioMaterial = {
+  id: string;
+  name: string;
+  baseColor: [number, number, number, number];
 };
 
 export type Diagnostic = {
@@ -207,6 +269,18 @@ export class StudioClient {
 
   validation(): Promise<Diagnostic[]> {
     return this.rpc('validation.run', {});
+  }
+
+  referenceAsset(assetId: string): Promise<StudioReferenceAsset> {
+    return this.rpc('referenceAsset.get', { assetId });
+  }
+
+  referenceBindings(
+    assetId: string,
+    cursor: string | null,
+    limit: number,
+  ): Promise<StudioReferenceBindingPage> {
+    return this.rpc('referenceAsset.bindings', { assetId, cursor, limit });
   }
 
   async preview(revision: number): Promise<StudioPreview> {

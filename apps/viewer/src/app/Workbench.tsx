@@ -40,6 +40,8 @@ export function Workbench() {
         </nav>
         <Viewport
           previewUrl={changeSet.candidateUrl ?? session.previewUrl}
+          reference={session.reference}
+          selectionIds={session.selectionIds}
           onSelection={(ids) => sessionStore.select(ids)}
         />
         <aside aria-label="Review dock">

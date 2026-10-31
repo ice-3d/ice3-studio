@@ -104,6 +104,7 @@ pub fn authorize_write(
             | "document.apply"
             | "document.undo"
             | "document.redo"
+            | "referenceAsset.register"
             | "changeset.commit"
             | "changeset.discard"
     );

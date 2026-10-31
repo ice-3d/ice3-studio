@@ -3,6 +3,7 @@ import type { ComponentInstance } from "./ComponentInstance";
 import type { ConnectionIntent } from "./ConnectionIntent";
 import type { InstanceSet } from "./InstanceSet";
 import type { Primitive } from "./Primitive";
+import type { ReferenceInstanceContent } from "./ReferenceInstanceContent";
 import type { TriangleMesh } from "./TriangleMesh";
 
-export type NodeContent = "Group" | { "Primitive": Primitive } | { "CustomMesh": TriangleMesh } | { "Sweep": { points: Array<[number, number, number]>, radius: number, radial_segments: number, } } | { "ComponentInstance": ComponentInstance } | { "InstanceSet": InstanceSet } | { "Connection": ConnectionIntent };
+export type NodeContent = "Group" | { "Primitive": Primitive } | { "CustomMesh": TriangleMesh } | { "Sweep": { points: Array<[number, number, number]>, radius: number, radial_segments: number, } } | { "ComponentInstance": ComponentInstance } | { "InstanceSet": InstanceSet } | { "Connection": ConnectionIntent } | { "ReferenceInstance": ReferenceInstanceContent };

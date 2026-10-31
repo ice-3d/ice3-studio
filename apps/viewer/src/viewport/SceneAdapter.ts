@@ -5,18 +5,33 @@ import {
   ICEOrbitController,
   ICEPreviewPacketLoader,
   ICEPerspectiveCamera,
+  ICETilesetHandle,
+  ICETilesetLoader,
   collectSceneItems,
   type ICEGeometryBounds,
   type ICEIndexedGeometry,
   type ICEPreviewGeometryPacket,
   type ICEScene,
+  type ICETilesetEvent,
 } from 'ice3';
+import type { StudioReferenceAsset } from '../api/StudioClient';
+import type { StudioReferenceBinding } from '../session/SessionStore';
+import {
+  frameBoundsForViewport,
+  SCENE_CAMERA_FAR,
+  SCENE_CAMERA_NEAR,
+} from './cameraFraming';
 
 export interface ScenePreviewSource {
   readonly url: string;
   readonly glbUrl?: string;
   readonly packetUrl?: string | null;
 }
+
+type ReferenceSelectionBinding = {
+  nodeId: string | null;
+  selectionId: string;
+};
 
 export class SceneAdapter {
   private engine: ICE3 | null = null;
@@ -27,22 +42,38 @@ export class SceneAdapter {
   private packetLoader: ICEPreviewPacketLoader | null = null;
   private packet: ICEPreviewGeometryPacket | undefined;
   private pinnedPacketGeometries = new Map<string, ICEIndexedGeometry>();
+  private viewportElement: HTMLElement | null = null;
+  private tilesetLoader: ICETilesetLoader | null = null;
+  private tilesetHandle: ICETilesetHandle | null = null;
+  private referenceBindings: StudioReferenceBinding[] = [];
+  private selectionIds: string[] = [];
+  private lastBounds: ICEGeometryBounds | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private originalNodeState = new WeakMap<ImportedNode, {
+    matrix: number[];
+    visible: boolean;
+    material?: ImportedMaterial;
+  }>();
   onSelection: ((ids: readonly string[]) => void) | undefined;
 
   async mount(container: HTMLElement): Promise<void> {
+    this.viewportElement = container;
     const engine = await new ICE3({ renderer: 'webgl2' }).initAsync(container);
     engine.setBackgroundColor('#000000');
     const camera = new ICEPerspectiveCamera({
       id: 'studio-camera',
       fov: 42,
-      near: 0.05,
-      far: 3000,
+      near: SCENE_CAMERA_NEAR,
+      far: SCENE_CAMERA_FAR,
       position: [45, 32, 55],
       target: [0, 1, 0],
     });
     engine.setCamera(camera).start();
     engine.on<{ selection: readonly string[] }>('SELECTION_CHANGE', (event) => {
-      this.onSelection?.(event.param?.selection ?? []);
+      this.onSelection?.(mapReferenceSelections(
+        event.param?.selection ?? [],
+        this.referenceBindings,
+      ));
     });
     this.engine = engine;
     this.loader = new ICEAssetLoader(engine);
@@ -52,10 +83,101 @@ export class SceneAdapter {
       },
     });
     this.camera = camera;
+    container.dataset.referenceState = 'idle';
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.lastBounds) this.frameBounds(this.lastBounds);
+    });
+    this.resizeObserver.observe(container);
   }
 
   async show(url: string): Promise<void> {
     await this.showPreview({ url });
+  }
+
+  select(nodeIds: readonly string[]): void {
+    this.selectionIds = [...nodeIds];
+    if (!this.engine) return;
+    const bindingByNode = new Map(
+      this.referenceBindings
+        .filter((binding) => binding.nodeId)
+        .map((binding) => [binding.nodeId!, binding.selectionId]),
+    );
+    const importedSelection = nodeIds.map(
+      (nodeId) => bindingByNode.get(nodeId) ?? nodeId,
+    );
+    const currentSelection = this.engine.getSelection();
+    if (
+      currentSelection.length === importedSelection.length
+      && currentSelection.every((id, index) => id === importedSelection[index])
+    ) {
+      return;
+    }
+    this.engine.setSelection(importedSelection);
+    this.engine.requestRender('studio-selection-change');
+  }
+
+  async showReference(
+    asset: StudioReferenceAsset,
+    bindings: readonly StudioReferenceBinding[],
+  ): Promise<void> {
+    if (!this.engine || !this.camera) throw new Error('scene is not mounted');
+    this.referenceBindings = [...bindings];
+    if (!asset.tilesetUrl) {
+      if (asset.preparedPreviewUrl) {
+        await this.showGlb(asset.preparedPreviewUrl);
+        this.viewportElement?.setAttribute('data-reference-state', 'fallback');
+        return;
+      }
+      throw new Error('reference asset has no streamable tileset or prepared preview');
+    }
+    try {
+      this.tilesetLoader ??= new ICETilesetLoader(this.engine, {
+        camera: this.camera,
+        maxConcurrentTiles: 3,
+        maxResidentBytes: 805_306_368,
+      });
+      const replacement = await this.tilesetLoader.open(asset.tilesetUrl);
+      this.viewportElement?.setAttribute('data-reference-state', 'loading-coarse');
+      this.frameBounds(replacement.bounds);
+      let activated = false;
+      const activate = (): void => {
+        if (activated || !this.engine || !this.camera) return;
+        activated = true;
+        applyReferenceOverrides(
+          replacement.scene,
+          this.referenceBindings,
+          this.originalNodeState,
+        );
+        this.engine.setScene(replacement.scene);
+        this.select(this.selectionIds);
+        const previous = this.tilesetHandle;
+        this.tilesetHandle = replacement;
+        this.handle?.dispose();
+        this.handle = null;
+        this.packet = undefined;
+        previous?.dispose();
+        this.orbit?.dispose();
+        this.orbit = new ICEOrbitController(this.engine, this.camera).start();
+        this.viewportElement?.setAttribute('data-reference-state', 'ready');
+        this.engine.requestRender('studio-reference-coarse-ready');
+      };
+      replacement.on<ICETilesetEvent>('TILESET_TILE_LOADED', () => {
+        applyReferenceOverrides(
+          replacement.scene,
+          this.referenceBindings,
+          this.originalNodeState,
+        );
+        activate();
+      });
+    } catch (error) {
+      if (asset.preparedPreviewUrl) {
+        await this.showGlb(asset.preparedPreviewUrl);
+        this.viewportElement?.setAttribute('data-reference-state', 'fallback');
+        return;
+      }
+      this.viewportElement?.setAttribute('data-reference-state', 'failed');
+      throw error;
+    }
   }
 
   async showPreview(preview: ScenePreviewSource): Promise<void> {
@@ -94,6 +216,8 @@ export class SceneAdapter {
     this.handle?.dispose();
     this.handle = handle;
     this.packet = undefined;
+    this.tilesetHandle?.dispose();
+    this.tilesetHandle = null;
     for (const geometry of this.pinnedPacketGeometries.values()) {
       this.engine.releaseGeometry(geometry);
     }
@@ -129,6 +253,8 @@ export class SceneAdapter {
     this.frameBounds(bounds);
     this.handle?.dispose();
     this.handle = null;
+    this.tilesetHandle?.dispose();
+    this.tilesetHandle = null;
     this.engine.setScene(scene);
     this.orbit?.dispose();
     this.orbit = new ICEOrbitController(this.engine, this.camera).start();
@@ -137,24 +263,242 @@ export class SceneAdapter {
 
   private frameBounds(bounds: ICEGeometryBounds): void {
     if (!this.camera) return;
-    const { min, max } = bounds;
-    const center: [number, number, number] = [
-      (min[0] + max[0]) / 2,
-      (min[1] + max[1]) / 2,
-      (min[2] + max[2]) / 2,
-    ];
-    const radius = Math.max(1, Math.hypot(
-      max[0] - min[0],
-      max[1] - min[1],
-      max[2] - min[2],
-    ) / 2);
-    const distance = radius / Math.sin(this.camera.fov * Math.PI / 360) * 1.15;
-    this.camera.setTarget(center).setPosition([
-      center[0] + distance * 0.72,
-      center[1] + distance * 0.48,
-      center[2] + distance * 0.82,
-    ]);
+    this.lastBounds = bounds;
+    const width = this.viewportElement?.clientWidth ?? 1;
+    const height = this.viewportElement?.clientHeight ?? 1;
+    const framing = frameBoundsForViewport(
+      bounds,
+      this.camera.fov,
+      width / Math.max(1, height),
+    );
+    this.camera.setTarget(framing.target).setPosition(framing.position);
+    const matrix = this.camera.getViewProjectionMatrix(width / Math.max(1, height));
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (const x of [bounds.min[0], bounds.max[0]]) {
+      for (const y of [bounds.min[1], bounds.max[1]]) {
+        for (const z of [bounds.min[2], bounds.max[2]]) {
+          const clip = matrix.transformPoint(
+            { x, y, z } as Parameters<typeof matrix.transformPoint>[0],
+          );
+          const ndcX = clip[0] / clip[3];
+          const ndcY = clip[1] / clip[3];
+          const ndcZ = clip[2] / clip[3];
+          minX = Math.min(minX, ndcX);
+          maxX = Math.max(maxX, ndcX);
+          minY = Math.min(minY, ndcY);
+          maxY = Math.max(maxY, ndcY);
+          minZ = Math.min(minZ, ndcZ);
+          maxZ = Math.max(maxZ, ndcZ);
+        }
+      }
+    }
+    this.viewportElement?.setAttribute(
+      'data-bounds-safe',
+      String(
+        Math.max(Math.abs(minX), Math.abs(maxX), Math.abs(minY), Math.abs(maxY)) <= 0.9
+        && minZ >= -1
+        && maxZ <= 1
+      ),
+    );
+    this.viewportElement?.setAttribute(
+      'data-projected-bounds',
+      JSON.stringify({ minX, maxX, minY, maxY, minZ, maxZ }),
+    );
   }
+}
+
+export function mapReferenceSelection(
+  selectionId: string,
+  bindings: readonly ReferenceSelectionBinding[],
+): string {
+  return bindings.find((binding) => binding.selectionId === selectionId)?.nodeId ?? selectionId;
+}
+
+function mapReferenceSelections(
+  selectionIds: readonly string[],
+  bindings: readonly ReferenceSelectionBinding[],
+): string[] {
+  return [...new Set(selectionIds.map((selectionId) => (
+    mapReferenceSelection(selectionId, bindings)
+  )))];
+}
+
+type ImportedNode = {
+  selectionId?: string;
+  semanticSelectionIds?: readonly string[];
+  children?: readonly ImportedNode[];
+  visible: boolean;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  scale: { x: number; y: number; z: number };
+  localMatrixOverride?: Float32Array | null;
+  material?: ImportedMaterial;
+  setLocalMatrix(matrix: readonly number[]): unknown;
+};
+
+type ImportedMaterial = {
+  readonly color: string;
+  readonly edgeColor?: string;
+  readonly shading?: 'directional';
+};
+
+function applyReferenceOverrides(
+  scene: unknown,
+  bindings: readonly StudioReferenceBinding[],
+  originalNodeState: WeakMap<ImportedNode, {
+    matrix: number[];
+    visible: boolean;
+    material?: ImportedMaterial;
+  }>,
+): void {
+  const nodes = findImportedNodes(scene as ImportedNode);
+  for (const binding of bindings) {
+    if (!binding.nodeId) continue;
+    for (const node of nodes) {
+      if (!matchesSelection(node, binding.selectionId)) continue;
+      if (!originalNodeState.has(node)) {
+        originalNodeState.set(node, {
+          matrix: currentLocalMatrix(node),
+          visible: node.visible,
+          material: node.material,
+        });
+      }
+      const original = originalNodeState.get(node)!;
+      if (isIdentityTransform(binding.transform)) {
+        node.setLocalMatrix(original.matrix);
+      } else {
+        node.setLocalMatrix(multiplyMatrices(transformMatrix(binding.transform), original.matrix));
+      }
+      node.visible = binding.visible ? original.visible : false;
+      const independentlyMaterialized = (node.semanticSelectionIds?.length ?? 0) <= 1;
+      if (binding.materialColor && independentlyMaterialized && original.material) {
+        const material = Object.create(
+          Object.getPrototypeOf(original.material),
+        ) as ImportedMaterial;
+        Object.assign(material, original.material, { color: binding.materialColor });
+        node.material = material;
+      } else if (original.material) {
+        node.material = original.material;
+      }
+    }
+  }
+}
+
+function findImportedNodes(root: ImportedNode): ImportedNode[] {
+  const output: ImportedNode[] = [];
+  const visit = (node: ImportedNode): void => {
+    if (node.selectionId || node.semanticSelectionIds?.length) output.push(node);
+    for (const child of node.children ?? []) visit(child);
+  };
+  visit(root);
+  return output;
+}
+
+function matchesSelection(node: ImportedNode, selectionId: string): boolean {
+  return node.selectionId === selectionId
+    || node.semanticSelectionIds?.includes(selectionId) === true;
+}
+
+function isIdentityTransform(transform: StudioReferenceBinding['transform']): boolean {
+  return transform.translation.x === 0
+    && transform.translation.y === 0
+    && transform.translation.z === 0
+    && transform.rotation[0] === 0
+    && transform.rotation[1] === 0
+    && transform.rotation[2] === 0
+    && transform.rotation[3] === 1
+    && transform.scale.x === 1
+    && transform.scale.y === 1
+    && transform.scale.z === 1;
+}
+
+function currentLocalMatrix(node: ImportedNode): number[] {
+  if (node.localMatrixOverride) return [...node.localMatrixOverride];
+  return eulerTransformMatrix(node.position, node.rotation, node.scale);
+}
+
+function eulerTransformMatrix(
+  translation: { x: number; y: number; z: number },
+  rotation: { x: number; y: number; z: number },
+  scale: { x: number; y: number; z: number },
+): number[] {
+  const cx = Math.cos(rotation.x);
+  const sx = Math.sin(rotation.x);
+  const cy = Math.cos(rotation.y);
+  const sy = Math.sin(rotation.y);
+  const cz = Math.cos(rotation.z);
+  const sz = Math.sin(rotation.z);
+  return [
+    cy * cz * scale.x,
+    (sx * sy * cz + cx * sz) * scale.x,
+    (-cx * sy * cz + sx * sz) * scale.x,
+    0,
+    -cy * sz * scale.y,
+    (-sx * sy * sz + cx * cz) * scale.y,
+    (cx * sy * sz + sx * cz) * scale.y,
+    0,
+    sy * scale.z,
+    -sx * cy * scale.z,
+    cx * cy * scale.z,
+    0,
+    translation.x,
+    translation.y,
+    translation.z,
+    1,
+  ];
+}
+
+function transformMatrix(transform: StudioReferenceBinding['transform']): number[] {
+  const [x, y, z, w] = transform.rotation;
+  const x2 = x + x;
+  const y2 = y + y;
+  const z2 = z + z;
+  const xx = x * x2;
+  const xy = x * y2;
+  const xz = x * z2;
+  const yy = y * y2;
+  const yz = y * z2;
+  const zz = z * z2;
+  const wx = w * x2;
+  const wy = w * y2;
+  const wz = w * z2;
+  return [
+    (1 - (yy + zz)) * transform.scale.x,
+    (xy + wz) * transform.scale.x,
+    (xz - wy) * transform.scale.x,
+    0,
+    (xy - wz) * transform.scale.y,
+    (1 - (xx + zz)) * transform.scale.y,
+    (yz + wx) * transform.scale.y,
+    0,
+    (xz + wy) * transform.scale.z,
+    (yz - wx) * transform.scale.z,
+    (1 - (xx + yy)) * transform.scale.z,
+    0,
+    transform.translation.x,
+    transform.translation.y,
+    transform.translation.z,
+    1,
+  ];
+}
+
+function multiplyMatrices(left: readonly number[], right: readonly number[]): number[] {
+  const output = Array.from({ length: 16 }, () => 0);
+  for (let column = 0; column < 4; column += 1) {
+    for (let row = 0; row < 4; row += 1) {
+      let value = 0;
+      for (let index = 0; index < 4; index += 1) {
+        value += left[index * 4 + row]! * right[column * 4 + index]!;
+      }
+      output[column * 4 + row] = value;
+    }
+  }
+  return output;
 }
 
 function fallbackGlbUrl(url: string): string | null {

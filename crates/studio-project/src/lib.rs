@@ -6,6 +6,7 @@ pub mod geometry_cache;
 pub mod layered_geometry_cache;
 mod lock;
 mod path;
+pub mod reference_asset_store;
 mod store;
 
 pub use changeset_store::{ChangeSetStore, ChangeSetStoreDiagnostic};

@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::document::{Document, SceneNode};
+use crate::document::{Document, NodeContent, SceneNode};
 use crate::geometry::{Bounds, evaluate_node_content};
 use crate::large_scene::evaluate::{evaluate_large_scene, evaluated_scene_bounds};
 
@@ -35,6 +35,9 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_REFERENCE_INVALID")]
     #[ts(rename = "ICE3_STUDIO_REFERENCE_INVALID")]
     ReferenceInvalid,
+    #[serde(rename = "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED")]
+    #[ts(rename = "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED")]
+    ReferenceExportUnsupported,
     #[serde(rename = "ICE3_STUDIO_GEOMETRY_INVALID")]
     #[ts(rename = "ICE3_STUDIO_GEOMETRY_INVALID")]
     GeometryInvalid,
@@ -115,6 +118,7 @@ pub const DIAGNOSTIC_CODES: &[&str] = &[
     "ICE3_STUDIO_REVISION_CONFLICT",
     "ICE3_STUDIO_OPERATION_INVALID",
     "ICE3_STUDIO_REFERENCE_INVALID",
+    "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
     "ICE3_STUDIO_GEOMETRY_INVALID",
     "ICE3_STUDIO_CONSTRAINT_FAILED",
     "ICE3_STUDIO_BUDGET_EXCEEDED",
@@ -151,6 +155,7 @@ impl DiagnosticCode {
             Self::RevisionConflict => "ICE3_STUDIO_REVISION_CONFLICT",
             Self::OperationInvalid => "ICE3_STUDIO_OPERATION_INVALID",
             Self::ReferenceInvalid => "ICE3_STUDIO_REFERENCE_INVALID",
+            Self::ReferenceExportUnsupported => "ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED",
             Self::GeometryInvalid => "ICE3_STUDIO_GEOMETRY_INVALID",
             Self::ConstraintFailed => "ICE3_STUDIO_CONSTRAINT_FAILED",
             Self::BudgetExceeded => "ICE3_STUDIO_BUDGET_EXCEEDED",
@@ -223,6 +228,16 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
                 node.id.as_str(),
                 format!("/scene/nodes/{index}/content"),
                 error.to_string(),
+            ));
+        }
+        if let NodeContent::ReferenceInstance(reference) = &node.content
+            && (reference.asset_id.trim().is_empty() || reference.selection_id.trim().is_empty())
+        {
+            diagnostics.push(reference_diagnostic(
+                Some(index),
+                node.id.as_str(),
+                format!("/scene/nodes/{index}/content"),
+                "reference asset and selection IDs must not be empty",
             ));
         }
     }
@@ -380,6 +395,21 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
     }
     diagnostics.extend(crate::large_scene::validate::validate_large_scene(document));
     diagnostics
+}
+
+fn reference_diagnostic(
+    operation_index: Option<usize>,
+    object_id: &str,
+    pointer: String,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        code: DiagnosticCode::ReferenceInvalid,
+        operation_index,
+        object_id: Some(object_id.to_owned()),
+        pointer,
+        message: message.into(),
+    }
 }
 
 fn finite_transform(node: &SceneNode) -> bool {

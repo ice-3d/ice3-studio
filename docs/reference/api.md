@@ -20,6 +20,11 @@ The Web Viewer has no private mutation path.
 - `GET /preview-packets/{revision}`: revisioned `ICE3PGP1` geometry packet when host policy enables
   preview packets.
 - `GET /preview-packets/candidates/{digest}`: candidate packet with the same media type.
+- `GET /reference-assets/{assetId}/tileset.json`: streamed reference tileset with relative tile
+  content rewritten beneath `/tiled/`.
+- `GET /reference-assets/{assetId}/tiled/{path}`: immutable coarse/fine GLB tiles.
+- `GET /reference-assets/{assetId}/prepared.glb`: immutable Prepared GLB fallback.
+- `GET /reference-assets/{assetId}/equipment.json`: immutable equipment manifest.
 
 The default origin is `http://127.0.0.1:8120`. Server startup generates a short-lived token;
 mutating methods require `Authorization: Bearer <token>`.
@@ -62,6 +67,9 @@ Success returns `result`; failure returns `error.code`, `error.message`,
 | `scene.search` | No | `SceneSearchRequest` | Revision-bound source/derived node pages |
 | `scene.bounds` | No | none | World-space bounds by node ID |
 | `validation.run` | No | none | Diagnostic array |
+| `referenceAsset.register` | Yes | `ReferenceAssetRegisterParams` | Immutable asset ID and bounded descriptor |
+| `referenceAsset.get` | No | `{ assetId }` | Descriptor and streamed asset URLs |
+| `referenceAsset.bindings` | No | `{ assetId, cursor?, limit? }` | Stable equipment page, limit `1..=100` |
 | `evaluation.evaluate` | No | none | Evaluated mesh by node ID |
 | `evaluation.query` | No | `EvaluationQueryRequest` | Bounded derived geometry summaries and optional payloads |
 | `evaluation.waitScene` | No | `{ revision? }` | Published experimental GPU scene status |
@@ -101,6 +109,62 @@ atomically fall back to the GLB route on unsupported, invalid, stale, or over-bu
 
 After `project.close`, document and scene methods return `ICE3_STUDIO_PROJECT_NOT_FOUND`
 until a project is opened again.
+
+## Reference Assets
+
+`referenceAsset.register` copies the source GLB, optional Prepared GLB, tileset directory, and
+equipment manifest into the active project as immutable files. Registration is idempotent for the
+same hashes and requires approval in `review-required` mode. Paths are relative to the configured
+workspace; absolute paths, `..`, symlink components, malformed GLBs, and embedded digest mismatches
+are rejected before publication.
+
+The descriptor contains only bounded metadata: hashes, world bounds, source/mesh/material/
+equipment counts, and one timestamp. Positions, indices, buffers, credentials, and absolute
+filesystem paths are not returned. `document.get` stores one `reference_instance` node per editable
+semantic binding:
+
+```json
+{
+  "type": "reference_instance",
+  "assetId": "asset-000001",
+  "selectionId": "ice3-virtual-wwtp/equipment/AE-101"
+}
+```
+
+Binding transform, visibility, material, and metadata edits use normal `node.update`,
+`material.assign`, `node.delete`, and ChangeSet history. Impact analysis reports these edits as
+local and reports zero generated reference geometry. `scene.context` and `evaluation.stats` add the
+asset baseline triangle/mesh counts once per referenced digest.
+
+For a baseline-only project, `export.sourceGlb` returns the registered source digest and path
+without rebuilding geometry. If a binding has an authored transform, material, or visibility
+override, export returns `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` rather than silently discarding
+the overlay. Composing reference overrides into a new monolithic GLB is outside this phase.
+
+The on-disk layout below the project is:
+
+```text
+references/<assetId>/
+  asset.json
+  source.glb
+  prepared.glb
+  equipment.json
+  tiled/tileset.json
+```
+
+Viewer sessions request the small Document, descriptor, and 100-item binding pages. An
+`ICETilesetLoader` streams coarse-to-fine tiles; imported selection IDs map back to Studio node
+IDs, and the previous ready scene remains mounted until a replacement coarse tile is available.
+
+Reproduce the real-asset gate with:
+
+```bash
+PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH \
+  node scripts/run-large-reference-acceptance.mjs
+```
+
+The command writes `output/large-reference-acceptance.json`, an initial canvas screenshot, and a
+rotated/zoomed selection screenshot beside it.
 
 ## Transaction Contract
 
