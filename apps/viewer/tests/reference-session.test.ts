@@ -5,6 +5,7 @@ import {
   applyReferenceOverrides,
   lightenReferenceColor,
   mapReferenceSelection,
+  referenceSurfaceColor,
 } from '../src/viewport/SceneAdapter';
 
 test('loads reference metadata without requesting document geometry', async () => {
@@ -73,6 +74,17 @@ test('lifts reference materials without discarding their hue', () => {
   assert.equal(lightenReferenceColor('#334455'), '#89939c');
   assert.equal(lightenReferenceColor('#336699cc'), '#89a6c4cc');
   assert.equal(lightenReferenceColor('invalid'), 'invalid');
+});
+
+test('maps infrastructure and pipe colors by real-world material role', () => {
+  assert.equal(referenceSurfaceColor(['Ground'], '#1a1b17'), '#777a72');
+  assert.equal(referenceSurfaceColor(['Ground', 'Ground.Slab'], '#1a1b17'), '#aaa99f');
+  assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.MainAccess'], '#1f2121'), '#50575b');
+  assert.equal(referenceSurfaceColor(['RoadNetwork', 'RoadNetwork.MainAccess.Curb.N'], '#a39e87'), '#c9c7be');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.air-01'], '#7a8c8f'), '#3987b2');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.chemical-01a'], '#80754d'), '#c9862b');
+  assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.sludge-01'], '#695980'), '#8a6249');
+  assert.equal(referenceSurfaceColor(['AE-101'], '#265c66'), '#1f6675');
 });
 
 test('inherits equipment color through mesh children without tinting shared geometry', () => {

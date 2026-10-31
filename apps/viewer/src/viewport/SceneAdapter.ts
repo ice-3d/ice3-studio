@@ -347,6 +347,7 @@ function mapReferenceSelections(
 }
 
 type ImportedNode = {
+  name?: string;
   selectionId?: string;
   semanticSelectionIds?: readonly string[];
   children?: readonly ImportedNode[];
@@ -402,7 +403,9 @@ export function applyReferenceOverrides(
   const applyMaterials = (
     node: ImportedNode,
     inheritedBinding: StudioReferenceBinding | undefined,
+    path: readonly string[] = [],
   ): void => {
+    const nodePath = node.name ? [...path, node.name] : path;
     if (!originalNodeState.has(node)) {
       originalNodeState.set(node, {
         matrix: currentLocalMatrix(node),
@@ -418,10 +421,10 @@ export function applyReferenceOverrides(
     } else if (binding?.materialColor) {
       node.material = cloneMaterial(original.material, binding.materialColor);
     } else {
-      node.material = presentedReferenceMaterial(original.material);
+      node.material = referenceRoleMaterial(original.material, nodePath);
     }
     for (const child of node.children ?? []) {
-      applyMaterials(child, binding);
+      applyMaterials(child, binding, nodePath);
     }
   };
   if (scene && typeof scene === 'object') {
@@ -477,6 +480,89 @@ function presentedReferenceMaterial(material: ImportedMaterial): ImportedMateria
       : {}),
   });
   return presented;
+}
+
+const sourceMaterialColors = Object.freeze<Record<string, string>>({
+  '#66635c': '#8c867b',
+  '#6e7a7d': '#a2afb2',
+  '#ced4d5': '#dad8d0',
+  '#265c66': '#1f6675',
+  '#2e383b': '#465158',
+  '#4d5c61': '#6c7b80',
+  '#7a827d': '#aab1ab',
+  '#475252': '#5f6c73',
+  '#614d33': '#8a6844',
+  '#263d45': '#435b64',
+  '#477063': '#3f7767',
+  '#80754d': '#c9862b',
+  '#7a8c8f': '#3987b2',
+  '#1f6b94': '#2477a0',
+  '#87857a': '#b8b4aa',
+  '#1c1f1d': '#414947',
+  '#695980': '#8a6249',
+  '#a39e87': '#eee7c7',
+  '#47707a': '#4a8d9c',
+  '#4d524f': '#697170',
+  '#424d4f': '#7b8582',
+  '#1f2121': '#50575b',
+  '#63784d': '#d0ac32',
+  '#6e6354': '#a99c88',
+  '#a67526': '#d78a2e',
+  '#1a1b17': '#777a72',
+  '#616b66': '#7e8a82',
+  '#617075': '#84989f',
+});
+
+function referenceRoleMaterial(
+  material: ImportedMaterial,
+  path: readonly string[],
+): ImportedMaterial {
+  return cloneMaterial(
+    material,
+    referenceSurfaceColor(path, material.color),
+  );
+}
+
+export function referenceSurfaceColor(
+  path: readonly string[],
+  sourceColor: string,
+): string {
+  const pathName = path.join('/');
+  const nodeName = path.at(-1) ?? '';
+  let color: string | undefined;
+  if (nodeName.includes('.Marking.')) {
+    color = '#eee7c7';
+  } else if (nodeName.includes('.Curb.')) {
+    color = '#c9c7be';
+  } else if (nodeName.startsWith('RoadNetwork.')) {
+    color = '#50575b';
+  } else if (nodeName === 'Ground.Slab') {
+    color = '#aaa99f';
+  } else if (nodeName === 'Ground') {
+    color = '#777a72';
+  } else if (nodeName.startsWith('SitePads.')) {
+    color = '#a99c88';
+  } else if (nodeName.includes('Site.Facility') || pathName.includes('/Buildings/')) {
+    color = '#b8b4aa';
+  } else if (nodeName.startsWith('Pipe.air-')) {
+    color = '#3987b2';
+  } else if (nodeName.startsWith('Pipe.gas-')) {
+    color = '#d0ac32';
+  } else if (nodeName.startsWith('Pipe.chemical-')) {
+    color = '#c9862b';
+  } else if (/^Pipe\.(sludge|ras|was|scum)-/.test(nodeName)) {
+    color = '#8a6249';
+  } else if (nodeName.startsWith('Pipe.service-water-')) {
+    color = '#3f7767';
+  } else if (/^Pipe\.(backwash|main|filtrate|supernatant|drain|return)-/.test(nodeName)) {
+    color = '#2477a0';
+  } else if (nodeName.startsWith('SiteUtilities.Lamp.')) {
+    color = nodeName.endsWith('.Head') ? '#eee7c7' : '#596267';
+  } else if (nodeName === 'SiteMaintenanceWalkway.Rail') {
+    color = '#a2afb2';
+  }
+  return color ?? sourceMaterialColors[sourceColor.toLowerCase()]
+    ?? lightenReferenceColor(sourceColor);
 }
 
 function findImportedNodes(root: ImportedNode): ImportedNode[] {

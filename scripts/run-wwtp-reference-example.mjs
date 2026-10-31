@@ -21,27 +21,6 @@ const equipmentManifest = join(
   workspaceRoot,
   'ice3-agent-console/public/assets/wastewater-plant/equipment.json',
 );
-const materialPalette = Object.freeze({
-  aerobic: { id: 'material-910001', name: 'Aerobic Process', color: [0.16, 0.62, 0.7, 1] },
-  anoxic: { id: 'material-910002', name: 'Anoxic Process', color: [0.28, 0.48, 0.68, 1] },
-  anaerobic: { id: 'material-910003', name: 'Anaerobic Process', color: [0.62, 0.48, 0.28, 1] },
-  intake: { id: 'material-910004', name: 'Intake Structures', color: [0.38, 0.57, 0.62, 1] },
-  primary: { id: 'material-910005', name: 'Primary Clarifiers', color: [0.72, 0.62, 0.46, 1] },
-  secondary: { id: 'material-910006', name: 'Secondary Clarifiers', color: [0.38, 0.72, 0.8, 1] },
-  coagulant: { id: 'material-910007', name: 'Coagulation Structures', color: [0.42, 0.6, 0.74, 1] },
-  filter: { id: 'material-910008', name: 'Filtration Structures', color: [0.34, 0.68, 0.64, 1] },
-  disinfection: { id: 'material-910009', name: 'Disinfection Structures', color: [0.48, 0.48, 0.76, 1] },
-  digester: { id: 'material-910010', name: 'Digesters', color: [0.48, 0.52, 0.4, 1] },
-  solids: { id: 'material-910011', name: 'Solids Handling', color: [0.62, 0.48, 0.33, 1] },
-  pump: { id: 'material-910012', name: 'Pump Equipment', color: [0.72, 0.42, 0.24, 1] },
-  blower: { id: 'material-910013', name: 'Blower Equipment', color: [0.78, 0.66, 0.24, 1] },
-  chemical: { id: 'material-910014', name: 'Chemical Dosing', color: [0.42, 0.64, 0.26, 1] },
-  instrument: { id: 'material-910015', name: 'Instrumentation', color: [0.38, 0.68, 0.56, 1] },
-  utilities: { id: 'material-910016', name: 'Utilities', color: [0.52, 0.6, 0.66, 1] },
-  discharge: { id: 'material-910017', name: 'Discharge Structures', color: [0.34, 0.66, 0.72, 1] },
-  default: { id: 'material-910018', name: 'Site Equipment', color: [0.6, 0.65, 0.68, 1] },
-});
-
 await access(join(viewerDist, 'index.html'));
 const processHandle = spawn('cargo', [
   'run',
@@ -91,19 +70,6 @@ const registration = await rpc('referenceAsset.register', {
 }, { approvalToken });
 
 const manifest = JSON.parse(await readFile(equipmentManifest, 'utf8'));
-await commitOperations(
-  'High-fidelity process palette',
-  Object.values(materialPalette).map(({ id, name, color }) => ({
-    type: 'material.upsert',
-    material_id: id,
-    name,
-    base_color: color,
-    opacity: 1,
-    edge_color: [color[0] * 0.52, color[1] * 0.52, color[2] * 0.52, 1],
-  })),
-  0,
-  `wwtp-reference-palette-${projectId}`,
-);
 const bindings = manifest.equipment.map((entry, index) => ({
   type: 'node.create',
   node_id: `node-${String(index + 1).padStart(6, '0')}`,
@@ -119,7 +85,7 @@ const bindings = manifest.equipment.map((entry, index) => ({
     assetId: registration.assetId,
     selectionId: entry.selectionId,
   },
-  material_id: equipmentPalette(entry).id,
+  material_id: null,
   metadata: {
     area: String(entry.area ?? ''),
     sourceTag: String(entry.tag ?? ''),
@@ -128,7 +94,7 @@ const bindings = manifest.equipment.map((entry, index) => ({
 await commitOperations(
   'Create semantic equipment bindings',
   bindings,
-  1,
+  0,
   `wwtp-reference-bindings-${projectId}`,
 );
 
@@ -205,36 +171,6 @@ async function commitOperations(title, operations, baseRevision, idempotencyKey)
   }, { approvalToken });
 }
 
-function equipmentPalette(entry) {
-  const tag = String(entry.tag ?? '');
-  if (/^(AE|AT|AX)-/.test(tag)) {
-    if (tag.startsWith('AT-')) return materialPalette.anaerobic;
-    if (tag.startsWith('AX-')) return materialPalette.anoxic;
-    return materialPalette.aerobic;
-  }
-  if (/^(PC|DW|EQ)-/.test(tag)) return materialPalette.primary;
-  if (tag.startsWith('SC-')) return materialPalette.secondary;
-  if (/^(CO|CL|MOV-301|MOV-401|MOV-402|MOV-403|MOV-404)-?/.test(tag)) {
-    return materialPalette.coagulant;
-  }
-  if (/^(FL|GAC|UF|P-BW|P-TF)-/.test(tag)) return materialPalette.filter;
-  if (/^(DT|OZ|UV|V-OUT|OUT)-/.test(tag)) {
-    return materialPalette.discharge;
-  }
-  if (/^(DIG|FLARE)-/.test(tag)) return materialPalette.digester;
-  if (/^(CONV|DRY|DWG|P-SL|SILO|ST)-/.test(tag)) {
-    return materialPalette.solids;
-  }
-  if (tag.startsWith('P-')) return materialPalette.pump;
-  if (/^(BLW|FAN)-/.test(tag)) return materialPalette.blower;
-  if (/^(ALKALI|BISULFITE|CARBON|FECL3|NACLO|PAC|PAM|POLY|MOV-CHEM)-/.test(tag)) {
-    return materialPalette.chemical;
-  }
-  if (/^(AIT|FIT)-/.test(tag)) return materialPalette.instrument;
-  if (/^(GR|GC|GW|IN|CV)-/.test(tag)) return materialPalette.intake;
-  if (/^(ODR|FAN|P-UTIL)-/.test(tag)) return materialPalette.utilities;
-  return materialPalette.default;
-}
 
 async function waitForStartup(child) {
   const lines = createInterface({ input: child.stdout });
