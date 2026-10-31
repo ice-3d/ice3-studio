@@ -22,31 +22,37 @@ Install Viewer dependencies once:
 npm --prefix apps/viewer ci
 ```
 
-## Start the Fixture
+## Start the Server
 
-From the repository root:
-
-```bash
-npm --prefix apps/viewer run build
-```
-
-Then start the server:
+The default development scene is the full wastewater reference plant: 204 semantically bound
+equipment items over 5.76M effective triangles, streamed from a layered reference asset.
 
 ```bash
-STUDIO_TOOLCHAIN_CLI=scripts/preview-example.mjs \
-ICE3_TOOLCHAIN_CLI=../ice3-toolchain/packages/cli/dist/main.js \
-STUDIO_VIEWER_DIR=apps/viewer/dist \
-cargo run -p studio-cli -- serve \
-  --workspace . \
-  --project wastewater-mini \
-  --fixture fixtures/wastewater-mini \
-  --native-gpu cpu
+npm --prefix apps/viewer run build   # once, and after Viewer changes
+npm run dev
 ```
 
-The server listens only on `127.0.0.1`, defaults to port `8120`, and prints its address, proposal
-token, and a one-time browser bootstrap URL. The fixture is seeded at revision 2.
-`--native-gpu cpu` is the release default. Experiment with `auto` or forced `gpu` only after
-running `npm run benchmark:gpu` on the target host; the host mode is a startup policy and is never
+`npm run dev` starts `studio-cli` on `127.0.0.1:8149` with project `wwtp-reference`. The first
+run registers the reference asset and commits the 204 bindings (about two minutes); every later
+run reuses the stored project and is ready in about two seconds. The command prints the Viewer
+URL and keeps serving until `Ctrl+C`.
+
+Open the printed URL to load the scene. The URL carries the agent token, and the approval token
+is `approval-wwtp-reference`. Set `ICE3_WWTP_PROJECT_ID` to serve an isolated copy of the scene,
+and `STUDIO_ONE_SHOT=1` to run the example once without staying in the foreground.
+
+### Small smoke fixture
+
+`wastewater-mini` is a 16 KB JSON fixture (11 nodes) used by `npm run verify`, the E2E server,
+and the MVP benchmark. It exists for fast contract checks, not as a demo asset:
+
+```bash
+npm run dev:mini
+```
+
+The server listens only on `127.0.0.1` and defaults to port `8120`. `--native-gpu cpu` is the
+release default. Experiment with `auto` or forced `gpu` only after running
+`npm run benchmark:gpu` on the target host; the host mode is a startup policy and is never
 controlled by an API request.
 
 For iterative frontend work, keep the server running and start watch output in another terminal:
@@ -55,8 +61,8 @@ For iterative frontend work, keep the server running and start watch output in a
 npm --prefix apps/viewer run dev
 ```
 
-The watch build updates `apps/viewer/dist`; open the printed bootstrap URL to establish the
-human approval cookie. The Workbench and API share `http://127.0.0.1:8120`.
+The watch build updates `apps/viewer/dist`; reload the browser tab to pick it up. The Workbench
+and API share the same origin.
 
 The Workbench shows the current revision, generic object tree, validation diagnostics, form
 inspection, and the prepared preview. A revision event triggers a fresh document read and preview

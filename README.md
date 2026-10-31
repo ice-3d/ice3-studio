@@ -16,22 +16,27 @@ API 建模、修复失败事务、撤销/重做、重开项目、导出标准 GL
 
 ## 快速开始
 
+默认开发场景是完整的高保真污水处理厂，保留 204 个可搜索、可选择和可局部编辑的语义
+绑定，使用分层流式资产承载完整几何，不把大型模型内联进 Studio Document：
+
 ```bash
 npm --prefix apps/viewer ci
+npm run dev
+```
+
+首次运行会注册 251 MB 引用资产并提交 204 条绑定（约两分钟），之后每次启动直接复用
+已存项目（约两秒）。命令打印 Viewer URL 并持续服务，`Ctrl+C` 停止。
+
+完整验证与基准：
+
+```bash
 npm run verify
 npm run benchmark
 npm run benchmark:gpu
 ```
 
-工作区同时包含 `ice3-engine` 和 `ice3-agent-console` 时，可以启动带原始
-Prepared GLB/Tileset 的高保真厂区案例：
-
-```bash
-npm run example:wwtp-reference
-```
-
-该案例保留 204 个可搜索、可选择和可局部编辑的语义绑定，使用分层流式资产承载完整
-几何，不把大型模型内联进 Studio Document。
+`wastewater-mini`（16 KB JSON，11 个节点）保留为契约测试 fixture，被 `npm run verify`、
+E2E 和 MVP benchmark 使用，可用 `npm run dev:mini` 单独启动。
 
 完整的本地启动、API 调用和 Viewer 使用方式见
 [Getting Started](docs/guides/getting-started.md)。
