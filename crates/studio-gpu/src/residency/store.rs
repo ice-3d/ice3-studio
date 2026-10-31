@@ -219,7 +219,7 @@ impl GpuGeometryResidency {
                     vertex_count: input.mesh.positions.len(),
                     triangle_count: gpu.triangle_count as usize,
                     device_generation: self.device_generation,
-                    state: ResidentGeometryState::Ready,
+                    state: ResidentGeometryState::Pending,
                 },
                 gpu,
                 source: input.mesh,
@@ -284,9 +284,29 @@ impl GpuGeometryResidency {
 
     pub(crate) fn evaluate_handle(
         &self,
+        device: &wgpu::Device,
         id: &ResidentGeometryId,
     ) -> Result<GeometryResidentEntry, BackendError> {
         let lookup_started = std::time::Instant::now();
+        let wait_started = std::time::Instant::now();
+        let pending = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .entries
+            .get(&id.0)
+            .is_some_and(|entry| entry.record.handle.state == ResidentGeometryState::Pending);
+        if pending {
+            device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: None,
+                    timeout: Some(std::time::Duration::from_secs(30)),
+                })
+                .map_err(|error| BackendError::Kernel {
+                    message: format!("resident handle completion failed: {error}"),
+                })?;
+        }
+        let wait_ms = elapsed_ms(wait_started);
         let mut state = self
             .state
             .lock()
@@ -301,12 +321,14 @@ impl GpuGeometryResidency {
                     message: "resident geometry handle is unavailable".into(),
                 })?;
             if stored.record.handle.device_generation != self.device_generation
-                || stored.record.handle.state != ResidentGeometryState::Ready
+                || stored.record.handle.state == ResidentGeometryState::Lost
+                || stored.record.handle.state == ResidentGeometryState::Evicted
             {
                 return Err(BackendError::DeviceLost {
                     message: "resident geometry handle generation is stale".into(),
                 });
             }
+            stored.record.handle.state = ResidentGeometryState::Ready;
             stored.last_used = generation;
         }
         state.resident_hits += 1;
@@ -322,6 +344,7 @@ impl GpuGeometryResidency {
             &stored.record.node_id,
         );
         resident.evidence.phases.lookup_ms = elapsed_ms(lookup_started);
+        resident.evidence.phases.wait_ms = wait_ms;
         state.last_evidence = resident.evidence.clone();
         Ok(resident)
     }
@@ -343,6 +366,7 @@ impl GpuGeometryResidency {
 
     pub(crate) fn evaluate_handle_checked(
         &self,
+        device: &wgpu::Device,
         handle: &ResidentGeometryHandle,
     ) -> Result<GeometryResidentEntry, BackendError> {
         if handle.device_generation != self.device_generation
@@ -352,7 +376,7 @@ impl GpuGeometryResidency {
                 message: "resident geometry handle generation is stale".into(),
             });
         }
-        self.evaluate_handle(&handle.id)
+        self.evaluate_handle(device, &handle.id)
     }
 
     pub(crate) fn phase_counters(&self) -> ResidentPhaseCounters {

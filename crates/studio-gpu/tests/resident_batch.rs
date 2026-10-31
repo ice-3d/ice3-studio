@@ -1,7 +1,7 @@
 use studio_core::document::NodeContent;
 use studio_core::geometry::{Primitive, TriangleMesh};
 use studio_core::gpu_contract::{
-    GeometryBackend, GeometryBatch, GeometryJobNode, GeometryJobPriority,
+    GeometryBackend, GeometryBatch, GeometryJobNode, GeometryJobPriority, ResidentGeometryState,
 };
 use studio_core::ids::NodeId;
 use studio_gpu::NativeGpuBackend;
@@ -36,6 +36,14 @@ fn distinct_compatible_meshes_share_one_submission() {
     assert_eq!(result.entries.len(), 3);
     assert_eq!(result.evidence.submission_count, 1);
     assert_eq!(result.evidence.phases.wait_ms, 0.0);
+    let handle = backend.resident_handle(&result.entries[0].id).unwrap();
+    assert_eq!(handle.state, ResidentGeometryState::Pending);
+    let ready = backend.evaluate_resident_handle(&handle.id).unwrap();
+    assert_eq!(ready.mode, studio_core::gpu_contract::GeometryEvaluationMode::Resident);
+    assert_eq!(
+        backend.resident_handle(&handle.id).unwrap().state,
+        ResidentGeometryState::Ready
+    );
 }
 
 #[test]

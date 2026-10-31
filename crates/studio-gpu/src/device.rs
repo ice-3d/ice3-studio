@@ -325,16 +325,18 @@ impl NativeGpuBackend {
         &self,
         id: &ResidentGeometryId,
     ) -> Result<GeometryResidentEntry, BackendError> {
-        self.ready_device()?.residency.evaluate_handle(id)
+        let ready = self.ready_device()?;
+        ready.residency.evaluate_handle(&ready.device, id)
     }
 
     pub fn evaluate_resident_handle_checked(
         &self,
         handle: &ResidentGeometryHandle,
     ) -> Result<GeometryResidentEntry, BackendError> {
-        self.ready_device()?
+        let ready = self.ready_device()?;
+        ready
             .residency
-            .evaluate_handle_checked(handle)
+            .evaluate_handle_checked(&ready.device, handle)
     }
 
     pub fn resident_handle(
