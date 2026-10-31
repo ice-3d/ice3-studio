@@ -86,6 +86,8 @@ test('maps infrastructure and pipe colors by real-world material role', () => {
   assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.chemical-01a'], '#80754d'), '#c9862b');
   assert.equal(referenceSurfaceColor(['ProcessPipes', 'Pipe.sludge-01'], '#695980'), '#8a6249');
   assert.equal(referenceSurfaceColor(['AE-101'], '#265c66'), '#1f6675');
+  assert.equal(referenceSurfaceColor(['AE-101'], '#66635c'), '#d6d7d2');
+  assert.equal(referenceSurfaceColor(['AE-101'], '#6e7a7d'), '#a8b1b5');
 });
 
 test('inherits equipment color through mesh children without tinting shared geometry', () => {

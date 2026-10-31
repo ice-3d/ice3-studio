@@ -483,15 +483,15 @@ function presentedReferenceMaterial(material: ImportedMaterial): ImportedMateria
 }
 
 const sourceMaterialColors = Object.freeze<Record<string, string>>({
-  '#66635c': '#8c867b',
-  '#6e7a7d': '#a2afb2',
-  '#ced4d5': '#dad8d0',
+  '#66635c': '#d6d7d2',
+  '#6e7a7d': '#a8b1b5',
+  '#ced4d5': '#e6e7e3',
   '#265c66': '#1f6675',
   '#2e383b': '#465158',
   '#4d5c61': '#6c7b80',
-  '#7a827d': '#aab1ab',
-  '#475252': '#5f6c73',
-  '#614d33': '#8a6844',
+  '#7a827d': '#b4b8b5',
+  '#475252': '#5d686e',
+  '#614d33': '#d6d8d4',
   '#263d45': '#435b64',
   '#477063': '#3f7767',
   '#80754d': '#c9862b',
