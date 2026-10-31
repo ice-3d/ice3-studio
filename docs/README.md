@@ -27,6 +27,7 @@
 | `ICE3-STUDIO-SPEC-008` | [Revision-Scoped GPU Scene Session](specs/2026-10-31-gpu-scene-session-design.md) | Experimental | CPU 增量场景默认启用；GPU 增量无额外性能优势，保持实验性 |
 | `ICE3-STUDIO-SPEC-009` | [Agent-Friendly Modeling API](specs/2026-10-31-agent-friendly-modeling-api-design.md) | Proposed | 面向外部 Agent 的有界上下文、分页发现、派生几何查询与稀疏 patch 契约 |
 | `ICE3-STUDIO-PLAN-011` | [Revision-Scoped GPU Scene Session 实施计划](plans/2026-10-31-gpu-scene-session.md) | Experimental | CPU 增量场景、GPU residency、preview delta 和量化门禁 |
+| `ICE3-STUDIO-PLAN-012` | [Agent-Friendly Modeling API 实施计划](plans/2026-10-31-agent-friendly-modeling-api.md) | Proposed | Agent manifest、上下文查询、派生场景发现和稀疏 patch 的 TDD 交付步骤 |
 | `ICE3-STUDIO-PLAN-010` | [GPU Resident Hot-Path Redesign Implementation Plan](plans/2026-10-31-gpu-hot-path-redesign.md) | Experimental | 从 resident digest/handle 到批处理、证据和生产预览接线 |
 | `ICE3-STUDIO-PLAN-009` | [GPU-Resident Geometry 实施计划](plans/2026-10-31-gpu-resident-geometry.md) | Experimental | Native residency、增量 packet、浏览器 buffer 复用和量化验收 |
 | `ICE3-STUDIO-PLAN-008` | [Native GPU Compute Backend 实施计划](plans/2026-10-30-native-gpu-compute-backend.md) | Experimental | GPU 契约、设备生命周期、内核、调度、证据和 fail-closed 性能门禁 |
