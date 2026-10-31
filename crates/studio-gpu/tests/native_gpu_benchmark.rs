@@ -28,6 +28,22 @@ fn benchmark_report_contains_every_evaluation_mode() {
 }
 
 #[test]
+fn benchmark_report_keeps_unavailable_gpu_timings_and_byte_counts_truthful() {
+    let report = benchmark_fixture();
+    let workload = &report["workloads"][0];
+
+    assert!(workload["gpu"]["kernelMs"].is_null());
+    assert!(workload["gpu"]["queueWaitMs"].is_null());
+    assert_eq!(workload["modes"]["cold"]["uploadBytes"], 1_024);
+    assert_eq!(workload["modes"]["cold"]["readbackBytes"], 512);
+    assert_eq!(workload["modes"]["cold"]["uploadCount"], 1);
+    assert_eq!(workload["modes"]["cold"]["readbackCount"], 1);
+    assert_eq!(report["gates"]["residentCacheHit"], true);
+    assert_eq!(report["gates"]["coldGpuCrossover"], false);
+    assert_eq!(report["gates"]["performance"], false);
+}
+
+#[test]
 #[ignore = "run through npm run benchmark:gpu"]
 fn native_gpu_benchmark() {
     let Some(backend) = NativeGpuBackend::for_test_gpu() else {
@@ -107,6 +123,7 @@ fn native_gpu_benchmark() {
         let resident_parity = snapshot_reference
             .as_ref()
             .is_some_and(|snapshot| mesh_parity(snapshot, &cpu_reference));
+        let (mesh_upload_bytes, mesh_readback_bytes) = mesh_transfer_bytes(&mesh);
 
         let mut warm_mesh = mesh.clone();
         warm_mesh.positions[0][2] += 0.01;
@@ -152,11 +169,15 @@ fn native_gpu_benchmark() {
         let preview_p95 = percentile(&mut preview_samples, 0.95);
         let gain = 1.0 - resident_p50 / cpu_p50;
         let p95_ratio = resident_p95 / cpu_p95;
+        let cold_gain = 1.0 - cold_p50 / cpu_p50;
+        let cold_p95_ratio = cold_p95 / cpu_p95;
         if triangles >= 500_000 {
             release_gates.push(json!({
                 "triangles": triangles,
-                "p50GainAtLeast10Percent": gain >= 0.10,
-                "gpuP95Within5Percent": p95_ratio <= 1.05,
+                "residentP50GainAtLeast10Percent": gain >= 0.10,
+                "residentP95Within5Percent": p95_ratio <= 1.05,
+                "coldGpuP50GainAtLeast10Percent": cold_gain >= 0.10,
+                "coldGpuP95Within5Percent": cold_p95_ratio <= 1.05,
                 "residentHotPathHashes": counters_after.full_hashes == counters_before.full_hashes,
                 "residentLookupBelow0_1Ms": resident_lookup_p50 < 0.1,
             }));
@@ -181,22 +202,26 @@ fn native_gpu_benchmark() {
                 "backend": "gpu",
                 "p50Ms": cold_p50,
                 "p95Ms": cold_p95,
-                "kernelMs": cold_p50,
-                "queueWaitMs": 0.0,
-                "uploadBytes": mesh.positions.len() as u64 * 12
-                    + mesh.indices.len() as u64 * 4,
-                "readbackBytes": mesh.positions.len() as u64 * 12 + 24,
+                "kernelMs": cold_phases.gpu_kernel_ms,
+                "queueWaitMs": Value::Null,
+                "uploadBytes": mesh_upload_bytes,
+                "readbackBytes": mesh_readback_bytes,
                 "cacheHits": 0,
                 "peakEstimatedMemoryBytes": mesh.positions.len() as u64 * 44
                     + mesh.indices.len() as u64 * 20,
             },
             "modes": {
-                "cold": mode_report(cold_p50, cold_p95, true, true, None, cold_phases),
+                "cold": mode_report(
+                    cold_p50,
+                    cold_p95,
+                    ModeTransfer::new(1, mesh_upload_bytes, 1, mesh_readback_bytes),
+                    None,
+                    cold_phases,
+                ),
                 "warm": mode_report(
                     warm_topology_ms,
                     warm_topology_ms,
-                    false,
-                    false,
+                    ModeTransfer::default(),
                     Some("planning-only".into()),
                     GeometryPhaseEvidence {
                         planning_ms: warm_topology_ms,
@@ -206,24 +231,21 @@ fn native_gpu_benchmark() {
                 "resident": mode_report(
                     resident_p50,
                     resident_p95,
-                    false,
-                    false,
+                    ModeTransfer::default(),
                     None,
                     resident_phases,
                 ),
                 "snapshot": mode_report(
                     snapshot_p50,
                     snapshot_p95,
-                    false,
-                    true,
+                    ModeTransfer::new(0, 0, 1, mesh_readback_bytes),
                     None,
                     snapshot_phases,
                 ),
                 "preview": mode_report(
                     preview_p50,
                     preview_p95,
-                    false,
-                    false,
+                    ModeTransfer::default(),
                     None,
                     GeometryPhaseEvidence::default(),
                 ),
@@ -237,12 +259,17 @@ fn native_gpu_benchmark() {
         }));
     }
 
-    let performance_pass = release_gates.iter().all(|gate| {
-        gate["p50GainAtLeast10Percent"] == Value::Bool(true)
-            && gate["gpuP95Within5Percent"] == Value::Bool(true)
+    let resident_cache_hit_pass = release_gates.iter().all(|gate| {
+        gate["residentP50GainAtLeast10Percent"] == Value::Bool(true)
+            && gate["residentP95Within5Percent"] == Value::Bool(true)
             && gate["residentHotPathHashes"] == Value::Bool(true)
             && gate["residentLookupBelow0_1Ms"] == Value::Bool(true)
     });
+    let cold_gpu_crossover_pass = release_gates.iter().all(|gate| {
+        gate["coldGpuP50GainAtLeast10Percent"] == Value::Bool(true)
+            && gate["coldGpuP95Within5Percent"] == Value::Bool(true)
+    });
+    let performance_pass = resident_cache_hit_pass && cold_gpu_crossover_pass;
     let parity_pass = workloads.iter().all(|workload| {
         workload["parity"] == Value::Bool(true) && workload["residentParity"] == Value::Bool(true)
     });
@@ -257,6 +284,8 @@ fn native_gpu_benchmark() {
         "workloads": workloads,
         "gates": {
             "parity": parity_pass,
+            "residentCacheHit": resident_cache_hit_pass,
+            "coldGpuCrossover": cold_gpu_crossover_pass,
             "performance": performance_pass,
             "forcedGpuFailurePreservesRevision": true,
             "memoryAndQueueBoundsEnforced": true,
@@ -332,20 +361,53 @@ fn percentile(samples: &mut [f64], quantile: f64) -> f64 {
     samples[index]
 }
 
+fn mesh_transfer_bytes(mesh: &TriangleMesh) -> (u64, u64) {
+    let vertices = mesh.positions.len() as u64;
+    let indices = mesh.indices.len() as u64;
+    let workgroups = vertices.div_ceil(64);
+    let upload = 16 + vertices * 16 + indices * 4 + (vertices + 1) * 4 + indices * 4;
+    let readback = vertices * 16 + workgroups * 32;
+    (upload, readback)
+}
+
+#[derive(Clone, Copy, Default)]
+struct ModeTransfer {
+    upload_count: usize,
+    upload_bytes: u64,
+    readback_count: usize,
+    readback_bytes: u64,
+}
+
+impl ModeTransfer {
+    const fn new(
+        upload_count: usize,
+        upload_bytes: u64,
+        readback_count: usize,
+        readback_bytes: u64,
+    ) -> Self {
+        Self {
+            upload_count,
+            upload_bytes,
+            readback_count,
+            readback_bytes,
+        }
+    }
+}
+
 fn mode_report(
     p50_ms: f64,
     p95_ms: f64,
-    uploads: bool,
-    readback: bool,
+    transfer: ModeTransfer,
     observed_mode: Option<String>,
     phases: GeometryPhaseEvidence,
 ) -> Value {
     json!({
         "p50Ms": p50_ms,
         "p95Ms": p95_ms,
-        "uploadCount": u8::from(uploads),
-        "uploadBytes": if uploads { 1 } else { 0 },
-        "readbackBytes": if readback { 1 } else { 0 },
+        "uploadCount": transfer.upload_count,
+        "uploadBytes": transfer.upload_bytes,
+        "readbackCount": transfer.readback_count,
+        "readbackBytes": transfer.readback_bytes,
         "observedMode": observed_mode,
         "phases": phases,
     })
@@ -355,13 +417,52 @@ fn benchmark_fixture() -> Value {
     json!({
         "workloads": [{
             "triangles": 50_000,
+            "gpu": {
+                "kernelMs": null,
+                "queueWaitMs": null,
+            },
             "modes": {
-                "cold": mode_report(1.0, 1.1, true, true, None, GeometryPhaseEvidence::default()),
-                "warm": mode_report(0.5, 0.6, false, false, Some("warm".into()), GeometryPhaseEvidence::default()),
-                "resident": mode_report(0.1, 0.2, false, false, None, GeometryPhaseEvidence::default()),
-                "snapshot": mode_report(0.8, 0.9, false, true, None, GeometryPhaseEvidence::default()),
-                "preview": mode_report(0.2, 0.3, false, false, None, GeometryPhaseEvidence::default()),
+                "cold": mode_report(
+                    1.0,
+                    1.1,
+                    ModeTransfer::new(1, 1_024, 1, 512),
+                    None,
+                    GeometryPhaseEvidence::default(),
+                ),
+                "warm": mode_report(
+                    0.5,
+                    0.6,
+                    ModeTransfer::default(),
+                    Some("warm".into()),
+                    GeometryPhaseEvidence::default(),
+                ),
+                "resident": mode_report(
+                    0.1,
+                    0.2,
+                    ModeTransfer::default(),
+                    None,
+                    GeometryPhaseEvidence::default(),
+                ),
+                "snapshot": mode_report(
+                    0.8,
+                    0.9,
+                    ModeTransfer::new(0, 0, 1, 512),
+                    None,
+                    GeometryPhaseEvidence::default(),
+                ),
+                "preview": mode_report(
+                    0.2,
+                    0.3,
+                    ModeTransfer::default(),
+                    None,
+                    GeometryPhaseEvidence::default(),
+                ),
             }
-        }]
+        }],
+        "gates": {
+            "residentCacheHit": true,
+            "coldGpuCrossover": false,
+            "performance": false,
+        },
     })
 }
