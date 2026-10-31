@@ -55,6 +55,7 @@ pub fn export_glb_from_scene(
         .map(|material| {
             let mut base_color = material.base_color.map(srgb_to_linear);
             base_color[3] = material.opacity;
+            let edge_color = material.edge_color.map(srgb_color_hex);
             json!({
                 "name": material.name,
                 "pbrMetallicRoughness": {
@@ -62,7 +63,14 @@ pub fn export_glb_from_scene(
                     "metallicFactor": 0.0,
                     "roughnessFactor": 0.9
                 },
-                "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" }
+                "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" },
+                "extras": {
+                    "ice3": {
+                        "edges": edge_color.is_some(),
+                        "edgeColor": edge_color,
+                        "shading": "directional"
+                    }
+                }
             })
         })
         .collect::<Vec<_>>();
@@ -354,4 +362,14 @@ fn srgb_to_linear(value: f32) -> f32 {
     } else {
         ((value + 0.055) / 1.055).powf(2.4)
     }
+}
+
+fn srgb_color_hex(color: [f32; 4]) -> String {
+    let channel = |value: f32| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+    format!(
+        "#{:02x}{:02x}{:02x}",
+        channel(color[0]),
+        channel(color[1]),
+        channel(color[2])
+    )
 }

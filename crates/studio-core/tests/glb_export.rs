@@ -49,5 +49,40 @@ fn exports_material_opacity_as_a_gltf_blend_material() {
         .unwrap();
     assert!((opacity - 0.4).abs() < 1e-6);
     assert_eq!(gltf["materials"][0]["alphaMode"], "BLEND");
+    assert_eq!(gltf["materials"][0]["extras"]["ice3"]["edges"], false);
     assert!(gltf["materials"][0]["pbrMetallicRoughness"]["alphaMode"].is_null());
+}
+
+#[test]
+fn exports_material_edge_color_and_directional_shading_metadata() {
+    let mut document = Document::new("material-metadata");
+    let material_id = MaterialId::from("mat-000001");
+    document.materials.push(Material {
+        id: material_id.clone(),
+        name: "Blue steel".into(),
+        base_color: [0.2, 0.4, 0.6, 1.0],
+        opacity: 1.0,
+        edge_color: Some([0.1, 0.2, 0.3, 1.0]),
+    });
+    let mut node = SceneNode::group(NodeId::from("node-000001"), "Equipment");
+    node.material_id = Some(material_id);
+    node.content = NodeContent::Primitive(Primitive::Box {
+        width: 1.0,
+        height: 1.0,
+        depth: 1.0,
+    });
+    document.scene.nodes_mut().push(node);
+
+    let bytes = export_glb(&document).unwrap();
+    let json_len = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    let gltf: serde_json::Value = serde_json::from_slice(&bytes[20..20 + json_len]).unwrap();
+    assert_eq!(
+        gltf["materials"][0]["extras"]["ice3"]["edgeColor"],
+        "#1a334d"
+    );
+    assert_eq!(gltf["materials"][0]["extras"]["ice3"]["edges"], true);
+    assert_eq!(
+        gltf["materials"][0]["extras"]["ice3"]["shading"],
+        "directional"
+    );
 }
