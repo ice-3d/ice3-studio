@@ -2491,6 +2491,16 @@
             "adapter": {
               "type": "string"
             },
+            "browserUploadBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "evictions": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
             "fallbackReason": {
               "type": [
                 "string",
@@ -2540,6 +2550,11 @@
             "mode": {
               "$ref": "#/$defs/GeometryBackendMode"
             },
+            "peakResidentBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
             "pipelinesWarmed": {
               "type": "boolean"
             },
@@ -2548,6 +2563,11 @@
                 "string",
                 "null"
               ]
+            },
+            "previewPacketBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
             },
             "previewPacketVersion": {
               "type": [
@@ -2560,14 +2580,34 @@
               "minimum": 0,
               "type": "integer"
             },
+            "residentBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
             "residentGeometry": {
               "$ref": "#/$defs/ResidentGeometryStatus"
+            },
+            "residentHits": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
             },
             "selectedBackend": {
               "$ref": "#/$defs/GeometryBackendKind"
             },
+            "snapshotReadbackBytes": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
             "tier": {
               "type": "string"
+            },
+            "topologyHits": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
             }
           },
           "required": [
@@ -2586,6 +2626,14 @@
             "lastCacheHits",
             "lastEvaluationMode",
             "residentGeometry",
+            "residentBytes",
+            "peakResidentBytes",
+            "topologyHits",
+            "residentHits",
+            "evictions",
+            "previewPacketBytes",
+            "browserUploadBytes",
+            "snapshotReadbackBytes",
             "pipelinesWarmed"
           ],
           "type": "object"

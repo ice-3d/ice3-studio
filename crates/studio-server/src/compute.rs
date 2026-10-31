@@ -111,6 +111,14 @@ pub struct ComputeStatus {
     pub last_cache_hits: usize,
     pub last_evaluation_mode: String,
     pub resident_geometry: ResidentGeometryStatus,
+    pub resident_bytes: u64,
+    pub peak_resident_bytes: u64,
+    pub topology_hits: usize,
+    pub resident_hits: usize,
+    pub evictions: usize,
+    pub preview_packet_bytes: u64,
+    pub browser_upload_bytes: u64,
+    pub snapshot_readback_bytes: u64,
     pub preview_packet_version: Option<String>,
     pub preview_geometry_packet: Option<String>,
     pub pipelines_warmed: bool,
@@ -280,6 +288,7 @@ pub struct ComputeService {
     last_upload_bytes: std::sync::atomic::AtomicU64,
     last_readback_bytes: std::sync::atomic::AtomicU64,
     last_cache_hits: AtomicUsize,
+    last_snapshot_readback_bytes: std::sync::atomic::AtomicU64,
     last_backend: AtomicU8,
     pipeline_warmed: AtomicBool,
     last_evaluation_mode: Mutex<String>,
@@ -303,6 +312,7 @@ impl ComputeService {
             last_upload_bytes: std::sync::atomic::AtomicU64::new(0),
             last_readback_bytes: std::sync::atomic::AtomicU64::new(0),
             last_cache_hits: AtomicUsize::new(0),
+            last_snapshot_readback_bytes: std::sync::atomic::AtomicU64::new(0),
             last_backend: AtomicU8::new(0),
             pipeline_warmed: AtomicBool::new(false),
             last_evaluation_mode: Mutex::new("cpu".into()),
@@ -689,6 +699,8 @@ impl ComputeService {
                 evidence.mode = GeometryEvaluationMode::Snapshot;
                 evidence.stats = result.stats.clone();
                 self.record_stats(&result.stats);
+                self.last_snapshot_readback_bytes
+                    .store(result.stats.readback_bytes, Ordering::Relaxed);
                 self.set_resident_evidence(evidence);
                 self.set_evaluation_mode("snapshot");
                 Ok(result)
@@ -779,6 +791,14 @@ impl ComputeService {
                 resident_hits: evidence.resident_hits,
                 evictions: evidence.evictions,
             },
+            resident_bytes: evidence.resident_bytes,
+            peak_resident_bytes: evidence.peak_resident_bytes,
+            topology_hits: evidence.topology_hits,
+            resident_hits: evidence.resident_hits,
+            evictions: evidence.evictions,
+            preview_packet_bytes: evidence.preview_packet_bytes,
+            browser_upload_bytes: evidence.browser_upload_bytes,
+            snapshot_readback_bytes: self.last_snapshot_readback_bytes.load(Ordering::Relaxed),
             preview_packet_version: self
                 .policy
                 .preview_packet_enabled

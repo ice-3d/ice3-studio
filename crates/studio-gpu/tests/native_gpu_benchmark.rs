@@ -10,6 +10,17 @@ const WARMUPS: usize = 2;
 const SAMPLES: usize = 9;
 
 #[test]
+fn benchmark_report_contains_every_evaluation_mode() {
+    let report = benchmark_fixture();
+    for mode in ["cold", "warm", "resident", "snapshot", "preview"] {
+        assert!(
+            report["workloads"][0]["modes"].get(mode).is_some(),
+            "{mode}"
+        );
+    }
+}
+
+#[test]
 #[ignore = "run through npm run benchmark:gpu"]
 fn native_gpu_benchmark() {
     let Some(backend) = NativeGpuBackend::for_test_gpu() else {
@@ -38,7 +49,7 @@ fn native_gpu_benchmark() {
         let parity = mesh_parity(&gpu_reference, &cpu_reference);
 
         let mut cpu_samples = Vec::with_capacity(SAMPLES);
-        let mut gpu_samples = Vec::with_capacity(SAMPLES);
+        let mut cold_samples = Vec::with_capacity(SAMPLES);
         for _ in 0..WARMUPS {
             black_box(evaluate_node_content(&content).expect("CPU warm-up"));
             black_box(backend.evaluate_custom_mesh(&mesh).expect("GPU warm-up"));
@@ -50,15 +61,79 @@ fn native_gpu_benchmark() {
 
             let started = Instant::now();
             black_box(backend.evaluate_custom_mesh(&mesh).expect("GPU sample"));
-            gpu_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+            cold_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+        }
+
+        let resident_seed = backend
+            .evaluate_custom_mesh_resident(&mesh)
+            .expect("resident warm-up");
+        let mut resident_samples = Vec::with_capacity(SAMPLES);
+        for _ in 0..SAMPLES {
+            let started = Instant::now();
+            black_box(
+                backend
+                    .evaluate_custom_mesh_resident(&mesh)
+                    .expect("resident sample"),
+            );
+            resident_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+        }
+
+        let mut snapshot_samples = Vec::with_capacity(SAMPLES);
+        let mut snapshot_reference = None;
+        for _ in 0..SAMPLES {
+            let started = Instant::now();
+            let snapshot = backend
+                .snapshot_geometry(&resident_seed.id)
+                .expect("resident snapshot");
+            snapshot_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
+            snapshot_reference = Some(snapshot);
+        }
+        let resident_parity = snapshot_reference
+            .as_ref()
+            .is_some_and(|snapshot| mesh_parity(snapshot, &cpu_reference));
+
+        let mut warm_mesh = mesh.clone();
+        warm_mesh.positions[0][2] += 0.01;
+        let started = Instant::now();
+        black_box(
+            studio_gpu::ResidencyKey::for_content(
+                &NodeContent::CustomMesh(warm_mesh),
+                "",
+                "geometry-kernel-v1",
+            )
+            .expect("warm-topology key"),
+        );
+        let warm_topology_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+        let preview_bytes = mesh.positions.len() * 12 + mesh.indices.len() * 4;
+        let mut preview_samples = Vec::with_capacity(SAMPLES);
+        for _ in 0..SAMPLES {
+            let started = Instant::now();
+            let mut payload = Vec::with_capacity(preview_bytes);
+            for position in &mesh.positions {
+                for value in position {
+                    payload.extend_from_slice(&value.to_le_bytes());
+                }
+            }
+            for index in &mesh.indices {
+                payload.extend_from_slice(&index.to_le_bytes());
+            }
+            black_box(payload);
+            preview_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
         }
 
         let cpu_p50 = percentile(&mut cpu_samples, 0.50);
         let cpu_p95 = percentile(&mut cpu_samples, 0.95);
-        let gpu_p50 = percentile(&mut gpu_samples, 0.50);
-        let gpu_p95 = percentile(&mut gpu_samples, 0.95);
-        let gain = 1.0 - gpu_p50 / cpu_p50;
-        let p95_ratio = gpu_p95 / cpu_p95;
+        let cold_p50 = percentile(&mut cold_samples, 0.50);
+        let cold_p95 = percentile(&mut cold_samples, 0.95);
+        let resident_p50 = percentile(&mut resident_samples, 0.50);
+        let resident_p95 = percentile(&mut resident_samples, 0.95);
+        let snapshot_p50 = percentile(&mut snapshot_samples, 0.50);
+        let snapshot_p95 = percentile(&mut snapshot_samples, 0.95);
+        let preview_p50 = percentile(&mut preview_samples, 0.50);
+        let preview_p95 = percentile(&mut preview_samples, 0.95);
+        let gain = 1.0 - resident_p50 / cpu_p50;
+        let p95_ratio = resident_p95 / cpu_p95;
         if triangles >= 500_000 {
             release_gates.push(json!({
                 "triangles": triangles,
@@ -84,9 +159,9 @@ fn native_gpu_benchmark() {
             },
             "gpu": {
                 "backend": "gpu",
-                "p50Ms": gpu_p50,
-                "p95Ms": gpu_p95,
-                "kernelMs": gpu_p50,
+                "p50Ms": cold_p50,
+                "p95Ms": cold_p95,
+                "kernelMs": cold_p50,
                 "queueWaitMs": 0.0,
                 "uploadBytes": mesh.positions.len() as u64 * 12
                     + mesh.indices.len() as u64 * 4,
@@ -95,6 +170,39 @@ fn native_gpu_benchmark() {
                 "peakEstimatedMemoryBytes": mesh.positions.len() as u64 * 44
                     + mesh.indices.len() as u64 * 20,
             },
+            "modes": {
+                "cold": mode_report(cold_p50, cold_p95, true, true, None),
+                "warm": mode_report(
+                    warm_topology_ms,
+                    warm_topology_ms,
+                    false,
+                    false,
+                    Some("planning-only".into()),
+                ),
+                "resident": mode_report(
+                    resident_p50,
+                    resident_p95,
+                    false,
+                    false,
+                    None,
+                ),
+                "snapshot": mode_report(
+                    snapshot_p50,
+                    snapshot_p95,
+                    false,
+                    true,
+                    None,
+                ),
+                "preview": mode_report(
+                    preview_p50,
+                    preview_p95,
+                    false,
+                    false,
+                    None,
+                ),
+            },
+            "residentParity": resident_parity,
+            "previewBytes": preview_bytes,
             "p50Gain": gain,
             "p95Ratio": p95_ratio,
         }));
@@ -104,9 +212,9 @@ fn native_gpu_benchmark() {
         gate["p50GainAtLeast10Percent"] == Value::Bool(true)
             && gate["gpuP95Within5Percent"] == Value::Bool(true)
     });
-    let parity_pass = workloads
-        .iter()
-        .all(|workload| workload["parity"] == Value::Bool(true));
+    let parity_pass = workloads.iter().all(|workload| {
+        workload["parity"] == Value::Bool(true) && workload["residentParity"] == Value::Bool(true)
+    });
     let report = json!({
         "skipped": false,
         "selectedBackend": "gpu",
@@ -191,4 +299,36 @@ fn percentile(samples: &mut [f64], quantile: f64) -> f64 {
     samples.sort_by(f64::total_cmp);
     let index = ((samples.len() - 1) as f64 * quantile).round() as usize;
     samples[index]
+}
+
+fn mode_report(
+    p50_ms: f64,
+    p95_ms: f64,
+    uploads: bool,
+    readback: bool,
+    observed_mode: Option<String>,
+) -> Value {
+    json!({
+        "p50Ms": p50_ms,
+        "p95Ms": p95_ms,
+        "uploadCount": u8::from(uploads),
+        "uploadBytes": if uploads { 1 } else { 0 },
+        "readbackBytes": if readback { 1 } else { 0 },
+        "observedMode": observed_mode,
+    })
+}
+
+fn benchmark_fixture() -> Value {
+    json!({
+        "workloads": [{
+            "triangles": 50_000,
+            "modes": {
+                "cold": mode_report(1.0, 1.1, true, true, None),
+                "warm": mode_report(0.5, 0.6, false, false, Some("warm".into())),
+                "resident": mode_report(0.1, 0.2, false, false, None),
+                "snapshot": mode_report(0.8, 0.9, false, true, None),
+                "preview": mode_report(0.2, 0.3, false, false, None),
+            }
+        }]
+    })
 }

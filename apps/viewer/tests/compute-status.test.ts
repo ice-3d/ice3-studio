@@ -21,9 +21,10 @@ test('summarizes ready native GPU evidence', () => {
   });
   assert.deepEqual(view, {
     title: 'Native compute · GPU',
-    detail: 'full · kernel 12.4 ms · 5120 KiB readback',
+    detail: 'cold · full · kernel 12.4 ms · readback 5 MiB',
     state: 'ready',
     fallbackReason: null,
+    metrics: '2 GiB budget · 2 KiB upload · 3 cache hits · queue 0/2 · resident 0 B · peak 0 B · topology 0 · resident hits 0 · evictions 0 · packet 0 B · browser upload 0 B · snapshot 0 B',
   });
 });
 
@@ -47,4 +48,37 @@ test('surfaces the CPU fallback reason', () => {
   assert.equal(view.title, 'Native compute · CPU');
   assert.equal(view.state, 'fallback');
   assert.equal(view.fallbackReason, 'GPU device was lost');
+});
+
+test('reports resident mode and partial browser upload evidence', () => {
+  const view = formatComputeStatus({
+    mode: 'auto',
+    selectedBackend: 'gpu',
+    adapter: 'integrated',
+    tier: 'full',
+    memoryBudgetBytes: 2 * 1024 * 1024 * 1024,
+    health: 'ready',
+    fallbackReason: null,
+    queueDepth: 0,
+    maxConcurrentJobs: 2,
+    gpuThresholdTriangles: 250000,
+    lastKernelMs: 2.4,
+    lastUploadBytes: 0,
+    lastReadbackBytes: 0,
+    lastCacheHits: 8,
+    lastEvaluationMode: 'resident',
+    residentBytes: 1234,
+    peakResidentBytes: 2048,
+    topologyHits: 7,
+    residentHits: 8,
+    evictions: 0,
+    previewPacketBytes: 512,
+    browserUploadBytes: 0,
+    snapshotReadbackBytes: 0,
+  });
+
+  assert.match(view.detail, /resident/);
+  assert.match(view.detail, /readback 0/);
+  assert.match(view.metrics, /packet 512 B/);
+  assert.match(view.metrics, /browser upload 0 B/);
 });

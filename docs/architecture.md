@@ -102,6 +102,14 @@ Every committed transaction increments the revision once. Stable object IDs surv
 reloads, undo, and redo. Atomic snapshots and idempotency records make retries safe within the
 local project boundary.
 
+Native geometry may remain resident outside the Document, but it is always derived state. The
+server separates queueable resident work from explicit CPU snapshots, emits `ICE3PGP1` full or
+delta packets only when preview packets are host-enabled, and falls back to canonical GLB.
+Browser caches key geometry by stable packet identity and apply dirty ranges without recreating
+unchanged buffers. Native residency, browser WebGPU, and preview packets are experimental because
+the measured resident performance gate has not passed; the default remains CPU compute plus
+WebGL2 rendering.
+
 ## Industry Layering
 
 Core primitives and operations are generic. Industrial concepts use metadata, relations, and

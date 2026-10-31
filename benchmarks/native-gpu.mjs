@@ -31,13 +31,17 @@ if (report.skipped) {
   process.exit(0);
 }
 for (const workload of report.workloads) {
+  const modes = Object.entries(workload.modes ?? {})
+    .map(([mode, evidence]) => `${mode} ${evidence.p50Ms.toFixed(2)} ms`)
+    .join(', ');
   console.log(
     `${workload.triangles.toLocaleString()} tris: `
       + `CPU ${workload.cpu.p50Ms.toFixed(2)} ms, `
-      + `GPU ${workload.gpu.p50Ms.toFixed(2)} ms, `
+      + `resident ${workload.modes.resident.p50Ms.toFixed(2)} ms, `
       + `gain ${(workload.p50Gain * 100).toFixed(1)}%, `
       + `parity ${workload.parity}`,
   );
+  console.log(`  ${modes}`);
 }
 console.log(`Evidence: ${outputPath}`);
 if (result.code !== 0 || !report.ok) {

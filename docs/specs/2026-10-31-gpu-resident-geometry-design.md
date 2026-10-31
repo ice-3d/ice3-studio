@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-006
 >
-> Status: Proposed
+> Status: Experimental
 >
 > Owner: ICE3 Studio maintainers
 
@@ -73,6 +73,16 @@ lifecycle and data movement, not only shader instruction count.
 
 CPU code resolves parameters, validates structure, assigns identities, controls revisions and
 approval, chooses canonical export input, and decides whether a GPU failure is recoverable.
+
+### Implementation status
+
+The resident backend, explicit snapshots, server scheduler and packet endpoints, `ICE3PGP1`
+transport, browser parser, stable geometry identity, WebGL2/WebGPU range uploads, and Workbench
+fallback are implemented. The 2026-10-31 integrated Metal evidence passed CPU topology and value
+parity, but resident dispatch remained slower than CPU: at 500k triangles CPU p50 was 2.43 ms
+versus resident 55.62 ms; at 2M triangles CPU p50 was 9.31 ms versus resident 221.10 ms. Relative
+preview assembly p50 was 0.81 ms and 3.30 ms at those sizes. The performance release gate therefore
+remains open, native residency and preview packets remain host-opt-in, and `auto` stays on CPU.
 
 ### 5.2 Runtime resources are long-lived
 

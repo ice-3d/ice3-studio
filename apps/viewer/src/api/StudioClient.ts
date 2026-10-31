@@ -83,6 +83,24 @@ export type ComputeStatus = {
   lastUploadBytes: number;
   lastReadbackBytes: number;
   lastCacheHits: number;
+  lastEvaluationMode?: string;
+  residentBytes?: number;
+  peakResidentBytes?: number;
+  topologyHits?: number;
+  residentHits?: number;
+  evictions?: number;
+  previewPacketBytes?: number;
+  browserUploadBytes?: number;
+  snapshotReadbackBytes?: number;
+  residentGeometry?: {
+    enabled: boolean;
+    geometryCount: number;
+    residentBytes: number;
+    peakResidentBytes: number;
+    topologyHits: number;
+    residentHits: number;
+    evictions: number;
+  };
 };
 
 export type StudioCapabilities = {

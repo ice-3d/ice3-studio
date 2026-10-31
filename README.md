@@ -34,8 +34,10 @@ npm run benchmark:gpu
 - Managed Toolchain Sidecar：固定版本的本地资产准备进程，提供 Preview、GLB 准备、
   Validation、LOD/partition 和能力状态；Rust Core 保持独立。
 - ChangeSet 审查层：AI 与人工表单变更共享候选 digest；默认由短期人工授权提交。
-- Native GPU Compute（experimental）：Rust `wgpu` 几何内核、CPU parity、优先级调度与安全
-  fallback；当前设备未达到 release 性能门槛，因此自动路径仍使用 CPU。
+- Native GPU Compute and resident preview（experimental）：Rust `wgpu` 几何内核、CPU parity、
+  常驻资源、增量 preview packet 与 WebGL2/WebGPU buffer 复用；当前设备未达到 release
+  性能门槛，因此自动路径仍使用 CPU。Preview packet 还需显式设置
+  `STUDIO_PREVIEW_PACKETS=1`。
 - TypeScript Viewer：只通过公开 API 展示场景、revision、诊断和选择状态。
 - `wastewater-mini`：确定性 AI API 验收 fixture，不是写死在 Core 中的行业类型。
 
@@ -46,22 +48,24 @@ npm run benchmark:gpu
 
 | 指标 | p95 |
 |---|---:|
-| Server 冷启动到 health | 437.41 ms |
-| 重开 100 Node 项目 | 2.61 ms |
-| 100 Operations 原子事务 | 18.07 ms |
-| 100 Operations ChangeSet 求值 | 15.94 ms |
-| `wastewater-mini` 求值 | 0.85 ms |
-| source GLB 导出 | 2.10 ms |
-| Toolchain Runtime preview | 113.70 ms |
-| ChangeSet candidate preview | 224.82 ms |
+| Server 冷启动到 health | 461.68 ms |
+| 重开 100 Node 项目 | 121.53 ms |
+| 100 Operations 原子事务 | 23.96 ms |
+| 100 Operations ChangeSet 求值 | 15.31 ms |
+| `wastewater-mini` 求值 | 37.51 ms |
+| source GLB 导出 | 1.04 ms |
+| Toolchain Runtime preview | 10.21 ms |
+| ChangeSet candidate preview | 17.11 ms |
 
 这些值是当前设备上的工程基线，不是跨机器容量承诺。脚本会在任一 p95 超过设计上限时
 失败。
 
-`npm run benchmark:gpu` 运行 50k、500k 和 2M 三角形的 CPU/GPU parity 与延迟门禁，并输出
-`output/native-gpu-benchmark.json`。当前 integrated Metal 结果在 500k/2M 上分别约为 CPU
-2.49/9.15 ms、GPU 10.16/31.61 ms；命令会按设计失败，阻止把未验证的 GPU 路径作为 release
-默认值。
+`npm run benchmark:gpu` 运行 50k、500k 和 2M 三角形的 CPU、cold、warm-topology、
+resident、snapshot 与 preview 证据，并输出 `output/native-gpu-benchmark.json`。当前
+integrated Metal 设备上，500k triangles 的 CPU p50 为 2.43 ms、cold GPU 为 8.88 ms、
+resident 为 55.62 ms；2M triangles 分别为 9.31 ms、31.51 ms 和 221.10 ms。所有模式通过
+CPU parity，但 resident p50/p95 未满足 release 门禁，因此命令按设计失败，`auto` 继续选择
+CPU，WebGPU 浏览器渲染仍要求显式实验开启。
 
 ## AI 辅助开发
 

@@ -17,6 +17,9 @@ The Web Viewer has no private mutation path.
 - `GET /schemas/studio-api.schema.json`: generated JSON Schema.
 - `GET /schemas/studio-types.ts`: generated TypeScript declarations.
 - `GET /previews/{revision}`: prepared GLB for a committed revision.
+- `GET /preview-packets/{revision}`: revisioned `ICE3PGP1` geometry packet when host policy enables
+  preview packets.
+- `GET /preview-packets/candidates/{digest}`: candidate packet with the same media type.
 
 The default origin is `http://127.0.0.1:8120`. Server startup generates a short-lived token;
 mutating methods require `Authorization: Bearer <token>`.
@@ -71,6 +74,9 @@ preview.
 `system.capabilities.compute` reports host `mode`, the last selected backend, sanitized adapter
 tier and backend family, effective memory budget, health and fallback reason, queue depth,
 concurrency limit, crossover threshold, and the latest kernel/upload/readback/cache evidence.
+It also reports `lastEvaluationMode`, resident count/bytes, peak bytes, topology and resident
+hits, evictions, pipeline warm-up, preview packet version/bytes, browser upload bytes, snapshot
+readback bytes, and `previewGeometryPacket: "1"` when packet transport is enabled.
 Native compute and browser rendering are separate: this status does not describe the Viewer's
 WebGL2 or experimental browser WebGPU renderer.
 
@@ -78,6 +84,11 @@ The current default is CPU reference evaluation because the integrated Metal ben
 meet the native GPU crossover. `cpu`, `auto`, and explicit `gpu` host modes exist in the scheduler;
 `auto` falls back to CPU when GPU health, parity, budget, or device state is unsuitable, while
 explicit GPU-only failure returns a stable `ICE3_STUDIO_GPU_*` diagnostic.
+
+`export.runtimePreview` returns `packetUrl` beside the GLB fallback when
+`STUDIO_PREVIEW_PACKETS=1` or the equivalent host configuration is enabled. The packet media type
+is `application/vnd.ice3.preview-geometry; version=1`; clients must validate the whole packet and
+atomically fall back to the GLB route on unsupported, invalid, stale, or over-budget responses.
 
 After `project.close`, document and scene methods return `ICE3_STUDIO_PROJECT_NOT_FOUND`
 until a project is opened again.
