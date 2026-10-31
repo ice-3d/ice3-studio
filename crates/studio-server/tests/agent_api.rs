@@ -17,6 +17,20 @@ async fn manifest_access_matches_request_authority() {
     );
     assert_eq!(read_only["result"]["access"]["canPropose"], false);
     assert_eq!(read_only["result"]["access"]["canCommit"], false);
+    assert!(
+        !tool_available(&read_only, "changeset.getCandidate"),
+        "{read_only}"
+    );
+    let denied_candidate = unauthenticated_rpc(
+        &server,
+        "changeset.getCandidate",
+        serde_json::json!({ "changeSetId": "changeset-000001" }),
+    )
+    .await;
+    assert_eq!(
+        denied_candidate["error"]["diagnosticCode"], "ICE3_STUDIO_AUTH_REQUIRED",
+        "{denied_candidate}"
+    );
 
     let agent = rpc_with_bearer(
         &server,
@@ -29,6 +43,7 @@ async fn manifest_access_matches_request_authority() {
     assert_eq!(agent["result"]["access"]["canPropose"], true);
     assert_eq!(agent["result"]["access"]["canCommit"], false);
     assert_eq!(agent["result"]["access"]["canApplyDirectly"], false);
+    assert!(tool_available(&agent, "changeset.getCandidate"), "{agent}");
 
     let approval =
         rpc_with_approval_cookie(&server, "system.agentManifest", serde_json::json!({})).await;
@@ -36,6 +51,10 @@ async fn manifest_access_matches_request_authority() {
     assert_eq!(approval["result"]["access"]["canPropose"], true);
     assert_eq!(approval["result"]["access"]["canCommit"], true);
     assert_eq!(approval["result"]["access"]["canApplyDirectly"], true);
+    assert!(
+        tool_available(&approval, "changeset.getCandidate"),
+        "{approval}"
+    );
 
     let both =
         rpc_with_bearer_and_approval(&server, "system.agentManifest", serde_json::json!({})).await;
@@ -116,6 +135,17 @@ async fn manifest_access_matches_request_authority() {
             "tool {tool_name} schema {type_name} must include {property}"
         );
     }
+}
+
+fn tool_available(manifest: &serde_json::Value, name: &str) -> bool {
+    manifest["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|tool| tool["name"] == name)
+        .unwrap()["available"]
+        .as_bool()
+        .unwrap()
 }
 
 #[tokio::test]
