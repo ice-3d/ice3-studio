@@ -137,7 +137,6 @@ impl SceneSourceIndex {
     pub fn affected_source_nodes(&self, diff: &DocumentDiff) -> Option<BTreeSet<NodeId>> {
         if !diff.updated_relation_ids.is_empty()
             || !diff.removed_relation_ids.is_empty()
-            || !diff.added_relation_ids.is_empty()
             || !diff.updated_constraint_ids.is_empty()
             || !diff.removed_constraint_ids.is_empty()
             || !diff.added_constraint_ids.is_empty()

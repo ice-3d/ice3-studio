@@ -114,6 +114,23 @@ fn unsupported_diff_requests_a_conservative_rebuild() {
     assert!(index.affected_source_nodes(&diff).is_none());
 }
 
+#[test]
+fn added_relations_do_not_force_a_full_scene_rebuild() {
+    let document = one_box_document();
+    let scene = evaluate_large_scene(&document).unwrap();
+    let index = SceneSourceIndex::capture(&document, &scene, None).unwrap();
+    let diff = studio_core::diff::DocumentDiff {
+        added_relation_ids: vec![studio_core::ids::RelationId::from("route-000001")],
+        added_node_ids: vec![NodeId::from("connection-000001")],
+        ..Default::default()
+    };
+
+    assert_eq!(
+        index.affected_source_nodes(&diff).unwrap(),
+        [NodeId::from("connection-000001")].into_iter().collect()
+    );
+}
+
 fn one_box_document() -> Document {
     let mut document = Document::new("scene-patch");
     document.scene.nodes_mut().push(SceneNode {
