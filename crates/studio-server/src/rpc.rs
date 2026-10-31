@@ -775,8 +775,28 @@ async fn dispatch_unlocked_preview(
             }
         });
     }
-    let (document, project_dir, project_id, toolchain, compute, preview_packets_enabled, closed) = {
-        let session = state.session.lock().expect("session lock");
+    let (
+        document,
+        project_dir,
+        project_id,
+        toolchain,
+        compute,
+        preview_packets_enabled,
+        closed,
+        scene_preview,
+    ) = {
+        let mut session = state.session.lock().expect("session lock");
+        if session.compute.policy().scene_sessions_enabled {
+            let _ = ensure_scene_snapshot(&mut session);
+        }
+        let scene_preview = session
+            .last_scene_patch
+            .clone()
+            .zip(session.scene_snapshot.clone())
+            .map(|(patch, scene)| crate::preview::ScenePreviewContext {
+                scene: Arc::new(scene),
+                patch,
+            });
         (
             session.document.clone(),
             session.store.project_dir().to_path_buf(),
@@ -785,6 +805,7 @@ async fn dispatch_unlocked_preview(
             Arc::clone(&session.compute),
             session.compute.policy().preview_packet_enabled,
             session.closed,
+            scene_preview,
         )
     };
     if closed {
@@ -797,9 +818,14 @@ async fn dispatch_unlocked_preview(
     }
     Some(
         tokio::task::spawn_blocking(move || {
-            PreviewAdapter::from_service(toolchain)
+            let adapter = PreviewAdapter::from_service(toolchain)
                 .with_compute(compute)
-                .with_preview_packets(preview_packets_enabled)
+                .with_preview_packets(preview_packets_enabled);
+            let adapter = match scene_preview {
+                Some(scene) => adapter.with_scene_preview(scene),
+                None => adapter,
+            };
+            adapter
                 .generate(&document, &project_dir, &project_id)
                 .map_err(preview_error)
                 .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error))

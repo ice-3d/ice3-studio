@@ -9,15 +9,17 @@ use studio_core::export::glb::export_glb_from_scene;
 use studio_core::gpu_contract::{GeometryBackendKind, GeometryEvaluationMode};
 use studio_core::large_scene::cache::GeometryEvaluator;
 use studio_core::large_scene::evaluate::{
-    LargeSceneError, evaluate_large_scene_with_cache_and_evaluator,
+    EvaluatedScene, LargeSceneError, evaluate_large_scene_with_cache_and_evaluator,
 };
+use studio_core::scene_contract::{SceneGeometrySnapshotRequest, ScenePatch};
 use studio_project::geometry_cache::{GeometryCacheError, GeometryDiskCache};
 use thiserror::Error;
 use ts_rs::TS;
 
 use crate::compute::{ComputeEvaluator, ComputeService};
 use crate::preview_packet::{
-    build_full_preview_packet, decode_preview_packet, encode_preview_packet,
+    PreviewGeometryNode, build_full_preview_packet, build_scene_preview_delta,
+    decode_preview_packet, encode_preview_packet,
 };
 use crate::toolchain::ToolchainService;
 
@@ -110,10 +112,17 @@ pub enum PreviewError {
     LargeScene(#[from] LargeSceneError),
 }
 
+#[derive(Clone)]
+pub struct ScenePreviewContext {
+    pub scene: Arc<EvaluatedScene>,
+    pub patch: ScenePatch,
+}
+
 pub struct PreviewAdapter {
     toolchain: Arc<ToolchainService>,
     preview_packets_enabled: bool,
     compute: Option<Arc<ComputeService>>,
+    scene_preview: Option<ScenePreviewContext>,
 }
 
 impl PreviewAdapter {
@@ -122,6 +131,7 @@ impl PreviewAdapter {
             toolchain: Arc::new(ToolchainService::new(workspace_root, Some(toolchain_cli))),
             preview_packets_enabled: false,
             compute: None,
+            scene_preview: None,
         })
     }
 
@@ -130,6 +140,7 @@ impl PreviewAdapter {
             toolchain,
             preview_packets_enabled: false,
             compute: None,
+            scene_preview: None,
         }
     }
 
@@ -143,6 +154,11 @@ impl PreviewAdapter {
         self
     }
 
+    pub fn with_scene_preview(mut self, context: ScenePreviewContext) -> Self {
+        self.scene_preview = Some(context);
+        self
+    }
+
     pub fn generate(
         &self,
         document: &Document,
@@ -153,23 +169,23 @@ impl PreviewAdapter {
         std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
         let revision = document.revision.as_u64();
         let evaluator = self.compute.as_deref().map(ComputeEvaluator::new);
-        let (source_export, evaluated) = export_source_with_scene(
-            document,
-            project_dir,
-            evaluator
-                .as_ref()
-                .map(|value| value as &dyn GeometryEvaluator),
-        )?;
+        let (source_export, evaluated) = if let Some(context) = &self.scene_preview {
+            (
+                export_source_from_scene(document, project_dir, &context.scene)?,
+                context.scene.as_ref().clone(),
+            )
+        } else {
+            export_source_with_scene(
+                document,
+                project_dir,
+                evaluator
+                    .as_ref()
+                    .map(|value| value as &dyn GeometryEvaluator),
+            )?
+        };
         let (backend, mode) = self.packet_evidence();
         if self.preview_packets_enabled {
-            write_preview_packet(
-                document,
-                &evaluated,
-                project_dir,
-                &format!("{revision:08}.ice3pgp"),
-                backend,
-                mode,
-            )?;
+            self.write_runtime_packet(document, &evaluated, project_dir, revision, backend, mode)?;
         }
         let source_path = source_export.source_path;
         let preview_path = preview_dir.join(format!("{revision:08}.glb"));
@@ -268,6 +284,137 @@ impl PreviewAdapter {
         };
         (status.selected_backend, mode)
     }
+
+    fn write_runtime_packet(
+        &self,
+        document: &Document,
+        evaluated: &EvaluatedScene,
+        project_dir: &Path,
+        revision: u64,
+        backend: GeometryBackendKind,
+        mode: GeometryEvaluationMode,
+    ) -> Result<(), PreviewError> {
+        let Some(context) = &self.scene_preview else {
+            return write_preview_packet(
+                document,
+                evaluated,
+                project_dir,
+                &format!("{revision:08}.ice3pgp"),
+                backend,
+                mode,
+            );
+        };
+        let directory = project_dir.join("cache/preview-packets");
+        std::fs::create_dir_all(&directory).map_err(PreviewError::Io)?;
+        let base_path = directory.join(format!("{:08}.ice3pgp", revision.saturating_sub(1)));
+        let base = match std::fs::read(base_path) {
+            Ok(bytes) => decode_preview_packet(&bytes).ok(),
+            Err(_) => None,
+        };
+        let Some(base) = base else {
+            return write_preview_packet(
+                document,
+                evaluated,
+                project_dir,
+                &format!("{revision:08}.ice3pgp"),
+                backend,
+                mode,
+            );
+        };
+        let nodes = context
+            .patch
+            .instances
+            .iter()
+            .map(|instance| {
+                let source = evaluated
+                    .nodes
+                    .iter()
+                    .find(|node| node.id == instance.node_id);
+                PreviewGeometryNode {
+                    node_id: instance.node_id.clone(),
+                    parent_id: source.and_then(|node| node.parent_id.clone()),
+                    name: source
+                        .map(|node| node.name.clone())
+                        .unwrap_or_else(|| instance.node_id.clone()),
+                    matrix: instance.matrix,
+                    material_id: instance.material_id.clone(),
+                    geometry_id: instance.geometry_id.clone(),
+                    visible: instance.visible,
+                }
+            })
+            .collect();
+        let mut readbacks = Vec::new();
+        if let Some(compute) = &self.compute {
+            let geometry_ids = context
+                .patch
+                .geometry
+                .iter()
+                .filter(|change| {
+                    change
+                        .dirty
+                        .contains(studio_core::gpu_contract::GeometryDirtyChannel::Positions)
+                        || change
+                            .dirty
+                            .contains(studio_core::gpu_contract::GeometryDirtyChannel::Topology)
+                })
+                .map(|change| change.geometry_id.clone())
+                .collect::<Vec<_>>();
+            if !geometry_ids.is_empty() {
+                let mut loaded = pollster::block_on(compute.snapshot_scene_geometries(
+                    SceneGeometrySnapshotRequest {
+                        target_revision: revision,
+                        geometry_ids,
+                    },
+                ))
+                .map_err(|error| {
+                    PreviewError::LargeScene(LargeSceneError::Backend(
+                        studio_core::gpu_contract::BackendError::Kernel {
+                            message: error.to_string(),
+                        },
+                    ))
+                })?;
+                for readback in &mut loaded {
+                    readback.topology_changed = context.patch.geometry.iter().any(|change| {
+                        change.geometry_id == readback.geometry_id
+                            && change
+                                .dirty
+                                .contains(studio_core::gpu_contract::GeometryDirtyChannel::Topology)
+                    });
+                }
+                readbacks = loaded;
+            }
+        }
+        let packet = build_scene_preview_delta(
+            &base,
+            document,
+            nodes,
+            readbacks,
+            context.patch.removed_node_ids.clone(),
+            context.patch.removed_geometry_ids.clone(),
+        );
+        let bytes = encode_preview_packet(&packet);
+        decode_preview_packet(&bytes).map_err(|_| PreviewError::InvalidOutput)?;
+        std::fs::write(directory.join(format!("{revision:08}.ice3pgp")), bytes)
+            .map_err(PreviewError::Io)
+    }
+}
+
+fn export_source_from_scene(
+    document: &Document,
+    project_dir: &Path,
+    evaluated: &EvaluatedScene,
+) -> Result<SourceExport, PreviewError> {
+    let preview_dir = project_dir.join("cache/preview");
+    std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
+    let source = export_glb_from_scene(document, evaluated)?;
+    let source_digest = format!("{:x}", Sha256::digest(&source));
+    let source_path = preview_dir.join(format!("{:08}-source.glb", document.revision.as_u64()));
+    std::fs::write(&source_path, source).map_err(PreviewError::Io)?;
+    Ok(SourceExport {
+        revision: document.revision.as_u64(),
+        source_digest,
+        source_path,
+    })
 }
 
 fn write_preview_packet(

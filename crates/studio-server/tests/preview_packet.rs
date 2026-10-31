@@ -120,6 +120,95 @@ fn scene_preview_delta_contains_only_changed_attributes() {
     assert_eq!(decoded.binary.len(), 2 * 3 * 4);
 }
 
+#[tokio::test]
+async fn production_transform_preview_writes_no_geometry_payload() {
+    let server = start_test_server(ServerConfig {
+        compute_mode: studio_core::gpu_contract::GeometryBackendMode::Gpu,
+        preview_packet_enabled: true,
+        scene_sessions_enabled: true,
+        ..ServerConfig::for_tests("scene-preview-e2e")
+    })
+    .await;
+    common::replace_toolchain_body(&server, common::SUCCESS_TOOLCHAIN).await;
+    let rpc = |method: &'static str, params: serde_json::Value| {
+        common::rpc_with_bearer(&server, server.token(), method, params)
+    };
+    let created = rpc(
+        "document.apply",
+        serde_json::json!({
+            "expectedRevision": 0,
+            "idempotencyKey": "create-box",
+            "operations": [{
+                "type": "node.create",
+                "node_id": "box-000001",
+                "parent_id": null,
+                "name": "Box",
+                "transform": {
+                    "translation": { "x": 0, "y": 0, "z": 0 },
+                    "rotation": [0, 0, 0, 1],
+                    "scale": { "x": 1, "y": 1, "z": 1 }
+                },
+                "content": {
+                    "type": "primitive",
+                    "kind": "box",
+                    "width": 1.0,
+                    "height": 1.0,
+                    "depth": 1.0
+                },
+                "material_id": null,
+                "metadata": {}
+            }]
+        }),
+    )
+    .await;
+    assert_eq!(created["result"]["revision"], 1, "{created}");
+    let capabilities = rpc("system.capabilities", serde_json::json!({})).await;
+    if capabilities["result"]["compute"]["sceneSession"]["enabled"] != true {
+        return;
+    }
+    rpc("evaluation.waitScene", serde_json::json!({ "revision": 1 })).await;
+    let first_preview = rpc("export.runtimePreview", serde_json::json!({})).await;
+    assert!(first_preview.get("error").is_none(), "{first_preview}");
+    let moved = rpc(
+        "document.apply",
+        serde_json::json!({
+            "expectedRevision": 1,
+            "idempotencyKey": "move-box",
+            "operations": [{
+                "type": "node.update",
+                "node_id": "box-000001",
+                "name": null,
+                "transform": {
+                    "translation": { "x": 4, "y": 0, "z": 0 },
+                    "rotation": [0, 0, 0, 1],
+                    "scale": { "x": 1, "y": 1, "z": 1 }
+                },
+                "visible": null,
+                "metadata": null
+            }]
+        }),
+    )
+    .await;
+    assert_eq!(moved["result"]["revision"], 2, "{moved}");
+    rpc("evaluation.waitScene", serde_json::json!({ "revision": 2 })).await;
+    let second_preview = rpc("export.runtimePreview", serde_json::json!({})).await;
+    assert!(second_preview.get("error").is_none(), "{second_preview}");
+    assert_eq!(second_preview["result"]["packetUrl"], "/preview-packets/2");
+    let response = reqwest::Client::new()
+        .get(format!("{}/preview-packets/2", server.base_url()))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::OK);
+    let bytes = response.bytes().await.unwrap();
+    let packet = decode_preview_packet(&bytes)
+        .unwrap_or_else(|error| panic!("invalid preview packet ({} bytes): {error}", bytes.len()));
+
+    assert_eq!(packet.manifest.parent_revision, Some(1));
+    assert!(packet.manifest.geometries.is_empty());
+    assert!(packet.binary.is_empty());
+}
+
 #[test]
 fn invalid_ranges_are_rejected_before_upload() {
     let mut bytes = encode_preview_packet(&sample_packet());
