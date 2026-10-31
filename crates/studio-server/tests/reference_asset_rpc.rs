@@ -127,6 +127,11 @@ async fn binding_pages_are_bounded_and_asset_routes_are_read_only() {
         tileset.headers()[CONTENT_TYPE],
         "application/json; charset=utf-8"
     );
+    let tileset_body: serde_json::Value = tileset.json().await.unwrap();
+    assert_eq!(
+        tileset_body["root"]["content"]["uri"],
+        "tiled/coarse/root.glb"
+    );
 
     let prepared = client
         .head(format!("{}{prepared_url}", server.base_url()))
@@ -162,7 +167,7 @@ fn write_reference_fixture(root: &Path) {
     fs::create_dir_all(root.join("refs/tiled")).unwrap();
     fs::write(
         root.join("refs/tiled/tileset.json"),
-        br#"{"asset":{"version":"1.1"}}"#,
+        br#"{"asset":{"version":"1.1"},"root":{"content":{"uri":"coarse/root.glb"}}}"#,
     )
     .unwrap();
     fs::write(

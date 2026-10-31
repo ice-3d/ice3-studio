@@ -1430,13 +1430,58 @@ async fn reference_tileset_file(
     State(state): State<AppState>,
     AxumPath(asset_id): AxumPath<String>,
 ) -> Response {
-    serve_reference_asset_file(
-        state,
-        asset_id,
-        Path::new("tiled/tileset.json"),
-        "application/json; charset=utf-8",
-    )
-    .await
+    let path = {
+        let session = state.session.lock().expect("session lock");
+        crate::reference_asset::resolve_asset_file(
+            session.store.project_dir(),
+            &asset_id,
+            Path::new("tiled/tileset.json"),
+        )
+    };
+    let Ok(path) = path else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let bytes = match tokio::fs::read(path).await {
+        Ok(bytes) => bytes,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let mut document: serde_json::Value = match serde_json::from_slice(&bytes) {
+        Ok(document) => document,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    prefix_tileset_content_uris(&mut document);
+    match serde_json::to_vec(&document) {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+fn prefix_tileset_content_uris(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(object) => {
+            if let Some(serde_json::Value::String(uri)) = object.get_mut("uri")
+                && !uri.starts_with('/')
+                && !uri.starts_with("tiled/")
+                && !uri.contains("://")
+            {
+                *uri = format!("tiled/{}", uri.trim_start_matches("./"));
+            }
+            for child in object.values_mut() {
+                prefix_tileset_content_uris(child);
+            }
+        }
+        serde_json::Value::Array(values) => {
+            for child in values {
+                prefix_tileset_content_uris(child);
+            }
+        }
+        _ => {}
+    }
 }
 
 async fn reference_tiled_file(
