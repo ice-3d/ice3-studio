@@ -2,6 +2,7 @@ mod device;
 mod kernels;
 mod residency;
 mod resources;
+pub mod scene;
 
 pub use device::{CapabilityProbe, GpuHostLimits, NativeGpuBackend};
 pub use kernels::{
@@ -15,3 +16,4 @@ pub use residency::{
 pub use resources::{
     BufferClass, BufferRole, DeviceResources, PipelineCache, PipelineKey, ResourceStats,
 };
+pub use scene::{InstanceRecord, InstanceTable, InstanceTableUpdate};
