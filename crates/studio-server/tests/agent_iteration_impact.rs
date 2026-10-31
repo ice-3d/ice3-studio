@@ -83,6 +83,29 @@ async fn relation_change_requires_full_scene_rebuild() {
 }
 
 #[tokio::test]
+async fn component_change_is_targeted_instead_of_local() {
+    let server = start_test_server(ServerConfig::review_required("impact-component")).await;
+    seed_parameterized_scene(&server).await;
+    warm_stats(&server).await;
+
+    let changes = create_change_set_with_operations(
+        &server,
+        vec![serde_json::json!({
+            "type": "component.patch",
+            "componentId": "component-000001",
+            "name": "Renamed Parameterized Box"
+        })],
+    )
+    .await;
+    let impact = request_impact(&server, &changes).await;
+
+    assert_eq!(impact["scope"], "targeted", "{impact}");
+    assert_eq!(impact["components"]["updated"], 1, "{impact}");
+    assert_eq!(impact["affectedSourceNodes"], 2, "{impact}");
+    assert_eq!(impact["reasons"][0], "component_definition", "{impact}");
+}
+
+#[tokio::test]
 async fn impact_digest_matches_evaluate_and_version_drift_fails_closed() {
     let server = start_test_server(ServerConfig::review_required("impact-digest")).await;
     seed_parameterized_scene(&server).await;
