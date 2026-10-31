@@ -9,10 +9,9 @@ use studio_core::document::NodeContent;
 use studio_core::geometry::{EvaluatedMesh, Primitive};
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
-    GeometryBatch, GeometryEvaluationEvidence, GeometryEvaluationMode,
-    GeometryExecutionStats, GeometryJobNode, GeometryJobPriority, GeometryPhaseEvidence,
-    GeometryResidentBatchResult, GeometrySnapshotRequest, ResidentGeometryHandle,
-    ResidentGeometryId, ResidentGeometryState,
+    GeometryBatch, GeometryEvaluationEvidence, GeometryEvaluationMode, GeometryExecutionStats,
+    GeometryJobNode, GeometryJobPriority, GeometryPhaseEvidence, GeometryResidentBatchResult,
+    GeometrySnapshotRequest, ResidentGeometryHandle, ResidentGeometryId, ResidentGeometryState,
 };
 use studio_core::ids::NodeId;
 use studio_core::large_scene::cache::{
@@ -1086,9 +1085,7 @@ impl ComputeService {
             preview_geometry_packet: self.policy.preview_packet_enabled.then(|| "1".into()),
             pipelines_warmed: self.pipeline_warmed.load(Ordering::Acquire),
             resident_hot_path_hashes: self.resident_hot_path_hashes.load(Ordering::Relaxed),
-            handle_lookup_ms: f64::from_bits(
-                self.handle_lookup_ms_bits.load(Ordering::Relaxed),
-            ),
+            handle_lookup_ms: f64::from_bits(self.handle_lookup_ms_bits.load(Ordering::Relaxed)),
             last_geometry_phases: evidence.phases.clone(),
         }
     }
@@ -1403,9 +1400,7 @@ fn estimate_vertex_count(content: &NodeContent) -> usize {
     match content {
         NodeContent::Primitive(Primitive::Box { .. }) => 24,
         NodeContent::Primitive(Primitive::Plane { .. }) => 4,
-        NodeContent::Primitive(Primitive::Cylinder { segments, .. }) => {
-            *segments as usize * 4 + 6
-        }
+        NodeContent::Primitive(Primitive::Cylinder { segments, .. }) => *segments as usize * 4 + 6,
         NodeContent::Primitive(Primitive::Sphere {
             segments, rings, ..
         }) => (*segments as usize + 1) * (*rings as usize + 1),

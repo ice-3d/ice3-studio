@@ -4,15 +4,13 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 use std::time::Instant;
 
-use crate::residency::{
-    GpuGeometryResidency, ResidentBatchInput, ResidentBatchPlan, ResidencyKey,
-};
+use crate::residency::{GpuGeometryResidency, ResidencyKey, ResidentBatchInput, ResidentBatchPlan};
 use crate::resources::{DeviceResources, ResourceStats};
 use studio_core::document::NodeContent;
 use studio_core::gpu_contract::{
     BackendCapabilities, BackendError, GeometryBackend, GeometryBackendKind, GeometryBackendMode,
-    GeometryBatch, GeometryBatchResult, GeometryEvaluationMode, GeometryExecutionStats,
-    GeometryDigestSet, GeometryResidentBatchResult, GeometryResidentEntry,
+    GeometryBatch, GeometryBatchResult, GeometryDigestSet, GeometryEvaluationMode,
+    GeometryExecutionStats, GeometryResidentBatchResult, GeometryResidentEntry,
     ResidentGeometryHandle, ResidentGeometryId,
 };
 use wgpu::{
@@ -299,8 +297,10 @@ impl NativeGpuBackend {
         &self,
         content: &NodeContent,
     ) -> Result<GeometryDigestSet, BackendError> {
-        Ok(ResidencyKey::for_content(content, "", "geometry-kernel-v1")?
-            .digest_set("", "geometry-kernel-v1"))
+        Ok(
+            ResidencyKey::for_content(content, "", "geometry-kernel-v1")?
+                .digest_set("", "geometry-kernel-v1"),
+        )
     }
 
     pub fn evaluate_with_digests(
@@ -413,10 +413,9 @@ impl NativeGpuBackend {
                 digests: node.digests,
             });
         }
-        let outcome =
-            ready
-                .residency
-                .evaluate_batch(&ready.device, &ready.queue, inputs)?;
+        let outcome = ready
+            .residency
+            .evaluate_batch(&ready.device, &ready.queue, inputs)?;
         if self.is_cancelled(&plan.job_id) {
             return Err(BackendError::Kernel {
                 message: "resident batch was cancelled".into(),

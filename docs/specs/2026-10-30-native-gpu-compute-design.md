@@ -24,11 +24,12 @@ as Studio Core GPU acceleration.
 The backend-neutral contract, native `wgpu` device lifecycle, Box/Plane/Cylinder/Sphere/Sweep
 geometry kernels, custom-mesh normals and bounds, CPU/GPU scheduler, safe fallback, cache identity,
 resident geometry, public capability evidence, and Workbench panel are implemented. The latest
-mode-specific benchmark measured 500k triangles at 2.43 ms CPU, 8.88 ms cold GPU, and 55.62 ms
-resident GPU; 2M triangles measured 9.31 ms CPU, 31.51 ms cold GPU, and 221.10 ms resident GPU.
-All tested workloads passed topology, finite-value, normal, and bounds parity. The resident p50
-and p95 release gates are not met on the current integrated adapter, so automatic dispatch remains
-on the CPU reference and native GPU execution remains host-opt-in and experimental.
+mode-specific benchmark measured 500k triangles at 2.68 ms CPU, 11.78 ms cold GPU, and a sub-timer
+resolution resident-handle hit; 2M triangles measured 9.17 ms CPU, 31.31 ms cold GPU, and a
+sub-timer resolution resident-handle hit. The resident path reported zero additional full hashes,
+uploads, or fences after registration. All tested workloads passed topology, finite-value, normal,
+and bounds parity. Cold and warm paths remain slower than CPU on the current integrated adapter,
+so automatic dispatch remains on the CPU reference and native GPU execution remains experimental.
 
 Resource-resident execution, dirty-channel updates, batched submission, and incremental browser
 delivery are defined separately by `ICE3-STUDIO-SPEC-006`.

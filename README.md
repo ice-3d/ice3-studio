@@ -62,10 +62,11 @@ npm run benchmark:gpu
 
 `npm run benchmark:gpu` 运行 50k、500k 和 2M 三角形的 CPU、cold、warm-topology、
 resident、snapshot 与 preview 证据，并输出 `output/native-gpu-benchmark.json`。当前
-integrated Metal 设备上，500k triangles 的 CPU p50 为 2.43 ms、cold GPU 为 8.88 ms、
-resident 为 55.62 ms；2M triangles 分别为 9.31 ms、31.51 ms 和 221.10 ms。所有模式通过
-CPU parity，但 resident p50/p95 未满足 release 门禁，因此命令按设计失败，`auto` 继续选择
-CPU，WebGPU 浏览器渲染仍要求显式实验开启。
+integrated Metal 设备上，500k triangles 的 CPU p50 为 2.68 ms、cold GPU 为 11.78 ms、
+resident handle 为 0.00 ms；2M triangles 分别为 9.17 ms、31.31 ms 和 0.00 ms。Resident
+handle 测量的是无哈希、无上传、无 fence 的缓存命中，不代表新的 GPU kernel 比 CPU 快；
+热路径哈希为 0，lookup p50 低于 0.1 ms。Cold 和 warm-topology 仍明显慢于 CPU，因此
+`auto` 继续选择 CPU，WebGPU 浏览器渲染仍要求显式实验开启。
 
 ## AI 辅助开发
 

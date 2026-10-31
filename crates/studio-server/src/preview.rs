@@ -75,11 +75,7 @@ fn export_source_with_scene(
     let preview_dir = project_dir.join("cache/preview");
     std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
     let mut cache = GeometryDiskCache::new(project_dir)?;
-    let evaluated = evaluate_large_scene_with_cache_and_evaluator(
-        document,
-        &mut cache,
-        evaluator,
-    )?;
+    let evaluated = evaluate_large_scene_with_cache_and_evaluator(document, &mut cache, evaluator)?;
     let source = export_glb_from_scene(document, &evaluated)?;
     let digest = format!("{:x}", Sha256::digest(&source));
     let source_path = preview_dir.join(format!("{:08}-source.glb", document.revision.as_u64()));
@@ -284,12 +280,7 @@ fn write_preview_packet(
 ) -> Result<(), PreviewError> {
     let directory = project_dir.join("cache/preview-packets");
     std::fs::create_dir_all(&directory).map_err(PreviewError::Io)?;
-    let packet = build_full_preview_packet(
-        document,
-        evaluated,
-        backend,
-        mode,
-    );
+    let packet = build_full_preview_packet(document, evaluated, backend, mode);
     let bytes = encode_preview_packet(&packet);
     decode_preview_packet(&bytes).map_err(|_| PreviewError::InvalidOutput)?;
     std::fs::write(directory.join(file_name), bytes).map_err(PreviewError::Io)

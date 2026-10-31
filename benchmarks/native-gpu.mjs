@@ -39,6 +39,8 @@ for (const workload of report.workloads) {
       + `CPU ${workload.cpu.p50Ms.toFixed(2)} ms, `
       + `resident ${workload.modes.resident.p50Ms.toFixed(2)} ms, `
       + `gain ${(workload.p50Gain * 100).toFixed(1)}%, `
+      + `lookup ${workload.residentLookupP50Ms.toFixed(3)} ms, `
+      + `hot hashes ${workload.residentHotPathHashes}, `
       + `parity ${workload.parity}`,
   );
   console.log(`  ${modes}`);

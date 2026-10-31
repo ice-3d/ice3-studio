@@ -101,6 +101,20 @@ export type ComputeStatus = {
     residentHits: number;
     evictions: number;
   };
+  residentHotPathHashes?: number;
+  handleLookupMs?: number;
+  lastGeometryPhases?: {
+    lookupMs: number;
+    planningMs: number;
+    validationMs: number;
+    encodeMs: number;
+    submitMs: number;
+    gpuKernelMs: number | null;
+    waitMs: number;
+    snapshotMs: number;
+    transportMs: number;
+    browserUploadMs: number;
+  };
 };
 
 export type StudioCapabilities = {

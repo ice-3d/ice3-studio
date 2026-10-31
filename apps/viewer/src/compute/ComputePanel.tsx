@@ -32,6 +32,10 @@ export function formatComputeStatus(status: ComputeStatus | null): {
   const packetBytes = status.previewPacketBytes ?? 0;
   const browserUploadBytes = status.browserUploadBytes ?? 0;
   const snapshotBytes = status.snapshotReadbackBytes ?? 0;
+  const phases = status.lastGeometryPhases;
+  const kernelMs = phases?.gpuKernelMs ?? status.lastKernelMs;
+  const lookupMs = status.handleLookupMs ?? phases?.lookupMs ?? 0;
+  const waitMs = phases?.waitMs ?? 0;
   const metrics = [
     `${formatBytes(status.memoryBudgetBytes)} budget`,
     `${formatBytes(status.lastUploadBytes)} upload`,
@@ -45,6 +49,10 @@ export function formatComputeStatus(status: ComputeStatus | null): {
     `packet ${formatBytes(packetBytes)}`,
     `browser upload ${formatBytes(browserUploadBytes)}`,
     `snapshot ${formatBytes(snapshotBytes)}`,
+    `lookup ${formatMillis(lookupMs)} ms`,
+    `kernel ${formatMillis(kernelMs)} ms`,
+    `wait ${formatMillis(waitMs)} ms`,
+    `${status.residentHotPathHashes ?? 0} hot-path hashes`,
   ].join(' · ');
   return {
     title: `Native compute · ${backend}`,
@@ -61,6 +69,13 @@ export function formatComputeStatus(status: ComputeStatus | null): {
 
 function formatDecimal(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatMillis(value: number): string {
+  if (value > 0 && value < 1) {
+    return String(Number(value.toFixed(3)));
+  }
+  return formatDecimal(value);
 }
 
 function formatBytes(value: number): string {

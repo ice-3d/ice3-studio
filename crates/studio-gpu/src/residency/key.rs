@@ -26,11 +26,7 @@ impl ResidencyKey {
         }
     }
 
-    pub fn digest_set(
-        &self,
-        dependency: &str,
-        kernel_version: &str,
-    ) -> GeometryDigestSet {
+    pub fn digest_set(&self, dependency: &str, kernel_version: &str) -> GeometryDigestSet {
         GeometryDigestSet {
             topology: self.topology.clone(),
             attribute: self.attribute.clone(),

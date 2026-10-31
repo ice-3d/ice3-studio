@@ -76,7 +76,9 @@ tier and backend family, effective memory budget, health and fallback reason, qu
 concurrency limit, crossover threshold, and the latest kernel/upload/readback/cache evidence.
 It also reports `lastEvaluationMode`, resident count/bytes, peak bytes, topology and resident
 hits, evictions, pipeline warm-up, preview packet version/bytes, browser upload bytes, snapshot
-readback bytes, and `previewGeometryPacket: "1"` when packet transport is enabled.
+readback bytes, `residentHotPathHashes`, `handleLookupMs`, phase-specific lookup/plan/validation/
+encode/submit/kernel/wait/snapshot/transport evidence, and `previewGeometryPacket: "1"` when packet
+transport is enabled.
 Native compute and browser rendering are separate: this status does not describe the Viewer's
 WebGL2 or experimental browser WebGPU renderer.
 

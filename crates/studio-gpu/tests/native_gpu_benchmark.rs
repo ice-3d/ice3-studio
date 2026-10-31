@@ -71,21 +71,28 @@ fn native_gpu_benchmark() {
             cold_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
         }
 
+        let resident_digests = backend
+            .prepare_geometry_digests(&content)
+            .expect("resident digest");
         let resident_seed = backend
-            .evaluate_custom_mesh_resident(&mesh)
+            .evaluate_with_digests(&mesh, resident_digests, "benchmark-resident")
             .expect("resident warm-up");
         let cold_phases = resident_seed.evidence.phases.clone();
+        let counters_before = backend.resident_phase_counters().expect("phase counters");
         let mut resident_samples = Vec::with_capacity(SAMPLES);
+        let mut lookup_samples = Vec::with_capacity(SAMPLES);
         let mut resident_phases = GeometryPhaseEvidence::default();
         for _ in 0..SAMPLES {
             let started = Instant::now();
             let resident = backend
-                .evaluate_custom_mesh_resident(&mesh)
+                .evaluate_resident_handle(&resident_seed.id)
                 .expect("resident sample");
             resident_phases = resident.evidence.phases.clone();
+            lookup_samples.push(resident.evidence.phases.lookup_ms);
             black_box(resident);
             resident_samples.push(started.elapsed().as_secs_f64() * 1_000.0);
         }
+        let counters_after = backend.resident_phase_counters().expect("phase counters");
 
         let mut snapshot_samples = Vec::with_capacity(SAMPLES);
         let mut snapshot_reference = None;
@@ -137,6 +144,7 @@ fn native_gpu_benchmark() {
         let cold_p95 = percentile(&mut cold_samples, 0.95);
         let resident_p50 = percentile(&mut resident_samples, 0.50);
         let resident_p95 = percentile(&mut resident_samples, 0.95);
+        let resident_lookup_p50 = percentile(&mut lookup_samples, 0.50);
         let snapshot_p50 = percentile(&mut snapshot_samples, 0.50);
         let snapshot_p95 = percentile(&mut snapshot_samples, 0.95);
         let snapshot_phases = backend.resident_stats().expect("resident stats").phases;
@@ -149,6 +157,8 @@ fn native_gpu_benchmark() {
                 "triangles": triangles,
                 "p50GainAtLeast10Percent": gain >= 0.10,
                 "gpuP95Within5Percent": p95_ratio <= 1.05,
+                "residentHotPathHashes": counters_after.full_hashes == counters_before.full_hashes,
+                "residentLookupBelow0_1Ms": resident_lookup_p50 < 0.1,
             }));
         }
         workloads.push(json!({
@@ -219,6 +229,8 @@ fn native_gpu_benchmark() {
                 ),
             },
             "residentParity": resident_parity,
+            "residentHotPathHashes": counters_after.full_hashes - counters_before.full_hashes,
+            "residentLookupP50Ms": resident_lookup_p50,
             "previewBytes": preview_bytes,
             "p50Gain": gain,
             "p95Ratio": p95_ratio,
@@ -228,6 +240,8 @@ fn native_gpu_benchmark() {
     let performance_pass = release_gates.iter().all(|gate| {
         gate["p50GainAtLeast10Percent"] == Value::Bool(true)
             && gate["gpuP95Within5Percent"] == Value::Bool(true)
+            && gate["residentHotPathHashes"] == Value::Bool(true)
+            && gate["residentLookupBelow0_1Ms"] == Value::Bool(true)
     });
     let parity_pass = workloads.iter().all(|workload| {
         workload["parity"] == Value::Bool(true) && workload["residentParity"] == Value::Bool(true)

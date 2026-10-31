@@ -403,8 +403,7 @@ impl GpuGeometryResidency {
         let gpu = create_resident_custom_mesh(device, queue, &self.resources, evaluated_mesh)?;
         let phases = gpu.phases.clone();
         let bytes = gpu.byte_size();
-        state.phase_counters.upload_bytes =
-            state.phase_counters.upload_bytes.saturating_add(bytes);
+        state.phase_counters.upload_bytes = state.phase_counters.upload_bytes.saturating_add(bytes);
         state.phase_counters.fence_waits += 1;
         self.evict_for(&mut state, bytes)?;
         let bounds = mesh_bounds(evaluated_mesh)?;

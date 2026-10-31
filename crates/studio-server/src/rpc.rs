@@ -755,15 +755,7 @@ async fn dispatch_unlocked_preview(
             }
         });
     }
-    let (
-        document,
-        project_dir,
-        project_id,
-        toolchain,
-        compute,
-        preview_packets_enabled,
-        closed,
-    ) = {
+    let (document, project_dir, project_id, toolchain, compute, preview_packets_enabled, closed) = {
         let session = state.session.lock().expect("session lock");
         (
             session.document.clone(),

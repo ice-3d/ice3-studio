@@ -24,7 +24,7 @@ test('summarizes ready native GPU evidence', () => {
     detail: 'cold · full · kernel 12.4 ms · readback 5 MiB',
     state: 'ready',
     fallbackReason: null,
-    metrics: '2 GiB budget · 2 KiB upload · 3 cache hits · queue 0/2 · resident 0 B · peak 0 B · topology 0 · resident hits 0 · evictions 0 · packet 0 B · browser upload 0 B · snapshot 0 B',
+    metrics: '2 GiB budget · 2 KiB upload · 3 cache hits · queue 0/2 · resident 0 B · peak 0 B · topology 0 · resident hits 0 · evictions 0 · packet 0 B · browser upload 0 B · snapshot 0 B · lookup 0 ms · kernel 12.4 ms · wait 0 ms · 0 hot-path hashes',
   });
 });
 
@@ -81,4 +81,42 @@ test('reports resident mode and partial browser upload evidence', () => {
   assert.match(view.detail, /readback 0/);
   assert.match(view.metrics, /packet 512 B/);
   assert.match(view.metrics, /browser upload 0 B/);
+});
+
+test('reports resident phase evidence separately', () => {
+  const view = formatComputeStatus({
+    mode: 'auto',
+    selectedBackend: 'gpu',
+    adapter: 'integrated',
+    tier: 'full',
+    memoryBudgetBytes: 2 * 1024 * 1024 * 1024,
+    health: 'ready',
+    fallbackReason: null,
+    queueDepth: 0,
+    maxConcurrentJobs: 2,
+    gpuThresholdTriangles: 250000,
+    lastKernelMs: 0,
+    lastUploadBytes: 0,
+    lastReadbackBytes: 0,
+    lastCacheHits: 8,
+    lastEvaluationMode: 'resident',
+    residentBytes: 1234,
+    residentHotPathHashes: 0,
+    handleLookupMs: 0.02,
+    lastGeometryPhases: {
+      lookupMs: 0.02,
+      planningMs: 0,
+      validationMs: 0,
+      encodeMs: 0,
+      submitMs: 0,
+      gpuKernelMs: 1.3,
+      waitMs: 0,
+      snapshotMs: 0,
+      transportMs: 0,
+      browserUploadMs: 0,
+    },
+  });
+  assert.match(view.metrics, /lookup 0\.02 ms/);
+  assert.match(view.metrics, /kernel 1\.3 ms/);
+  assert.match(view.metrics, /wait 0 ms/);
 });

@@ -26,9 +26,7 @@ use studio_core::math::Transform;
 use studio_server::compute::{
     ComputeEvaluator, ComputePolicy, ComputeService, GeometryEvaluationPurpose, SnapshotPolicy,
 };
-use studio_server::preview_packet::{
-    PreviewGeometrySourceView, build_resident_preview_packet,
-};
+use studio_server::preview_packet::{PreviewGeometrySourceView, build_resident_preview_packet};
 
 struct FakeGpu {
     evaluate_calls: AtomicUsize,
@@ -437,17 +435,18 @@ async fn stale_handle_falls_back_without_mutating_revision() {
 fn transform_only_preview_reuses_resident_source_without_readback() {
     let gpu = FakeGpu::new();
     let service = resident_service(gpu.clone());
-    let handle = pollster::block_on(
-        service.register_geometry("pump-1".into(), box_content()),
-    )
-    .unwrap();
+    let handle =
+        pollster::block_on(service.register_geometry("pump-1".into(), box_content())).unwrap();
     let evaluated = pollster::block_on(service.evaluate_handle(&handle)).unwrap();
     let before = gpu.snapshot_calls();
     let source = service.preview_source_view(&evaluated.handle).unwrap();
     let document = component_document();
     let scene = evaluate_large_scene(&document).unwrap();
     let packet = build_resident_preview_packet(&document, &scene, &[source], false);
-    assert_eq!(packet.manifest.residency_mode, GeometryEvaluationMode::Resident);
+    assert_eq!(
+        packet.manifest.residency_mode,
+        GeometryEvaluationMode::Resident
+    );
     assert!(packet.manifest.geometries.is_empty());
     assert!(packet.binary.is_empty());
     assert_eq!(gpu.snapshot_calls(), before);

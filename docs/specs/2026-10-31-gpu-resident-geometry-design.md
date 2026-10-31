@@ -78,11 +78,12 @@ approval, chooses canonical export input, and decides whether a GPU failure is r
 
 The resident backend, explicit snapshots, server scheduler and packet endpoints, `ICE3PGP1`
 transport, browser parser, stable geometry identity, WebGL2/WebGPU range uploads, and Workbench
-fallback are implemented. The 2026-10-31 integrated Metal evidence passed CPU topology and value
-parity, but resident dispatch remained slower than CPU: at 500k triangles CPU p50 was 2.43 ms
-versus resident 55.62 ms; at 2M triangles CPU p50 was 9.31 ms versus resident 221.10 ms. Relative
-preview assembly p50 was 0.81 ms and 3.30 ms at those sizes. The performance release gate therefore
-remains open, native residency and preview packets remain host-opt-in, and `auto` stays on CPU.
+fallback are implemented. The hot-path redesign removed whole-mesh serialization and hashing from
+repeat lookups: at 500k and 2M triangles the handle hit recorded zero extra full hashes, uploads,
+and fences, while cold GPU remained 11.78 ms and 31.31 ms versus CPU 2.68 ms and 9.17 ms. The
+resident handle timing is below timer resolution and is cache-hit evidence, not a new kernel-speed
+claim. Cold and warm paths remain slower, so native residency and preview packets remain
+host-opt-in and `auto` stays on CPU.
 
 ### 5.2 Runtime resources are long-lived
 
