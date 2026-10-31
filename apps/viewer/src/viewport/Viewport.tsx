@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
+import type { StudioReferenceSession } from '../session/SessionStore';
 import { SceneAdapter } from './SceneAdapter';
 
 type Props = {
   previewUrl: string | null;
+  reference: StudioReferenceSession | null;
   onSelection: (ids: readonly string[]) => void;
 };
 
-export function Viewport({ previewUrl, onSelection }: Props) {
+export function Viewport({ previewUrl, reference, onSelection }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<SceneAdapter | null>(null);
 
@@ -21,8 +23,12 @@ export function Viewport({ previewUrl, onSelection }: Props) {
   }, []);
 
   useEffect(() => {
-    if (previewUrl) void scene.current?.show(previewUrl);
-  }, [previewUrl]);
+    if (reference) {
+      void scene.current?.showReference(reference.asset, reference.bindings);
+    } else if (previewUrl) {
+      void scene.current?.show(previewUrl);
+    }
+  }, [previewUrl, reference]);
 
   return <section className="viewport" ref={host} aria-label="Model viewport" />;
 }
