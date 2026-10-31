@@ -33,6 +33,21 @@ fn evaluate_params_typescript_marks_defaulted_field_optional() {
 }
 
 #[tokio::test]
+async fn capabilities_advertise_iteration_impact() {
+    let server = start_test_server(ServerConfig::for_tests("impact-capabilities")).await;
+    let caps = rpc(&server, "system.capabilities", serde_json::json!({})).await;
+
+    assert!(
+        caps["result"]["methods"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|method| method == "changeset.impact"),
+        "{caps}"
+    );
+}
+
+#[tokio::test]
 async fn stages_evaluates_and_commits_one_change_set() {
     let server = start_test_server(ServerConfig::for_tests("generic-project")).await;
     let created = rpc(

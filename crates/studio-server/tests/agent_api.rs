@@ -21,6 +21,10 @@ async fn manifest_access_matches_request_authority() {
         !tool_available(&read_only, "changeset.getCandidate"),
         "{read_only}"
     );
+    assert!(
+        !tool_available(&read_only, "changeset.impact"),
+        "{read_only}"
+    );
     let denied_candidate = unauthenticated_rpc(
         &server,
         "changeset.getCandidate",
@@ -44,6 +48,7 @@ async fn manifest_access_matches_request_authority() {
     assert_eq!(agent["result"]["access"]["canCommit"], false);
     assert_eq!(agent["result"]["access"]["canApplyDirectly"], false);
     assert!(tool_available(&agent, "changeset.getCandidate"), "{agent}");
+    assert!(tool_available(&agent, "changeset.impact"), "{agent}");
 
     let approval =
         rpc_with_approval_cookie(&server, "system.agentManifest", serde_json::json!({})).await;
@@ -55,6 +60,7 @@ async fn manifest_access_matches_request_authority() {
         tool_available(&approval, "changeset.getCandidate"),
         "{approval}"
     );
+    assert!(tool_available(&approval, "changeset.impact"), "{approval}");
 
     let both =
         rpc_with_bearer_and_approval(&server, "system.agentManifest", serde_json::json!({})).await;
@@ -73,6 +79,7 @@ async fn manifest_access_matches_request_authority() {
         "changeset.addOperations",
         "changeset.removeOperations",
         "changeset.evaluate",
+        "changeset.impact",
         "changeset.getCandidate",
         "changeset.commit",
         "changeset.discard",
@@ -120,6 +127,7 @@ async fn manifest_access_matches_request_authority() {
         ("changeset.addOperations", "entries"),
         ("changeset.removeOperations", "entryIds"),
         ("changeset.evaluate", "expectedVersion"),
+        ("changeset.impact", "expectedVersion"),
         ("changeset.getCandidate", "changeSetId"),
         ("changeset.commit", "approvedDigest"),
         ("changeset.discard", "changeSetId"),

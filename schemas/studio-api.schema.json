@@ -31,6 +31,7 @@
     "changeset.addOperations",
     "changeset.removeOperations",
     "changeset.evaluate",
+    "changeset.impact",
     "changeset.getCandidate",
     "changeset.commit",
     "changeset.discard"
@@ -13146,6 +13147,212 @@
       "title": "string",
       "type": "string"
     },
+    "ChangeSetImpactParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "changeSetId": {
+          "type": "string"
+        },
+        "expectedVersion": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "changeSetId",
+        "expectedVersion"
+      ],
+      "title": "ChangeSetImpactParams",
+      "type": "object"
+    },
+    "ChangeSetImpactResult": {
+      "$defs": {
+        "ChangeImpactCounts": {
+          "properties": {
+            "added": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "removed": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "updated": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "added",
+            "updated",
+            "removed"
+          ],
+          "type": "object"
+        },
+        "ChangeSetStatus": {
+          "enum": [
+            "draft",
+            "evaluating",
+            "ready",
+            "blocked",
+            "stale",
+            "committed",
+            "discarded"
+          ],
+          "type": "string"
+        },
+        "IterationImpact": {
+          "properties": {
+            "affectedDerivedNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "affectedSourceNodes": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "cacheHits": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "cacheMisses": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "components": {
+              "$ref": "#/$defs/ChangeImpactCounts"
+            },
+            "derivedNodes": {
+              "$ref": "#/$defs/ChangeImpactCounts"
+            },
+            "fullSceneRebuildRequired": {
+              "type": "boolean"
+            },
+            "generatedGeometry": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "materials": {
+              "$ref": "#/$defs/ChangeImpactCounts"
+            },
+            "reasons": {
+              "items": {
+                "$ref": "#/$defs/IterationImpactReason"
+              },
+              "type": "array"
+            },
+            "relations": {
+              "$ref": "#/$defs/ChangeImpactCounts"
+            },
+            "reusedGeometry": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "scope": {
+              "$ref": "#/$defs/IterationImpactScope"
+            },
+            "sourceNodes": {
+              "$ref": "#/$defs/ChangeImpactCounts"
+            }
+          },
+          "required": [
+            "scope",
+            "fullSceneRebuildRequired",
+            "sourceNodes",
+            "derivedNodes",
+            "relations",
+            "components",
+            "materials",
+            "affectedSourceNodes",
+            "affectedDerivedNodes",
+            "reusedGeometry",
+            "generatedGeometry",
+            "cacheHits",
+            "cacheMisses",
+            "reasons"
+          ],
+          "type": "object"
+        },
+        "IterationImpactReason": {
+          "enum": [
+            "node_content",
+            "node_transform",
+            "instance_parameters",
+            "material_assignment",
+            "component_definition",
+            "relation_topology",
+            "constraint",
+            "full_rebuild",
+            "validation_blocked"
+          ],
+          "type": "string"
+        },
+        "IterationImpactScope": {
+          "enum": [
+            "local",
+            "targeted",
+            "broad",
+            "full_rebuild",
+            "unavailable"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "baseRevision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "candidateDigest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "changeSetId": {
+          "type": "string"
+        },
+        "diagnosticCount": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "impact": {
+          "$ref": "#/$defs/IterationImpact"
+        },
+        "status": {
+          "$ref": "#/$defs/ChangeSetStatus"
+        },
+        "version": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "changeSetId",
+        "version",
+        "baseRevision",
+        "status",
+        "diagnosticCount",
+        "impact"
+      ],
+      "title": "ChangeSetImpactResult",
+      "type": "object"
+    },
     "ChangeSetNewEntry": {
       "$defs": {
         "ChangeSetSource": {
@@ -18264,6 +18471,137 @@
         "nodeId"
       ],
       "title": "InstancePatch",
+      "type": "object"
+    },
+    "IterationImpact": {
+      "$defs": {
+        "ChangeImpactCounts": {
+          "properties": {
+            "added": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "removed": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "updated": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "added",
+            "updated",
+            "removed"
+          ],
+          "type": "object"
+        },
+        "IterationImpactReason": {
+          "enum": [
+            "node_content",
+            "node_transform",
+            "instance_parameters",
+            "material_assignment",
+            "component_definition",
+            "relation_topology",
+            "constraint",
+            "full_rebuild",
+            "validation_blocked"
+          ],
+          "type": "string"
+        },
+        "IterationImpactScope": {
+          "enum": [
+            "local",
+            "targeted",
+            "broad",
+            "full_rebuild",
+            "unavailable"
+          ],
+          "type": "string"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "affectedDerivedNodes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "affectedSourceNodes": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cacheHits": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "cacheMisses": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "components": {
+          "$ref": "#/$defs/ChangeImpactCounts"
+        },
+        "derivedNodes": {
+          "$ref": "#/$defs/ChangeImpactCounts"
+        },
+        "fullSceneRebuildRequired": {
+          "type": "boolean"
+        },
+        "generatedGeometry": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "materials": {
+          "$ref": "#/$defs/ChangeImpactCounts"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/IterationImpactReason"
+          },
+          "type": "array"
+        },
+        "relations": {
+          "$ref": "#/$defs/ChangeImpactCounts"
+        },
+        "reusedGeometry": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/IterationImpactScope"
+        },
+        "sourceNodes": {
+          "$ref": "#/$defs/ChangeImpactCounts"
+        }
+      },
+      "required": [
+        "scope",
+        "fullSceneRebuildRequired",
+        "sourceNodes",
+        "derivedNodes",
+        "relations",
+        "components",
+        "materials",
+        "affectedSourceNodes",
+        "affectedDerivedNodes",
+        "reusedGeometry",
+        "generatedGeometry",
+        "cacheHits",
+        "cacheMisses",
+        "reasons"
+      ],
+      "title": "IterationImpact",
       "type": "object"
     },
     "MaterialPatch": {

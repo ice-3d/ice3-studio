@@ -82,7 +82,84 @@ async fn relation_change_requires_full_scene_rebuild() {
     );
 }
 
+#[tokio::test]
+async fn impact_digest_matches_evaluate_and_version_drift_fails_closed() {
+    let server = start_test_server(ServerConfig::review_required("impact-digest")).await;
+    seed_parameterized_scene(&server).await;
+    warm_stats(&server).await;
+    let changes =
+        create_change_set_with_operations(&server, vec![instance_patch_transform("node-000001")])
+            .await;
+
+    let impact = request_impact_result(&server, &changes).await;
+    let evaluated = rpc_with_bearer(
+        &server,
+        server.agent_token(),
+        "changeset.evaluate",
+        serde_json::json!({
+            "changeSetId": changes["id"],
+            "expectedVersion": changes["version"],
+            "includeCandidate": false
+        }),
+    )
+    .await;
+
+    assert_eq!(
+        impact["candidateDigest"], evaluated["result"]["candidateDigest"],
+        "{impact}\n{evaluated}"
+    );
+
+    rpc_with_bearer(
+        &server,
+        server.agent_token(),
+        "changeset.addOperations",
+        serde_json::json!({
+            "changeSetId": changes["id"],
+            "expectedVersion": changes["version"],
+            "entries": [{
+                "source": { "kind": "agent", "label": "drift" },
+                "operation": instance_patch_transform("node-000001")
+            }]
+        }),
+    )
+    .await;
+    let stale = rpc_with_bearer(
+        &server,
+        server.agent_token(),
+        "changeset.impact",
+        serde_json::json!({
+            "changeSetId": changes["id"],
+            "expectedVersion": changes["version"]
+        }),
+    )
+    .await;
+    assert_eq!(
+        stale["error"]["diagnosticCode"], "ICE3_STUDIO_OPERATION_INVALID",
+        "{stale}"
+    );
+}
+
+#[tokio::test]
+async fn blocked_candidate_impact_is_unavailable() {
+    let server = start_test_server(ServerConfig::review_required("impact-blocked")).await;
+    seed_parameterized_scene(&server).await;
+    let changes = create_change_set_with_operations(&server, vec![out_of_range_parameter()]).await;
+    let result = request_impact_result(&server, &changes).await;
+
+    assert_eq!(result["status"], "blocked", "{result}");
+    assert_eq!(result["impact"]["scope"], "unavailable", "{result}");
+    assert_eq!(result["impact"]["generatedGeometry"], 0, "{result}");
+    assert!(result["candidateDigest"].is_null(), "{result}");
+}
+
 async fn request_impact(server: &TestServer, change_set: &serde_json::Value) -> serde_json::Value {
+    request_impact_result(server, change_set).await["impact"].clone()
+}
+
+async fn request_impact_result(
+    server: &TestServer,
+    change_set: &serde_json::Value,
+) -> serde_json::Value {
     let response = rpc_with_bearer(
         server,
         server.agent_token(),
@@ -93,7 +170,8 @@ async fn request_impact(server: &TestServer, change_set: &serde_json::Value) -> 
         }),
     )
     .await;
-    response["result"]["impact"].clone()
+    assert!(response.get("error").is_none(), "{response}");
+    response["result"].clone()
 }
 
 async fn warm_stats(server: &TestServer) {
@@ -274,5 +352,15 @@ fn relation_update(relation_id: &str) -> serde_json::Value {
         "from_node_id": null,
         "to_node_id": null,
         "metadata": null
+    })
+}
+
+fn out_of_range_parameter() -> serde_json::Value {
+    serde_json::json!({
+        "type": "instance.patch",
+        "nodeId": "node-000001",
+        "setParameters": {
+            "unused": { "kind": "number", "value": 100 }
+        }
     })
 }

@@ -134,6 +134,17 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 Some("ChangeSetEvaluation"),
             ),
             tool(
+                "changeset.impact",
+                "Analyze proposal scope, geometry generation, and cache reuse before approval.",
+                AgentSideEffect::Proposal,
+                false,
+                AgentIdempotency::None,
+                access.can_propose,
+                "proposal access is unavailable",
+                "ChangeSetImpactParams",
+                Some("ChangeSetImpactResult"),
+            ),
+            tool(
                 "changeset.getCandidate",
                 "Return the current evaluated proposal candidate.",
                 AgentSideEffect::Read,
@@ -223,7 +234,7 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 [
                     "changeset.create",
                     "changeset.addOperations",
-                    "changeset.evaluate",
+                    "changeset.impact",
                 ],
             ),
             workflow(

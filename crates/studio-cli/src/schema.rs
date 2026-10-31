@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use schemars::schema_for;
 use studio_core::agent_contract::{
-    AgentManifest, EvaluationQueryRequest, EvaluationQueryResult, RuntimePreviewRequest,
-    SceneContext, SceneSearchRequest, SceneSearchResult,
+    AgentManifest, EvaluationQueryRequest, EvaluationQueryResult, IterationImpact,
+    RuntimePreviewRequest, SceneContext, SceneSearchRequest, SceneSearchResult,
 };
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
@@ -18,7 +18,8 @@ use studio_project::changeset::{
 };
 use studio_server::changeset::{
     ChangeSetAddParams, ChangeSetCommitParams, ChangeSetCreateParams, ChangeSetEvaluateParams,
-    ChangeSetGetParams, ChangeSetNewEntry, ChangeSetRemoveParams,
+    ChangeSetGetParams, ChangeSetImpactParams, ChangeSetImpactResult, ChangeSetNewEntry,
+    ChangeSetRemoveParams,
 };
 use studio_server::preview::CandidatePreview;
 use studio_server::{Capabilities, EvaluatedSceneStats, RpcRequest, RpcResponse, ServerEvent};
@@ -70,6 +71,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "changeset.addOperations",
             "changeset.removeOperations",
             "changeset.evaluate",
+            "changeset.impact",
             "changeset.getCandidate",
             "changeset.commit",
             "changeset.discard"
@@ -111,7 +113,10 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "ChangeSetAddParams": schema_for!(ChangeSetAddParams),
             "ChangeSetRemoveParams": schema_for!(ChangeSetRemoveParams),
             "ChangeSetEvaluateParams": schema_for!(ChangeSetEvaluateParams),
-            "ChangeSetCommitParams": schema_for!(ChangeSetCommitParams)
+            "ChangeSetImpactParams": schema_for!(ChangeSetImpactParams),
+            "ChangeSetImpactResult": schema_for!(ChangeSetImpactResult),
+            "ChangeSetCommitParams": schema_for!(ChangeSetCommitParams),
+            "IterationImpact": schema_for!(IterationImpact)
         }
     });
     let mut api_bytes = serde_json::to_vec_pretty(&api).map_err(SchemaError::Json)?;
