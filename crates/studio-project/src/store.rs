@@ -36,6 +36,8 @@ pub enum ProjectError {
     Locked,
     #[error("project is closed")]
     Closed,
+    #[error("component definition is missing: {0}")]
+    MissingComponent(String),
     #[error("project schema is unsupported")]
     UnsupportedSchema,
     #[error("project revision is invalid")]
@@ -256,7 +258,10 @@ impl ProjectStore {
         if document.schema_version != PROJECT_SCHEMA_VERSION {
             return Err(ProjectError::UnsupportedSchema);
         }
-        let bytes = serde_json::to_vec(document).map_err(ProjectError::Json)?;
+        // 组件按内容寻址单独落盘，快照里只留引用；同一版本的组件在修订间共享。
+        let split = crate::snapshot::split(document)?;
+        crate::snapshot::write_component_files(&self.path.project, &split.components)?;
+        let bytes = split.json;
         let digest = format!("{:x}", Sha256::digest(&bytes));
         let revision_path = self.revision_path(document.revision);
         write_atomic(&revision_path, &bytes)?;
@@ -348,7 +353,7 @@ impl ProjectStore {
                 return Err(ProjectError::DigestMismatch);
             }
         }
-        let document: Document = serde_json::from_slice(&bytes).map_err(ProjectError::Json)?;
+        let document = crate::snapshot::merge(&bytes, &self.path.project)?;
         document
             .migrate()
             .map_err(|_| ProjectError::UnsupportedSchema)

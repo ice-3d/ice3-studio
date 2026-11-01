@@ -40,7 +40,8 @@ curl -s -X POST http://127.0.0.1:8120/rpc \
 | 路径 | 作用 |
 |---|---|
 | `project.json` | 工程 id、当前修订、撤销栈 |
-| `revisions/<n>.json` | 每个修订一份完整场景快照 |
+| `revisions/<n>.json` | 场景快照：节点、材质、关系，组件以摘要引用 |
+| `components/<id>-<digest>.json` | 组件定义，按内容寻址。同一版本在所有修订间共享 |
 | `history/operations.jsonl` | 操作历史，逐行可重放 |
 | `changesets/` | 待审变更集 |
 | `cache/` | 几何与预览缓存，不入库，可重建 |
@@ -70,8 +71,15 @@ curl -s -X POST http://127.0.0.1:8120/rpc \
 3. 用 `b.instance()` 摆放，用 `b.connect()` 连管
 4. 重新生成或直接对现有工程下发 `component.define` + `instance.create`
 
-## 已知问题
+## 修订存储
 
-**修订快照是完整副本。** 每次修改新增一份约 94 KB 的快照，组件定义占其中约 78%，而组件在版本间几乎不变。改 100 次后 revisions/ 会到 9 MB 左右。
+组件定义不写在快照里，而是按内容摘要单独存成 `components/<id>-<digest>.json`，
+快照只记 `{ id, digest }`。组件没改动时不会产生新文件，所以：
 
-后续应改为：组件定义按文件拆分并被快照引用，或只保留最近 N 份快照、更早的靠 `history/operations.jsonl` 重放。
+| | 每次修订 | 200 次修订 |
+|---|---|---|
+| 拆分前 | 95 KB | 约 19 MB |
+| 拆分后 | 40 KB | 约 8 MB |
+
+摘要取组件内容 sha256 的前 12 位，因此「改了又改回去」会命中已有文件，不重复占空间。
+早期内联格式的快照仍可读取（没有 `digest` 字段即视为内联）。
