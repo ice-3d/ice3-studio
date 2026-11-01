@@ -5,7 +5,7 @@
 // 矩形池带导流墙、曝气支管、检修走道。端口声明介质与管径，管道由连接意图路由。
 
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -397,7 +397,7 @@ async function main() {
   const plan = buildPlan('wastewater-plant');
   const server = spawn(
     resolve('target/release/studio-cli'),
-    ['serve', '--workspace', workspace, '--project', 'wwtp-bootstrap', '--port', '0', '--write-mode', 'autonomous'],
+    ['serve', '--workspace', workspace, '--project', '.bootstrap', '--port', '0', '--write-mode', 'autonomous'],
     {
       cwd: root,
       env: { ...process.env, STUDIO_SESSION_TOKEN: 'agent-wastewater-plant', STUDIO_VIEWER_DIR: resolve('apps/viewer/dist') },
@@ -444,6 +444,8 @@ async function main() {
     }
   } finally {
     server.kill('SIGTERM');
+    // 服务启动时会自动建一个占位项目，用完即删，避免污染工程目录。
+    await rm(join(workspace, '.bootstrap'), { recursive: true, force: true }).catch(() => {});
   }
 }
 
