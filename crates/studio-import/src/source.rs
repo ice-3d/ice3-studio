@@ -1,0 +1,128 @@
+use std::path::PathBuf;
+
+use serde_json::Value;
+use thiserror::Error;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceFormat {
+    Gltf,
+    Obj,
+}
+
+impl SourceFormat {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Gltf => "gltf",
+            Self::Obj => "obj",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourceMaterial {
+    pub id: String,
+    pub name: String,
+    pub base_color: [f32; 3],
+    pub opacity: f32,
+    pub extras: Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourcePrimitive {
+    pub positions: Vec<[f32; 3]>,
+    pub normals: Option<Vec<[f32; 3]>>,
+    pub colors: Option<Vec<[f32; 3]>>,
+    pub indices: Vec<u32>,
+    pub material: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourceMesh {
+    pub id: String,
+    pub primitives: Vec<SourcePrimitive>,
+    pub extras: Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourceNode {
+    pub id: String,
+    pub name: String,
+    pub parent: Option<String>,
+    pub matrix: [f32; 16],
+    pub mesh: Option<usize>,
+    pub material: Option<usize>,
+    pub extras: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ImportWarning {
+    pub code: String,
+    pub message: String,
+    pub path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourceScene {
+    pub asset_id: String,
+    pub source_format: SourceFormat,
+    pub nodes: Vec<SourceNode>,
+    pub meshes: Vec<SourceMesh>,
+    pub materials: Vec<SourceMaterial>,
+    pub warnings: Vec<ImportWarning>,
+    pub asset_extras: Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceCapabilities {
+    pub hierarchy: bool,
+    pub vertex_colors: bool,
+    pub material_colors: bool,
+    pub instances: bool,
+    pub semantic_metadata: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportRequest {
+    pub path: PathBuf,
+    pub asset_id: String,
+    pub requested_adapter: Option<String>,
+}
+
+#[derive(Debug, Error)]
+pub enum ImportError {
+    #[error("unsupported source: {0}")]
+    Unsupported(String),
+    #[error("source adapter is unavailable: {0}")]
+    AdapterUnavailable(String),
+    #[error("source importer registry is invalid: {0}")]
+    RegistryInvalid(String),
+    #[error("source is invalid: {0}")]
+    InvalidSource(String),
+    #[error("source contains no geometry")]
+    EmptyGeometry,
+    #[error("source resource was ignored: {0}")]
+    ResourceIgnored(String),
+    #[error("source I/O failed")]
+    Io(#[from] std::io::Error),
+}
+
+impl ImportError {
+    pub const fn code(&self) -> &'static str {
+        match self {
+            Self::Unsupported(_) => "ICE3_STUDIO_IMPORT_UNSUPPORTED",
+            Self::AdapterUnavailable(_) => "ICE3_STUDIO_IMPORT_ADAPTER_UNAVAILABLE",
+            Self::RegistryInvalid(_) => "ICE3_STUDIO_IMPORT_REGISTRY_INVALID",
+            Self::InvalidSource(_) => "ICE3_STUDIO_IMPORT_INVALID_SOURCE",
+            Self::EmptyGeometry => "ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY",
+            Self::ResourceIgnored(_) => "ICE3_STUDIO_IMPORT_RESOURCE_IGNORED",
+            Self::Io(_) => "ICE3_STUDIO_IMPORT_IO",
+        }
+    }
+}
+
+pub trait SourceImporter: Send + Sync {
+    fn id(&self) -> &'static str;
+    fn extensions(&self) -> &'static [&'static str];
+    fn capabilities(&self) -> SourceCapabilities;
+    fn import(&self, request: &ImportRequest) -> Result<SourceScene, ImportError>;
+}

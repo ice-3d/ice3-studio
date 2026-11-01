@@ -2095,6 +2095,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "studio-import"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "studio-pipeline"
 version = "0.1.0"
 dependencies = [
