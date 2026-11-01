@@ -168,7 +168,7 @@ test('aeration basin has lanes, baffles, air distribution and guardrails', () =>
   const plan = buildLegacyPlan('wastewater-plant');
   const definition = plan.operations
     .filter(({ type }) => type === 'component.define')
-    .find(({ definition }) => definition.name === 'Aeration basin (mixed liquor)').definition;
+    .find(({ definition }) => definition.name === 'Aerobic basin').definition;
   const ids = new Set(definition.parts.map(({ id }) => id));
 
   assert.ok(ids.has('ae-water'));
@@ -178,6 +178,37 @@ test('aeration basin has lanes, baffles, air distribution and guardrails', () =>
   assert.ok([...ids].some((id) => id.startsWith('ae-rail-')));
   assert.ok(definition.parts.length >= 35);
   assert.ok([...ids].filter((id) => id.startsWith('ae-air-diffuser-')).length >= 90);
+});
+
+test('biological basins expose process-correct equipment for each zone', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definitions = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition);
+  const anaerobic = definitions.find(({ name }) => name === 'Anaerobic basin');
+  const anoxic = definitions.find(({ name }) => name === 'Anoxic basin');
+  const aerobic = definitions.find(({ name }) => name === 'Aerobic basin');
+  assert.ok(anaerobic);
+  assert.ok(anoxic);
+  assert.ok(aerobic);
+  for (const definition of [anaerobic, anoxic]) {
+    assert.equal(
+      definition.parts.some(({ id }) => id.includes('air-diffuser')),
+      false,
+    );
+    assert.equal(
+      definition.parts.some(({ id }) => id.includes('mixer')),
+      true,
+    );
+  }
+  assert.equal(
+    aerobic.parts.some(({ id }) => id.includes('air-diffuser')),
+    true,
+  );
+  assert.equal(
+    aerobic.parts.some(({ id }) => id.includes('mixer')),
+    false,
+  );
 });
 
 test('major equipment has identity-bearing silhouettes and connecting ports', () => {

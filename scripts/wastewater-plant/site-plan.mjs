@@ -122,28 +122,30 @@ function buildPlan(projectId) {
     { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
   ]);
 
-  // 曝气池（推流式廊道）。首段接纳初沉出水，后续段接纳混合液，端口介质不同，
-  // 因此按进水介质分成两种定义。
-  b.define('aeration-feed', 'Aeration basin (feed)', aerationBasin(b, 'ae', {}), [
+  // 推流式生化池按工艺段拆分。厌氧、缺氧段使用潜水搅拌器，只有好氧段安装曝气器。
+  const basinParameters = [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 6, unit: 'm' },
+    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
+  ];
+  b.define('anaerobic-basin', 'Anaerobic basin',
+    aerationBasin(b, 'ae', { mode: 'anaerobic' }), [
     b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'settled-water', 0.9),
     b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
-  ], [
-    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
-    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
-    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 6, unit: 'm' },
-    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
-  ]);
-  b.define('aeration-mixed', 'Aeration basin (mixed liquor)', aerationBasin(b, 'ae', {}), [
+  ], basinParameters);
+  b.define('anoxic-basin', 'Anoxic basin',
+    aerationBasin(b, 'ae', { mode: 'anoxic' }), [
+    b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+    b.port('return-inlet', 'ae-wall-n', 5, 4.0, -10, vec(0, 0, 1), 'return-sludge', 0.35),
+    b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+  ], basinParameters);
+  b.define('aerobic-basin', 'Aerobic basin',
+    aerationBasin(b, 'ae', { mode: 'aerobic' }), [
     b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
     b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
-    // 空气干管从鼓风机房接进来，落在池壁北侧。
     b.port('air-in', 'ae-wall-n', 0, 4.6, -10, vec(0, 0, -1), 'air', 0.8),
-  ], [
-    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
-    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
-    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 6, unit: 'm' },
-    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
-  ]);
+  ], basinParameters);
 
   // 二沉池（与初沉池同构，尺寸与用途不同）
   const secondaryParts = circularBasin(b, 'sc', {
@@ -331,13 +333,13 @@ function buildPlan(projectId) {
     }, { radius: 13, depth: 4.2, wall: 0.45 });
 
     // 生化区（x 215–340）：三段推流廊道首尾相接，段间留 13 米管廊
-    b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 215 + dx, 0, z, {
+    b.instance('anaerobic-basin', `ae-${key}1`, `AE-${series}01 厌氧池`, 215 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}01`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
-    b.instance('aeration-mixed', `ae-${key}2`, `AE-${series}02 曝气池（缺氧段）`, 270 + dx, 0, z, {
+    b.instance('anoxic-basin', `ae-${key}2`, `AE-${series}02 缺氧池`, 270 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}02`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
-    b.instance('aeration-mixed', `ae-${key}3`, `AE-${series}03 曝气池（好氧段）`, 325 + dx, 0, z, {
+    b.instance('aerobic-basin', `ae-${key}3`, `AE-${series}03 好氧池`, 325 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}03`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
 
