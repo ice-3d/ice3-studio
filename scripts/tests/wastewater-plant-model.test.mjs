@@ -13,6 +13,8 @@ import {
 import {
   WWTP_STATS_LIMITS,
   assertProjectStats,
+  validateConnectionPorts,
+  validateProcessGraph,
   validateProjectStats,
   validateWastewaterPlan,
 } from '../../scripts/wastewater-plant/validate.mjs';
@@ -42,6 +44,49 @@ test('validation rejects an unknown connection port', () => {
   const result = validateWastewaterPlan(plan);
   assert.equal(result.ok, false);
   assert.ok(result.issues.some(({ code }) => code === 'UNKNOWN_PORT'));
+});
+
+function processFixture() {
+  return {
+    operations: [
+      {
+        type: 'instance.create',
+        node_id: 'node-a',
+        metadata: { tag: 'A' },
+      },
+      {
+        type: 'instance.create',
+        node_id: 'node-b',
+        metadata: { tag: 'B' },
+      },
+      {
+        type: 'connection.create',
+        name: 'A → B',
+        connection: {
+          from: { nodeId: 'node-a', port: 'outlet' },
+          to: { nodeId: 'node-b', port: 'inlet' },
+          medium: 'return-sludge',
+          metadata: { lineId: 'L-001' },
+        },
+      },
+    ],
+  };
+}
+
+test('process graph validation requires reachable media paths', () => {
+  const plan = processFixture();
+  const requirement = {
+    code: 'MISSING_RAS',
+    fromTags: ['A'],
+    toTags: ['B'],
+    media: ['return-sludge'],
+  };
+  assert.equal(validateProcessGraph(plan, [requirement]).ok, true);
+  plan.operations[2].connection.medium = 'waste-sludge';
+  const result = validateProcessGraph(plan, [requirement]);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues[0].code, 'MISSING_RAS');
+  assert.match(result.issues[0].message, /A.*B/);
 });
 
 test('project budget accepts the target band and rejects overflow', () => {
@@ -124,7 +169,7 @@ test('aeration basin has lanes, baffles, air distribution and guardrails', () =>
   const plan = buildLegacyPlan('wastewater-plant');
   const definition = plan.operations
     .filter(({ type }) => type === 'component.define')
-    .find(({ definition }) => definition.name === 'Aeration basin (mixed liquor)').definition;
+    .find(({ definition }) => definition.name === 'Aerobic basin').definition;
   const ids = new Set(definition.parts.map(({ id }) => id));
 
   assert.ok(ids.has('ae-water'));
@@ -134,6 +179,153 @@ test('aeration basin has lanes, baffles, air distribution and guardrails', () =>
   assert.ok([...ids].some((id) => id.startsWith('ae-rail-')));
   assert.ok(definition.parts.length >= 35);
   assert.ok([...ids].filter((id) => id.startsWith('ae-air-diffuser-')).length >= 90);
+});
+
+test('biological basins expose process-correct equipment for each zone', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definitions = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition);
+  const anaerobic = definitions.find(({ name }) => name === 'Anaerobic basin');
+  const anoxic = definitions.find(({ name }) => name === 'Anoxic basin');
+  const aerobic = definitions.find(({ name }) => name === 'Aerobic basin');
+  assert.ok(anaerobic);
+  assert.ok(anoxic);
+  assert.ok(aerobic);
+  for (const definition of [anaerobic, anoxic]) {
+    assert.equal(
+      definition.parts.some(({ id }) => id.includes('air-diffuser')),
+      false,
+    );
+    assert.equal(
+      definition.parts.some(({ id }) => id.includes('mixer')),
+      true,
+    );
+    assert.equal(
+      definition.parts.filter(({ id }) => id.includes('mixer-draft-tube')).length,
+      3,
+    );
+    assert.equal(
+      definition.parts.filter(({ id }) => id.includes('mixer-access-post')).length,
+      8,
+    );
+    const draftTube = definition.parts.find(({ id }) => id.includes('mixer-draft-tube'));
+    assert.equal(draftTube.content.segments, 30);
+  }
+  assert.equal(
+    aerobic.parts.some(({ id }) => id.includes('air-diffuser')),
+    true,
+  );
+  assert.equal(
+    aerobic.parts.some(({ id }) => id.includes('mixer')),
+    false,
+  );
+});
+
+test('asset exposes complete sludge, RAS, split, gas and cake topology', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connections = plan.operations.filter(({ type }) => (
+    type === 'connection.create'
+  ));
+  const media = (from, to) => connections.some(({ connection }) => (
+    connection.metadata?.service?.includes(from) &&
+    connection.metadata?.service?.includes(to)
+  ));
+
+  for (const train of ['1', '2']) {
+    assert.ok(media(`PC-${train}01`, 'SCW-101'));
+    assert.ok(media(`AE-${train}03`, `DD-${train}01`));
+    for (let index = 1; index <= 3; index += 1) {
+      assert.ok(media(`DD-${train}01`, `SC-${train}0${index}`));
+      assert.ok(media(`SC-${train}0${index}`, 'RWS-101'));
+    }
+    assert.ok(media('RWS-101', `AE-${train}02`));
+  }
+  assert.ok(media('DG-101', 'GCL-101'));
+  assert.ok(media('DG-102', 'GCL-101'));
+  assert.ok(media('GCL-101', 'GH-101'));
+  assert.ok(media('GH-101', 'GF-101'));
+  assert.equal(
+    connections.some(({ connection }) => (
+      connection.medium === 'dewatered-sludge'
+    )),
+    false,
+  );
+  assert.ok(plan.operations.some(({ type, relation }) => (
+    type === 'relation.create' &&
+    relation.relationType === 'material-handling'
+  )));
+});
+
+test('every fluid medium has explicit material and one-purpose ports', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connections = plan.operations.filter(({ type }) => (
+    type === 'connection.create'
+  ));
+  const media = new Set(connections.map(({ connection }) => connection.medium));
+  for (const medium of [
+    'primary-sludge',
+    'waste-sludge',
+    'return-sludge',
+    'thickened-sludge',
+    'digested-sludge',
+    'biogas',
+    'chemical',
+    'final-effluent',
+  ]) {
+    assert.ok(media.has(medium), medium);
+  }
+  const materialNames = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name }) => [material_id, name]),
+  );
+  for (const operation of connections) {
+    assert.ok(
+      materialNames.has(operation.material_id),
+      operation.connection.metadata?.service,
+    );
+  }
+  const expectedMaterials = {
+    'primary-sludge': 'Pipe / primary sludge',
+    'return-sludge': 'Pipe / return sludge',
+    'waste-sludge': 'Pipe / sludge',
+    'thickened-sludge': 'Pipe / sludge',
+    'digested-sludge': 'Pipe / sludge',
+    biogas: 'Pipe / biogas',
+    chemical: 'Pipe / chemical',
+    'final-effluent': 'Pipe / clean water',
+  };
+  for (const [medium, expected] of Object.entries(expectedMaterials)) {
+    const operation = connections.find(({ connection }) => (
+      connection.medium === medium
+    ));
+    assert.ok(operation, medium);
+    assert.equal(materialNames.get(operation.material_id), expected, medium);
+  }
+  const result = validateConnectionPorts(plan);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.issues, []);
+});
+
+test('port validation rejects reuse of a normal process port', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connection = structuredClone(
+    plan.operations.find(({ type }) => type === 'connection.create'),
+  );
+  plan.operations.push(connection);
+  const result = validateConnectionPorts(plan);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some(({ code }) => code === 'PORT_REUSED'));
+});
+
+test('port validation rejects a pipe diameter that does not match its nozzle', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connection = plan.operations.find(({ type }) => type === 'connection.create');
+  connection.connection.diameter = 20;
+  const result = validateConnectionPorts(plan);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some(({ code }) => code === 'PIPE_DIAMETER_MISMATCH'));
 });
 
 test('major equipment has identity-bearing silhouettes and connecting ports', () => {
@@ -335,6 +527,9 @@ test('process skids are wired into the treatment train', () => {
   const connectionNames = plan.operations
     .filter(({ type }) => type === 'connection.create')
     .map(({ name }) => name);
+  const handlingServices = plan.operations
+    .filter(({ type }) => type === 'relation.create')
+    .map(({ relation }) => relation.metadata?.service);
   for (const expected of [
     'PS-101 → 提升泵组',
     '提升泵组 → GC-101',
@@ -345,11 +540,11 @@ test('process skids are wired into the treatment train', () => {
     'TH-101 → HEX-101',
     'HEX-101 → DG-101',
     'CHEM-101 → FL-101',
-    'DW-101 脱水机 1 → 脱水机房',
-    'DW-101 脱水机 2 → 脱水机房',
   ]) {
     assert.ok(connectionNames.includes(expected), expected);
   }
+  assert.ok(handlingServices.includes('CV-101 → DW-101 泥饼'));
+  assert.ok(handlingServices.includes('CV-102 → DW-101 泥饼'));
 });
 
 test('process pipe diameters stay within the engineered line size', () => {

@@ -6,6 +6,130 @@ export const WWTP_STATS_LIMITS = Object.freeze({
   maxInstances: 500,
 });
 
+export function validateProcessGraph(plan, requirements) {
+  const tagByNode = new Map();
+  for (const operation of plan.operations) {
+    if (operation.type !== 'instance.create') continue;
+    const tag = operation.metadata?.tag;
+    if (typeof tag === 'string') tagByNode.set(operation.node_id, tag);
+  }
+  const edges = plan.operations
+    .filter(({ type }) => type === 'connection.create')
+    .map(({ connection, name }) => ({
+      from: connection.from.nodeId,
+      to: connection.to.nodeId,
+      medium: connection.medium,
+      name,
+    }));
+  const outgoing = new Map();
+  for (const edge of edges) {
+    const group = outgoing.get(edge.from) ?? [];
+    group.push(edge);
+    outgoing.set(edge.from, group);
+  }
+
+  const issues = [];
+  for (const requirement of requirements) {
+    const starts = [...tagByNode]
+      .filter(([, tag]) => requirement.fromTags.includes(tag))
+      .map(([nodeId]) => nodeId);
+    const reached = new Set(starts);
+    const queue = [...starts];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      for (const edge of outgoing.get(current) ?? []) {
+        if (!requirement.media.includes(edge.medium)) continue;
+        if (reached.has(edge.to)) continue;
+        reached.add(edge.to);
+        queue.push(edge.to);
+      }
+    }
+    const targets = [...tagByNode]
+      .filter(([nodeId, tag]) => (
+        requirement.toTags.includes(tag) && reached.has(nodeId)
+      ))
+      .map(([, tag]) => tag);
+    const missing = requirement.toTags.filter((tag) => !targets.includes(tag));
+    if (missing.length > 0) {
+      issues.push({
+        code: requirement.code,
+        message: `${requirement.fromTags.join(',')} cannot reach ` +
+          `${missing.join(',')} via ${requirement.media.join(',')}`,
+      });
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
+export function validateConnectionPorts(plan) {
+  const issues = [];
+  const usage = new Map();
+  const definitions = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'component.define')
+      .map(({ definition }) => [definition.id, definition]),
+  );
+  const definitionByNode = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'instance.create')
+      .map((operation) => [
+        operation.node_id,
+        operation.instance.definitionId,
+      ]),
+  );
+  for (const operation of plan.operations) {
+    if (operation.type !== 'connection.create') continue;
+    for (const endpoint of [operation.connection.from, operation.connection.to]) {
+      const key = `${endpoint.nodeId}/${endpoint.port}`;
+      usage.set(key, (usage.get(key) ?? 0) + 1);
+    }
+  }
+  const headerPorts = new Set(
+    [...definitions.values()]
+      .flatMap((definition) => (
+        definition.ports.map(({ name, metadata }) => (
+          metadata?.allowMultiple
+            ? `${definition.id}/${name}`
+            : null
+        ))
+      ))
+      .filter(Boolean),
+  );
+  for (const [key, count] of usage) {
+    const separator = key.indexOf('/');
+    const nodeId = key.slice(0, separator);
+    const portName = key.slice(separator + 1);
+    const definitionId = definitionByNode.get(nodeId);
+    const portKey = `${definitionId}/${portName}`;
+    if (count > 1 && !headerPorts.has(portKey)) {
+      issues.push({
+        code: 'PORT_REUSED',
+        message: `${key} is used by ${count} connections`,
+      });
+    }
+  }
+  for (const operation of plan.operations) {
+    if (operation.type !== 'connection.create') continue;
+    const connection = operation.connection;
+    for (const endpoint of [connection.from, connection.to]) {
+      const definitionId = definitionByNode.get(endpoint.nodeId);
+      const port = definitions.get(definitionId)?.ports
+        .find(({ name }) => name === endpoint.port);
+      if (!port) continue;
+      const ratio = connection.diameter / port.diameter;
+      if (ratio < 0.8 || ratio > 1.2) {
+        issues.push({
+          code: 'PIPE_DIAMETER_MISMATCH',
+          message: `${operation.name}: ${endpoint.nodeId}/${endpoint.port} ` +
+            `diameter ${connection.diameter} ` +
+            `does not match port diameter ${port.diameter}`,
+        });
+      }
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
 export function validateWastewaterPlan(plan) {
   const issues = [];
   const definitions = new Map();

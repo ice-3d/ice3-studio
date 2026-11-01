@@ -38,7 +38,52 @@ import {
   emergencyBasin,
   odorControl,
 } from './components.mjs';
-import { validateWastewaterPlan } from './validate.mjs';
+import {
+  cakeConveyor,
+  distributionBox,
+  gasCollector,
+  gasFlare,
+  rasPumpStation,
+  sludgeCollectionWell,
+} from './process-nodes.mjs';
+import {
+  validateConnectionPorts,
+  validateProcessGraph,
+  validateWastewaterPlan,
+} from './validate.mjs';
+
+export const requiredProcessGraph = [
+  {
+    code: 'MISSING_PRIMARY_SLUDGE',
+    fromTags: ['PC-101', 'PC-201'],
+    toTags: ['TH-101', 'TH-102'],
+    media: ['primary-sludge'],
+  },
+  {
+    code: 'MISSING_RAS',
+    fromTags: ['SC-101', 'SC-102', 'SC-103', 'SC-201', 'SC-202', 'SC-203'],
+    toTags: ['AE-102', 'AE-202'],
+    media: ['return-sludge'],
+  },
+  {
+    code: 'MISSING_GAS',
+    fromTags: ['DG-101', 'DG-102'],
+    toTags: ['GH-101'],
+    media: ['biogas'],
+  },
+  {
+    code: 'MISSING_DIGESTED_SLUDGE_1',
+    fromTags: ['DG-101'],
+    toTags: ['DW-101-C1'],
+    media: ['digested-sludge'],
+  },
+  {
+    code: 'MISSING_DIGESTED_SLUDGE_2',
+    fromTags: ['DG-102'],
+    toTags: ['DW-101-C2'],
+    media: ['digested-sludge'],
+  },
+];
 
 function buildPlan(projectId) {
   const b = createBuilderFromKit();
@@ -68,7 +113,11 @@ function buildPlan(projectId) {
   b.material('pipe-process', 'Pipe / process water', srgb('#b7aa8b'));
   b.material('pipe-clean', 'Pipe / clean water', srgb('#7f9f96'));
   b.material('pipe-sludge', 'Pipe / sludge', srgb('#876f5d'));
+  b.material('pipe-primary-sludge', 'Pipe / primary sludge', srgb('#8b806b'));
+  b.material('pipe-return-sludge', 'Pipe / return sludge', srgb('#74655a'));
   b.material('pipe-air', 'Pipe / air', srgb('#7696ad'));
+  b.material('pipe-biogas', 'Pipe / biogas', srgb('#9caf9a'));
+  b.material('pipe-chemical', 'Pipe / chemical', srgb('#9b8fae'));
   // 道路标线、接触阴影、绿篱、铭牌石板。
   b.material('marking', 'Road marking', srgb('#f0f0ee'));
   b.material('shadow', 'Contact shadow', srgb('#0e1113', 0.3));
@@ -116,34 +165,37 @@ function buildPlan(projectId) {
   b.define('primary-clarifier', 'Primary clarifier', primaryParts, [
     b.port('inlet', 'pc-inlet-well', 0, 5.4, 0, vec(0, -1, 0), 'degritted-water', 1.0),
     b.port('outlet', 'pc-base', 12.4, 4.5, 0, vec(1, 0, 0), 'settled-water', 0.9),
+    b.port('primary-sludge', 'pc-base', 0, 0.3, 0, vec(0, -1, 0), 'primary-sludge', 0.3),
   ], [
     { name: 'radius', valueType: { kind: 'number', minimum: null, maximum: null }, default: 13, unit: 'm' },
     { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 4.2, unit: 'm' },
     { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
   ]);
 
-  // 曝气池（推流式廊道）。首段接纳初沉出水，后续段接纳混合液，端口介质不同，
-  // 因此按进水介质分成两种定义。
-  b.define('aeration-feed', 'Aeration basin (feed)', aerationBasin(b, 'ae', {}), [
+  // 推流式生化池按工艺段拆分。厌氧、缺氧段使用潜水搅拌器，只有好氧段安装曝气器。
+  const basinParameters = [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 6, unit: 'm' },
+    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
+  ];
+  b.define('anaerobic-basin', 'Anaerobic basin',
+    aerationBasin(b, 'ae', { mode: 'anaerobic' }), [
     b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'settled-water', 0.9),
     b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
-  ], [
-    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
-    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
-    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 6, unit: 'm' },
-    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
-  ]);
-  b.define('aeration-mixed', 'Aeration basin (mixed liquor)', aerationBasin(b, 'ae', {}), [
+  ], basinParameters);
+  b.define('anoxic-basin', 'Anoxic basin',
+    aerationBasin(b, 'ae', { mode: 'anoxic' }), [
+    b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+    b.port('return-inlet', 'ae-wall-n', 5, 4.0, -10, vec(0, 0, 1), 'return-sludge', 0.35),
+    b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+  ], basinParameters);
+  b.define('aerobic-basin', 'Aerobic basin',
+    aerationBasin(b, 'ae', { mode: 'aerobic' }), [
     b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
     b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
-    // 空气干管从鼓风机房接进来，落在池壁北侧。
     b.port('air-in', 'ae-wall-n', 0, 4.6, -10, vec(0, 0, -1), 'air', 0.8),
-  ], [
-    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
-    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
-    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 6, unit: 'm' },
-    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
-  ]);
+  ], basinParameters);
 
   // 二沉池（与初沉池同构，尺寸与用途不同）
   const secondaryParts = circularBasin(b, 'sc', {
@@ -156,7 +208,8 @@ function buildPlan(projectId) {
   b.define('secondary-clarifier', 'Secondary clarifier', secondaryParts, [
     b.port('inlet', 'sc-inlet-well', 0, 5.6, 0, vec(0, -1, 0), 'mixed-liquor', 0.9),
     b.port('outlet', 'sc-base', 14.4, 4.9, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
-    b.port('sludge', 'sc-base', 0, 0.3, 0, vec(0, -1, 0), 'waste-sludge', 0.35),
+    b.port('return-sludge', 'sc-base', -3, 0.3, 0, vec(0, -1, 0), 'return-sludge', 0.3),
+    b.port('waste-sludge', 'sc-base', 3, 0.3, 0, vec(0, -1, 0), 'waste-sludge', 0.35),
   ], [
     { name: 'radius', valueType: { kind: 'number', minimum: null, maximum: null }, default: 15, unit: 'm' },
     { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 4.6, unit: 'm' },
@@ -182,6 +235,7 @@ function buildPlan(projectId) {
   ]);
   b.define('thickener', 'Sludge thickener', thickener(b, 'th', {}), [
     b.port('inlet', 'th-base', 8, 3.0, 0, vec(-1, 0, 0), 'waste-sludge', 0.35),
+    b.port('primary-inlet', 'th-base', -8, 3.0, 0, vec(1, 0, 0), 'primary-sludge', 0.3),
     b.port('outlet', 'th-mixer-column', 0, 3.6, 0, vec(0, -1, 0), 'thickened-sludge', 0.3),
   ], [
     { name: 'radius', valueType: { kind: 'number', minimum: null, maximum: null }, default: 8, unit: 'm' },
@@ -190,11 +244,98 @@ function buildPlan(projectId) {
   b.define('digester', 'Anaerobic digester', digester(b, 'dg', {}), [
     b.port('inlet', 'dg-shell', 11, 4.0, 0, vec(-1, 0, 0), 'thickened-sludge', 0.3),
     b.port('outlet', 'dg-shell', -11, 4.0, 0, vec(1, 0, 0), 'digested-sludge', 0.3),
+    b.port('gas-out', 'dg-dome', 0, 18.5, 0, vec(0, 1, 0), 'biogas', 0.35),
   ], [
     { name: 'radius', valueType: { kind: 'number', minimum: null, maximum: null }, default: 11, unit: 'm' },
     { name: 'height', valueType: { kind: 'number', minimum: null, maximum: null }, default: 17, unit: 'm' },
   ]);
-  b.define('gas-holder', 'Gas holder', gasHolder(b, 'gh', { radius: 8.5 }), []);
+  b.define('gas-holder', 'Gas holder', gasHolder(b, 'gh', { radius: 8.5 }), [
+    b.port('gas-in', 'gh-sphere', -4, 5.5, 0, vec(-1, 0, 0), 'biogas', 0.35),
+    b.port('gas-out', 'gh-sphere', 4, 5.5, 0, vec(1, 0, 0), 'biogas', 0.35),
+  ]);
+  b.define('grit-distribution', 'Grit distribution box',
+    distributionBox(b, 'gdb', { length: 6, width: 5 }), [
+      b.port('inlet', 'gdb-wall-w', -3, 2.5, 0, vec(1, 0, 0), 'degritted-water', 1.0),
+      b.port('outlet-a', 'gdb-wall-e', 3, 2.5, -1.2, vec(1, 0, 0), 'degritted-water', 1.0),
+      b.port('outlet-b', 'gdb-wall-e', 3, 2.5, 1.2, vec(1, 0, 0), 'degritted-water', 1.0),
+    ]);
+  b.define('clarifier-distribution', 'Clarifier distribution box',
+    distributionBox(b, 'cdb', {}), [
+      b.port('inlet', 'cdb-wall-w', -4, 2.5, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+      ...[1, 2, 3].map((index) => b.port(
+        `outlet-${index}`,
+        'cdb-wall-e',
+        4,
+        2.5,
+        (index - 2) * 1.5,
+        vec(1, 0, 0),
+        'mixed-liquor',
+        0.9,
+      )),
+    ]);
+  b.define('filter-collection', 'Filter collection box',
+    distributionBox(b, 'fcb', { length: 12, width: 8 }), [
+      ...[1, 2, 3, 4, 5, 6].map((index) => b.port(
+        `inlet-${index}`,
+        'fcb-wall-w',
+        -6,
+        2.4,
+        (index - 3.5) * 1.1,
+        vec(1, 0, 0),
+        'secondary-effluent',
+        0.8,
+      )),
+      b.port('outlet', 'fcb-wall-e', 6, 2.4, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
+    ]);
+  b.define('sludge-collection-well', 'Sludge collection well',
+    sludgeCollectionWell(b, 'scw', {}), [
+      b.port('inlet-a', 'scw-shell', -1.2, 3.2, 0, vec(1, 0, 0), 'primary-sludge', 0.3),
+      b.port('inlet-b', 'scw-shell', 1.2, 3.2, 0, vec(-1, 0, 0), 'primary-sludge', 0.3),
+      b.port('outlet-a', 'scw-shell', -0.8, 3.2, 0.8, vec(0, 0, 1), 'primary-sludge', 0.3),
+      b.port('outlet-b', 'scw-shell', 0.8, 3.2, 0.8, vec(0, 0, 1), 'primary-sludge', 0.3),
+    ]);
+  b.define('ras-pump-station', 'RAS pump station',
+    rasPumpStation(b, 'rws', {}), [
+      ...[1, 2, 3].flatMap((train) => (
+        [1, 2, 3].map((index) => b.port(
+          `inlet-${train}${index}`,
+          'rws-slab',
+          -6 + (index - 1) * 6,
+          0.5,
+          (train - 2) * 3,
+          vec(0, 0, train === 1 ? -1 : 1),
+          'return-sludge',
+          0.3,
+        ))
+      )),
+      ...[1, 2, 3].flatMap((train) => (
+        [1, 2, 3].map((index) => b.port(
+          `waste-in-${train}${index}`,
+          'rws-slab',
+          -6 + (index - 1) * 6,
+          0.5,
+          (train - 2) * 4,
+          vec(0, 0, train === 1 ? -1 : 1),
+          'waste-sludge',
+          0.35,
+        ))
+      )),
+      b.port('outlet-a', 'rws-slab', -7, 0.8, 3, vec(-1, 0, 0), 'return-sludge', 0.3),
+      b.port('outlet-b', 'rws-slab', 7, 0.8, -3, vec(1, 0, 0), 'return-sludge', 0.3),
+      b.port('waste-out-a', 'rws-slab', -6, 0.8, 4, vec(-1, 0, 0), 'waste-sludge', 0.35),
+      b.port('waste-out-b', 'rws-slab', 6, 0.8, -4, vec(1, 0, 0), 'waste-sludge', 0.35),
+    ]);
+  b.define('gas-collector', 'Gas collector',
+    gasCollector(b, 'gcl', {}), [
+      b.port('inlet-a', 'gcl-vessel', -3.5, 3.0, 0, vec(-1, 0, 0), 'biogas', 0.35),
+      b.port('inlet-b', 'gcl-vessel', -3.0, 3.0, 0, vec(-1, 0, 0), 'biogas', 0.35),
+      b.port('outlet', 'gcl-vessel', 4, 3.0, 0, vec(1, 0, 0), 'biogas', 0.35),
+    ]);
+  b.define('gas-flare', 'Gas flare', gasFlare(b, 'gf', {}), [
+    b.port('inlet', 'gf-base', -1, 0.8, 0, vec(-1, 0, 0), 'biogas', 0.35),
+  ]);
+  b.define('cake-conveyor', 'Cake conveyor',
+    cakeConveyor(b, 'cvc', {}), []);
   b.define('dewatering-house', 'Dewatering house', dewateringHouse(b, 'dw', { length: 26, width: 15, height: 8 }), [
     b.port('inlet-a', 'dw-shell', -13, 2.0, -3, vec(1, 0, 0), 'digested-sludge', 0.3),
     b.port('inlet-b', 'dw-shell', -13, 2.0, 3, vec(1, 0, 0), 'digested-sludge', 0.3),
@@ -331,13 +472,13 @@ function buildPlan(projectId) {
     }, { radius: 13, depth: 4.2, wall: 0.45 });
 
     // 生化区（x 215–340）：三段推流廊道首尾相接，段间留 13 米管廊
-    b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 215 + dx, 0, z, {
+    b.instance('anaerobic-basin', `ae-${key}1`, `AE-${series}01 厌氧池`, 215 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}01`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
-    b.instance('aeration-mixed', `ae-${key}2`, `AE-${series}02 曝气池（缺氧段）`, 270 + dx, 0, z, {
+    b.instance('anoxic-basin', `ae-${key}2`, `AE-${series}02 缺氧池`, 270 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}02`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
-    b.instance('aeration-mixed', `ae-${key}3`, `AE-${series}03 曝气池（好氧段）`, 325 + dx, 0, z, {
+    b.instance('aerobic-basin', `ae-${key}3`, `AE-${series}03 好氧池`, 325 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}03`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
 
@@ -393,42 +534,109 @@ function buildPlan(projectId) {
   b.instance('service-canopy', 'svc-1', '提升泵组检修棚', 62, 0, 10,
     { stage: 'intake', role: 'equipment' });
 
+  // 分流、汇流和回流节点。每个方向使用独立端口，避免多根主管叠在同一点。
+  b.instance('grit-distribution', 'dd-g', 'DD-001 沉砂配水井', 128, 0, 0,
+    { stage: 'intake', tag: 'DD-001' });
+  for (const train of trains) {
+    const { key, series, z } = train;
+    b.instance('clarifier-distribution', `dd-${key}`, `DD-${series}01 二沉分流井`,
+      key === 'a' ? 353 : 359, 0, z, { stage: 'secondary', tag: `DD-${series}01` });
+  }
+  b.instance('filter-collection', 'fb-1', 'FB-101 二沉集水井', 495, 0, 0,
+    { stage: 'secondary', tag: 'FB-101' });
+  b.instance('sludge-collection-well', 'scw-1', 'SCW-101 初沉集泥井', 190, 0, 0,
+    { stage: 'sludge', tag: 'SCW-101' });
+  b.instance('ras-pump-station', 'rws-1', 'RWS-101 回流污泥泵站', 410, 0, 0,
+    { stage: 'secondary', tag: 'RWS-101' });
+  b.instance('gas-collector', 'gcl-1', 'GCL-101 沼气集气总管', 344, 0, -125,
+    { stage: 'sludge', tag: 'GCL-101' });
+  b.instance('gas-flare', 'gf-1', 'GF-101 沼气安全火炬', 395, 0, -100,
+    { stage: 'sludge', tag: 'GF-101' });
+  b.instance('cake-conveyor', 'cvc-1', 'CV-101 泥饼输送机 1', 444, 0, -138,
+    { stage: 'sludge', tag: 'CV-101' });
+  b.instance('cake-conveyor', 'cvc-2', 'CV-102 泥饼输送机 2', 444, 0, -156,
+    { stage: 'sludge', tag: 'CV-102' });
+
   // 水系连接
   b.connect('gr-1', 'outlet', 'ps-1', 'inlet', 'GR-101 → PS-101 原水', 'screened-water', 1.0);
   b.connect('ps-1', 'outlet', 'lps-1', 'inlet', 'PS-101 → 提升泵组', 'screened-water', 1.0);
   b.connect('lps-1', 'outlet', 'gc-1', 'inlet', '提升泵组 → GC-101', 'lifted-water', 1.0);
+  b.connect('gc-1', 'outlet', 'dd-g', 'inlet',
+    'GC-101 → DD-001 沉砂出水', 'degritted-water', 1.0);
+  let filterInlet = 1;
   for (const train of trains) {
-    const { key, series } = train;
-    b.connect('gc-1', 'outlet', `pc-${key}`, 'inlet',
-      `GC-101 → PC-${series}01 沉砂出水`, 'degritted-water', 1.0);
+    const { key, series, z } = train;
+    b.connect('dd-g', `outlet-${key}`, `pc-${key}`, 'inlet',
+      `DD-001 → PC-${series}01 沉砂出水`, 'degritted-water', 1.0);
     b.connect(`pc-${key}`, 'outlet', `ae-${key}1`, 'inlet',
       `PC-${series}01 → AE-${series}01 进水`, 'settled-water', 0.9);
     b.connect(`ae-${key}1`, 'outlet', `ae-${key}2`, 'inlet',
       `AE-${series}01 → AE-${series}02 混合液`, 'mixed-liquor', 0.9);
     b.connect(`ae-${key}2`, 'outlet', `ae-${key}3`, 'inlet',
       `AE-${series}02 → AE-${series}03 混合液`, 'mixed-liquor', 0.9);
+    b.connect(`ae-${key}3`, 'outlet', `dd-${key}`, 'inlet',
+      `AE-${series}03 → DD-${series}01 混合液`, 'mixed-liquor', 0.9);
     for (let index = 1; index <= 3; index += 1) {
-      b.connect(`ae-${key}3`, 'outlet', `sc-${key}${index}`, 'inlet',
-        `AE-${series}03 → SC-${series}0${index} 混合液`, 'mixed-liquor', 0.9);
-      b.connect(`sc-${key}${index}`, 'outlet', 'fl-1', 'inlet',
-        `SC-${series}0${index} → FL-101 二沉出水`, 'secondary-effluent', 0.8);
+      b.connect(`dd-${key}`, `outlet-${index}`, `sc-${key}${index}`, 'inlet',
+        `DD-${series}01 → SC-${series}0${index} 混合液`, 'mixed-liquor', 0.9);
+      b.connect(`sc-${key}${index}`, 'outlet', 'fb-1', `inlet-${filterInlet}`,
+        `SC-${series}0${index} → FB-101 二沉出水`, 'secondary-effluent', 0.8);
+      b.connect(`sc-${key}${index}`, 'return-sludge',
+        'rws-1', `inlet-${series}${index}`,
+        `SC-${series}0${index} → RWS-101 回流污泥`,
+        'return-sludge', 0.3);
+      b.connect(`sc-${key}${index}`, 'waste-sludge',
+        'rws-1', `waste-in-${series}${index}`,
+        `SC-${series}0${index} → RWS-101 剩余污泥`,
+        'waste-sludge', 0.35);
+      filterInlet += 1;
     }
+    b.connect('rws-1', `outlet-${key}`, `ae-${key}2`, 'return-inlet',
+      `RWS-101 → AE-${series}02 回流污泥`, 'return-sludge', 0.3);
   }
+  b.connect('fb-1', 'outlet', 'fl-1', 'inlet',
+    'FB-101 → FL-101 二沉出水', 'secondary-effluent', 0.8);
   b.connect('fl-1', 'outlet', 'uv-1', 'inlet', 'FL-101 → UV-101 滤后水', 'filtered-water', 0.8);
 
   // 污泥线
-  b.connect('sc-a1', 'sludge', 'th-1', 'inlet', 'SC-101 → TH-101 剩余污泥', 'waste-sludge', 0.35);
-  b.connect('sc-b1', 'sludge', 'th-2', 'inlet', 'SC-201 → TH-102 剩余污泥', 'waste-sludge', 0.35);
+  b.connect('pc-a', 'primary-sludge', 'scw-1', 'inlet-a',
+    'PC-101 → SCW-101 初沉污泥', 'primary-sludge', 0.3);
+  b.connect('pc-b', 'primary-sludge', 'scw-1', 'inlet-b',
+    'PC-201 → SCW-101 初沉污泥', 'primary-sludge', 0.3);
+  b.connect('scw-1', 'outlet-a', 'th-1', 'primary-inlet',
+    'SCW-101 → TH-101 初沉污泥', 'primary-sludge', 0.3);
+  b.connect('scw-1', 'outlet-b', 'th-2', 'primary-inlet',
+    'SCW-101 → TH-102 初沉污泥', 'primary-sludge', 0.3);
+  b.connect('rws-1', 'waste-out-a', 'th-1', 'inlet',
+    'RWS-101 → TH-101 剩余污泥', 'waste-sludge', 0.35);
+  b.connect('rws-1', 'waste-out-b', 'th-2', 'inlet',
+    'RWS-101 → TH-102 剩余污泥', 'waste-sludge', 0.35);
   b.connect('th-1', 'outlet', 'she-1', 'sludge-in', 'TH-101 → HEX-101', 'thickened-sludge', 0.3);
   b.connect('she-1', 'sludge-out', 'dg-1', 'inlet', 'HEX-101 → DG-101', 'thickened-sludge', 0.3);
   b.connect('th-2', 'outlet', 'dg-2', 'inlet', 'TH-102 → DG-102 浓缩污泥', 'thickened-sludge', 0.3);
   b.connect('dg-1', 'outlet', 'dws-1', 'sludge-in', 'DG-101 → DW-101 脱水机 1', 'digested-sludge', 0.3);
-  b.connect('dws-1', 'cake-out', 'dw-1', 'cake-a', 'DW-101 脱水机 1 → 脱水机房', 'dewatered-sludge', 0.25);
   b.connect('dg-2', 'outlet', 'dws-2', 'sludge-in', 'DG-102 → DW-101 脱水机 2', 'digested-sludge', 0.3);
-  b.connect('dws-2', 'cake-out', 'dw-1', 'cake-b', 'DW-101 脱水机 2 → 脱水机房', 'dewatered-sludge', 0.25);
   b.connect('cds-1', 'chemical-out', 'fl-1', 'chemical-in', 'CHEM-101 → FL-101', 'chemical', 0.15);
 
+  // 沼气：两座消化池汇入集气总管，再进入气柜，末端接安全火炬。
+  b.connect('dg-1', 'gas-out', 'gcl-1', 'inlet-a',
+    'DG-101 → GCL-101 沼气', 'biogas', 0.35);
+  b.connect('dg-2', 'gas-out', 'gcl-1', 'inlet-b',
+    'DG-102 → GCL-101 沼气', 'biogas', 0.35);
+  b.connect('gcl-1', 'outlet', 'gh-1', 'gas-in',
+    'GCL-101 → GH-101 沼气', 'biogas', 0.35);
+  b.connect('gh-1', 'gas-out', 'gf-1', 'inlet',
+    'GH-101 → GF-101 安全放空', 'biogas', 0.35);
 
+  // 泥饼由输送机搬运，不生成圆管扫掠。
+  b.relate('dws-1', 'cvc-1', 'material-handling',
+    { service: 'DW-101 脱水机 1 → CV-101', medium: 'dewatered-cake' });
+  b.relate('cvc-1', 'dw-1', 'material-handling',
+    { service: 'CV-101 → DW-101 泥饼', medium: 'dewatered-cake' });
+  b.relate('dws-2', 'cvc-2', 'material-handling',
+    { service: 'DW-101 脱水机 2 → CV-102', medium: 'dewatered-cake' });
+  b.relate('cvc-2', 'dw-1', 'material-handling',
+    { service: 'CV-102 → DW-101 泥饼', medium: 'dewatered-cake' });
   // 接触阴影贴片已全部拆除：渲染器现在有真正的方向光阴影贴图，
   // 那些手贴的黑色薄片只会变成一圈圈假的黑边，还会把真实的投影盖住。
 
@@ -542,6 +750,18 @@ function buildPlan(projectId) {
   const validation = validateWastewaterPlan(plan);
   if (!validation.ok) {
     throw new Error(validation.issues.map(({ message }) => message).join('; '));
+  }
+  const processValidation = validateProcessGraph(plan, requiredProcessGraph);
+  if (!processValidation.ok) {
+    throw new Error(processValidation.issues
+      .map(({ code, message }) => `${code}: ${message}`)
+      .join('; '));
+  }
+  const portValidation = validateConnectionPorts(plan);
+  if (!portValidation.ok) {
+    throw new Error(portValidation.issues
+      .map(({ code, message }) => `${code}: ${message}`)
+      .join('; '));
   }
   return plan;
 }

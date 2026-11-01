@@ -182,7 +182,11 @@ function circularBasin(
 
 // 矩形曝气池：参数化。length / width / depth / wall 走表达式，
 // 导流墙、曝气支管、走道立柱按索引展开。
-function aerationBasin(b, prefix, { lanes = 3, airLines = 30, posts = 11 }) {
+function aerationBasin(
+  b,
+  prefix,
+  { lanes = 3, airLines = 30, posts = 11, mode = 'aerobic' } = {},
+) {
   const corridors = lanes;
   const parts = [];
   parts.push(b.part(`${prefix}-base`, b.box({ expr: 'length' }, 0.5, { expr: 'width' }), 0, 0.25, 0, 'concrete-old'));
@@ -232,16 +236,75 @@ function aerationBasin(b, prefix, { lanes = 3, airLines = 30, posts = 11 }) {
     parts.push(b.part(foamId, b.box({ expr: 'length / 4' }, 0.04, 0.7),
       { expr: '-length / 4' }, { expr: '0.5 + depth - 0.43' }, z, 'foam'));
   }
-  for (let index = 0; index < airLines; index += 1) {
-    const x = { expr: `-length / 2 + 2 + ${index} * (length - 4) / ${airLines - 1}` };
-    parts.push(b.part(`${prefix}-air-header-${index + 1}`, b.box(0.16, 0.16, { expr: 'width - 3' }),
-      x, 0.9, 0, 'pipe-air'));
-    for (let lane = 0; lane < corridors; lane += 1) {
-      const z = { expr: `(${lane} - 1) * width / 3` };
-      parts.push(b.part(`${prefix}-air-drop-${index + 1}-${lane + 1}`, b.cylinder(0.08, 2.8, 10),
-        x, 1.9, z, 'pipe-air'));
-      parts.push(b.part(`${prefix}-air-diffuser-${index + 1}-${lane + 1}`, b.cylinder(0.22, 0.12, 12),
-        x, 0.72, z, 'pipe-air'));
+  if (mode === 'aerobic') {
+    for (let index = 0; index < airLines; index += 1) {
+      const x = { expr: `-length / 2 + 2 + ${index} * (length - 4) / ${airLines - 1}` };
+      parts.push(b.part(`${prefix}-air-header-${index + 1}`, b.box(0.16, 0.16, { expr: 'width - 3' }),
+        x, 0.9, 0, 'pipe-air'));
+      for (let lane = 0; lane < corridors; lane += 1) {
+        const z = { expr: `(${lane} - 1) * width / 3` };
+        parts.push(b.part(`${prefix}-air-drop-${index + 1}-${lane + 1}`, b.cylinder(0.08, 2.8, 10),
+          x, 1.9, z, 'pipe-air'));
+        parts.push(b.part(`${prefix}-air-diffuser-${index + 1}-${lane + 1}`, b.cylinder(0.22, 0.12, 12),
+          x, 0.72, z, 'pipe-air'));
+      }
+    }
+  } else {
+    for (const lane of [-1, 0, 1]) {
+      parts.push(
+        b.part(
+          `${prefix}-mixer-draft-tube-${lane + 2}`,
+          b.cylinder(1.15, 4.6, 30),
+          { expr: 'length / 2 - 4' },
+          2.6,
+          { expr: `${lane} * width / 3` },
+          'steel',
+        ),
+        b.part(
+          `${prefix}-mixer-support-${lane + 2}`,
+          b.box(1.8, 0.16, 0.24),
+          { expr: 'length / 2 - 4' },
+          5.05,
+          { expr: `${lane} * width / 3` },
+          'steel-dark',
+        ),
+        b.part(
+          `${prefix}-mixer-column-${lane + 2}`,
+          b.cylinder(0.22, 4.2, 16),
+          { expr: 'length / 2 - 4' },
+          2.4,
+          { expr: `${lane} * width / 3` },
+          'stainless',
+        ),
+        b.part(
+          `${prefix}-mixer-propeller-${lane + 2}`,
+          b.cylinder(0.85, 0.32, 18),
+          { expr: 'length / 2 - 4' },
+          0.9,
+          { expr: `${lane} * width / 3` },
+          'steel-dark',
+        ),
+      );
+    }
+    parts.push(
+      b.part(`${prefix}-mixer-access-platform`, b.box(1.6, 0.12, 16),
+        { expr: 'length / 2 - 4' }, 5.1, 0, 'walkway'),
+      b.part(`${prefix}-mixer-access-rail-w`, b.box(0.08, 0.08, 16),
+        { expr: 'length / 2 - 4.85' }, 6.0, 0, 'steel-dark'),
+      b.part(`${prefix}-mixer-access-rail-e`, b.box(0.08, 0.08, 16),
+        { expr: 'length / 2 - 3.15' }, 6.0, 0, 'steel-dark'),
+    );
+    for (const [index, z] of [-8, -2.7, 2.7, 8].entries()) {
+      for (const side of [-1, 1]) {
+        parts.push(b.part(
+          `${prefix}-mixer-access-post-${index * 2 + (side > 0 ? 2 : 1)}`,
+          b.box(0.08, 0.95, 0.08),
+          { expr: `length / 2 - 4 + ${side} * 0.85` },
+          5.55,
+          z,
+          'steel-dark',
+        ));
+      }
     }
   }
 
