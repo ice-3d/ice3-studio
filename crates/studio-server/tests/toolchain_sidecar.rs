@@ -147,15 +147,19 @@ async fn preview_uses_the_current_project_after_a_project_switch() {
 }
 
 #[tokio::test]
-async fn incompatible_sidecar_disables_preview_but_not_document_reads() {
+async fn incompatible_sidecar_falls_back_to_kernel_preview_and_keeps_diagnostics() {
     let server = start_test_server(ServerConfig::for_tests("toolchain-incompatible")).await;
     install_sidecar(&server, "incompatible").await;
     let document = rpc(&server, "document.get", serde_json::json!({})).await;
     assert!(document.get("result").is_some());
+    // 优化器不可用时，Studio 用自己的 GLB 产物继续提供预览。
     let preview = rpc(&server, "export.runtimePreview", serde_json::json!({})).await;
+    assert!(preview["result"]["previewPath"].is_string(), "{preview}");
+    // 状态仍然如实上报，便于排查为什么没走优化路径。
+    let capabilities = rpc(&server, "system.capabilities", serde_json::json!({})).await;
     assert_eq!(
-        preview["error"]["diagnosticCode"],
-        "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE"
+        capabilities["result"]["toolchain"]["state"], "incompatible",
+        "{capabilities}"
     );
 }
 

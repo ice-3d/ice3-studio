@@ -252,6 +252,15 @@ ice3-studio serve --workspace <dir> --project <id>
 Viewer 按槽位取色、按 `hidden` 隐藏，不解析节点名、不做行业推断。早期清单用
 `equipment` 作为数组键，读取时兼容。
 
+## 预览与 toolchain
+
+预览由 Studio 自己生成：内核把文档求值成 GLB，写入 `cache/toolchain/preview/<revision>.glb`，
+Viewer 通过 `/previews/<revision>` 读取。
+
+外部 toolchain sidecar 是**可选优化器**，只提供压缩、分块与 LOD。未配置或版本不匹配时，
+Studio 直接使用自己的 GLB 产物；其它错误（协议错误、崩溃、被拒绝）仍会上报，因为它们
+通常说明输入本身有问题。`system.capabilities.toolchain` 始终如实反映 sidecar 状态。
+
 ## Viewer 能力
 
 `apps/viewer/src` 的实际模块：

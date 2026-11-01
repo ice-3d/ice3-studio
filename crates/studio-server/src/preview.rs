@@ -118,6 +118,17 @@ pub struct ScenePreviewContext {
     pub patch: ScenePatch,
 }
 
+/// 判断 toolchain 的失败是否只意味着"没有可用的优化器"。
+/// 未配置与版本不匹配时，Studio 用自己的产物即可；其余错误仍然暴露，
+/// 因为它们往往说明输入本身有问题，静默降级会掩盖真实故障。
+fn toolchain_is_optional(error: &studio_toolchain_client::ToolchainClientError) -> bool {
+    use studio_toolchain_client::ToolchainClientError;
+    matches!(
+        error,
+        ToolchainClientError::Unavailable { .. } | ToolchainClientError::Incompatible { .. }
+    )
+}
+
 pub struct PreviewAdapter {
     toolchain: Arc<ToolchainService>,
     preview_packets_enabled: bool,
@@ -188,15 +199,27 @@ impl PreviewAdapter {
             self.write_runtime_packet(document, &evaluated, project_dir, revision, backend, mode)?;
         }
         let source_path = source_export.source_path;
+        let source_digest = source_export.source_digest;
         let preview_path = preview_dir.join(format!("{revision:08}.glb"));
-        let asset = self
-            .toolchain
-            .preview(&source_path, &preview_path, asset_id)?;
+        // 内核本身就能产出 GLB；toolchain 只负责额外的压缩与分块优化。
+        // 未配置或版本不匹配时直接使用内核产物，外部进程因此不再是必需依赖。
+        let (resolved_asset_id, content_hash) =
+            match self
+                .toolchain
+                .preview(&source_path, &preview_path, asset_id)
+            {
+                Ok(asset) => (asset.asset_id, asset.content_hash),
+                Err(error) if toolchain_is_optional(&error) => {
+                    std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
+                    (asset_id.to_string(), source_digest.clone())
+                }
+                Err(error) => return Err(PreviewError::Toolchain(error)),
+            };
         Ok(RuntimePreview {
             revision,
-            asset_id: asset.asset_id,
-            source_digest: source_export.source_digest,
-            content_hash: asset.content_hash,
+            asset_id: resolved_asset_id,
+            source_digest,
+            content_hash,
             source_path,
             preview_path,
             packet_url: self
@@ -254,15 +277,23 @@ impl PreviewAdapter {
         let source_digest = format!("{:x}", Sha256::digest(&source));
         let source_path = candidate_dir.join(format!("{digest}-source.glb"));
         std::fs::write(&source_path, source).map_err(PreviewError::Io)?;
-        let asset = self.toolchain.preview(
+        // 与主预览一致：toolchain 只是可选优化器，缺失时使用内核产物。
+        let content_hash = match self.toolchain.preview(
             &source_path,
             &preview_path,
             &format!("candidate-{source_digest}"),
-        )?;
+        ) {
+            Ok(asset) => asset.content_hash,
+            Err(error) if toolchain_is_optional(&error) => {
+                std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
+                source_digest.clone()
+            }
+            Err(error) => return Err(PreviewError::Toolchain(error)),
+        };
         Ok(CandidatePreview {
             asset_id: digest.into(),
             digest: digest.into(),
-            content_hash: asset.content_hash,
+            content_hash,
             url: format!("/previews/candidates/{digest}"),
             packet_url: self
                 .preview_packets_enabled
