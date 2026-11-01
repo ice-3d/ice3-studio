@@ -411,6 +411,44 @@ test('site plan uses readable names and complete service routes', () => {
   assert.equal(instances.some(({ metadata }) => !metadata.stage), false);
 });
 
+test('asphalt surfaces stay inside the site boundary', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const materialNames = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name }) => [material_id, name]),
+  );
+  const site = plan.operations.find(({ type, name }) => (
+    type === 'node.create' && name === '场地（草坪）'
+  ));
+  assert.ok(site);
+  const siteBounds = {
+    minX: site.transform.translation.x - site.content.width / 2,
+    maxX: site.transform.translation.x + site.content.width / 2,
+    minZ: site.transform.translation.z - site.content.depth / 2,
+    maxZ: site.transform.translation.z + site.content.depth / 2,
+  };
+  const asphaltNames = new Set(['Asphalt road', 'New asphalt', 'Worn asphalt']);
+  const surfaces = plan.operations.filter(({ type, material_id: materialId }) => (
+    type === 'node.create' && asphaltNames.has(materialNames.get(materialId))
+  ));
+  assert.ok(surfaces.length > 0);
+
+  for (const surface of surfaces) {
+    const bounds = {
+      minX: surface.transform.translation.x - surface.content.width / 2,
+      maxX: surface.transform.translation.x + surface.content.width / 2,
+      minZ: surface.transform.translation.z - surface.content.depth / 2,
+      maxZ: surface.transform.translation.z + surface.content.depth / 2,
+    };
+    assert.ok(
+      bounds.minX >= siteBounds.minX && bounds.maxX <= siteBounds.maxX
+        && bounds.minZ >= siteBounds.minZ && bounds.maxZ <= siteBounds.maxZ,
+      `${surface.name} extends outside the site boundary`,
+    );
+  }
+});
+
 test('parallel treatment trains are related without being exact copies', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const instances = plan.operations.filter(({ type }) => type === 'instance.create');
