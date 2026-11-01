@@ -523,6 +523,152 @@ function facilityBuilding(b, prefix, { length = 26, width = 14, floors = 3, floo
   return parts;
 }
 
+
+// 污泥浓缩池：小型圆池，带中心搅拌与周边出水堰。
+function thickener(b, prefix, { radius = 8, depth = 4.4, segments = 24 }) {
+  const parts = [];
+  const top = 0.5 + depth;
+  parts.push(b.part(`${prefix}-base`, b.cylinder(radius, 0.45, segments * 2), 0, 0.22, 0, 'concrete'));
+  const wallR = radius - 0.2;
+  const arc = (TAU * wallR) / segments;
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * TAU;
+    parts.push(b.part(
+      `${prefix}-wall-${index + 1}`,
+      b.box(arc + 0.08, depth, 0.4),
+      Math.cos(angle) * wallR,
+      0.5 + depth / 2,
+      Math.sin(angle) * wallR,
+      'concrete',
+      { rotation: b.rotateY(-angle) },
+    ));
+  }
+  parts.push(b.part(`${prefix}-water`, b.cylinder(radius - 0.4, 0.05, segments * 2), 0, top - 0.5, 0, 'sludge'));
+
+  // 中心搅拌器
+  parts.push(b.part(`${prefix}-mixer-column`, b.cylinder(0.5, depth + 1.2, 16), 0, 0.5 + (depth + 1.2) / 2, 0, 'steel'));
+  parts.push(b.part(`${prefix}-mixer-drive`, b.cylinder(0.9, 0.8, 18), 0, top + 1.0, 0, 'steel'));
+  parts.push(b.part(`${prefix}-mixer-arm-a`, b.box(radius * 1.6, 0.18, 0.3), 0, 1.6, 0, 'steel'));
+  parts.push(b.part(`${prefix}-mixer-arm-b`, b.box(0.3, 0.18, radius * 1.6), 0, 1.6, 0, 'steel'));
+
+  // 池顶栏杆
+  const railArc = (TAU * radius) / segments;
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * TAU;
+    parts.push(b.part(
+      `${prefix}-rail-${index + 1}`,
+      b.box(railArc + 0.08, 0.07, 0.07),
+      Math.cos(angle) * radius,
+      top + 0.55,
+      Math.sin(angle) * radius,
+      'steel',
+      { rotation: b.rotateY(-angle) },
+    ));
+    if (index % 2 === 0) {
+      parts.push(b.part(
+        `${prefix}-post-${index + 1}`,
+        b.box(0.08, 1.05, 0.08),
+        Math.cos(angle) * radius,
+        top + 0.05,
+        Math.sin(angle) * radius,
+        'steel',
+      ));
+    }
+  }
+  return parts;
+}
+
+// 污泥消化池：圆柱池体，阶梯收顶，附搅拌与检修平台。
+function digester(b, prefix, { radius = 11, height = 17, segments = 28 }) {
+  const parts = [];
+  parts.push(b.part(`${prefix}-base`, b.cylinder(radius + 0.6, 0.8, segments * 2), 0, 0.4, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-shell`, b.cylinder(radius, height, segments * 2), 0, 0.8 + height / 2, 0, 'concrete'));
+
+  // 锥顶用三层递减圆柱近似
+  const top = 0.8 + height;
+  for (let step = 0; step < 3; step += 1) {
+    const scale = 0.82 - step * 0.24;
+    parts.push(b.part(
+      `${prefix}-dome-${step + 1}`,
+      b.cylinder(radius * scale, 1.5, segments * 2),
+      0,
+      top + 0.75 + step * 1.5,
+      0,
+      'concrete',
+    ));
+  }
+  parts.push(b.part(`${prefix}-roof-cap`, b.cylinder(1.6, 0.6, 20), 0, top + 5.0, 0, 'steel'));
+
+  // 检修平台与栏杆（沿池体中段）
+  const galleryY = top - 2.4;
+  const gallerySegments = segments;
+  const arc = (TAU * (radius + 0.7)) / gallerySegments;
+  for (let index = 0; index < gallerySegments; index += 1) {
+    const angle = (index / gallerySegments) * TAU;
+    parts.push(b.part(
+      `${prefix}-gallery-${index + 1}`,
+      b.box(arc + 0.1, 0.16, 1.1),
+      Math.cos(angle) * (radius + 0.2),
+      galleryY,
+      Math.sin(angle) * (radius + 0.2),
+      'walkway',
+      { rotation: b.rotateY(-angle) },
+    ));
+    parts.push(b.part(
+      `${prefix}-gallery-rail-${index + 1}`,
+      b.box(arc + 0.1, 0.07, 0.07),
+      Math.cos(angle) * (radius + 0.7),
+      galleryY + 0.95,
+      Math.sin(angle) * (radius + 0.7),
+      'steel',
+      { rotation: b.rotateY(-angle) },
+    ));
+  }
+
+  // 外壁爬梯
+  for (let index = 0; index < 16; index += 1) {
+    parts.push(b.part(
+      `${prefix}-ladder-${index + 1}`,
+      b.box(0.42, 0.05, 0.85),
+      radius + 0.35,
+      1.2 + index * 1.05,
+      0,
+      'steel',
+    ));
+  }
+  return parts;
+}
+
+// 脱水机房：厂房外加三台离心脱水机。
+function dewateringHouse(b, prefix, { length = 26, width = 15, height = 8 }) {
+  const parts = [];
+  parts.push(b.part(`${prefix}-slab`, b.box(length + 1, 0.6, width + 1), 0, 0.3, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-shell`, b.box(length, height, width), 0, 0.6 + height / 2, 0, 'facade'));
+  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-entrance`, b.box(4, 3.2, 0.14), -length / 4, 2.2, width / 2 + 0.08, 'glass'));
+  for (let floor = 0; floor < 2; floor += 1) {
+    parts.push(b.part(
+      `${prefix}-window-${floor + 1}`,
+      b.box(length * 0.6, 1.2, 0.12),
+      length / 5,
+      2.6 + floor * 2.4,
+      width / 2 + 0.06,
+      'glass',
+    ));
+  }
+
+  // 三台卧式离心机：机座 + 转鼓 + 电机
+  for (let index = 0; index < 3; index += 1) {
+    const x = -length / 3 + index * (length / 3);
+    parts.push(b.part(`${prefix}-centrifuge${index + 1}-base`, b.box(3.4, 0.9, 1.8), x, 1.05, 0, 'steel'));
+    parts.push(b.part(`${prefix}-centrifuge${index + 1}-drum`, b.cylinder(0.85, 3.2, 18), x, 2.6, 0, 'steel', {
+      rotation: [0, 0, Math.SQRT1_2, Math.SQRT1_2],
+    }));
+    parts.push(b.part(`${prefix}-centrifuge${index + 1}-motor`, b.box(1.2, 1.1, 1.2), x + 2.1, 2.0, 0, 'steel'));
+  }
+  return parts;
+}
+
 function buildPlan(projectId) {
   const b = createBuilder();
   b.material('concrete', 'Reinforced concrete', [0.62, 0.63, 0.61, 1]);
@@ -534,6 +680,7 @@ function buildPlan(projectId) {
   b.material('lamp', 'UV lamp', [0.62, 0.66, 0.86, 1]);
   b.material('facade', 'Facade panel', [0.72, 0.71, 0.68, 1]);
   b.material('glass', 'Glazing', [0.42, 0.52, 0.58, 0.55]);
+  b.material('sludge', 'Sludge', [0.28, 0.22, 0.16, 1]);
 
   // 进水段
   b.define('screening-channel', 'Screening channel', screeningChannel(b, 'gr', { length: 20, width: 6, depth: 2.6 }), [
@@ -572,6 +719,7 @@ function buildPlan(projectId) {
   b.define('secondary-clarifier', 'Secondary clarifier', secondaryParts, [
     b.port('inlet', 'sc-inlet-well', 0, 5.6, 0, vec(0, -1, 0), 'mixed-liquor', 0.9),
     b.port('outlet', 'sc-weir-1', 14.4, 4.9, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
+    b.port('sludge', 'sc-base', 0, 0.3, 0, vec(0, -1, 0), 'waste-sludge', 0.35),
   ]);
 
   b.define('filter-cell', 'Filtration cell', filterCell(b, 'fl', { length: 32, width: 26, depth: 3.6, cells: 4 }), [
@@ -582,42 +730,100 @@ function buildPlan(projectId) {
     b.port('inlet', 'uv-wall-w', -13, 2.2, 0, vec(1, 0, 0), 'filtered-water', 0.8),
     b.port('outlet', 'uv-wall-e', 13, 2.2, 0, vec(1, 0, 0), 'final-effluent', 0.8),
   ]);
+  b.define('thickener', 'Sludge thickener', thickener(b, 'th', { radius: 8, depth: 4.4, segments: 24 }), [
+    b.port('inlet', 'th-wall-1', 8, 3.0, 0, vec(-1, 0, 0), 'waste-sludge', 0.35),
+    b.port('outlet', 'th-mixer-column', 0, 3.6, 0, vec(0, -1, 0), 'thickened-sludge', 0.3),
+  ]);
+  b.define('digester', 'Anaerobic digester', digester(b, 'dg', { radius: 11, height: 17, segments: 28 }), [
+    b.port('inlet', 'dg-shell', 11, 4.0, 0, vec(-1, 0, 0), 'thickened-sludge', 0.3),
+    b.port('outlet', 'dg-shell', -11, 4.0, 0, vec(1, 0, 0), 'digested-sludge', 0.3),
+  ]);
+  b.define('dewatering-house', 'Dewatering house', dewateringHouse(b, 'dw', { length: 26, width: 15, height: 8 }), [
+    b.port('inlet-a', 'dw-shell', -13, 2.0, -3, vec(1, 0, 0), 'digested-sludge', 0.3),
+    b.port('inlet-b', 'dw-shell', -13, 2.0, 3, vec(1, 0, 0), 'digested-sludge', 0.3),
+  ]);
   b.define('blower-house', 'Blower house', facilityBuilding(b, 'bl', { length: 26, width: 14, floors: 1, floorHeight: 6 }), []);
   b.define('chemical-house', 'Chemical dosing', facilityBuilding(b, 'ch', { length: 20, width: 12, floors: 2, floorHeight: 3.8 }), []);
   b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), []);
 
-  // 总平面：沿工艺流向自西向东
+  // 总平面：两条并联系列共用进水段与深度处理，沿 x 轴自西向东。
   b.instance('screening-channel', 'gr-1', 'GR-101 进水格栅渠', -135, 0, 0, { stage: 'intake', tag: 'GR-101' });
   b.instance('pump-house', 'ps-1', 'PS-101 提升泵房', -105, 0, 0, { stage: 'intake', tag: 'PS-101' });
   b.instance('grit-chamber', 'gc-1', 'GC-101 曝气沉砂池', -70, 0, 0, { stage: 'intake', tag: 'GC-101' });
-  b.instance('primary-clarifier', 'pc-1', 'PC-101 初沉池', 0, 0, 0, { stage: 'primary', tag: 'PC-101' });
-  b.instance('aeration-feed', 'ae-1', 'AE-101 曝气池（厌氧段）', 45, 0, 0, { stage: 'biological', tag: 'AE-101' });
-  b.instance('aeration-mixed', 'ae-2', 'AE-102 曝气池（缺氧段）', 92, 0, 0, { stage: 'biological', tag: 'AE-102' });
-  b.instance('aeration-mixed', 'ae-3', 'AE-103 曝气池（好氧段）', 139, 0, 0, { stage: 'biological', tag: 'AE-103' });
-  b.instance('secondary-clarifier', 'sc-1', 'SC-101 二沉池', 200, 0, 0, { stage: 'secondary', tag: 'SC-101' });
-  b.instance('filter-cell', 'fl-1', 'FL-101 滤池', 258, 0, 0, { stage: 'tertiary', tag: 'FL-101' });
-  b.instance('disinfection-channel', 'uv-1', 'UV-101 紫外消毒渠', 302, 0, 0, { stage: 'tertiary', tag: 'UV-101' });
-  b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 60, 0, -34, { stage: 'auxiliary', tag: 'BLW-101' });
-  b.instance('chemical-house', 'ch-1', 'CHEM-101 加药间', 210, 0, -32, { stage: 'auxiliary', tag: 'CHEM-101' });
-  b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', -135, 0, -30, { stage: 'auxiliary', tag: 'CTRL-101' });
+
+  const trains = [
+    { key: 'a', series: '1', z: 20 },
+    { key: 'b', series: '2', z: -20 },
+  ];
+  for (const train of trains) {
+    const { key, series, z } = train;
+    b.instance('primary-clarifier', `pc-${key}`, `PC-${series}01 初沉池`, 0, 0, z, {
+      stage: 'primary', tag: `PC-${series}01`, train: `Train${series}`,
+    });
+    b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 45, 0, z, {
+      stage: 'biological', tag: `AE-${series}01`, train: `Train${series}`,
+    });
+    b.instance('aeration-mixed', `ae-${key}2`, `AE-${series}02 曝气池（缺氧段）`, 92, 0, z, {
+      stage: 'biological', tag: `AE-${series}02`, train: `Train${series}`,
+    });
+    b.instance('aeration-mixed', `ae-${key}3`, `AE-${series}03 曝气池（好氧段）`, 139, 0, z, {
+      stage: 'biological', tag: `AE-${series}03`, train: `Train${series}`,
+    });
+    for (let index = 1; index <= 3; index += 1) {
+      b.instance('secondary-clarifier', `sc-${key}${index}`,
+        `SC-${series}0${index} 二沉池`, 190 + (index - 1) * 45, 0, z, {
+          stage: 'secondary', tag: `SC-${series}0${index}`, train: `Train${series}`,
+        });
+    }
+  }
+
+  b.instance('filter-cell', 'fl-1', 'FL-101 滤池', 350, 0, 0, { stage: 'tertiary', tag: 'FL-101' });
+  b.instance('disinfection-channel', 'uv-1', 'UV-101 紫外消毒渠', 395, 0, 0, { stage: 'tertiary', tag: 'UV-101' });
+  b.instance('thickener', 'th-1', 'TH-101 污泥浓缩池', 250, 0, 62, { stage: 'sludge', tag: 'TH-101' });
+  b.instance('thickener', 'th-2', 'TH-102 污泥浓缩池', 288, 0, 62, { stage: 'sludge', tag: 'TH-102' });
+  b.instance('digester', 'dg-1', 'DG-101 消化池', 340, 0, 62, { stage: 'sludge', tag: 'DG-101' });
+  b.instance('digester', 'dg-2', 'DG-102 消化池', 340, 0, 102, { stage: 'sludge', tag: 'DG-102' });
+  b.instance('dewatering-house', 'dw-1', 'DW-101 脱水机房', 405, 0, 78, { stage: 'sludge', tag: 'DW-101' });
+  b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', -135, 0, -62, { stage: 'auxiliary', tag: 'CTRL-101' });
+  b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 92, 0, -62, { stage: 'auxiliary', tag: 'BLW-101' });
+  b.instance('chemical-house', 'ch-1', 'CHEM-101 加药间', 350, 0, -55, { stage: 'auxiliary', tag: 'CHEM-101' });
 
   b.connect('gr-1', 'outlet', 'ps-1', 'inlet', 'GR-101 → PS-101 原水', 'screened-water', 1.0);
   b.connect('ps-1', 'outlet', 'gc-1', 'inlet', 'PS-101 → GC-101 提升水', 'lifted-water', 1.0);
-  b.connect('gc-1', 'outlet', 'pc-1', 'inlet', 'GC-101 → PC-101 沉砂出水', 'degritted-water', 1.0);
-  b.connect('pc-1', 'outlet', 'ae-1', 'inlet', 'PC-101 → AE-101 进水', 'settled-water', 0.9);
-  b.connect('ae-1', 'outlet', 'ae-2', 'inlet', 'AE-101 → AE-102 混合液', 'mixed-liquor', 0.9);
-  b.connect('ae-2', 'outlet', 'ae-3', 'inlet', 'AE-102 → AE-103 混合液', 'mixed-liquor', 0.9);
-  b.connect('ae-3', 'outlet', 'sc-1', 'inlet', 'AE-103 → SC-101 混合液', 'mixed-liquor', 0.9);
-  b.connect('sc-1', 'outlet', 'fl-1', 'inlet', 'SC-101 → FL-101 二沉出水', 'secondary-effluent', 0.8);
+  for (const train of trains) {
+    const { key, series } = train;
+    b.connect('gc-1', 'outlet', `pc-${key}`, 'inlet',
+      `GC-101 → PC-${series}01 沉砂出水`, 'degritted-water', 1.0);
+    b.connect(`pc-${key}`, 'outlet', `ae-${key}1`, 'inlet',
+      `PC-${series}01 → AE-${series}01 进水`, 'settled-water', 0.9);
+    b.connect(`ae-${key}1`, 'outlet', `ae-${key}2`, 'inlet',
+      `AE-${series}01 → AE-${series}02 混合液`, 'mixed-liquor', 0.9);
+    b.connect(`ae-${key}2`, 'outlet', `ae-${key}3`, 'inlet',
+      `AE-${series}02 → AE-${series}03 混合液`, 'mixed-liquor', 0.9);
+    for (let index = 1; index <= 3; index += 1) {
+      b.connect(`ae-${key}3`, 'outlet', `sc-${key}${index}`, 'inlet',
+        `AE-${series}03 → SC-${series}0${index} 混合液`, 'mixed-liquor', 0.9);
+      b.connect(`sc-${key}${index}`, 'outlet', 'fl-1', 'inlet',
+        `SC-${series}0${index} → FL-101 二沉出水`, 'secondary-effluent', 0.8);
+    }
+  }
   b.connect('fl-1', 'outlet', 'uv-1', 'inlet', 'FL-101 → UV-101 滤后水', 'filtered-water', 0.8);
+
+  // 污泥线：剩余污泥 → 浓缩 → 消化 → 脱水
+  b.connect('sc-a1', 'sludge', 'th-1', 'inlet', 'SC-101 → TH-101 剩余污泥', 'waste-sludge', 0.35);
+  b.connect('sc-b1', 'sludge', 'th-2', 'inlet', 'SC-201 → TH-102 剩余污泥', 'waste-sludge', 0.35);
+  b.connect('th-1', 'outlet', 'dg-1', 'inlet', 'TH-101 → DG-101 浓缩污泥', 'thickened-sludge', 0.3);
+  b.connect('th-2', 'outlet', 'dg-2', 'inlet', 'TH-102 → DG-102 浓缩污泥', 'thickened-sludge', 0.3);
+  b.connect('dg-1', 'outlet', 'dw-1', 'inlet-a', 'DG-101 → DW-101 消化污泥', 'digested-sludge', 0.3);
+  b.connect('dg-2', 'outlet', 'dw-1', 'inlet-b', 'DG-102 → DW-101 消化污泥', 'digested-sludge', 0.3);
 
   return {
     projectId,
     operations: b.state.ops,
     summary: {
       components: b.state.components.size,
-      instances: 11,
-      connections: 9,
+      instances: 21,
+      connections: 24,
       materials: b.state.materials.size,
     },
   };
