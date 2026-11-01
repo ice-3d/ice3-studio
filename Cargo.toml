@@ -3,6 +3,7 @@ members = [
     "crates/studio-assets",
     "crates/studio-core",
     "crates/studio-project",
+    "crates/studio-pipeline",
     "crates/studio-server",
     "crates/studio-cli",
     "crates/studio-toolchain-client",

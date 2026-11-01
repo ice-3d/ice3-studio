@@ -2074,6 +2074,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "studio-pipeline"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "serde",
+ "serde_json",
+ "studio-assets",
+ "studio-core",
+ "thiserror",
+]
+
+[[package]]
 name = "studio-project"
 version = "0.1.0"
 dependencies = [
