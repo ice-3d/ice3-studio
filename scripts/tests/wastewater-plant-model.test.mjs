@@ -481,6 +481,59 @@ test('asphalt surfaces stay inside the site boundary', () => {
   }
 });
 
+test('all road surfaces use the same twelve metre carriageway width', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const roads = plan.operations.filter(({ type, name }) => (
+    type === 'node.create' && name.startsWith('道路')
+  ));
+  assert.equal(roads.length, 7);
+  for (const road of roads) {
+    assert.equal(
+      Math.min(road.content.width, road.content.depth),
+      12,
+      road.name,
+    );
+  }
+});
+
+test('the road network forms one connected surface', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const roads = plan.operations
+    .filter(({ type, name }) => (
+      type === 'node.create' && name.startsWith('道路')
+    ))
+    .map(({ name, transform, content }) => ({
+      name,
+      minX: transform.translation.x - content.width / 2,
+      maxX: transform.translation.x + content.width / 2,
+      minZ: transform.translation.z - content.depth / 2,
+      maxZ: transform.translation.z + content.depth / 2,
+    }));
+  const connected = new Set([roads[0].name]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const road of roads) {
+      if (connected.has(road.name)) continue;
+      const touches = roads.some((candidate) => (
+        connected.has(candidate.name)
+        && road.minX < candidate.maxX
+        && road.maxX > candidate.minX
+        && road.minZ < candidate.maxZ
+        && road.maxZ > candidate.minZ
+      ));
+      if (touches) {
+        connected.add(road.name);
+        changed = true;
+      }
+    }
+  }
+  assert.deepEqual(
+    roads.filter(({ name }) => !connected.has(name)).map(({ name }) => name),
+    [],
+  );
+});
+
 test('parallel treatment trains are related without being exact copies', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const instances = plan.operations.filter(({ type }) => type === 'instance.create');

@@ -426,10 +426,10 @@ function buildPlan(projectId) {
   b.ground('道路（西）', -10, 2, -185, 185, 'asphalt-new', -0.03);
   b.ground('道路（东）', 598, 610, -185, 185, 'asphalt-worn', -0.03);
   // 横向支路：分隔预处理 / 生化 / 二沉三个区块。
-  b.ground('道路（支路一）', 120, 130, -160, 160, 'asphalt-worn', -0.03);
-  b.ground('道路（支路二）', 355, 365, -160, 160, 'asphalt-new', -0.03);
+  b.ground('道路（支路一）', 119, 131, -180, 180, 'asphalt-worn', -0.03);
+  b.ground('道路（支路二）', 354, 366, -180, 180, 'asphalt-new', -0.03);
   // 入口引道：从南主干道穿进厂内，直抵中控楼前的广场。
-  b.ground('道路（入口引道）', 23, 37, 140, 180, 'asphalt-new', -0.03);
+  b.ground('道路（入口引道）', 24, 36, 140, 180, 'asphalt-new', -0.03);
   b.ground('广场（入口）', 6, 60, 140, 168, 'paving', -0.04);
   b.ground('停车场', 44, 92, 150, 166, 'asphalt-worn', -0.03);
 
