@@ -6,7 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+glam.workspace = true
 serde_json.workspace = true
+studio-assets = { path = "../studio-assets" }
 thiserror.workspace = true
 
 [dev-dependencies]

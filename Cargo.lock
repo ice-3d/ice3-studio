@@ -2099,7 +2099,9 @@ dependencies = [
 name = "studio-import"
 version = "0.1.0"
 dependencies = [
+ "glam",
  "serde_json",
+ "studio-assets",
  "tempfile",
  "thiserror",
 ]
