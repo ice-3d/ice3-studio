@@ -5,7 +5,7 @@
 // 矩形池带导流墙、曝气支管、检修走道。端口声明介质与管径，管道由连接意图路由。
 
 import { spawn } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -386,14 +386,21 @@ function waitForServer(server) {
 
 async function main() {
   const root = resolve('.');
-  const workspace = await mkdtemp(join(tmpdir(), 'ice3-wwtp-built-'));
-  const plan = buildPlan('wwtp-built');
+  // 传入 --workspace 时写入持久工程目录，否则用一次性临时目录。
+  const explicitWorkspace = process.argv.includes('--workspace')
+    ? resolve(process.argv[process.argv.indexOf('--workspace') + 1])
+    : null;
+  const workspace = explicitWorkspace ?? await mkdtemp(join(tmpdir(), 'ice3-wwtp-built-'));
+  if (explicitWorkspace) {
+    await mkdir(explicitWorkspace, { recursive: true });
+  }
+  const plan = buildPlan('wastewater-plant');
   const server = spawn(
     resolve('target/release/studio-cli'),
     ['serve', '--workspace', workspace, '--project', 'wwtp-bootstrap', '--port', '0', '--write-mode', 'autonomous'],
     {
       cwd: root,
-      env: { ...process.env, STUDIO_SESSION_TOKEN: 'agent-wwtp-built', STUDIO_VIEWER_DIR: resolve('apps/viewer/dist') },
+      env: { ...process.env, STUDIO_SESSION_TOKEN: 'agent-wastewater-plant', STUDIO_VIEWER_DIR: resolve('apps/viewer/dist') },
       stdio: ['ignore', 'pipe', 'inherit'],
     },
   );
@@ -417,7 +424,7 @@ async function main() {
     const committed = await rpc('document.apply', {
       expectedRevision: 0,
       dryRun: false,
-      idempotencyKey: 'wwtp-built-1',
+      idempotencyKey: 'wastewater-plant-1',
       operations: plan.operations,
     });
     const stats = await rpc('evaluation.stats');
