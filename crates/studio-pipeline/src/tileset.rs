@@ -369,12 +369,20 @@ fn create_coarse_overrides(
         .iter()
         .map(|geometry| geometry.indices.len() as u64 / 3)
         .collect::<Vec<_>>();
-    let targets = super::lod::allocate_lod_targets(
-        &source_triangles,
-        profile.lod_ratio,
-        profile.lod_max_triangles,
-        profile.lod_min_unit_triangles,
-    );
+    let targets = match profile.lod_allocation {
+        super::lod::LodAllocationMode::Proportional => super::lod::allocate_lod_targets(
+            &source_triangles,
+            profile.lod_ratio,
+            profile.lod_max_triangles,
+            profile.lod_min_unit_triangles,
+        ),
+        super::lod::LodAllocationMode::Adaptive => super::lod::allocate_adaptive_targets(
+            &source_triangles,
+            profile.lod_ratio,
+            profile.lod_max_triangles,
+            profile.lod_min_unit_triangles,
+        ),
+    };
     let mut output = BTreeMap::new();
     for ((unit, mut geometry), target) in units.iter().zip(geometries).zip(targets) {
         if profile.semantic_proxy == super::lod::SemanticProxyMode::Auto
@@ -484,6 +492,7 @@ fn read_unit_geometry(
             None => (0..primitive_positions.len() as u32 / 3).collect(),
         };
         positions.extend(primitive_positions);
+        let primitive_triangle_count = primitive_indices.len() / 3;
         indices.extend(
             primitive_indices
                 .into_iter()
@@ -494,7 +503,7 @@ fn read_unit_geometry(
             .and_then(serde_json::Value::as_u64)
             .and_then(|value| usize::try_from(value).ok())
         {
-            *material_weights.entry(material).or_default() += indices.len() / 3;
+            *material_weights.entry(material).or_default() += primitive_triangle_count;
         }
     }
     Ok(UnitGeometry {

@@ -4,7 +4,8 @@ use common::{fixture_source, mesh, mesh_with_material, node};
 use serde_json::json;
 use studio_pipeline::lod::{
     CoarseChunkUnit, FitSamples, SemanticProxyMode, Simplifier, SimplifyOptions,
-    create_coarse_chunks, create_semantic_proxy, simplify_geometry,
+    allocate_adaptive_targets, allocate_lod_targets, create_coarse_chunks, create_semantic_proxy,
+    simplify_geometry,
 };
 use studio_pipeline::{AssetProfile, build_with_profile};
 
@@ -151,6 +152,30 @@ fn coarse_chunk_planning_respects_the_byte_budget() {
             .iter()
             .filter(|chunk| !chunk.oversized)
             .all(|chunk| chunk.bytes <= 5)
+    );
+}
+
+#[test]
+fn adaptive_allocation_uses_more_of_the_device_budget() {
+    let source = [10_000, 20_000, 40_000, 80_000];
+    let proportional = allocate_lod_targets(&source, 0.5, 120_000, 8);
+    let adaptive = allocate_adaptive_targets(&source, 0.5, 120_000, 8);
+    assert!(
+        adaptive
+            .iter()
+            .map(|target| target.target_triangles)
+            .sum::<u64>()
+            > proportional
+                .iter()
+                .map(|target| target.target_triangles)
+                .sum::<u64>()
+    );
+    assert!(
+        adaptive
+            .iter()
+            .map(|target| target.target_triangles)
+            .sum::<u64>()
+            <= 120_000
     );
 }
 

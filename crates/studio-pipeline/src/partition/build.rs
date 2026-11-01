@@ -655,6 +655,24 @@ impl PartWriter {
             "max": max
         }));
         self.align();
+        let normals = compute_normals(&geometry.positions, &geometry.indices);
+        let normal_view = self.buffer_views.len();
+        let normal_bytes = bytemuck::cast_slice(&normals);
+        self.buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": self.binary.len(),
+            "byteLength": normal_bytes.len(),
+            "target": 34962
+        }));
+        self.binary.extend_from_slice(normal_bytes);
+        let normal_accessor = self.accessors.len();
+        self.accessors.push(json!({
+            "bufferView": normal_view,
+            "componentType": 5126,
+            "count": normals.len() / 3,
+            "type": "VEC3"
+        }));
+        self.align();
         let index_view = self.buffer_views.len();
         let index_bytes = bytemuck::cast_slice(&geometry.indices);
         self.buffer_views.push(json!({
@@ -672,7 +690,10 @@ impl PartWriter {
             "type": "SCALAR"
         }));
         let mut primitive = json!({
-            "attributes": {"POSITION": position_accessor},
+            "attributes": {
+                "POSITION": position_accessor,
+                "NORMAL": normal_accessor
+            },
             "indices": index_accessor,
             "mode": 4
         });
@@ -1016,6 +1037,37 @@ impl PartWriter {
             &self.binary,
         )
     }
+}
+
+fn compute_normals(positions: &[f32], indices: &[u32]) -> Vec<f32> {
+    let mut normals = vec![glam::Vec3::ZERO; positions.len() / 3];
+    for triangle in indices.as_chunks::<3>().0 {
+        let [a, b, c] = triangle.map(|index| {
+            let offset = index as usize * 3;
+            glam::Vec3::new(
+                positions[offset],
+                positions[offset + 1],
+                positions[offset + 2],
+            )
+        });
+        let normal = (b - a).cross(c - a);
+        if normal.length_squared() <= f32::EPSILON {
+            continue;
+        }
+        normals[triangle[0] as usize] += normal;
+        normals[triangle[1] as usize] += normal;
+        normals[triangle[2] as usize] += normal;
+    }
+    normals
+        .into_iter()
+        .flat_map(|normal| {
+            if normal.length_squared() <= f32::EPSILON {
+                glam::Vec3::Z.to_array()
+            } else {
+                normal.normalize().to_array()
+            }
+        })
+        .collect()
 }
 
 type SourceNodeMap = BTreeMap<String, (usize, Map<String, Value>)>;

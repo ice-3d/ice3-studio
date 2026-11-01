@@ -39,21 +39,61 @@ pub fn allocate_lod_targets(
         .map(|target| target.target_triangles)
         .sum::<u64>();
     while total > maximum_triangles {
-        let Some((index, _)) = targets
+        let excess = total - maximum_triangles;
+        let adjustable = targets
             .iter()
             .enumerate()
             .filter(|(_, target)| target.target_triangles > target.minimum_triangles)
-            .max_by_key(|(index, target)| {
-                (
-                    target.target_triangles - target.minimum_triangles,
-                    usize::MAX - *index,
-                )
-            })
-        else {
+            .map(|(index, target)| (index, target.target_triangles - target.minimum_triangles))
+            .collect::<Vec<_>>();
+        if adjustable.is_empty() {
             break;
-        };
-        targets[index].target_triangles -= 1;
-        total -= 1;
+        }
+        let step = excess.div_ceil(adjustable.len() as u64).max(1);
+        for (index, available) in adjustable {
+            if total <= maximum_triangles {
+                break;
+            }
+            let reduction = step.min(available);
+            targets[index].target_triangles -= reduction;
+            total -= reduction;
+        }
+    }
+    targets
+}
+
+pub fn allocate_adaptive_targets(
+    source_triangles: &[u64],
+    ratio: f64,
+    maximum_triangles: u64,
+    minimum_per_unit: u64,
+) -> Vec<LodTarget> {
+    let mut targets =
+        allocate_lod_targets(source_triangles, ratio, maximum_triangles, minimum_per_unit);
+    let total = targets
+        .iter()
+        .map(|target| target.target_triangles)
+        .sum::<u64>();
+    if total >= maximum_triangles {
+        return targets;
+    }
+    let weights = targets
+        .iter()
+        .zip(source_triangles)
+        .map(|(target, source)| source.saturating_sub(target.target_triangles) + 1)
+        .collect::<Vec<_>>();
+    let weight_total = weights.iter().sum::<u64>();
+    let mut remaining = maximum_triangles - total;
+    for (index, target) in targets.iter_mut().enumerate() {
+        let share = remaining
+            .saturating_mul(weights[index])
+            .checked_div(weight_total)
+            .unwrap_or(0);
+        let addition = share
+            .min(source_triangles[index].saturating_sub(target.target_triangles))
+            .min(remaining);
+        target.target_triangles += addition;
+        remaining -= addition;
     }
     targets
 }
