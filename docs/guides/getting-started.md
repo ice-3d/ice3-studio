@@ -24,22 +24,21 @@ npm --prefix apps/viewer ci
 
 ## Start the Server
 
-The default development scene is the full wastewater reference plant: 204 semantically bound
-equipment items over 5.76M effective triangles, streamed from a layered reference asset.
+The default development scene is selected from `projects/*/project.json` by file modification
+time. When timestamps match, the higher `currentRevision` wins. The current default is
+`projects/wastewater-plant`.
 
 ```bash
 npm --prefix apps/viewer run build   # once, and after Viewer changes
 npm run dev
 ```
 
-`npm run dev` starts `studio-cli` on `127.0.0.1:8149` with project `wwtp-reference`. The first
-run registers the reference asset and commits the 204 bindings (about two minutes); every later
-run reuses the stored project and is ready in about two seconds. The command prints the Viewer
-URL and keeps serving until `Ctrl+C`.
+`npm run dev` starts `studio-cli` on `127.0.0.1:8149` with the newest project. The command
+prints the selected project, revision, and Viewer URL, then keeps serving until `Ctrl+C`.
 
-Open the printed URL to load the scene. The URL carries the agent token, and the approval token
-is `approval-wwtp-reference`. Set `ICE3_WWTP_PROJECT_ID` to serve an isolated copy of the scene,
-and `STUDIO_ONE_SHOT=1` to run the example once without staying in the foreground.
+Open the printed URL to load the scene. The default session token is `wastewater-review`.
+Set `STUDIO_PROJECTS_DIR` to scan a different projects root, or `STUDIO_PORT` to change the
+listening port.
 
 ### Small smoke fixture
 

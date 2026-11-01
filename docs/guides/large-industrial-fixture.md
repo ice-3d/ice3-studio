@@ -29,28 +29,11 @@
 
 设备名称和区域只存在于 fixture metadata。Core 和公开 Operation 保持通用。
 
-## 高保真参考资产
+## 当前默认场景
 
-程序化 fixture 用于 API、拓扑和共享几何回归；它不应作为最终视觉精度基准。厂区视觉
-验收使用工作区中的真实 Prepared GLB 和分层 Tileset，通过 Reference Asset API 流式
-加载完整几何，同时创建 204 个可被 Agent 搜索、选择和局部编辑的语义绑定。
-
-```bash
-npm run dev
-```
-
-默认入口即该场景，启动后前台常驻，`Ctrl+C` 停止。首次运行注册资产并提交绑定（约两
-分钟），之后复用已存项目（约两秒）。只需跑一次并退出时用
-`STUDIO_ONE_SHOT=1 npm run dev`；`npm run example:wwtp-reference` 是同一脚本的等价入口。
-设置 `ICE3_WWTP_PROJECT_ID` 可以启动隔离副本而不是复用默认项目。
-
-该命令会启动本地 Studio、注册原始资产、创建语义绑定，并由 Viewer 按实体角色应用
-展示材质，最后输出可手动检查的 URL。当前参考资产包含 1,761 个源节点、204 个设备绑定、75 种材质和
-`5,757,962` 个有效三角形。高保真展示使用带完整节点层级的 Prepared GLB 模式，让
-设备颜色可以沿子树传递，而不是被 Render Batch 合并成少数共享材质。Viewer 会保留
-原始材质色相，并将背景结构亮度向白色混合 42%；泵、风机、格栅、初沉/二沉池、生化池、
-消化池、深度处理和加药设备分别使用可辨识的工业配色。跨设备共享的几何保持中性色，
-避免局部改色扩散成整片色块。
+程序化 fixture 只用于 API、拓扑和共享几何回归。`npm run dev` 默认打开 `projects/`
+中修改时间最新的工程，当前为 `wastewater-plant`；需要单独运行本 fixture 时使用
+`npm run fixture:large-industrial`。
 
 ### 配色依据
 

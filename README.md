@@ -66,15 +66,16 @@ Web Viewer 是工具的界面层，只消费公开 API，没有私有修改路�
 - 变更审阅（候选 diff、诊断、批准）
 - 诊断与 revision 事件
 
-## 两个参考场景
+## 当前场景与测试资产
 
 | 场景 | 规模 | 用于 |
 |---|---|---|
-| 程序化厂区 fixture | 208 个主对象、560 条操作、6 条工艺线、859,236 有效三角形、1,016 唯一网格、99 条连接、0 悬空端口 | 契约测试与性能门禁 |
-| 真实引用资产 | 251 MB 源 → 124 MB 预处理、204 个语义绑定、5,757,962 有效三角形、1,632 唯一网格、75 材质、Document 仅 70 KB | 默认开发场景与工具真实体验 |
+| 污水处理厂工程 | 681 个源节点、166 个实例、63 条连接、355,900 有效三角形 | 默认开发、近景审查与 Studio 建模能力验证 |
+| 程序化大型工业 fixture | 208 个主对象、560 条操作、6 条工艺线、938,964 有效三角形、99 条连接 | 通用大场景契约测试与性能门禁 |
+| `wastewater-mini` | 11 个源节点 | 启动、API 和端到端契约测试 |
 
-引用资产不进 Document：几何分层流式加载，Document 只保留稳定选择 ID 的绑定层，所以
-改一个设备不会重写 251 MB。
+Studio 启动时扫描 `projects/*/project.json`，默认打开修改时间最新的工程；时间相同时
+选择 `currentRevision` 更高的工程。
 
 ## 快速开始
 
@@ -83,13 +84,13 @@ npm --prefix apps/viewer ci
 npm run dev
 ```
 
-首次运行注册引用资产并提交 204 条绑定（约两分钟），之后每次启动复用已存项目（约两秒）。
-命令打印 Viewer URL 并持续服务，`Ctrl+C` 停止。
+`npm run dev` 自动选择 `projects/` 中的最新工程，当前为 `wastewater-plant`。命令打印
+Viewer URL 并持续服务，`Ctrl+C` 停止。
 
 完整验证与基准：
 
 ```bash
-npm run verify      # 17 道门禁：fmt / clippy / test / schema / fixture / viewer / E2E / audit
+npm run verify      # 18 道门禁：fmt / clippy / test / schema / fixture / viewer / E2E / audit
 npm run benchmark
 npm run benchmark:gpu
 ```
@@ -107,7 +108,7 @@ E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
 可打包成单文件 `.ice3`（未压缩 tar，`tar -tf` 可直接查看）：
 
 ```bash
-cargo run -p studio-cli -- pack --project ./wwtp-reference --output wwtp.ice3
+cargo run -p studio-cli -- pack --project ./projects/wastewater-plant --output wwtp.ice3
 cargo run -p studio-cli -- unpack wwtp.ice3 --into ./restored
 ```
 

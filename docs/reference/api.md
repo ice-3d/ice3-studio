@@ -170,16 +170,6 @@ Viewer sessions request the small Document, descriptor, and 100-item binding pag
 `ICETilesetLoader` streams coarse-to-fine tiles; imported selection IDs map back to Studio node
 IDs, and the previous ready scene remains mounted until a replacement coarse tile is available.
 
-Reproduce the real-asset gate with:
-
-```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH \
-  node scripts/run-large-reference-acceptance.mjs
-```
-
-The command writes `output/large-reference-acceptance.json`, an initial canvas screenshot, and a
-rotated/zoomed selection screenshot beside it.
-
 ## Transaction Contract
 
 ```json

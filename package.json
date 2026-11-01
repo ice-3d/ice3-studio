@@ -7,14 +7,15 @@
     "npm": ">=11"
   },
   "scripts": {
-    "dev": "node scripts/run-wwtp-reference-example.mjs",
+    "dev": "node scripts/run-latest-project.mjs",
     "dev:mini": "STUDIO_VIEWER_DIR=apps/viewer/dist cargo run --release -p studio-cli -- serve --workspace . --project wastewater-mini --fixture fixtures/wastewater-mini --native-gpu cpu",
     "benchmark": "node benchmarks/studio-mvp.mjs",
     "benchmark:gpu": "node benchmarks/native-gpu.mjs",
     "benchmark:gpu-scene": "node benchmarks/gpu-scene-session.mjs",
     "benchmark:large-industrial": "node benchmarks/large-industrial-scene.mjs",
+    "asset:visual-review": "node scripts/wastewater-visual-review.mjs",
+    "asset:capabilities": "node scripts/wastewater-capability-report.mjs",
     "fixture:large-industrial": "node scripts/run-large-industrial-fixture.mjs",
-    "example:wwtp-reference": "node scripts/run-wwtp-reference-example.mjs",
     "toolchain:stage": "node scripts/stage-toolchain.mjs",
     "toolchain:verify": "node scripts/verify-toolchain-bundle.mjs",
     "verify": "node scripts/verify.mjs"

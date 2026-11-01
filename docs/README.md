@@ -13,7 +13,7 @@
 | `ICE3-STUDIO-RM-001` | [Studio README](../README.md) | Implemented | 项目定位、当前状态和文档入口 |
 | `ICE3-STUDIO-GUIDE-START-001` | [Getting Started](guides/getting-started.md) | Implemented | 本地启动、API 工作流、验证和性能基线 |
 | `ICE3-STUDIO-GUIDE-001` | [污水模块 AI 验收夹具](guides/wastewater-fixture.md) | Implemented | `wastewater-mini` 契约 fixture 的确定性 AI 建模计划 |
-| `ICE3-STUDIO-GUIDE-002` | [Large Industrial Fixture](guides/large-industrial-fixture.md) | Implemented | 576 万三角形参考资产、204 个语义绑定及程序化 API fixture |
+| `ICE3-STUDIO-GUIDE-002` | [Large Industrial Fixture](guides/large-industrial-fixture.md) | Implemented | 程序化大型工业场景、共享几何、拓扑与性能 fixture |
 | `ICE3-STUDIO-ARC-001` | [Architecture](architecture.md) | Implemented | 组件边界、真源、安全策略与尚未实现的能力清单 |
 | `ICE3-STUDIO-REF-CAP-001` | [能力清单](reference/capabilities.md) | Implemented | 39 个方法、27 种 Operation、7 个 ChangeSet 状态、诊断码、CLI 与环境变量的代码镜像 |
 | `ICE3-STUDIO-REF-API-001` | [API Reference](reference/api.md) | Implemented | JSON-RPC、Operation、revision 和导出契约 |
