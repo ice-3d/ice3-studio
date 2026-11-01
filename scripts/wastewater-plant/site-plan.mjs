@@ -129,9 +129,9 @@ function buildPlan(projectId) {
   b.material('steel-dark', 'Dark steel', srgb('#62717a'));
   b.material('stainless', 'Stainless steel', srgb('#aeb7ba'));
   b.material('roof-light', 'Light metal roof', srgb('#c7ced1'));
-  b.material('water-anoxic', 'Anoxic water', srgb('#4d7c83'));
-  b.material('water-aerobic', 'Aerobic water', srgb('#5799a4'));
-  b.material('water-clarified', 'Clarified water', srgb('#70a8b2'));
+  b.material('water-anoxic', 'Anoxic water', srgb('#687a78'));
+  b.material('water-aerobic', 'Aerobic water', srgb('#738b84'));
+  b.material('water-clarified', 'Clarified water', srgb('#839c97'));
   b.material('water-sludge', 'Sludge water', srgb('#625747'));
   b.material('foam', 'Aeration foam', srgb('#b9c8bd', 0.72));
   b.material('scum', 'Clarifier scum', srgb('#665b49'));

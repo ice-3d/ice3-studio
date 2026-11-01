@@ -556,7 +556,7 @@ test('materials separate civil, metal, water and site surfaces', () => {
   assert.ok(names.size <= 48);
 });
 
-test('process basin water stays readable blue-green instead of ink-dark', () => {
+test('process basin water stays muted and readable instead of paint-bright', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const materials = new Map(
     plan.operations
@@ -578,8 +578,11 @@ test('process basin water stays readable blue-green instead of ink-dark', () => 
     assert.ok(color, name);
     const [r, g, b] = color.slice(0, 3).map(toSrgb);
     assert.ok(luminance([r, g, b]) >= minimum, `${name} is too dark`);
-    assert.ok(g > r * 1.2, `${name} lost its blue-green hue`);
-    assert.ok(b > g, `${name} lost its blue-green hue`);
+    const maximum = Math.max(r, g, b);
+    const minimumChannel = Math.min(r, g, b);
+    assert.ok((maximum - minimumChannel) / maximum <= 0.2, `${name} is too saturated`);
+    assert.ok(g >= r * 1.05, `${name} lost its green-grey tint`);
+    assert.ok(b >= r, `${name} lost its cool grey tint`);
   }
 });
 
