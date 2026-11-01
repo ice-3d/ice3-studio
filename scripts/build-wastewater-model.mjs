@@ -59,6 +59,16 @@ function createBuilder() {
     return materialId;
   };
 
+  // 重复部件：由内核按 i/count 展开，位置与朝向用表达式给出。
+  const repeatPart = (partId, count, content, options = {}) => ({
+    id: partId,
+    repeat: count,
+    transform: options.transform ?? {},
+    content,
+    metadata: options.metadata,
+    role: options.role,
+  });
+
   const part = (partId, content, x, y, z, role, options = {}) => ({
     id: partId,
     parentId: options.parentId,
@@ -77,7 +87,7 @@ function createBuilder() {
     diameter,
   });
 
-  const define = (key, name, parts, ports) => {
+  const define = (key, name, parts, ports, parameters = []) => {
     const definitionId = id('component');
     const overrides = {};
     for (const item of parts) {
@@ -91,7 +101,7 @@ function createBuilder() {
     const definition = {
       id: definitionId,
       name,
-      parameters: [],
+      parameters,
       parts: parts.map(({ role, ...rest }) => rest),
       ports,
       metadata: { category: 'process-structure' },
@@ -101,7 +111,7 @@ function createBuilder() {
     return definitionId;
   };
 
-  const instance = (definitionKey, key, name, x, y, z, metadata = {}) => {
+  const instance = (definitionKey, key, name, x, y, z, metadata = {}, parameters = {}) => {
     const entry = state.components.get(definitionKey);
     if (!entry) throw new Error(`unknown component ${definitionKey}`);
     const nodeId = id('node');
@@ -114,7 +124,7 @@ function createBuilder() {
       transform: nodeTransform(x, y, z),
       instance: {
         definitionId: entry.definition.id,
-        parameters: {},
+        parameters,
         overrides: entry.overrides,
         metadata,
       },
@@ -265,170 +275,157 @@ function createBuilder() {
     });
   };
 
-  return { state, material, part, port, define, instance, connect, ground, walkway, equipment, box, cylinder, rotateY };
+  return { state, material, part, repeatPart, port, define, instance, connect, ground, walkway, equipment, box, cylinder, rotateY };
 }
 
 // 圆形池：底板 + 环形池壁 + 水面 + 中心进水筒 + 周边出水堰 + 刮泥桥 + 栏杆 + 爬梯
-function circularBasin(b, prefix, { radius = 12, depth = 4, wall = 0.45, segments = 28 }) {
+// 圆形池：参数化定义。radius / depth / wall 全部走表达式，
+// 沿圆周重复的构件由内核按 i / count 展开，改参数即可整体重算。
+function circularBasin(b, prefix, { segments = 48 }) {
   const parts = [];
-  const wallR = radius - wall / 2;
-  const arc = (TAU * wallR) / segments;
-  // 段长与弧长一致，段间不重叠，避免相邻面互闪。
+  const ring = 'i * tau / count';
 
-  parts.push(b.part(`${prefix}-base`, b.cylinder(radius, 0.5, segments * 2), 0, 0.25, 0, 'concrete'));
-  for (let index = 0; index < segments; index += 1) {
-    const angle = (index / segments) * TAU;
-    parts.push(b.part(
-      `${prefix}-wall-${index + 1}`,
-      b.box(arc, depth, wall),
-      Math.cos(angle) * wallR,
-      0.5 + depth / 2,
-      Math.sin(angle) * wallR,
-      'concrete',
-      { rotation: b.rotateY(-angle) },
-    ));
-  }
+  parts.push(b.part(`${prefix}-base`, b.cylinder({ expr: 'radius' }, 0.5, segments * 2), 0, 0.25, 0, 'concrete'));
 
-  // 池顶压顶：比墙体略宽的凸边，是真实圆池最显化的特征之一。
-  const top = 0.5 + depth;
-  const copingArc = (TAU * (radius + 0.1)) / segments;
-  for (let index = 0; index < segments; index += 1) {
-    const angle = (index / segments) * TAU;
-    parts.push(b.part(
-      `${prefix}-coping-${index + 1}`,
-      b.box(copingArc, 0.22, wall + 0.34),
-      Math.cos(angle) * (radius - wall / 2 + 0.02),
-      top + 0.11,
-      Math.sin(angle) * (radius - wall / 2 + 0.02),
-      'concrete',
-      { rotation: b.rotateY(-angle) },
-    ));
-  }
-  // 池顶环形走道：贴内壁一圈，供检修人员站立。
-  const deckArc = (TAU * (radius - wall - 0.5)) / segments;
-  for (let index = 0; index < segments; index += 1) {
-    const angle = (index / segments) * TAU;
-    parts.push(b.part(
-      `${prefix}-deck-${index + 1}`,
-      b.box(deckArc, 0.1, 0.9),
-      Math.cos(angle) * (radius - wall - 0.45),
-      top + 0.05,
-      Math.sin(angle) * (radius - wall - 0.45),
-      'walkway',
-      { rotation: b.rotateY(-angle) },
-    ));
-  }
+  // 池壁：段长等于弧长，位置与朝向按索引算
+  parts.push(b.repeatPart(`${prefix}-wall`, segments,
+    b.box({ expr: 'tau * (radius - wall / 2) / count' }, { expr: 'depth' }, { expr: 'wall' }),
+    {
+      transform: {
+        translation: {
+          x: { expr: `cos(${ring}) * (radius - wall / 2)` },
+          y: { expr: '0.5 + depth / 2' },
+          z: { expr: `sin(${ring}) * (radius - wall / 2)` },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'concrete',
+    }));
 
-  // 水面略低于池顶，避免与池壁共面。
-  parts.push(b.part(`${prefix}-water`, b.cylinder(radius - wall, 0.06, segments * 2), 0, 0.5 + depth - 0.55, 0, 'water'));
-  parts.push(b.part(`${prefix}-inlet-well`, b.cylinder(1.5, depth + 0.9, 32), 0, 0.5 + (depth + 0.9) / 2, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-water`, b.cylinder({ expr: 'radius - wall' }, 0.06, segments * 2),
+    0, { expr: '0.5 + depth - 0.55' }, 0, 'water'));
+  parts.push(b.part(`${prefix}-inlet-well`, b.cylinder(1.5, { expr: 'depth + 0.9' }, 32),
+    0, { expr: '0.5 + (depth + 0.9) / 2' }, 0, 'concrete'));
 
-  // 周边出水堰：贴内壁一圈，堰顶高出水面。
-  const weirR = radius - wall - 0.55;
-  const weirArc = (TAU * weirR) / segments;
-  for (let index = 0; index < segments; index += 1) {
-    const angle = (index / segments) * TAU;
-    parts.push(b.part(
-      `${prefix}-weir-${index + 1}`,
-      b.box(weirArc + 0.06, 0.5, 0.35),
-      Math.cos(angle) * weirR,
-      0.5 + depth - 0.2,
-      Math.sin(angle) * weirR,
-      'concrete',
-      { rotation: b.rotateY(-angle) },
-    ));
-  }
+  // 出水堰：贴内壁一圈，堰顶高于水面
+  parts.push(b.repeatPart(`${prefix}-weir`, segments,
+    b.box({ expr: 'tau * (radius - wall - 0.55) / count' }, 0.5, 0.35),
+    {
+      transform: {
+        translation: {
+          x: { expr: `cos(${ring}) * (radius - wall - 0.55)` },
+          y: { expr: '0.5 + depth - 0.2' },
+          z: { expr: `sin(${ring}) * (radius - wall - 0.55)` },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'concrete',
+    }));
 
-  // 刮泥桥：跨池直径，两端落在池壁走道上。
-  const bridgeY = 0.5 + depth + 0.55;
-  // 主桥做成桁架：两根弦杆 + 若干竖腹杆，比整块板更像照片里的结构。
-  const bridgeSpan = radius * 2 + 1.2;
-  parts.push(b.part(`${prefix}-bridge-top`, b.box(bridgeSpan, 0.12, 0.16), 0, bridgeY + 0.42, -0.7, 'steel'));
-  parts.push(b.part(`${prefix}-bridge-top-b`, b.box(bridgeSpan, 0.12, 0.16), 0, bridgeY + 0.42, 0.7, 'steel'));
-  parts.push(b.part(`${prefix}-bridge-bottom`, b.box(bridgeSpan, 0.14, 1.5), 0, bridgeY, 0, 'walkway'));
-  for (let index = 0; index <= 8; index += 1) {
-    const x = -bridgeSpan / 2 + index * (bridgeSpan / 8);
-    parts.push(b.part(
-      `${prefix}-bridge-strut-${index + 1}`,
-      b.box(0.1, 0.44, 0.12),
-      x,
-      bridgeY + 0.21,
-      -0.7,
-      'steel',
-    ));
-    parts.push(b.part(
-      `${prefix}-bridge-strut-b-${index + 1}`,
-      b.box(0.1, 0.44, 0.12),
-      x,
-      bridgeY + 0.21,
-      0.7,
-      'steel',
-    ));
-  }
-  parts.push(b.part(`${prefix}-bridge-rail-a`, b.box(radius * 2 + 1.2, 0.08, 0.08), 0, bridgeY + 1.05, -0.76, 'steel'));
-  parts.push(b.part(`${prefix}-bridge-rail-b`, b.box(radius * 2 + 1.2, 0.08, 0.08), 0, bridgeY + 1.05, 0.76, 'steel'));
-  parts.push(b.part(`${prefix}-drive`, b.cylinder(1.1, 1.0, 24), 0, bridgeY + 0.7, 0, 'steel'));
+  // 池顶压顶：比墙宽的凸边
+  parts.push(b.repeatPart(`${prefix}-coping`, segments,
+    b.box({ expr: 'tau * (radius + 0.1) / count' }, 0.22, { expr: 'wall + 0.34' }),
+    {
+      transform: {
+        translation: {
+          x: { expr: `cos(${ring}) * (radius - wall / 2 + 0.02)` },
+          y: { expr: '0.5 + depth + 0.11' },
+          z: { expr: `sin(${ring}) * (radius - wall / 2 + 0.02)` },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'concrete',
+    }));
 
-  // 池顶防护栏杆
-  const ringY = 0.5 + depth + 0.55;
-  const railArc = (TAU * radius) / segments;
-  for (let index = 0; index < segments; index += 1) {
-    const angle = (index / segments) * TAU;
-    parts.push(b.part(
-      `${prefix}-rail-${index + 1}`,
-      b.box(railArc, 0.06, 0.06),
-      Math.cos(angle) * radius,
-      ringY + 0.5,
-      Math.sin(angle) * radius,
-      'steel',
-      { rotation: b.rotateY(-angle) },
-    ));
-    if (index % 3 === 0) {
-      parts.push(b.part(
-        `${prefix}-post-${index + 1}`,
-        b.box(0.06, 1.1, 0.06),
-        Math.cos(angle) * radius,
-        ringY,
-        Math.sin(angle) * radius,
-        'steel',
-      ));
-    }
-  }
+  // 池顶环形走道
+  parts.push(b.repeatPart(`${prefix}-deck`, segments,
+    b.box({ expr: 'tau * (radius - wall - 0.5) / count' }, 0.1, 0.9),
+    {
+      transform: {
+        translation: {
+          x: { expr: `cos(${ring}) * (radius - wall - 0.45)` },
+          y: { expr: '0.5 + depth + 0.05' },
+          z: { expr: `sin(${ring}) * (radius - wall - 0.45)` },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'walkway',
+    }));
 
-  // 检修爬梯：池外壁，从地面到池顶。
-  for (let index = 0; index < 9; index += 1) {
-    parts.push(b.part(
-      `${prefix}-ladder-${index + 1}`,
-      b.box(0.9, 0.06, 0.3),
-      radius + 0.25,
-      0.6 + index * 0.5,
-      0,
-      'steel',
-    ));
-  }
-  parts.push(b.part(`${prefix}-ladder-rail-a`, b.box(0.06, depth + 1.2, 0.06), radius + 0.25, (depth + 1.2) / 2, -0.42, 'steel'));
-  parts.push(b.part(`${prefix}-ladder-rail-b`, b.box(0.06, depth + 1.2, 0.06), radius + 0.25, (depth + 1.2) / 2, 0.42, 'steel'));
-  // 护笼：自 2 米起每 2 米一道 U 形圈，共 3 段折线近似半圆。
-  const cageStart = 2.0;
-  const cageCount = Math.max(0, Math.floor((depth - cageStart) / 2));
-  for (let index = 0; index < cageCount; index += 1) {
-    const y = cageStart + index * 2;
-    for (const [offsetZ, offsetX] of [[-0.55, 0.15], [0, 0.55], [0.55, 0.15]]) {
-      parts.push(b.part(
-        `${prefix}-cage-${index + 1}-${offsetZ}`,
-        b.box(offsetZ === 0 ? 0.6 : 0.5, 0.05, 0.05),
-        radius + 0.25 + offsetX,
-        y,
-        offsetZ,
-        'steel',
-      ));
-    }
-  }
+  // 池顶栏杆：横杆沿圆周，立柱每 3 段一根
+  parts.push(b.repeatPart(`${prefix}-rail`, segments,
+    b.box({ expr: 'tau * radius / count' }, 0.06, 0.06),
+    {
+      transform: {
+        translation: {
+          x: { expr: `cos(${ring}) * radius` },
+          y: { expr: '0.5 + depth + 1.05' },
+          z: { expr: `sin(${ring}) * radius` },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'steel',
+    }));
+  parts.push(b.repeatPart(`${prefix}-post`, Math.floor(segments / 3),
+    b.box(0.06, 1.1, 0.06),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'cos(i * 3 * tau / count) * radius' },
+          y: { expr: '0.5 + depth + 0.55' },
+          z: { expr: 'sin(i * 3 * tau / count) * radius' },
+        },
+      },
+      role: 'steel',
+    }));
+
+  // 外壁爬梯：9 级踏步 + 两根边轨
+  parts.push(b.repeatPart(`${prefix}-ladder`, 9,
+    b.box(0.9, 0.06, 0.3),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'radius + 0.25' },
+          y: { expr: '0.6 + i * 0.5' },
+          z: 0,
+        },
+      },
+      role: 'steel',
+    }));
+  parts.push(b.part(`${prefix}-ladder-rail-a`, b.box(0.06, { expr: 'depth + 1.2' }, 0.06),
+    { expr: 'radius + 0.25' }, { expr: '(depth + 1.2) / 2' }, -0.42, 'steel'));
+  parts.push(b.part(`${prefix}-ladder-rail-b`, b.box(0.06, { expr: 'depth + 1.2' }, 0.06),
+    { expr: 'radius + 0.25' }, { expr: '(depth + 1.2) / 2' }, 0.42, 'steel'));
+
+  // 刮泥桥：桁架，跨度随半径
+  parts.push(b.part(`${prefix}-bridge-top`, b.box({ expr: 'radius * 2 + 1.2' }, 0.12, 0.16),
+    0, { expr: '0.5 + depth + 0.97' }, -0.7, 'steel'));
+  parts.push(b.part(`${prefix}-bridge-top-b`, b.box({ expr: 'radius * 2 + 1.2' }, 0.12, 0.16),
+    0, { expr: '0.5 + depth + 0.97' }, 0.7, 'steel'));
+  parts.push(b.part(`${prefix}-bridge-bottom`, b.box({ expr: 'radius * 2 + 1.2' }, 0.14, 1.5),
+    0, { expr: '0.5 + depth + 0.55' }, 0, 'walkway'));
+  parts.push(b.repeatPart(`${prefix}-bridge-strut`, 9,
+    b.box(0.1, 0.44, 0.12),
+    {
+      transform: {
+        translation: {
+          x: { expr: '(i / (count - 1) - 0.5) * (radius * 2 + 1.2)' },
+          y: { expr: '0.5 + depth + 0.76' },
+          z: -0.7,
+        },
+      },
+      role: 'steel',
+    }));
+  parts.push(b.part(`${prefix}-drive`, b.cylinder(1.1, 1.0, 24),
+    0, { expr: '0.5 + depth + 1.25' }, 0, 'steel'));
+  parts.push(b.part(`${prefix}-bridge-rail-a`, b.box({ expr: 'radius * 2 + 1.2' }, 0.08, 0.08),
+    0, { expr: '0.5 + depth + 1.55' }, -0.76, 'steel'));
+  parts.push(b.part(`${prefix}-bridge-rail-b`, b.box({ expr: 'radius * 2 + 1.2' }, 0.08, 0.08),
+    0, { expr: '0.5 + depth + 1.55' }, 0.76, 'steel'));
 
   return parts;
 }
 
-// 矩形曝气池：底板 + 四面池壁 + 导流墙 + 水面 + 曝气支管 + 检修走道 + 栏杆
 function aerationBasin(b, prefix, { length = 40, width = 20, depth = 6, wall = 0.45 }) {
   const parts = [];
   const top = 0.5 + depth;
@@ -980,10 +977,14 @@ function buildPlan(projectId) {
   ]);
 
   // 初沉池
-  const primaryParts = circularBasin(b, 'pc', { radius: 13, depth: 4.2, segments: 48 });
+  const primaryParts = circularBasin(b, 'pc', { segments: 48 });
   b.define('primary-clarifier', 'Primary clarifier', primaryParts, [
     b.port('inlet', 'pc-inlet-well', 0, 5.4, 0, vec(0, -1, 0), 'degritted-water', 1.0),
-    b.port('outlet', 'pc-weir-1', 12.4, 4.5, 0, vec(1, 0, 0), 'settled-water', 0.9),
+    b.port('outlet', 'pc-base', 12.4, 4.5, 0, vec(1, 0, 0), 'settled-water', 0.9),
+  ], [
+    { name: 'radius', valueType: { kind: 'number', minimum: null, maximum: null }, default: 13, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 4.2, unit: 'm' },
+    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
   ]);
 
   // 曝气池（推流式廊道）。首段接纳初沉出水，后续段接纳混合液，端口介质不同，
@@ -998,11 +999,15 @@ function buildPlan(projectId) {
   ]);
 
   // 二沉池（与初沉池同构，尺寸与用途不同）
-  const secondaryParts = circularBasin(b, 'sc', { radius: 15, depth: 4.6, segments: 52 });
+  const secondaryParts = circularBasin(b, 'sc', { segments: 52 });
   b.define('secondary-clarifier', 'Secondary clarifier', secondaryParts, [
     b.port('inlet', 'sc-inlet-well', 0, 5.6, 0, vec(0, -1, 0), 'mixed-liquor', 0.9),
-    b.port('outlet', 'sc-weir-1', 14.4, 4.9, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
+    b.port('outlet', 'sc-base', 14.4, 4.9, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
     b.port('sludge', 'sc-base', 0, 0.3, 0, vec(0, -1, 0), 'waste-sludge', 0.35),
+  ], [
+    { name: 'radius', valueType: { kind: 'number', minimum: null, maximum: null }, default: 15, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 4.6, unit: 'm' },
+    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
   ]);
 
   b.define('filter-cell', 'Filtration cell', filterCell(b, 'fl', { length: 32, width: 26, depth: 3.6, cells: 4 }), [
@@ -1055,7 +1060,7 @@ function buildPlan(projectId) {
     const { key, series, z } = train;
     b.instance('primary-clarifier', `pc-${key}`, `PC-${series}01 初沉池`, 0, 0, z, {
       stage: 'primary', tag: `PC-${series}01`, train: `Train${series}`,
-    });
+    }, { radius: 13, depth: 4.2, wall: 0.45 });
     b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 45, 0, z, {
       stage: 'biological', tag: `AE-${series}01`, train: `Train${series}`,
     });
@@ -1069,7 +1074,7 @@ function buildPlan(projectId) {
       b.instance('secondary-clarifier', `sc-${key}${index}`,
         `SC-${series}0${index} 二沉池`, 190 + (index - 1) * 45, 0, z, {
           stage: 'secondary', tag: `SC-${series}0${index}`, train: `Train${series}`,
-        });
+        }, { radius: 15, depth: 4.6, wall: 0.45 });
     }
   }
 
