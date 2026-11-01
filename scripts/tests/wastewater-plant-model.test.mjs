@@ -109,7 +109,14 @@ test('circular clarifier exposes credible civil and mechanical detail', () => {
     assert.ok(ids.has(expected), expected);
   }
   assert.ok(definition.parts.length >= 30);
-  assert.ok(definition.parts.find(({ id }) => id === 'sc-wall').repeat >= 128);
+  assert.equal(definition.parts.find(({ id }) => id === 'sc-wall').content.kind, 'custom_mesh');
+  assert.equal(definition.parts.find(({ id }) => id === 'sc-waterline').content.kind, 'custom_mesh');
+  for (const part of definition.parts.filter(({ content }) => content.kind === 'custom_mesh')) {
+    assert.ok(part.content.mesh.positions.every((position) => (
+      Array.isArray(position) && position.length === 3
+    )), part.id);
+    assert.equal(part.content.mesh.indices.length % 3, 0, part.id);
+  }
 });
 
 test('aeration basin has lanes, baffles, air distribution and guardrails', () => {
@@ -349,4 +356,24 @@ test('process pipe diameters stay within the engineered line size', () => {
   const connection = plan.operations.find(({ name }) => name === 'PS-101 → 提升泵组');
   assert.ok(connection);
   assert.ok(connection.connection.diameter <= 1.25);
+});
+
+test('above-ground pipe supports are two-column assemblies', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const supports = plan.operations.filter(({ type, metadata }) => (
+    type === 'node.create' && metadata?.role === 'pipe-support'
+  ));
+  const groups = new Map();
+  for (const support of supports) {
+    const group = support.metadata.supportGroup;
+    assert.ok(group);
+    groups.set(group, (groups.get(group) ?? 0) + 1);
+  }
+  assert.ok(groups.size > 0);
+  assert.ok([...groups.values()].every((count) => count === 3));
+});
+
+test('site contains no generic decorative control-box equipment', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  assert.equal(plan.operations.some(({ metadata }) => metadata?.kind === 'control-box'), false);
 });

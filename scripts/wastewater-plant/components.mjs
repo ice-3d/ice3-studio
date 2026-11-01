@@ -7,63 +7,57 @@ import {
   box,
   cylinder,
   sphere,
+  annularPrismMesh,
 } from './model-kit.mjs';
 
 // 圆形池：底板 + 环形池壁 + 水面 + 中心进水筒 + 周边出水堰 + 刮泥桥 + 栏杆 + 爬梯
 // 圆形池：参数化定义。radius / depth / wall 全部走表达式，
 // 沿圆周重复的构件由内核按 i / count 展开，改参数即可整体重算。
-function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
+function circularBasin(
+  b,
+  prefix,
+  { segments = 160, radius = 15, depth = 4.6, wall = 0.45, bridgeMode = 'full' },
+) {
   const parts = [];
   const ring = 'i * tau / count';
   const bridgeLength = bridgeMode === 'half' ? 'radius + 0.6' : 'radius * 2 + 1.2';
   const bridgeX = bridgeMode === 'half' ? 'radius / 2' : '0';
+  const ringPart = (id, outerRadius, innerRadius, bottom, top, role) => (
+    b.part(id, {
+      kind: 'custom_mesh',
+      mesh: annularPrismMesh({
+        outerRadius,
+        innerRadius,
+        bottom,
+        top,
+        segments,
+      }),
+    }, 0, 0, 0, role)
+  );
 
   const radialSegments = Math.min(segments * 2, 256);
   parts.push(b.part(`${prefix}-base`, b.cylinder({ expr: 'radius' }, 0.5, radialSegments), 0, 0.25, 0, 'concrete-old'));
 
-  // 池壁：段长等于弧长，位置与朝向按索引算
-  parts.push(b.repeatPart(`${prefix}-wall`, segments,
-    b.box({ expr: 'tau * (radius - wall / 2) / count' }, { expr: 'depth' }, { expr: 'wall' }),
-    {
-      transform: {
-        translation: {
-          x: { expr: `cos(${ring}) * (radius - wall / 2)` },
-          y: { expr: '0.5 + depth / 2' },
-          z: { expr: `sin(${ring}) * (radius - wall / 2)` },
-        },
-        yaw: { expr: '-i * 360 / count' },
-      },
-      role: 'concrete-new',
-    }));
+  parts.push(ringPart(`${prefix}-wall`, radius, radius - wall, 0.5, 0.5 + depth, 'concrete-new'));
 
   parts.push(b.part(`${prefix}-water`, b.cylinder({ expr: 'radius - wall' }, 0.06, radialSegments),
     0, { expr: '0.5 + depth - 0.55' }, 0, 'water-clarified'));
-  parts.push(b.repeatPart(`${prefix}-waterline`, segments,
-    b.box({ expr: 'tau * (radius - wall / 2) / count' }, 0.24, 0.1),
-    {
-      transform: {
-        translation: {
-          x: { expr: `cos(${ring}) * (radius - wall / 2)` },
-          y: { expr: '0.5 + depth - 0.42' },
-          z: { expr: `sin(${ring}) * (radius - wall / 2)` },
-        },
-        yaw: { expr: '-i * 360 / count' },
-      },
-      role: 'concrete-wet',
-    }));
-  parts.push(b.repeatPart(`${prefix}-scum-band`, segments,
-    b.box({ expr: 'tau * (radius - wall - 0.86) / count' }, 0.1, 0.3),
-    {
-      transform: {
-        translation: {
-          x: { expr: `cos(${ring}) * (radius - wall - 0.86)` },
-          y: { expr: '0.5 + depth - 0.28' },
-          z: { expr: `sin(${ring}) * (radius - wall - 0.86)` },
-        },
-        yaw: { expr: '-i * 360 / count' },
-      },
-      role: 'scum',
-    }));
+  parts.push(ringPart(
+    `${prefix}-waterline`,
+    radius + 0.025,
+    radius - wall - 0.025,
+    0.5 + depth - 0.42,
+    0.5 + depth - 0.2,
+    'concrete-wet',
+  ));
+  parts.push(ringPart(
+    `${prefix}-scum-band`,
+    radius - wall - 0.56,
+    radius - wall - 0.86,
+    0.5 + depth - 0.34,
+    0.5 + depth - 0.22,
+    'scum',
+  ));
   parts.push(b.part(`${prefix}-inlet-well`, b.cylinder(1.5, { expr: 'depth + 0.9' }, 32),
     0, { expr: '0.5 + (depth + 0.9) / 2' }, 0, 'concrete-old'));
   parts.push(b.part(`${prefix}-inlet-sleeve`, b.cylinder(0.58, 1.3, 18),
@@ -73,64 +67,44 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
     { rotation: LIE_ALONG_X }));
 
   // 出水堰：贴内壁一圈，堰顶高于水面
-  parts.push(b.repeatPart(`${prefix}-weir`, segments,
-    b.box({ expr: 'tau * (radius - wall - 0.55) / count' }, 0.5, 0.35),
-    {
-      transform: {
-        translation: {
-          x: { expr: `cos(${ring}) * (radius - wall - 0.55)` },
-          y: { expr: '0.5 + depth - 0.2' },
-          z: { expr: `sin(${ring}) * (radius - wall - 0.55)` },
-        },
-        yaw: { expr: '-i * 360 / count' },
-      },
-      role: 'concrete-new',
-    }));
+  parts.push(ringPart(
+    `${prefix}-weir`,
+    radius - wall,
+    radius - wall - 0.35,
+    0.5 + depth - 0.45,
+    0.5 + depth + 0.05,
+    'concrete-new',
+  ));
 
   // 池顶压顶：比墙宽的凸边
-  parts.push(b.repeatPart(`${prefix}-coping`, segments,
-    b.box({ expr: 'tau * (radius + 0.1) / count' }, 0.22, { expr: 'wall + 0.34' }),
-    {
-      transform: {
-        translation: {
-          x: { expr: `cos(${ring}) * (radius - wall / 2 + 0.02)` },
-          y: { expr: '0.5 + depth + 0.11' },
-          z: { expr: `sin(${ring}) * (radius - wall / 2 + 0.02)` },
-        },
-        yaw: { expr: '-i * 360 / count' },
-      },
-      role: 'concrete-new',
-    }));
+  parts.push(ringPart(
+    `${prefix}-coping`,
+    radius + 0.1,
+    radius - wall - 0.24,
+    0.5 + depth,
+    0.5 + depth + 0.22,
+    'concrete-new',
+  ));
 
   // 池顶环形走道
-  parts.push(b.repeatPart(`${prefix}-deck`, segments,
-    b.box({ expr: 'tau * (radius - wall - 0.5) / count' }, 0.1, 0.9),
-    {
-      transform: {
-        translation: {
-          x: { expr: `cos(${ring}) * (radius - wall - 0.45)` },
-          y: { expr: '0.5 + depth + 0.05' },
-          z: { expr: `sin(${ring}) * (radius - wall - 0.45)` },
-        },
-        yaw: { expr: '-i * 360 / count' },
-      },
-      role: 'walkway',
-    }));
+  parts.push(ringPart(
+    `${prefix}-deck`,
+    radius - wall,
+    radius - wall - 0.9,
+    0.5 + depth,
+    0.5 + depth + 0.1,
+    'walkway',
+  ));
+  parts.push(ringPart(
+    `${prefix}-rail`,
+    radius + 0.03,
+    radius - 0.03,
+    0.5 + depth + 1.02,
+    0.5 + depth + 1.1,
+    'steel-dark',
+  ));
 
-  // 池顶栏杆：横杆沿圆周，立柱每 3 段一根
-  parts.push(b.repeatPart(`${prefix}-rail`, segments,
-    b.box({ expr: 'tau * radius / count' }, 0.06, 0.06),
-    {
-      transform: {
-        translation: {
-          x: { expr: `cos(${ring}) * radius` },
-          y: { expr: '0.5 + depth + 1.05' },
-          z: { expr: `sin(${ring}) * radius` },
-        },
-        yaw: { expr: '-i * 360 / count' },
-      },
-      role: 'steel-dark',
-    }));
+  // 池顶栏杆：环形横杆由同一网格连续生成，立柱按固定角距布置。
   parts.push(b.repeatPart(`${prefix}-post`, Math.floor(segments / 3),
     b.box(0.06, 1.1, 0.06),
     {

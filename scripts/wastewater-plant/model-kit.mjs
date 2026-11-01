@@ -379,12 +379,43 @@ function createBuilder() {
           { role: 'pipe-cover', lineId, stage: fromEndpoint.metadata.stage },
         );
       } else {
+        const dx = toEndpoint.position.x - fromEndpoint.position.x;
+        const dz = toEndpoint.position.z - fromEndpoint.position.z;
+        const horizontalLength = Math.hypot(dx, dz);
+        const normalX = horizontalLength > Number.EPSILON ? -dz / horizontalLength : 0;
+        const normalZ = horizontalLength > Number.EPSILON ? dx / horizontalLength : 1;
+        const supportTop = ROUTE_POLICY[medium]?.kind === 'rack'
+          ? ROUTE_POLICY[medium].elevation
+          : Math.max(fromEndpoint.position.y, toEndpoint.position.y) + 0.5;
+        const columnHeight = Math.max(0.5, supportTop - 0.12);
+        const supportGroup = `${lineId}-mid`;
+        const supportMetadata = {
+          role: 'pipe-support',
+          lineId,
+          supportGroup,
+          stage: fromEndpoint.metadata.stage,
+        };
+        for (const side of [-1, 1]) {
+          addPipeAccessory(
+            `${name} 管道支架立柱 ${side < 0 ? 'A' : 'B'}`,
+            box(0.16, columnHeight, 0.16),
+            vec(
+              midpoint.x + normalX * side * 0.95,
+              columnHeight / 2,
+              midpoint.z + normalZ * side * 0.95,
+            ),
+            'steel',
+            { ...supportMetadata, supportPart: 'column' },
+          );
+        }
+        const beamYaw = Math.atan2(normalZ, normalX);
         addPipeAccessory(
-          `${name} 管道支架`,
-          box(0.24, 3.6, diameter * 2.4),
-          vec(midpoint.x, 1.8, midpoint.z),
+          `${name} 管道支架横梁`,
+          box(2.2, 0.22, 0.22),
+          vec(midpoint.x, supportTop, midpoint.z),
           'steel',
-          { role: 'pipe-support', lineId, stage: fromEndpoint.metadata.stage },
+          { ...supportMetadata, supportPart: 'beam' },
+          [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
         );
       }
     }
@@ -624,6 +655,45 @@ export function detailSupport(b, prefix, { x, y, z, height, width }) {
     b.part(`${prefix}-beam`, b.box(0.3, 0.3, width + 0.6),
       x, y + height - 0.15, z, 'steel'),
   ];
+}
+
+export function annularPrismMesh({ outerRadius, innerRadius, bottom, top, segments }) {
+  if (
+    !(outerRadius > innerRadius && innerRadius > 0) ||
+    !(top > bottom) ||
+    !Number.isInteger(segments) ||
+    segments < 3
+  ) {
+    throw new RangeError('annular prism dimensions are invalid');
+  }
+  const positions = [];
+  const indices = [];
+  const quad = (a, b, c, d) => {
+    const base = positions.length;
+    positions.push(a, b, c, d);
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  for (let index = 0; index < segments; index += 1) {
+    const a0 = (index / segments) * Math.PI * 2;
+    const a1 = ((index + 1) / segments) * Math.PI * 2;
+    const c0 = Math.cos(a0);
+    const s0 = Math.sin(a0);
+    const c1 = Math.cos(a1);
+    const s1 = Math.sin(a1);
+    const ob0 = [outerRadius * c0, bottom, outerRadius * s0];
+    const ot0 = [outerRadius * c0, top, outerRadius * s0];
+    const ob1 = [outerRadius * c1, bottom, outerRadius * s1];
+    const ot1 = [outerRadius * c1, top, outerRadius * s1];
+    const ib0 = [innerRadius * c0, bottom, innerRadius * s0];
+    const it0 = [innerRadius * c0, top, innerRadius * s0];
+    const ib1 = [innerRadius * c1, bottom, innerRadius * s1];
+    const it1 = [innerRadius * c1, top, innerRadius * s1];
+    quad(ob0, ot0, ot1, ob1);
+    quad(ib0, ib1, it1, it0);
+    quad(ot0, it0, it1, ot1);
+    quad(ob0, ob1, ib1, ib0);
+  }
+  return { positions, indices };
 }
 
 export {

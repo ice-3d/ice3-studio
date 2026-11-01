@@ -106,7 +106,13 @@ function buildPlan(projectId) {
   ]);
 
   // 初沉池
-  const primaryParts = circularBasin(b, 'pc', { segments: 160, bridgeMode: 'half' });
+  const primaryParts = circularBasin(b, 'pc', {
+    segments: 160,
+    radius: 13,
+    depth: 4.2,
+    wall: 0.45,
+    bridgeMode: 'half',
+  });
   b.define('primary-clarifier', 'Primary clarifier', primaryParts, [
     b.port('inlet', 'pc-inlet-well', 0, 5.4, 0, vec(0, -1, 0), 'degritted-water', 1.0),
     b.port('outlet', 'pc-base', 12.4, 4.5, 0, vec(1, 0, 0), 'settled-water', 0.9),
@@ -140,7 +146,13 @@ function buildPlan(projectId) {
   ]);
 
   // 二沉池（与初沉池同构，尺寸与用途不同）
-  const secondaryParts = circularBasin(b, 'sc', { segments: 160, bridgeMode: 'full' });
+  const secondaryParts = circularBasin(b, 'sc', {
+    segments: 160,
+    radius: 15,
+    depth: 4.6,
+    wall: 0.45,
+    bridgeMode: 'full',
+  });
   b.define('secondary-clarifier', 'Secondary clarifier', secondaryParts, [
     b.port('inlet', 'sc-inlet-well', 0, 5.6, 0, vec(0, -1, 0), 'mixed-liquor', 0.9),
     b.port('outlet', 'sc-base', 14.4, 4.9, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
@@ -476,20 +488,6 @@ function buildPlan(projectId) {
     const x = 150 + index * 34 + jitter(index, 11.3) * 6;
     b.instance('tree', `tree-sludge-${index}`, `绿化 / 污泥区 ${index + 1}`, x, 0, -96 + jitter(index, 12.7) * 5, { role: 'landscape' });
   }
-
-  // 池边设备
-  const equipmentNode = (name, x, z) => {
-    b.equipment('control-box', name, x, 0, z, { tag: name.split(' ')[0] });
-  };
-  for (const train of trains) {
-    for (let index = 1; index <= 3; index += 1) {
-      equipmentNode(`EQ-SC${train.series}0${index} 控制箱`, 375 + train.dx + (index - 1) * 45 + 16, train.z - 18);
-    }
-    equipmentNode(`EQ-AE${train.series} 控制箱`, 270 + train.dx, train.z - 16);
-    equipmentNode(`EQ-PC${train.series} 控制箱`, 150 + train.dx, train.z + 16);
-  }
-  equipmentNode('EQ-FL 控制箱', 520, -20);
-  equipmentNode('EQ-GC 控制箱', 95, -14);
 
   // ── 入口区 ─────────────────────────────────────────────
   // 大门开在南界正中偏西，正对引道；门卫房在门内侧偏东，雨篷朝大门。
