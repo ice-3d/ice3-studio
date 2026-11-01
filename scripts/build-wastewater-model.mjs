@@ -112,7 +112,7 @@ function createBuilder() {
     return definitionId;
   };
 
-  const instance = (definitionKey, key, name, x, y, z, metadata = {}, parameters = {}) => {
+  const instance = (definitionKey, key, name, x, y, z, metadata = {}, parameters = {}, materialKey = null) => {
     const entry = state.components.get(definitionKey);
     if (!entry) throw new Error(`unknown component ${definitionKey}`);
     const nodeId = id('node');
@@ -129,7 +129,7 @@ function createBuilder() {
         overrides: entry.overrides,
         metadata,
       },
-      material_id: null,
+      material_id: materialKey ? state.materials.get(materialKey) : null,
       metadata,
     });
     return nodeId;
@@ -1353,14 +1353,14 @@ function buildPlan(projectId) {
   };
   for (let index = 0; index < 26; index += 1) {
     const x = 12 + index * 23 + jitter(index, 0.7) * 5;
-    b.instance('tree', `tree-s-a-${index}`, `绿化 / 南排 ${index + 1}`, x, 0, 156 + jitter(index, 2.1) * 5, { role: 'landscape' });
-    b.instance('tree', `tree-s-b-${index}`, `绿化 / 南外排 ${index + 1}`, x + 8, 0, 172 + jitter(index, 3.3) * 4, { role: 'landscape' });
-    b.instance('tree', `tree-n-a-${index}`, `绿化 / 北排 ${index + 1}`, x + 4, 0, -158 + jitter(index, 4.7) * 5, { role: 'landscape' });
+    b.instance('tree', `tree-s-a-${index}`, `绿化 / 南排 ${index + 1}`, x, 0, 156 + jitter(index, 2.1) * 5, { role: 'landscape' }, {}, 'foliage');
+    b.instance('tree', `tree-s-b-${index}`, `绿化 / 南外排 ${index + 1}`, x + 8, 0, 172 + jitter(index, 3.3) * 4, { role: 'landscape' }, {}, 'foliage');
+    b.instance('tree', `tree-n-a-${index}`, `绿化 / 北排 ${index + 1}`, x + 4, 0, -158 + jitter(index, 4.7) * 5, { role: 'landscape' }, {}, 'foliage');
   }
   for (let index = 0; index < 8; index += 1) {
     const z = -120 + index * 32 + jitter(index, 5.9) * 6;
-    b.instance('tree', `tree-mid-${index}`, `绿化 / 中带 ${index + 1}`, 122 + jitter(index, 6.1) * 6, 0, z, { role: 'landscape' });
-    b.instance('tree', `tree-mid2-${index}`, `绿化 / 中带二 ${index + 1}`, 358 + jitter(index, 7.3) * 6, 0, z, { role: 'landscape' });
+    b.instance('tree', `tree-mid-${index}`, `绿化 / 中带 ${index + 1}`, 122 + jitter(index, 6.1) * 6, 0, z, { role: 'landscape' }, {}, 'foliage');
+    b.instance('tree', `tree-mid2-${index}`, `绿化 / 中带二 ${index + 1}`, 358 + jitter(index, 7.3) * 6, 0, z, { role: 'landscape' }, {}, 'foliage');
   }
 
   // 池边设备
