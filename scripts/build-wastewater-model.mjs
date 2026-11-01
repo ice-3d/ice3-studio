@@ -158,14 +158,14 @@ function createBuilder() {
   };
 
   // 场地：一块很薄的板，略低于池底，不参与工艺连接。
-  const ground = (name, minX, maxX, minZ, maxZ, materialKey) => {
+  const ground = (name, minX, maxX, minZ, maxZ, materialKey, level = -0.06) => {
     const nodeId = id('node');
     state.ops.push({
       type: 'node.create',
       node_id: nodeId,
       parent_id: null,
       name,
-      transform: nodeTransform((minX + maxX) / 2, -0.06, (minZ + maxZ) / 2),
+      transform: nodeTransform((minX + maxX) / 2, level, (minZ + maxZ) / 2),
       content: {
         type: 'primitive',
         kind: 'box',
@@ -247,13 +247,14 @@ function circularBasin(b, prefix, { radius = 12, depth = 4, wall = 0.45, segment
   const parts = [];
   const wallR = radius - wall / 2;
   const arc = (TAU * wallR) / segments;
+  // 段长与弧长一致，段间不重叠，避免相邻面互闪。
 
   parts.push(b.part(`${prefix}-base`, b.cylinder(radius, 0.5, segments * 2), 0, 0.25, 0, 'concrete'));
   for (let index = 0; index < segments; index += 1) {
     const angle = (index / segments) * TAU;
     parts.push(b.part(
       `${prefix}-wall-${index + 1}`,
-      b.box(arc + 0.1, depth, wall),
+      b.box(arc, depth, wall),
       Math.cos(angle) * wallR,
       0.5 + depth / 2,
       Math.sin(angle) * wallR,
@@ -296,7 +297,7 @@ function circularBasin(b, prefix, { radius = 12, depth = 4, wall = 0.45, segment
     const angle = (index / segments) * TAU;
     parts.push(b.part(
       `${prefix}-rail-${index + 1}`,
-      b.box(railArc + 0.1, 0.08, 0.08),
+      b.box(railArc, 0.06, 0.06),
       Math.cos(angle) * radius,
       ringY + 0.5,
       Math.sin(angle) * radius,
@@ -635,11 +636,12 @@ function thickener(b, prefix, { radius = 8, depth = 4.4, segments = 24 }) {
   parts.push(b.part(`${prefix}-base`, b.cylinder(radius, 0.45, segments * 2), 0, 0.22, 0, 'concrete'));
   const wallR = radius - 0.2;
   const arc = (TAU * wallR) / segments;
+  // 段长与弧长一致，段间不重叠，避免相邻面互闪。
   for (let index = 0; index < segments; index += 1) {
     const angle = (index / segments) * TAU;
     parts.push(b.part(
       `${prefix}-wall-${index + 1}`,
-      b.box(arc + 0.08, depth, 0.4),
+      b.box(arc, depth, 0.4),
       Math.cos(angle) * wallR,
       0.5 + depth / 2,
       Math.sin(angle) * wallR,
@@ -661,7 +663,7 @@ function thickener(b, prefix, { radius = 8, depth = 4.4, segments = 24 }) {
     const angle = (index / segments) * TAU;
     parts.push(b.part(
       `${prefix}-rail-${index + 1}`,
-      b.box(railArc + 0.08, 0.07, 0.07),
+      b.box(railArc, 0.05, 0.05),
       Math.cos(angle) * radius,
       top + 0.55,
       Math.sin(angle) * radius,
@@ -803,16 +805,16 @@ function gasHolder(b, prefix, { radius = 8.5 }) {
 function buildPlan(projectId) {
   const b = createBuilder();
   // 配色取自真实厂区照片：池壁浅米色、水面深蓝绿、屋面蓝灰。
-  b.material('concrete', 'Reinforced concrete', [0.78, 0.75, 0.67, 1]);
-  b.material('water', 'Process water', [0.14, 0.34, 0.42, 0.94]);
-  b.material('steel', 'Galvanised steel', [0.55, 0.58, 0.6, 1]);
+  b.material('concrete', 'Reinforced concrete', [0.84, 0.81, 0.75, 1]);
+  b.material('water', 'Process water', [0.12, 0.30, 0.36, 0.95]);
+  b.material('steel', 'Galvanised steel', [0.66, 0.68, 0.70, 1]);
   b.material('walkway', 'Grating walkway', [0.42, 0.45, 0.47, 1]);
   b.material('air', 'Air header', [0.3, 0.52, 0.7, 1]);
   b.material('media', 'Filter media', [0.3, 0.28, 0.24, 1]);
   b.material('lamp', 'UV lamp', [0.62, 0.66, 0.86, 1]);
   b.material('facade', 'Facade panel', [0.8, 0.79, 0.75, 1]);
-  b.material('roof', 'Metal roof', [0.3, 0.38, 0.47, 1]);
-  b.material('lawn', 'Lawn', [0.29, 0.42, 0.21, 1]);
+  b.material('roof', 'Metal roof', [0.33, 0.40, 0.48, 1]);
+  b.material('lawn', 'Lawn', [0.36, 0.46, 0.26, 1]);
   b.material('asphalt', 'Asphalt road', [0.24, 0.25, 0.27, 1]);
   b.material('glass', 'Glazing', [0.42, 0.52, 0.58, 0.55]);
   b.material('sludge', 'Sludge', [0.28, 0.22, 0.16, 1]);
@@ -832,7 +834,7 @@ function buildPlan(projectId) {
   ]);
 
   // 初沉池
-  const primaryParts = circularBasin(b, 'pc', { radius: 13, depth: 4.2, segments: 30 });
+  const primaryParts = circularBasin(b, 'pc', { radius: 13, depth: 4.2, segments: 48 });
   b.define('primary-clarifier', 'Primary clarifier', primaryParts, [
     b.port('inlet', 'pc-inlet-well', 0, 5.4, 0, vec(0, -1, 0), 'degritted-water', 1.0),
     b.port('outlet', 'pc-weir-1', 12.4, 4.5, 0, vec(1, 0, 0), 'settled-water', 0.9),
@@ -850,7 +852,7 @@ function buildPlan(projectId) {
   ]);
 
   // 二沉池（与初沉池同构，尺寸与用途不同）
-  const secondaryParts = circularBasin(b, 'sc', { radius: 15, depth: 4.6, segments: 32 });
+  const secondaryParts = circularBasin(b, 'sc', { radius: 15, depth: 4.6, segments: 52 });
   b.define('secondary-clarifier', 'Secondary clarifier', secondaryParts, [
     b.port('inlet', 'sc-inlet-well', 0, 5.6, 0, vec(0, -1, 0), 'mixed-liquor', 0.9),
     b.port('outlet', 'sc-weir-1', 14.4, 4.9, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
@@ -865,11 +867,11 @@ function buildPlan(projectId) {
     b.port('inlet', 'uv-wall-w', -13, 2.2, 0, vec(1, 0, 0), 'filtered-water', 0.8),
     b.port('outlet', 'uv-wall-e', 13, 2.2, 0, vec(1, 0, 0), 'final-effluent', 0.8),
   ]);
-  b.define('thickener', 'Sludge thickener', thickener(b, 'th', { radius: 8, depth: 4.4, segments: 24 }), [
+  b.define('thickener', 'Sludge thickener', thickener(b, 'th', { radius: 8, depth: 4.4, segments: 40 }), [
     b.port('inlet', 'th-wall-1', 8, 3.0, 0, vec(-1, 0, 0), 'waste-sludge', 0.35),
     b.port('outlet', 'th-mixer-column', 0, 3.6, 0, vec(0, -1, 0), 'thickened-sludge', 0.3),
   ]);
-  b.define('digester', 'Anaerobic digester', digester(b, 'dg', { radius: 11, height: 17, segments: 28 }), [
+  b.define('digester', 'Anaerobic digester', digester(b, 'dg', { radius: 11, height: 17, segments: 44 }), [
     b.port('inlet', 'dg-shell', 11, 4.0, 0, vec(-1, 0, 0), 'thickened-sludge', 0.3),
     b.port('outlet', 'dg-shell', -11, 4.0, 0, vec(1, 0, 0), 'digested-sludge', 0.3),
   ]);
@@ -883,11 +885,11 @@ function buildPlan(projectId) {
   b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), []);
 
   // 场地先铺，构筑物叠在上面。范围覆盖整条生产线与污泥区。
-  b.ground('场地（草坪）', -150, 440, -110, 130, 'lawn');
+  b.ground('场地（草坪）', -150, 440, -110, 130, 'lawn', -0.08);
   // 主干道：沿生产线南北两侧各一条，外加通往污泥区的支路。
-  b.ground('道路（北）', -150, 470, -72, -62, 'asphalt');
-  b.ground('道路（南）', -150, 470, 40, 50, 'asphalt');
-  b.ground('道路（污泥区支路）', 240, 250, 40, 130, 'asphalt');
+  b.ground('道路（北）', -150, 470, -72, -62, 'asphalt', -0.03);
+  b.ground('道路（南）', -150, 470, 40, 50, 'asphalt', -0.03);
+  b.ground('道路（污泥区支路）', 240, 250, 40, 130, 'asphalt', -0.03);
 
   // 总平面：两条并联系列共用进水段与深度处理，沿 x 轴自西向东。
   b.instance('screening-channel', 'gr-1', 'GR-101 进水格栅渠', -135, 0, 0, { stage: 'intake', tag: 'GR-101' });
