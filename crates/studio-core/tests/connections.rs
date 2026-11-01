@@ -45,6 +45,38 @@ fn an_orthogonal_route_starts_and_ends_at_the_ports() {
 }
 
 #[test]
+fn orthogonal_route_uses_continuous_rounded_bends() {
+    let points = route_between_ports(
+        &port([0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], "water"),
+        &port([10.0, 2.0, 4.0], [1.0, 0.0, 0.0], "water"),
+        &RoutePolicy::Orthogonal,
+    )
+    .unwrap();
+
+    for pair in points.windows(2) {
+        let dx = pair[1][0] - pair[0][0];
+        let dy = pair[1][1] - pair[0][1];
+        let dz = pair[1][2] - pair[0][2];
+        assert!((dx * dx + dy * dy + dz * dz).sqrt() > 1.0e-4);
+    }
+
+    let mut maximum_turn = 0.0_f32;
+    for pair in points.windows(3) {
+        let a = direction(pair[0], pair[1]);
+        let b = direction(pair[1], pair[2]);
+        let cosine = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        maximum_turn = maximum_turn.max(cosine.clamp(-1.0, 1.0).acos());
+    }
+    assert!(maximum_turn < 25.0_f32.to_radians());
+}
+
+fn direction(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    let value = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    let length = (value[0] * value[0] + value[1] * value[1] + value[2] * value[2]).sqrt();
+    [value[0] / length, value[1] / length, value[2] / length]
+}
+
+#[test]
 fn rejects_incompatible_media_and_degenerate_routes() {
     assert!(
         route_between_ports(
