@@ -90,7 +90,7 @@ function buildPlan(projectId) {
   // 配色直接按照片里的观感用十六进制写，srgb() 负责转成线性分量。
   // 池壁是浅米灰的清水混凝土，不是纯白；水面偏青；屋面蓝灰。
   b.material('concrete', 'Reinforced concrete', srgb('#efebe4'));
-  b.material('water', 'Process water', srgb('#6195a1'), null, 'water');
+  b.material('water', 'Process water', srgb('#6195a1', 0.70), null, 'water');
   b.material('steel', 'Galvanised steel', srgb('#9aa5aa'));
   b.material('walkway', 'Grating walkway', srgb('#8e989c'));
   b.material('air', 'Air header', srgb('#95c0db'));
@@ -105,7 +105,7 @@ function buildPlan(projectId) {
   b.material('lawn', 'Lawn', srgb('#94a97c'));
   b.material('asphalt', 'Asphalt road', srgb('#86898e'));
   b.material('glass', 'Glazing', srgb('#afc0c9', 0.55));
-  b.material('sludge', 'Sludge', srgb('#90816f'), null, 'water');
+  b.material('sludge', 'Sludge', srgb('#90816f', 0.78), null, 'water');
   // 管道按介质分色：原水灰、工艺水黄褐、清水绿、污泥深褐、空气蓝。
   // 这些材质同时给「连接管线」和「管廊主管」用，必须在任何 define 之前声明：
   // 组件在 define 时就把材质 id 写进 overrides，声明晚了取到的就是 undefined。
@@ -129,11 +129,11 @@ function buildPlan(projectId) {
   b.material('steel-dark', 'Dark steel', srgb('#62717a'));
   b.material('stainless', 'Stainless steel', srgb('#aeb7ba'));
   b.material('roof-light', 'Light metal roof', srgb('#c7ced1'));
-  b.material('water-anoxic', 'Anoxic water', srgb('#687a78'), null, 'water');
-  b.material('water-aerobic', 'Aerobic water', srgb('#738b84'), null, 'water');
-  b.material('water-clarified', 'Clarified water', srgb('#839c97'), null, 'water');
-  b.material('water-primary', 'Primary clarifier water', srgb('#777867'), null, 'water');
-  b.material('water-sludge', 'Sludge water', srgb('#625747'), null, 'water');
+  b.material('water-anoxic', 'Anoxic water', srgb('#687a78', 0.68), null, 'water');
+  b.material('water-aerobic', 'Aerobic water', srgb('#738b84', 0.64), null, 'water');
+  b.material('water-clarified', 'Clarified water', srgb('#839c97', 0.62), null, 'water');
+  b.material('water-primary', 'Primary clarifier water', srgb('#777867', 0.72), null, 'water');
+  b.material('water-sludge', 'Sludge water', srgb('#625747', 0.78), null, 'water');
   b.material('foam', 'Aeration foam', srgb('#b9c8bd', 0.72));
   b.material('scum', 'Clarifier scum', srgb('#665b49'));
   b.material('asphalt-new', 'New asphalt', srgb('#62676b'));

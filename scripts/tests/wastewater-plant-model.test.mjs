@@ -623,7 +623,7 @@ test('liquid surfaces declare the generic water shading mode', () => {
   const materials = new Map(
     plan.operations
       .filter(({ type }) => type === 'material.upsert')
-      .map(({ name, shading }) => [name, shading]),
+      .map(({ name, shading, opacity }) => [name, { shading, opacity }]),
   );
   for (const name of [
     'Process water',
@@ -634,7 +634,9 @@ test('liquid surfaces declare the generic water shading mode', () => {
     'Sludge water',
     'Sludge',
   ]) {
-    assert.equal(materials.get(name), 'water', name);
+    const material = materials.get(name);
+    assert.equal(material.shading, 'water', name);
+    assert.ok(material.opacity >= 0.55 && material.opacity < 1, name);
   }
 });
 
