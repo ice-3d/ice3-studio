@@ -1303,6 +1303,133 @@ function parkingBay(b, prefix, { stalls = 12, depth = 5.2 } = {}) {
   ];
 }
 
+function pumpSkid(b, prefix, { length = 16, width = 8, count = 3 }) {
+  const parts = [
+    b.part(`${prefix}-plinth`, b.box(length, 0.3, width), 0, 0.15, 0, 'concrete'),
+    b.part(`${prefix}-suction-header`, b.cylinder(0.45, length - 1.5, 16),
+      0, 1.15, -width / 2 + 0.8, 'pipe-raw', { rotation: LIE_ALONG_X }),
+    b.part(`${prefix}-discharge-header`, b.cylinder(0.38, length - 1.5, 16),
+      0, 1.55, width / 2 - 0.8, 'pipe-process', { rotation: LIE_ALONG_X }),
+  ];
+  for (let index = 0; index < count; index += 1) {
+    const x = -length / 2 + (index + 0.5) * (length / count);
+    parts.push(
+      b.part(`${prefix}-pump-body-${index + 1}`, b.cylinder(0.62, 1.55, 20),
+        x, 1.15, -0.7, 'stainless', { rotation: LIE_ALONG_X }),
+      b.part(`${prefix}-pump-motor-${index + 1}`, b.cylinder(0.48, 1.25, 18),
+        x + 0.95, 1.15, -0.7, 'steel', { rotation: LIE_ALONG_X }),
+      b.part(`${prefix}-pump-coupling-${index + 1}`, b.box(0.55, 0.42, 0.42),
+        x + 0.22, 1.15, -0.7, 'steel'),
+      b.part(`${prefix}-pump-valve-${index + 1}`, b.cylinder(0.3, 0.55, 14),
+        x, 1.75, width / 2 - 0.8, 'pipe-process'),
+      b.part(`${prefix}-pump-gauge-${index + 1}`, b.cylinder(0.16, 0.08, 14),
+        x, 2.18, width / 2 - 0.8, 'stainless'),
+    );
+  }
+  return parts;
+}
+
+function blowerSkid(b, prefix, { length = 8, width = 4.8, count = 2 }) {
+  const parts = [b.part(`${prefix}-plinth`, b.box(length, 0.24, width), 0, 0.12, 0, 'concrete')];
+  for (let index = 0; index < count; index += 1) {
+    const x = -length / 2 + (index + 0.5) * (length / count);
+    parts.push(
+      b.part(`${prefix}-blower-volute-${index + 1}`, b.cylinder(0.78, 1.2, 22),
+        x, 1.0, 0, 'stainless', { rotation: LIE_ALONG_X }),
+      b.part(`${prefix}-blower-motor-${index + 1}`, b.box(1.25, 1.1, 1.2),
+        x + 1.05, 0.83, 0, 'steel'),
+      b.part(`${prefix}-blower-filter-${index + 1}`, b.box(1.0, 1.0, 1.0),
+        x - 1.05, 0.78, 0, 'steel'),
+      b.part(`${prefix}-blower-discharge-${index + 1}`, b.cylinder(0.26, 1.5, 14),
+        x, 1.75, 0, 'pipe-air'),
+    );
+  }
+  return parts;
+}
+
+function chemicalDosingSkid(b, prefix, { tanks = 2, mixers = 2 }) {
+  const parts = [b.part(`${prefix}-containment`, b.box(10, 0.35, 5.5), 0, 0.175, 0, 'concrete')];
+  for (let index = 0; index < tanks; index += 1) {
+    const x = -2.4 + index * 4.8;
+    parts.push(
+      b.part(`${prefix}-dosing-tank-${index + 1}`, b.cylinder(1.25, 3.1, 24),
+        x, 1.9, 0, 'steel'),
+      b.part(`${prefix}-dosing-tank-cap-${index + 1}`, b.cylinder(1.35, 0.12, 24),
+        x, 3.5, 0, 'stainless'),
+    );
+    if (index < mixers) {
+      parts.push(b.part(`${prefix}-dosing-mixer-${index + 1}`, b.cylinder(0.12, 3.8, 12),
+        x, 2.25, 0, 'steel'));
+    }
+  }
+  parts.push(
+    b.part(`${prefix}-metering-skid`, b.box(2.1, 0.7, 3.6), 2.9, 0.7, 1.0, 'stainless'),
+    b.part(`${prefix}-dosing-pump-a`, b.box(0.7, 0.7, 0.65), 2.4, 1.25, 1.0, 'steel'),
+    b.part(`${prefix}-dosing-pump-b`, b.box(0.7, 0.7, 0.65), 3.4, 1.25, 1.0, 'steel'),
+  );
+  return parts;
+}
+
+function dewateringSkid(b, prefix, { units = 2 }) {
+  const parts = [b.part(`${prefix}-skid`, b.box(9, 0.35, 5.2), 0, 0.175, 0, 'steel')];
+  for (let index = 0; index < units; index += 1) {
+    const x = -2.2 + index * 4.4;
+    parts.push(
+      b.part(`${prefix}-centrifuge-bowl-${index + 1}`, b.cylinder(0.72, 3.4, 24),
+        x, 1.4, 0, 'stainless', { rotation: LIE_ALONG_X }),
+      b.part(`${prefix}-centrifuge-motor-${index + 1}`, b.box(1.2, 1.2, 1.1),
+        x + 2.05, 1.05, 0, 'steel'),
+      b.part(`${prefix}-centrifuge-feed-${index + 1}`, b.cylinder(0.22, 1.2, 12),
+        x - 1.85, 1.1, 0, 'pipe-sludge'),
+    );
+  }
+  parts.push(
+    b.part(`${prefix}-polymer-skid`, b.box(2.2, 0.9, 1.8), -3.4, 0.8, 1.5, 'stainless'),
+    b.part(`${prefix}-maintenance-platform`, b.box(9.4, 0.12, 1.1), 0, 2.1, 2.4, 'walkway'),
+  );
+  return parts;
+}
+
+function sludgeHeatExchanger(b, prefix, { length = 6, shellDiameter = 1.1 }) {
+  return [
+    b.part(`${prefix}-shell`, b.cylinder(shellDiameter / 2, length, 24),
+      0, 1.25, 0, 'stainless', { rotation: LIE_ALONG_X }),
+    b.part(`${prefix}-head-a`, b.cylinder(shellDiameter * 0.62, 0.35, 20),
+      -length / 2, 1.25, 0, 'steel', { rotation: LIE_ALONG_X }),
+    b.part(`${prefix}-head-b`, b.cylinder(shellDiameter * 0.62, 0.35, 20),
+      length / 2, 1.25, 0, 'steel', { rotation: LIE_ALONG_X }),
+    b.part(`${prefix}-support-a`, b.box(0.35, 1.0, 1.2), -length / 3, 0.5, 0, 'steel'),
+    b.part(`${prefix}-support-b`, b.box(0.35, 1.0, 1.2), length / 3, 0.5, 0, 'steel'),
+  ];
+}
+
+function valveManifold(b, prefix, { branches = 4, diameter = 0.4 }) {
+  const parts = [
+    b.part(`${prefix}-header`, b.cylinder(diameter / 2, branches * 1.8, 16),
+      0, 1.0, 0, 'pipe-process', { rotation: LIE_ALONG_X }),
+  ];
+  for (let index = 0; index < branches; index += 1) {
+    const x = -((branches - 1) * 1.8) / 2 + index * 1.8;
+    parts.push(
+      b.part(`${prefix}-branch-${index + 1}`, b.cylinder(diameter * 0.35, 1.6, 12),
+        x, 0.75, 0, 'pipe-process'),
+      b.part(`${prefix}-valve-${index + 1}`, b.cylinder(diameter * 0.62, 0.42, 16),
+        x, 1.25, 0, 'steel'),
+    );
+  }
+  return parts;
+}
+
+function serviceCanopy(b, prefix, { length = 10, width = 6, height = 5 }) {
+  return [
+    b.part(`${prefix}-roof`, b.box(length, 0.18, width), 0, height, 0, 'roof'),
+    b.part(`${prefix}-post-a`, b.box(0.2, height, 0.2), -length / 2 + 0.4, height / 2, -width / 2 + 0.4, 'steel'),
+    b.part(`${prefix}-post-b`, b.box(0.2, height, 0.2), -length / 2 + 0.4, height / 2, width / 2 - 0.4, 'steel'),
+    b.part(`${prefix}-post-c`, b.box(0.2, height, 0.2), length / 2 - 0.4, height / 2, -width / 2 + 0.4, 'steel'),
+    b.part(`${prefix}-post-d`, b.box(0.2, height, 0.2), length / 2 - 0.4, height / 2, width / 2 - 0.4, 'steel'),
+  ];
+}
+
 // 出水口：混凝土端墙 + 八字翼墙 + 出水明渠 + 水面。
 function outfall(b, prefix) {
   return [
@@ -1550,6 +1677,35 @@ function buildPlan(projectId) {
     { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 222, unit: 'm' },
     { name: 'height', valueType: { kind: 'number', minimum: null, maximum: null }, default: 4.6, unit: 'm' },
   ]);
+  b.define('lift-pump-skid', 'Lift pump skid',
+    pumpSkid(b, 'lps', { length: 16, width: 8, count: 3 }), [
+      b.port('inlet', 'lps-suction-header', -7.25, 1.15, -3.2, vec(0, 0, 1), 'screened-water', 1.0),
+      b.port('outlet', 'lps-discharge-header', 7.25, 1.55, 3.2, vec(0, 0, -1), 'lifted-water', 1.0),
+    ]);
+  b.define('blower-skid', 'Blower skid',
+    blowerSkid(b, 'bls', { length: 8, width: 4.8, count: 2 }), [
+      b.port('air-in', 'bls-blower-filter-1', -5.05, 1.0, 0, vec(-1, 0, 0), 'air', 0.8),
+      b.port('air-out', 'bls-blower-discharge-2', 2.75, 2.5, 0, vec(0, 1, 0), 'air', 0.8),
+    ]);
+  b.define('chemical-dosing-skid', 'Chemical dosing skid',
+    chemicalDosingSkid(b, 'cds', { tanks: 2, mixers: 2 }), []);
+  b.define('dewatering-skid', 'Dewatering skid',
+    dewateringSkid(b, 'dws', { units: 2 }), [
+      b.port('sludge-in', 'dws-centrifuge-feed-1', -6.85, 1.1, 0, vec(-1, 0, 0), 'digested-sludge', 0.35),
+      b.port('cake-out', 'dws-skid', 4.5, 0.5, 0, vec(1, 0, 0), 'digested-sludge', 0.35),
+    ]);
+  b.define('sludge-heat-exchanger', 'Sludge heat exchanger',
+    sludgeHeatExchanger(b, 'she', { length: 6, shellDiameter: 1.1 }), [
+      b.port('sludge-in', 'she-head-a', -3.2, 1.25, 0, vec(-1, 0, 0), 'thickened-sludge', 0.3),
+      b.port('sludge-out', 'she-head-b', 3.2, 1.25, 0, vec(1, 0, 0), 'digested-sludge', 0.3),
+    ]);
+  b.define('valve-manifold', 'Valve manifold',
+    valveManifold(b, 'vmf', { branches: 4, diameter: 0.4 }), [
+      b.port('inlet', 'vmf-header', -3.6, 1.0, 0, vec(-1, 0, 0), 'settled-water', 0.4),
+      b.port('outlet', 'vmf-header', 3.6, 1.0, 0, vec(1, 0, 0), 'settled-water', 0.4),
+    ]);
+  b.define('service-canopy', 'Service canopy',
+    serviceCanopy(b, 'svc', { length: 10, width: 6, height: 5 }), []);
 
   // 场地：按功能分区铺草坪，四周留出环形主干道。
   b.ground('场地（草坪）', -10, 610, -185, 185, 'lawn', -0.08);
@@ -1638,6 +1794,24 @@ function buildPlan(projectId) {
   // 加药间同样就近设在深度处理区旁边，而不是全塞在南侧辅助区。
   b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 300, 0, 76, { stage: 'auxiliary', tag: 'BLW-101' });
   b.instance('chemical-house', 'ch-1', 'CHEM-101 加药间', 470, 0, 46, { stage: 'auxiliary', tag: 'CHEM-101' });
+  b.instance('lift-pump-skid', 'lps-1', 'PS-101 提升泵组', 62, 0, 10,
+    { stage: 'intake', tag: 'PS-101-P' });
+  b.instance('blower-skid', 'bls-1', 'BLW-101 鼓风机 1', 284, 0, 68,
+    { stage: 'auxiliary', tag: 'BLW-101-A' });
+  b.instance('blower-skid', 'bls-2', 'BLW-101 鼓风机 2', 314, 0, 68,
+    { stage: 'auxiliary', tag: 'BLW-101-B' });
+  b.instance('chemical-dosing-skid', 'cds-1', 'CHEM-101 加药装置', 470, 0, 30,
+    { stage: 'auxiliary', tag: 'CHEM-101-D' });
+  b.instance('sludge-heat-exchanger', 'she-1', 'HEX-101 污泥换热器', 290, 0, -145,
+    { stage: 'sludge', tag: 'HEX-101' });
+  b.instance('dewatering-skid', 'dws-1', 'DW-101 脱水机 1', 458, 0, -138,
+    { stage: 'sludge', tag: 'DW-101-C1' });
+  b.instance('dewatering-skid', 'dws-2', 'DW-101 脱水机 2', 458, 0, -156,
+    { stage: 'sludge', tag: 'DW-101-C2' });
+  b.instance('valve-manifold', 'vmf-1', '生化配水阀组', 177, 0, 5,
+    { stage: 'biological', role: 'equipment' });
+  b.instance('service-canopy', 'svc-1', '提升泵组检修棚', 62, 0, 10,
+    { stage: 'intake', role: 'equipment' });
 
   // 水系连接
   b.connect('gr-1', 'outlet', 'ps-1', 'inlet', 'GR-101 → PS-101 原水', 'screened-water', 1.0);
@@ -1929,6 +2103,13 @@ export {
   hedgeRow,
   lampPost,
   parkingBay,
+  pumpSkid,
+  blowerSkid,
+  chemicalDosingSkid,
+  dewateringSkid,
+  sludgeHeatExchanger,
+  valveManifold,
+  serviceCanopy,
   outfall,
   emergencyBasin,
   odorControl,

@@ -124,3 +124,30 @@ test('aeration basin has lanes, baffles, air distribution and guardrails', () =>
   assert.ok([...ids].some((id) => id.startsWith('ae-rail-')));
   assert.ok(definition.parts.length >= 35);
 });
+
+test('major equipment has identity-bearing silhouettes and connecting ports', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definitions = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition);
+  const byName = new Map(definitions.map((definition) => [definition.name, definition]));
+
+  const pump = byName.get('Lift pump skid');
+  const blower = byName.get('Blower skid');
+  const dosing = byName.get('Chemical dosing skid');
+  const dewatering = byName.get('Dewatering skid');
+  const heatExchanger = byName.get('Sludge heat exchanger');
+
+  assert.ok(pump);
+  assert.ok(blower);
+  assert.ok(dosing);
+  assert.ok(dewatering);
+  assert.ok(heatExchanger);
+  assert.ok(pump.parts.some(({ id }) => id.includes('pump-body')));
+  assert.ok(blower.parts.some(({ id }) => id.includes('blower-volute')));
+  assert.ok(dosing.parts.some(({ id }) => id.includes('dosing-tank')));
+  assert.ok(dewatering.parts.some(({ id }) => id.includes('centrifuge-bowl')));
+  assert.ok(heatExchanger.parts.some(({ id }) => id.includes('shell')));
+  assert.ok(pump.ports.length >= 2);
+  assert.ok(blower.ports.length >= 2);
+});
