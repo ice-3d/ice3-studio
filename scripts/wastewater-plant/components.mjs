@@ -2,7 +2,6 @@
 
 import {
   TAU,
-  vec,
   rotateY,
   LIE_ALONG_X,
   box,

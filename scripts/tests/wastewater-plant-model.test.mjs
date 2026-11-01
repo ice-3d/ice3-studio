@@ -21,7 +21,7 @@ const digest = (value) => createHash('sha256')
   .update(JSON.stringify(value))
   .digest('hex');
 
-test('module split preserves the legacy production plan', async () => {
+test('command wrapper and site module produce the same deterministic plan', async () => {
   const module = await import('../../scripts/wastewater-plant/site-plan.mjs');
   assert.equal(
     digest(module.buildPlan('wastewater-plant')),

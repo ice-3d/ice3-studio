@@ -4,7 +4,6 @@ import {
   createBuilder as createBuilderFromKit,
   srgb,
   vec,
-  box,
 } from './model-kit.mjs';
 import {
   circularBasin,
