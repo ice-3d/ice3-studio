@@ -2,9 +2,14 @@
 
 > Document ID: ICE3-STUDIO-SPEC-015
 >
-> Status: Approved
+> Status: Deprecated
 >
 > Owner: ICE3 Studio maintainers
+
+> 状态说明：本方案由
+> [Studio 原生 Asset Pipeline 迁移](2026-11-01-native-asset-pipeline-migration-design.md)
+> 取代。Studio 将直接实现 Asset pipeline，不再保留 Toolchain Sidecar 作为运行时依赖；
+> 本文仅保留早期导出方案记录。
 
 ## 1. 目标
 

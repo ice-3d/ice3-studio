@@ -34,7 +34,8 @@
 | `ICE3-STUDIO-SPEC-012` | [工程评审级污水处理厂资产](specs/2026-11-01-realistic-wastewater-plant-asset-design.md) | Implemented | 原创通用厂区、真实构筑物、管线、材质、场地与视觉验收 |
 | `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Approved | 工艺拓扑、连续弯头、防扭转扫掠和功能配色已交付；碰撞与支吊架校验仍待补 |
 | `ICE3-STUDIO-SPEC-014` | [Agent 主导的 Studio 工作台](specs/2026-11-01-agent-led-workbench-design.md) | Implemented | Agent 默认入口、工作上下文、实体 Selection 和人工接手 |
-| `ICE3-STUDIO-SPEC-015` | [Studio Runtime Tileset 导出](specs/2026-11-01-studio-runtime-tileset-export-design.md) | Approved | Studio 编排 GLB、Toolchain partition、bindings manifest 和原子发布 |
+| `ICE3-STUDIO-SPEC-015` | [Studio Runtime Tileset 导出](specs/2026-11-01-studio-runtime-tileset-export-design.md) | Deprecated | 由 Studio 原生 Asset Pipeline 迁移取代的 Sidecar 方案 |
+| `ICE3-STUDIO-SPEC-016` | [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md) | Approved | 分阶段把 Source Import、Asset、Partition、LOD 和 Tileset 迁入 Studio |
 | `ICE3-STUDIO-PLAN-015` | [工程评审级污水处理厂资产实施计划](plans/2026-11-01-realistic-wastewater-plant-asset.md) | Implemented | 工程化拆分、拓扑校验、细节组件、管线支撑、材质与 Chrome 验收 |
 | `ICE3-STUDIO-PLAN-016` | [污水处理厂工艺拓扑校正实施计划](plans/2026-11-01-wastewater-process-topology-correction.md) | Implemented | P&ID 端口、RAS/初沉污泥/沼气链路、分流节点、泥饼输送和 API 重建验收 |
 | `ICE3-STUDIO-PLAN-017` | [工程管线圆滑路径与功能配色实施计划](plans/2026-11-01-engineered-pipe-routing-color.md) | Implemented | 连续弯头、扫掠防扭转、亮银与功能配色和 Chrome 验收 |
