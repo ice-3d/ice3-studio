@@ -1,0 +1,590 @@
+use std::collections::{BTreeMap, BTreeSet};
+
+use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
+use studio_assets::SourceGlb;
+use studio_core::geometry::Bounds;
+
+use super::{PartitionError, PartitionLeaf, analyze_units};
+use crate::PipelineError;
+use crate::tileset::{
+    BuildOptions, PartitionArtifact, PartitionFile, PartitionStats, TilesetDocument,
+};
+
+pub(crate) fn build_artifact(
+    source: &SourceGlb,
+    options: &BuildOptions,
+) -> Result<PartitionArtifact, PipelineError> {
+    let asset_id = options.asset_id.trim();
+    if asset_id.is_empty() {
+        return Err(PipelineError::Tileset("assetId must not be empty".into()));
+    }
+    let units = analyze_units(source)?;
+    let plan = super::try_create_partition_plan(&units, options.max_triangles)?;
+    let mut files = Vec::with_capacity(plan.leaves.len());
+    let mut selection_ids = BTreeSet::new();
+    for (index, leaf) in plan.leaves.iter().enumerate() {
+        let built = build_leaf(source, asset_id, leaf)?;
+        if built.bytes.len() > options.max_bytes {
+            return Err(
+                PartitionError::Invalid(format!("partition {} exceeds maxBytes", leaf.id)).into(),
+            );
+        }
+        selection_ids.extend(built.selection_ids);
+        files.push(PartitionFile {
+            relative_path: format!("parts/part-{index:03}.glb"),
+            content_hash: format!("{:x}", Sha256::digest(&built.bytes)),
+            byte_length: built.bytes.len(),
+            bytes: built.bytes,
+        });
+    }
+    let tileset = TilesetDocument::from_plan(asset_id, &plan, &files)?;
+    let triangle_count = files
+        .iter()
+        .map(|file| part_triangle_count(file))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .sum();
+    let max_part_bytes = files
+        .iter()
+        .map(|file| file.byte_length as u64)
+        .max()
+        .unwrap_or(0);
+    Ok(PartitionArtifact {
+        files,
+        tileset,
+        stats: PartitionStats {
+            triangle_count,
+            source_triangle_count: plan.triangle_count,
+            node_count: plan
+                .leaves
+                .iter()
+                .flat_map(|leaf| leaf.units.iter())
+                .map(|unit| unit.node_ids.len() as u64)
+                .sum(),
+            partition_count: plan.leaves.len(),
+            max_part_bytes,
+        },
+        selection_ids,
+        plan,
+    })
+}
+
+struct BuiltLeaf {
+    bytes: Vec<u8>,
+    selection_ids: BTreeSet<String>,
+}
+
+fn build_leaf(
+    source: &SourceGlb,
+    asset_id: &str,
+    leaf: &PartitionLeaf,
+) -> Result<BuiltLeaf, PipelineError> {
+    let source_nodes = source_nodes(source)?;
+    let source_meshes = source
+        .json
+        .get("meshes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::Tileset("source meshes are missing".into()))?;
+    let source_materials = source
+        .json
+        .get("materials")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut output = PartWriter::default();
+    let mut mesh_map = BTreeMap::new();
+    let mut material_map = BTreeMap::new();
+    let mut output_nodes = Vec::new();
+    let mut selection_ids = BTreeSet::new();
+    let mut primitive_count = 0_u64;
+    let mut source_triangles = 0_u64;
+
+    for unit in &leaf.units {
+        let mesh = source_meshes
+            .get(unit.mesh_index)
+            .ok_or_else(|| PipelineError::Tileset("partition mesh is missing".into()))?;
+        let output_mesh = if let Some(index) = mesh_map.get(&unit.mesh_index) {
+            *index
+        } else {
+            let (mesh, primitives, triangles) = output.copy_mesh(
+                source,
+                mesh,
+                unit.mesh_index,
+                &source_materials,
+                &mut material_map,
+                asset_id,
+            )?;
+            let index = output.meshes.len();
+            output.meshes.push(mesh);
+            mesh_map.insert(unit.mesh_index, index);
+            primitive_count += primitives;
+            source_triangles += triangles;
+            index
+        };
+        for (node_id, matrix) in unit.node_ids.iter().zip(&unit.world_matrices) {
+            let (_source_index, node) = source_nodes
+                .get(node_id)
+                .ok_or_else(|| PipelineError::Tileset(format!("node {node_id} is missing")))?;
+            let mut extras = node
+                .get("extras")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            let mut ice3 = extras
+                .get("ice3")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            let selection_id = ice3
+                .get("selectionId")
+                .and_then(Value::as_str)
+                .or_else(|| ice3.get("ownerId").and_then(Value::as_str))
+                .or_else(|| ice3.get("id").and_then(Value::as_str))
+                .map(str::to_owned)
+                .unwrap_or_else(|| node_id.clone());
+            ice3.entry("id")
+                .or_insert_with(|| Value::from(node_id.clone()));
+            ice3.insert("selectionId".into(), Value::from(selection_id.clone()));
+            extras.insert("ice3".into(), Value::Object(ice3));
+            selection_ids.insert(selection_id);
+            output_nodes.push(json!({
+                "name": node.get("name").and_then(Value::as_str).unwrap_or(node_id),
+                "matrix": matrix.to_cols_array(),
+                "mesh": output_mesh,
+                "extras": extras
+            }));
+        }
+    }
+    let root_nodes = (0..output_nodes.len()).collect::<Vec<_>>();
+    output.root_nodes = root_nodes;
+    let bytes = output.finish(
+        source,
+        asset_id,
+        leaf.bounds,
+        output_nodes,
+        source_triangles,
+        primitive_count,
+        selection_ids.len(),
+    )?;
+    Ok(BuiltLeaf {
+        bytes,
+        selection_ids,
+    })
+}
+
+#[derive(Default)]
+struct PartWriter {
+    binary: Vec<u8>,
+    buffer_views: Vec<Value>,
+    accessors: Vec<Value>,
+    accessor_map: BTreeMap<usize, usize>,
+    view_map: BTreeMap<usize, usize>,
+    meshes: Vec<Value>,
+    materials: Vec<Value>,
+    root_nodes: Vec<usize>,
+}
+
+impl PartWriter {
+    fn copy_mesh(
+        &mut self,
+        source: &SourceGlb,
+        source_mesh: &Value,
+        source_mesh_index: usize,
+        source_materials: &[Value],
+        material_map: &mut BTreeMap<usize, usize>,
+        asset_id: &str,
+    ) -> Result<(Value, u64, u64), PipelineError> {
+        let mut mesh = source_mesh
+            .as_object()
+            .cloned()
+            .ok_or_else(|| PipelineError::Tileset("source mesh is invalid".into()))?;
+        let input_primitives = mesh
+            .get("primitives")
+            .and_then(Value::as_array)
+            .cloned()
+            .ok_or_else(|| PipelineError::Tileset("mesh primitives are missing".into()))?;
+        let mut primitives = Vec::new();
+        let mut primitive_count = 0_u64;
+        let mut triangles = 0_u64;
+        for primitive in input_primitives {
+            let mut primitive = primitive
+                .as_object()
+                .cloned()
+                .ok_or_else(|| PipelineError::Tileset("primitive is invalid".into()))?;
+            let mode = primitive.get("mode").and_then(Value::as_u64).unwrap_or(4);
+            if !matches!(mode, 4..=6) {
+                continue;
+            }
+            let attributes = primitive
+                .get("attributes")
+                .and_then(Value::as_object)
+                .ok_or_else(|| PipelineError::Tileset("primitive attributes are missing".into()))?;
+            let mut output_attributes = Map::new();
+            for (semantic, value) in attributes {
+                let old = value
+                    .as_u64()
+                    .and_then(|value| usize::try_from(value).ok())
+                    .ok_or_else(|| PipelineError::Tileset("accessor index is invalid".into()))?;
+                output_attributes.insert(
+                    semantic.clone(),
+                    Value::from(self.copy_accessor(source, old)?.to_string()),
+                );
+            }
+            let output_attributes = output_attributes
+                .into_iter()
+                .map(|(key, value)| {
+                    let index = value
+                        .as_str()
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .ok_or_else(|| PipelineError::Tileset("accessor remap failed".into()))?;
+                    Ok((key, Value::from(index)))
+                })
+                .collect::<Result<Map<_, _>, PipelineError>>()?;
+            primitive.insert("attributes".into(), Value::Object(output_attributes));
+            if let Some(index) = primitive.get("indices").cloned() {
+                let old = index
+                    .as_u64()
+                    .and_then(|value| usize::try_from(value).ok())
+                    .ok_or_else(|| PipelineError::Tileset("index accessor is invalid".into()))?;
+                primitive.insert(
+                    "indices".into(),
+                    Value::from(self.copy_accessor(source, old)?),
+                );
+                triangles += primitive_triangles(source, &primitive)?;
+            } else {
+                triangles += primitive_triangles(source, &primitive)?;
+            }
+            if let Some(source_material_index) = primitive.get("material").and_then(Value::as_u64) {
+                let source_material_index = usize::try_from(source_material_index)
+                    .map_err(|_| PipelineError::Tileset("material index is invalid".into()))?;
+                let output_material = if let Some(index) = material_map.get(&source_material_index)
+                {
+                    *index
+                } else {
+                    let source_material =
+                        source_materials.get(source_material_index).ok_or_else(|| {
+                            PipelineError::Tileset("source material is missing".into())
+                        })?;
+                    let mut material = source_material
+                        .as_object()
+                        .cloned()
+                        .ok_or_else(|| PipelineError::Tileset("material is invalid".into()))?;
+                    let mut extras = material
+                        .get("extras")
+                        .and_then(Value::as_object)
+                        .cloned()
+                        .unwrap_or_default();
+                    let mut ice3 = extras
+                        .get("ice3")
+                        .and_then(Value::as_object)
+                        .cloned()
+                        .unwrap_or_default();
+                    ice3.entry("id").or_insert_with(|| {
+                        Value::from(format!("{asset_id}/material/{source_material_index}"))
+                    });
+                    extras.insert("ice3".into(), Value::Object(ice3));
+                    material.insert("extras".into(), Value::Object(extras));
+                    let index = self.materials.len();
+                    self.materials.push(Value::Object(material));
+                    material_map.insert(source_material_index, index);
+                    index
+                };
+                primitive.insert("material".into(), Value::from(output_material));
+            } else if !self.materials.is_empty() {
+                primitive.remove("material");
+            }
+            primitive_count += 1;
+            primitives.push(Value::Object(primitive));
+        }
+        mesh.insert("primitives".into(), Value::Array(primitives));
+        let mut extras = mesh
+            .get("extras")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        let mut ice3 = extras
+            .get("ice3")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        ice3.entry("id")
+            .or_insert_with(|| Value::from(format!("{asset_id}/mesh/{source_mesh_index}")));
+        extras.insert("ice3".into(), Value::Object(ice3));
+        mesh.insert("extras".into(), Value::Object(extras));
+        Ok((Value::Object(mesh), primitive_count, triangles))
+    }
+
+    fn copy_accessor(&mut self, source: &SourceGlb, old: usize) -> Result<usize, PipelineError> {
+        if let Some(index) = self.accessor_map.get(&old) {
+            return Ok(*index);
+        }
+        let source_accessor = source
+            .json
+            .get("accessors")
+            .and_then(Value::as_array)
+            .and_then(|accessors| accessors.get(old))
+            .and_then(Value::as_object)
+            .cloned()
+            .ok_or_else(|| PipelineError::Tileset("accessor is missing".into()))?;
+        let view = source_accessor
+            .get("bufferView")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| PipelineError::Tileset("accessor has no bufferView".into()))?;
+        let new_view = self.copy_buffer_view(source, view)?;
+        let mut accessor = source_accessor;
+        accessor.insert("bufferView".into(), Value::from(new_view));
+        let index = self.accessors.len();
+        self.accessors.push(Value::Object(accessor));
+        self.accessor_map.insert(old, index);
+        Ok(index)
+    }
+
+    fn copy_buffer_view(&mut self, source: &SourceGlb, old: usize) -> Result<usize, PipelineError> {
+        if let Some(index) = self.view_map.get(&old) {
+            return Ok(*index);
+        }
+        let view = source
+            .json
+            .get("bufferViews")
+            .and_then(Value::as_array)
+            .and_then(|views| views.get(old))
+            .and_then(Value::as_object)
+            .cloned()
+            .ok_or_else(|| PipelineError::Tileset("bufferView is missing".into()))?;
+        let buffer_index = view
+            .get("buffer")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| PipelineError::Tileset("bufferView buffer is missing".into()))?;
+        let offset = view.get("byteOffset").and_then(Value::as_u64).unwrap_or(0) as usize;
+        let length = view
+            .get("byteLength")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| PipelineError::Tileset("bufferView length is invalid".into()))?;
+        let data = source
+            .buffers
+            .get(buffer_index)
+            .and_then(|buffer| buffer.get(offset..offset.checked_add(length)?))
+            .ok_or_else(|| PipelineError::Tileset("bufferView exceeds its buffer".into()))?;
+        self.align();
+        let new_offset = self.binary.len();
+        self.binary.extend_from_slice(data);
+        let mut view = view;
+        view.insert("buffer".into(), Value::from(0));
+        view.insert("byteOffset".into(), Value::from(new_offset));
+        view.insert("byteLength".into(), Value::from(length));
+        let index = self.buffer_views.len();
+        self.buffer_views.push(Value::Object(view));
+        self.view_map.insert(old, index);
+        Ok(index)
+    }
+
+    fn align(&mut self) {
+        while self.binary.len() % 4 != 0 {
+            self.binary.push(0);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn finish(
+        mut self,
+        source: &SourceGlb,
+        asset_id: &str,
+        bounds: Bounds,
+        nodes: Vec<Value>,
+        triangle_count: u64,
+        primitive_count: u64,
+        selection_group_count: usize,
+    ) -> Result<Vec<u8>, PipelineError> {
+        self.align();
+        let digest = format!("{:x}", Sha256::digest(&self.binary));
+        let project_extras = source.json.get("extras").cloned().unwrap_or(Value::Null);
+        let mut json = json!({
+            "asset": {
+                "version": "2.0",
+                "generator": "ICE3 Studio",
+                "extras": {
+                    "ice3": {
+                        "profile": "ice3-prepared",
+                        "profileVersion": "1.0",
+                        "contractVersion": "1.0",
+                        "assetId": asset_id,
+                        "bounds": bounds_json(bounds),
+                        "contentDigest": {
+                            "algorithm": "sha256",
+                            "value": digest,
+                            "covers": "binary-chunk"
+                        },
+                        "preparation": {
+                            "runtimeConversionRequired": false,
+                            "sourceFormat": "gltf-2.0",
+                            "unitsNormalized": true,
+                            "matrixTransformsBaked": true,
+                            "requiredCompressionDecoded": true,
+                            "edgesPrepared": false,
+                            "selectionGroupsPrepared": true
+                        },
+                        "stats": {
+                            "nodeCount": nodes.len(),
+                            "maxNodeDepth": 0,
+                            "meshCount": self.meshes.len(),
+                            "primitiveCount": primitive_count,
+                            "triangleCount": triangle_count,
+                            "edgeSegmentCount": 0,
+                            "materialCount": self.materials.len(),
+                            "selectionGroupCount": selection_group_count
+                        },
+                        "budget": {
+                            "profile": "interactive-desktop-v1",
+                            "status": "pass",
+                            "warningCount": 0,
+                            "errorCount": 0
+                        }
+                    }
+                }
+            },
+            "scene": 0,
+            "scenes": [{"nodes": self.root_nodes}],
+            "nodes": nodes,
+            "meshes": self.meshes,
+            "materials": self.materials,
+            "accessors": self.accessors,
+            "bufferViews": self.buffer_views,
+            "buffers": [{"byteLength": self.binary.len()}],
+            "extras": project_extras
+        });
+        if self.binary.is_empty() {
+            json.as_object_mut().expect("object").remove("buffers");
+        }
+        pack_glb(
+            &serde_json::to_vec(&json)
+                .map_err(|error| PipelineError::Tileset(format!("part JSON failed: {error}")))?,
+            &self.binary,
+        )
+    }
+}
+
+fn source_nodes(
+    source: &SourceGlb,
+) -> Result<BTreeMap<String, (usize, Map<String, Value>)>, PipelineError> {
+    let nodes = source
+        .json
+        .get("nodes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::Tileset("source nodes are missing".into()))?;
+    let mut output = BTreeMap::new();
+    for (index, node) in nodes.iter().enumerate() {
+        let node = node
+            .as_object()
+            .ok_or_else(|| PipelineError::Tileset("source node is invalid".into()))?;
+        let id = node
+            .get("extras")
+            .and_then(Value::as_object)
+            .and_then(|extras| extras.get("ice3"))
+            .and_then(Value::as_object)
+            .and_then(|ice3| ice3.get("id"))
+            .and_then(Value::as_str)
+            .or_else(|| node.get("name").and_then(Value::as_str))
+            .ok_or_else(|| PipelineError::Tileset("source node id is missing".into()))?;
+        if output
+            .insert(id.to_owned(), (index, node.clone()))
+            .is_some()
+        {
+            return Err(PipelineError::Tileset(format!(
+                "source node id {id} is duplicated"
+            )));
+        }
+    }
+    Ok(output)
+}
+
+fn primitive_triangles(
+    source: &SourceGlb,
+    primitive: &Map<String, Value>,
+) -> Result<u64, PipelineError> {
+    let mode = primitive.get("mode").and_then(Value::as_u64).unwrap_or(4);
+    let count = if let Some(index) = primitive.get("indices").and_then(Value::as_u64) {
+        source.json["accessors"][index as usize]["count"]
+            .as_u64()
+            .ok_or_else(|| PipelineError::Tileset("index count is missing".into()))?
+    } else {
+        let position = primitive
+            .get("attributes")
+            .and_then(Value::as_object)
+            .and_then(|attributes| attributes.get("POSITION"))
+            .and_then(Value::as_u64)
+            .ok_or_else(|| PipelineError::Tileset("POSITION accessor is missing".into()))?;
+        source.json["accessors"][position as usize]["count"]
+            .as_u64()
+            .ok_or_else(|| PipelineError::Tileset("position count is missing".into()))?
+    };
+    Ok(match mode {
+        4 if count % 3 == 0 => count / 3,
+        5 => count.saturating_sub(2),
+        6 if count >= 3 => count - 2,
+        _ => 0,
+    })
+}
+
+fn bounds_json(bounds: Bounds) -> Value {
+    json!({
+        "min": [bounds.min.x, bounds.min.y, bounds.min.z],
+        "max": [bounds.max.x, bounds.max.y, bounds.max.z]
+    })
+}
+
+fn pack_glb(json: &[u8], binary: &[u8]) -> Result<Vec<u8>, PipelineError> {
+    let mut json_chunk = json.to_vec();
+    while json_chunk.len() % 4 != 0 {
+        json_chunk.push(b' ');
+    }
+    let mut binary_chunk = binary.to_vec();
+    while binary_chunk.len() % 4 != 0 {
+        binary_chunk.push(0);
+    }
+    let total = 12usize
+        .checked_add(8)
+        .and_then(|value| value.checked_add(json_chunk.len()))
+        .and_then(|value| value.checked_add(8))
+        .and_then(|value| value.checked_add(binary_chunk.len()))
+        .and_then(|value| u32::try_from(value).ok())
+        .ok_or_else(|| PipelineError::Tileset("GLB exceeds 4 GiB".into()))?;
+    let mut output = Vec::with_capacity(total as usize);
+    output.extend_from_slice(&0x4654_6C67_u32.to_le_bytes());
+    output.extend_from_slice(&2_u32.to_le_bytes());
+    output.extend_from_slice(&total.to_le_bytes());
+    output.extend_from_slice(&(json_chunk.len() as u32).to_le_bytes());
+    output.extend_from_slice(&0x4E4F_534A_u32.to_le_bytes());
+    output.extend_from_slice(&json_chunk);
+    output.extend_from_slice(&(binary_chunk.len() as u32).to_le_bytes());
+    output.extend_from_slice(&0x004E_4942_u32.to_le_bytes());
+    output.extend_from_slice(&binary_chunk);
+    Ok(output)
+}
+
+fn part_triangle_count(file: &PartitionFile) -> Result<u64, PipelineError> {
+    let source = studio_assets::read_glb_bytes(&file.bytes, &std::env::temp_dir())?;
+    let meshes = source
+        .json
+        .get("meshes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::Tileset("part meshes are missing".into()))?;
+    let mut total = 0_u64;
+    for mesh in meshes {
+        for primitive in mesh
+            .get("primitives")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let primitive = primitive
+                .as_object()
+                .ok_or_else(|| PipelineError::Tileset("part primitive is invalid".into()))?;
+            total += primitive_triangles(&source, primitive)?;
+        }
+    }
+    Ok(total)
+}

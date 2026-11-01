@@ -1,4 +1,5 @@
 mod analyze;
+pub(crate) mod build;
 mod plan;
 
 pub use analyze::{PartitionError, PartitionUnit, analyze_units};
