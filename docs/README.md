@@ -31,6 +31,7 @@
 | `ICE3-STUDIO-SPEC-010` | [Agent Iteration Impact Analysis](specs/2026-10-31-agent-iteration-impact-design.md) | Implemented | 局部修改影响范围、几何重建与缓存复用契约 |
 | `ICE3-STUDIO-SPEC-011` | [Large Reference Asset Editing](specs/2026-10-31-large-reference-assets-design.md) | Implemented | 外部大型资产、轻量语义绑定、流式预览和稳定取景 |
 | `ICE3-STUDIO-SPEC-012` | [工程评审级污水处理厂资产](specs/2026-11-01-realistic-wastewater-plant-asset-design.md) | Implemented | 原创通用厂区、真实构筑物、管线、材质、场地与视觉验收 |
+| `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Proposed | 完整 P&ID、RAS/初沉污泥/沼气链路、连续弯头路径和几何校验 |
 | `ICE3-STUDIO-PLAN-015` | [工程评审级污水处理厂资产实施计划](plans/2026-11-01-realistic-wastewater-plant-asset.md) | Implemented | 工程化拆分、拓扑校验、细节组件、管线支撑、材质与 Chrome 验收 |
 | `ICE3-STUDIO-PLAN-014` | [Large Reference Asset Editing 实施计划](plans/2026-10-31-large-reference-assets.md) | Implemented | 引用资产存储、绑定编辑、流式 Viewer 与真实大模型验收 |
 | `ICE3-STUDIO-PLAN-011` | [Revision-Scoped GPU Scene Session 实施计划](plans/2026-10-31-gpu-scene-session.md) | Experimental | CPU 增量场景、GPU residency、preview delta 和量化门禁 |
