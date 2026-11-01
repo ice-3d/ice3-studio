@@ -80,6 +80,23 @@ export function validateWastewaterPlan(plan) {
     }
   }
 
+  const lineIds = new Set(
+    plan.operations
+      .filter(({ type }) => type === 'connection.create')
+      .map(({ connection }) => connection.metadata?.lineId)
+      .filter(Boolean),
+  );
+  for (const operation of plan.operations) {
+    if (operation.type !== 'node.create') continue;
+    if (!String(operation.metadata?.role ?? '').startsWith('pipe-')) continue;
+    if (!lineIds.has(operation.metadata?.lineId)) {
+      issues.push({
+        code: 'UNKNOWN_LINE',
+        message: String(operation.metadata?.lineId ?? 'missing'),
+      });
+    }
+  }
+
   return { ok: issues.length === 0, issues };
 }
 

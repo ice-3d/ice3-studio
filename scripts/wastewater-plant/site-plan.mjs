@@ -62,7 +62,15 @@ const sphere = (radius, segments = 10, rings = 6) => ({ kind: 'sphere', radius, 
 
 // 构件登记表：几何与材质角色分离，材质在实例上覆盖。
 function createBuilder() {
-  const state = { ops: [], materials: new Map(), next: 1, components: new Map(), nodes: new Map() };
+  const state = {
+    ops: [],
+    materials: new Map(),
+    next: 1,
+    components: new Map(),
+    nodes: new Map(),
+    instances: new Map(),
+    lineSequence: 0,
+  };
   const id = (prefix) => `${prefix}-${String(state.next++).padStart(6, '0')}`;
 
   const material = (key, name, color, edgeColor = null) => {
@@ -167,7 +175,45 @@ function createBuilder() {
       },
       metadata: normalizedMetadata,
     });
+    state.instances.set(key, {
+      nodeId,
+      definition: entry.definition,
+      transform: nodeTransform(x, y, z, yaw),
+      metadata: normalizedMetadata,
+    });
     return nodeId;
+  };
+
+  const rotateVector = (value, rotation) => {
+    const [qx, qy, qz, qw] = rotation;
+    const ix = qw * value.x + qy * value.z - qz * value.y;
+    const iy = qw * value.y + qz * value.x - qx * value.z;
+    const iz = qw * value.z + qx * value.y - qy * value.x;
+    const iw = -qx * value.x - qy * value.y - qz * value.z;
+    return vec(
+      ix * qw + iw * -qx + iy * -qz - iz * -qy,
+      iy * qw + iw * -qy + iz * -qx - ix * -qz,
+      iz * qw + iw * -qz + ix * -qy - iy * -qx,
+    );
+  };
+
+  const resolveWorldPort = (instanceKey, portName) => {
+    const instanceEntry = state.instances.get(instanceKey);
+    if (!instanceEntry) throw new Error(`missing instance ${instanceKey}`);
+    const port = instanceEntry.definition.ports.find(({ name }) => name === portName);
+    if (!port) throw new Error(`missing port ${instanceKey}/${portName}`);
+    const rotated = rotateVector(port.position, instanceEntry.transform.rotation);
+    const direction = rotateVector(port.direction, instanceEntry.transform.rotation);
+    return {
+      port,
+      position: vec(
+        instanceEntry.transform.translation.x + rotated.x,
+        instanceEntry.transform.translation.y + rotated.y,
+        instanceEntry.transform.translation.z + rotated.z,
+      ),
+      direction,
+      metadata: instanceEntry.metadata,
+    };
   };
 
   // 管道按介质分色，和真实厂区一样用颜色编码工艺流向。
@@ -203,10 +249,36 @@ function createBuilder() {
     'air': { kind: 'rack', elevation: 3.6 },
   };
 
-  const connect = (fromKey, fromPort, toKey, toPort, name, medium, diameter) => {
+  const addPipeAccessory = (name, content, position, materialKey, metadata) => {
+    state.ops.push({
+      type: 'node.create',
+      node_id: id('node'),
+      parent_id: null,
+      name,
+      transform: nodeTransform(position.x, position.y, position.z),
+      content,
+      material_id: state.materials.get(materialKey),
+      metadata,
+    });
+  };
+
+  const connect = (
+    fromKey,
+    fromPort,
+    toKey,
+    toPort,
+    name,
+    medium,
+    diameter,
+    options = {},
+  ) => {
     const from = state.nodes.get(fromKey);
     const to = state.nodes.get(toKey);
     if (!from || !to) throw new Error(`missing endpoint ${fromKey} -> ${toKey}`);
+    const fromEndpoint = resolveWorldPort(fromKey, fromPort);
+    const toEndpoint = resolveWorldPort(toKey, toPort);
+    const lineId = options.lineId ?? `L-${String(++state.lineSequence).padStart(3, '0')}`;
+    const flow = options.flow ?? 'forward';
     const relationId = id('relation');
     state.ops.push({
       type: 'relation.create',
@@ -232,10 +304,73 @@ function createBuilder() {
         diameter: diameter * 1.8,
         routePolicy: ROUTE_POLICY[medium] ?? { kind: 'orthogonal' },
         relationId,
-        metadata: {},
+        metadata: {
+          lineId,
+          flow,
+          service: name,
+          medium,
+        },
       },
       material_id: state.materials.get(PIPE_MATERIAL[medium] ?? 'pipe-process'),
     });
+    if (options.fittings !== false) {
+      addPipeAccessory(
+        `${name} 起点法兰`,
+        box(diameter * 2.1, 0.18, diameter * 2.1),
+        fromEndpoint.position,
+        'steel',
+        { role: 'pipe-flange', lineId, stage: fromEndpoint.metadata.stage },
+      );
+      addPipeAccessory(
+        `${name} 终点法兰`,
+        box(diameter * 2.1, 0.18, diameter * 2.1),
+        toEndpoint.position,
+        'steel',
+        { role: 'pipe-flange', lineId, stage: toEndpoint.metadata.stage },
+      );
+      if (medium === 'air' || /泵|提升|回流/.test(name)) {
+        addPipeAccessory(
+          `${name} 隔离阀`,
+          box(diameter * 1.5, diameter * 1.25, diameter * 1.5),
+          fromEndpoint.position,
+          'steel',
+          { role: 'pipe-valve', lineId, stage: fromEndpoint.metadata.stage },
+        );
+      }
+    }
+    const midpoint = vec(
+      (fromEndpoint.position.x + toEndpoint.position.x) / 2,
+      fromEndpoint.position.y,
+      (fromEndpoint.position.z + toEndpoint.position.z) / 2,
+    );
+    if (options.supports !== false) {
+      if (ROUTE_POLICY[medium]?.kind === 'buried') {
+        addPipeAccessory(
+          `${name} 检查井`,
+          cylinder(0.52, 0.08, 18),
+          vec(midpoint.x, 0.04, midpoint.z),
+          'steel',
+          { role: 'pipe-cover', lineId, stage: fromEndpoint.metadata.stage },
+        );
+      } else {
+        addPipeAccessory(
+          `${name} 管道支架`,
+          box(0.24, 3.6, diameter * 2.4),
+          vec(midpoint.x, 1.8, midpoint.z),
+          'steel',
+          { role: 'pipe-support', lineId, stage: fromEndpoint.metadata.stage },
+        );
+      }
+    }
+    if (state.lineSequence <= 5) {
+      addPipeAccessory(
+        `${lineId} 管线标牌`,
+        box(2.3, 0.32, 0.08),
+        vec(midpoint.x, Math.max(fromEndpoint.position.y, 2.8), midpoint.z),
+        'sign-panel',
+        { role: 'pipe-label', lineId, stage: fromEndpoint.metadata.stage },
+      );
+    }
   };
 
   // 场地：一块很薄的板，略低于池底，不参与工艺连接。

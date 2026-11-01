@@ -187,3 +187,30 @@ test('clearance validation rejects overlapping process footprints', () => {
   assert.equal(result.ok, false);
   assert.ok(result.issues.some(({ code }) => code === 'CLEARANCE_VIOLATION'));
 });
+
+test('every visible process line has endpoint fittings and metadata', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connections = plan.operations.filter(({ type }) => type === 'connection.create');
+  const accessories = plan.operations.filter(({ type, metadata }) => (
+    type === 'node.create' && String(metadata?.role ?? '').startsWith('pipe-')
+  ));
+  const labels = accessories.filter(({ metadata }) => metadata.role === 'pipe-label');
+  assert.ok(connections.length >= 31);
+  assert.ok(accessories.length >= connections.length * 2);
+  assert.ok(labels.length >= 5);
+  assert.ok(connections.every(({ connection }) => connection.metadata.lineId));
+  assert.ok(connections.every(({ connection }) => (
+    ['forward', 'reverse'].includes(connection.metadata.flow)
+  )));
+});
+
+test('pipeline validation rejects a missing accessory line reference', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const accessory = plan.operations.find(({ type, metadata }) => (
+    type === 'node.create' && metadata?.role === 'pipe-flange'
+  ));
+  accessory.metadata.lineId = 'missing-line';
+  const result = validateWastewaterPlan(plan);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some(({ code }) => code === 'UNKNOWN_LINE'));
+});
