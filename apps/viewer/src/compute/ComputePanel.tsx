@@ -107,14 +107,21 @@ function formatBytes(value: number): string {
 export function ComputePanel({ status }: { status: ComputeStatus | null }) {
   const view = formatComputeStatus(status);
   return (
-    <section className="compute-panel" aria-label="Native compute status">
-      <div>
+    <section className={`status-card compute-panel status-card--${view.state}`} aria-label="Native compute status">
+      <div className="status-card__heading">
         <span className="toolchain-panel__eyebrow">Geometry engine</span>
-        <strong>{view.title}</strong>
+        <strong>
+          <span className="status-dot" aria-hidden="true" />
+          {view.title}
+        </strong>
       </div>
-      <p>{view.detail}</p>
+      <p className="status-card__detail">{view.detail}</p>
       {status ? (
-        <p className="compute-panel__metrics">{view.metrics}</p>
+        <div className="compute-panel__metrics">
+          {view.metrics.split(' · ').map((metric) => (
+            <span key={metric}>{metric}</span>
+          ))}
+        </div>
       ) : null}
       {view.fallbackReason ? <p className="toolchain-panel__reason">{view.fallbackReason}</p> : null}
     </section>

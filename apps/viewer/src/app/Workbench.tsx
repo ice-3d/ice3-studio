@@ -2,7 +2,7 @@ import './studioTokens.css';
 import { WorkbenchHeader } from './WorkbenchHeader';
 import { useSession, useSessionStore } from '../session/SessionProvider';
 import { buildObjectTree } from '../navigation/objectTreeModel';
-import { ObjectTree } from '../navigation/ObjectTree';
+import { ObjectBrowser } from '../navigation/ObjectBrowser';
 import { Viewport } from '../viewport/Viewport';
 import { FormRenderer } from '../forms/FormRenderer';
 import { useChangeSet, useChangeSetStore } from '../changeset/ChangeSetProvider';
@@ -16,7 +16,7 @@ export function Workbench() {
   const sessionStore = useSessionStore();
   const changeSetStore = useChangeSetStore();
   const changeSet = useChangeSet();
-  const [dock, setDock] = useState<'agent' | 'inspect' | 'changes'>('inspect');
+  const [dock, setDock] = useState<'agent' | 'inspect' | 'changes'>('agent');
   const [drawer, setDrawer] = useState<'operations' | 'timeline' | 'diagnostics'>('operations');
   const nodes = session.document?.scene.nodes ?? [];
   const selected = nodes.find((node) => node.id === session.selectionIds[0]);
@@ -30,9 +30,8 @@ export function Workbench() {
     <main className="workbench">
       <WorkbenchHeader />
       <section className="workbench__body">
-        <nav aria-label="Project navigation">
-          <h2>Objects</h2>
-          <ObjectTree
+        <nav aria-label="Project navigation" className="objects-panel">
+          <ObjectBrowser
             nodes={buildObjectTree(nodes)}
             selectedIds={session.selectionIds}
             onSelect={(id) => sessionStore.select([id])}
@@ -44,12 +43,13 @@ export function Workbench() {
           selectionIds={session.selectionIds}
           onSelection={(ids) => sessionStore.select(ids)}
         />
-        <aside aria-label="Review dock">
-          <div role="tablist" aria-label="Review">
+        <aside aria-label="Review dock" className="review-dock">
+          <div role="tablist" aria-label="Review" className="review-dock__tabs">
             {(['agent', 'inspect', 'changes'] as const).map((tab) => (
               <button
                 role="tab"
                 aria-selected={dock === tab}
+                className="review-dock__tab"
                 key={tab}
                 onClick={() => setDock(tab)}
               >
@@ -57,8 +57,15 @@ export function Workbench() {
               </button>
             ))}
           </div>
-          <div hidden={dock !== 'agent'}><AgentPanel /></div>
-          <div hidden={dock !== 'inspect'}>
+          <div className="review-dock__panel" hidden={dock !== 'agent'}>
+            <AgentPanel
+              projectId={session.projectId}
+              revision={session.revision}
+              focusName={selected?.name ?? null}
+              onOpenManual={() => setDock('inspect')}
+            />
+          </div>
+          <div className="review-dock__panel" hidden={dock !== 'inspect'}>
             <ToolchainPanel status={session.toolchain} />
             <ComputePanel status={session.compute} />
             <FormRenderer
@@ -68,46 +75,57 @@ export function Workbench() {
                 await changeSetStore.addOperations(session.revision, operations);
               }}
             />
-            <p>{changeSet.status}</p>
-            <button
-              type="button"
-              disabled={!changeSet.active?.candidateDigest}
-              onClick={() => {
-                const digest = changeSet.active?.candidateDigest;
-                if (digest) changeSetStore.markReviewed(digest);
-              }}
-            >
-              Review candidate
-            </button>
-            <button
-              type="button"
-              disabled={!changeSet.canApprove}
-              onClick={async () => {
-                await changeSetStore.commit();
-                await sessionStore.refresh();
-              }}
-            >
-              Approve &amp; commit
-            </button>
+            <div className="review-actions">
+              <div className="review-actions__status">
+                <span>Change set</span>
+                <strong>{changeSet.status}</strong>
+              </div>
+              <div className="review-actions__buttons">
+                <button
+                  type="button"
+                  className="button button--secondary"
+                  disabled={!changeSet.active?.candidateDigest}
+                  onClick={() => {
+                    const digest = changeSet.active?.candidateDigest;
+                    if (digest) changeSetStore.markReviewed(digest);
+                  }}
+                >
+                  Review candidate
+                </button>
+                <button
+                  type="button"
+                  className="button button--primary"
+                  disabled={!changeSet.canApprove}
+                  onClick={async () => {
+                    await changeSetStore.commit();
+                    await sessionStore.refresh();
+                  }}
+                >
+                  Approve &amp; commit
+                </button>
+              </div>
+            </div>
           </div>
-          <div hidden={dock !== 'changes'}>
+          <div className="review-dock__panel" hidden={dock !== 'changes'}>
+            <span className="panel-kicker">Current proposal</span>
             <h2>Changes</h2>
             <p>{changeSet.active ? `${changeSet.active.diff.updatedNodeIds.length} updated objects` : 'No staged changes'}</p>
           </div>
         </aside>
       </section>
-      <footer role="tablist" aria-label="Evidence">
+      <footer role="tablist" aria-label="Evidence" className="evidence-bar">
         {(['operations', 'timeline', 'diagnostics'] as const).map((tab) => (
           <button
             role="tab"
             aria-selected={drawer === tab}
+            className="evidence-bar__tab"
             key={tab}
             onClick={() => setDrawer(tab)}
           >
             {tab[0]!.toUpperCase() + tab.slice(1)}
           </button>
         ))}
-        <span>
+        <span className="evidence-bar__status">
           {drawer === 'diagnostics'
             ? `${session.diagnostics.length} diagnostics`
             : drawer === 'timeline'

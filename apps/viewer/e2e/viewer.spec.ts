@@ -9,11 +9,21 @@ test('loads the generic workbench with a persistent scene canvas', async ({ page
   await expect(page.getByRole('tab', { name: 'Operations' })).toBeVisible();
 });
 
+test('opens on Agent mission control with the current project context', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.getByRole('tab', { name: 'Agent' })).toHaveAttribute('aria-selected', 'true');
+  const mission = page.getByRole('region', { name: 'Agent mission control' });
+  await expect(mission).toContainText('wastewater-mini');
+  await expect(mission.getByText('2', { exact: true })).toBeVisible();
+});
+
 test('stages, reviews, and commits a form change', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('status')).toContainText('Revision 2');
-  await page.getByRole('button', { name: 'Aeration Tank A' }).click();
-  await page.getByLabel('Name').fill('Aeration Tank Renamed');
+  await page.getByRole('button', { name: 'Secondary Clarifier B' }).click();
+  await page.getByRole('button', { name: 'Inspect selected object' }).click();
+  await page.getByLabel('Name').fill('Secondary Clarifier Renamed');
   await page.getByRole('button', { name: 'Stage changes' }).click();
   await expect(
     page.getByRole('complementary', { name: 'Review dock' }).getByText('ready'),
@@ -21,14 +31,33 @@ test('stages, reviews, and commits a form change', async ({ page }) => {
   await page.getByRole('button', { name: 'Review candidate' }).click();
   await page.getByRole('button', { name: 'Approve & commit' }).click();
   await expect(page.getByRole('status')).toContainText('Revision 3');
-  await expect(page.getByRole('button', { name: 'Aeration Tank Renamed' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Secondary Clarifier Renamed' })).toBeVisible();
 });
 
 test('keeps review available when Agent Gateway is offline', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Agent' }).click();
-  await expect(page.getByText('The Agent Gateway is not connected.')).toBeVisible();
+  await expect(page.getByText('Agent Gateway is offline')).toBeVisible();
   await expect(page.getByRole('tree').getByRole('button').first()).toBeEnabled();
+  await page.getByRole('button', { name: 'Open manual controls' }).click();
+  await expect(page.getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('filters the object tree and keeps entity selection available', async ({ page }) => {
+  await page.goto('/');
+  const search = page.getByPlaceholder('Search objects');
+  await expect(search).toBeVisible();
+  await search.fill('Aeration Tank A');
+
+  await expect(page.getByRole('button', { name: 'Aeration Tank A' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Secondary Clarifier A' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Aeration Tank A' }).click();
+  await expect(
+    page.getByRole('region', { name: 'Agent mission control' }),
+  ).toContainText('Aeration Tank A');
+  await page.getByRole('button', { name: 'Inspect selected object' }).click();
+  await expect(page.getByLabel('Inspect Aeration Tank A')).toBeVisible();
 });
 
 test('loads an arbitrary generic project without industry-specific UI', async ({ page, request }) => {
@@ -73,6 +102,7 @@ test('keeps editing available when Toolchain is incompatible', async ({ page }) 
     });
   });
   await page.goto('/');
+  await page.getByRole('tab', { name: 'Inspect' }).click();
   await expect(page.getByText('Toolchain incompatible')).toBeVisible();
   await expect(page.locator('canvas[data-layer="scene"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Objects' })).toBeVisible();

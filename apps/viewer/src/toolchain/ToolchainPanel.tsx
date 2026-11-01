@@ -32,17 +32,23 @@ export function formatToolchainStatus(status: ToolchainStatus | null): {
 
 export function ToolchainPanel({ status }: { status: ToolchainStatus | null }) {
   const view = formatToolchainStatus(status);
+  const state = status?.state ?? 'starting';
   return (
-    <section className="toolchain-panel" aria-label="Toolchain status">
-      <div>
+    <section className={`status-card toolchain-panel status-card--${state}`} aria-label="Toolchain status">
+      <div className="status-card__heading">
         <span className="toolchain-panel__eyebrow">Asset pipeline</span>
-        <strong>{view.label}</strong>
+        <strong>
+          <span className="status-dot" aria-hidden="true" />
+          {view.label}
+        </strong>
       </div>
-      <p>{view.version}</p>
+      <p className="status-card__detail">{view.version}</p>
       {status?.capabilities.length ? (
-        <p className="toolchain-panel__capabilities">
-          {status.capabilities.join(' · ')}
-        </p>
+        <div className="capability-list">
+          {status.capabilities.map((capability) => (
+            <span key={capability}>{capability}</span>
+          ))}
+        </div>
       ) : null}
       {view.reason ? <p className="toolchain-panel__reason">{view.reason}</p> : null}
     </section>

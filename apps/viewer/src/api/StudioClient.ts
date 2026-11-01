@@ -67,10 +67,10 @@ export type StudioReferenceBindingPage = {
 };
 
 export type ParameterValue =
-  | { kind: 'number'; value: number }
-  | { kind: 'vector3'; value: { x: number; y: number; z: number } }
-  | { kind: 'color'; value: [number, number, number, number] }
-  | { kind: 'enumeration'; value: string };
+  | number
+  | StudioVec3
+  | [number, number, number, number]
+  | string;
 
 export type ComponentDefinition = {
   id: string;

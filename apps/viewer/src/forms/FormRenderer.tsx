@@ -5,7 +5,11 @@ import type {
   StudioNode,
 } from '../api/StudioClient';
 import { compileNodeChanges, type Operation } from './operationCompiler';
-import { compileParameterChanges, type ParameterDraft } from './instanceParameters';
+import {
+  compileParameterChanges,
+  formatParameter,
+  type ParameterDraft,
+} from './instanceParameters';
 
 type Props = {
   node: StudioNode | undefined;
@@ -32,9 +36,18 @@ export function FormRenderer({ node, definition, onStage }: Props) {
     setError(null);
   }, [definition, node?.id, node?.name, node?.visible]);
 
-  if (!node) return <p>Select an object to inspect.</p>;
+  if (!node) {
+    return (
+      <div className="empty-state inspector-empty">
+        <span className="empty-state__icon" aria-hidden="true">+</span>
+        <strong>No object selected</strong>
+        <span>Choose an entity in the viewport or object browser.</span>
+      </div>
+    );
+  }
   return (
     <form
+      className="inspector-form"
       aria-label={`Inspect ${node.name}`}
       onSubmit={(event) => {
         event.preventDefault();
@@ -55,21 +68,39 @@ export function FormRenderer({ node, definition, onStage }: Props) {
         }
       }}
     >
-      <label>Name <input value={name} onChange={(event) => setName(event.target.value)} /></label>
-      <label>
-        <input
-          type="checkbox"
-          checked={visible}
-          onChange={(event) => setVisible(event.target.checked)}
-        />
-        Visible
-      </label>
+      <div className="inspector-form__heading">
+        <div>
+          <span className="panel-kicker">Selection</span>
+          <h2>{node.name}</h2>
+        </div>
+        <label className="visibility-toggle">
+          <input
+            type="checkbox"
+            checked={visible}
+            onChange={(event) => setVisible(event.target.checked)}
+          />
+          <span aria-hidden="true" />
+          Visible
+        </label>
+      </div>
+      <div className="field-stack">
+        <label className="field">
+          <span>Name</span>
+          <input value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
+      </div>
       {definition && node.content?.type === 'component_instance' && (
-        <fieldset>
-          <legend>{definition.name} parameters</legend>
+        <fieldset className="parameter-group">
+          <legend>
+            <span>Geometry parameters</span>
+            <small>{definition.name}</small>
+          </legend>
           {definition.parameters.map((parameter) => (
-            <label key={parameter.name}>
-              {parameter.name}{parameter.unit ? ` (${parameter.unit})` : ''}
+            <label className="field" key={parameter.name}>
+              <span>
+                {formatLabel(parameter.name)}
+                {parameter.unit ? <small>{parameter.unit}</small> : null}
+              </span>
               {parameter.valueType.kind === 'enumeration' ? (
                 <select
                   aria-label={parameter.name}
@@ -99,15 +130,16 @@ export function FormRenderer({ node, definition, onStage }: Props) {
           ))}
         </fieldset>
       )}
-      {error && <p role="alert">{error}</p>}
-      <button type="submit">Stage changes</button>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <div className="inspector-form__actions">
+        <button type="submit" className="button button--secondary">Stage changes</button>
+      </div>
     </form>
   );
 }
 
-function formatParameter(value: ComponentInstance['parameters'][string]): string {
-  if (value.kind === 'number') return String(value.value);
-  if (value.kind === 'vector3') return [value.value.x, value.value.y, value.value.z].join(', ');
-  if (value.kind === 'color') return value.value.join(', ');
-  return value.value;
+function formatLabel(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/^./, (character) => character.toUpperCase());
 }
