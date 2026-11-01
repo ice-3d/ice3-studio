@@ -77,10 +77,7 @@ try {
   const legacyParts = await partDocuments(legacyOutput);
   const newSelectionIds = selectionIds(newParts);
   const legacySelectionIds = selectionIds(legacyParts);
-  const newNodeCount = newParts.reduce(
-    (total, part) => total + (part.json.nodes?.length ?? 0),
-    0,
-  );
+  const newNodeCount = semanticNodeCount(newParts);
   const newPaths = newExport.files
     .map((file) => file.path)
     .filter((path) => path.startsWith('parts/'))
@@ -271,13 +268,21 @@ async function partDocuments(root) {
 }
 
 function selectionIds(parts) {
-  return [...new Set(parts.flatMap((part) => (
-    (part.json.nodes ?? []).map((node) => (
-      node.name
-      ?? node.extras?.ice3?.id
-      ?? node.extras?.ice3?.selectionId
-    ))
-  )).filter(Boolean))].sort();
+  return [...new Set(parts.flatMap((part) => {
+    const batched = part.json.asset?.extras?.ice3?.batching?.semanticIds;
+    if (Array.isArray(batched)) return batched;
+    return (part.json.nodes ?? [])
+      .filter((node) => node.mesh !== undefined)
+      .map((node) => (
+        node.name
+        ?? node.extras?.ice3?.id
+        ?? node.extras?.ice3?.selectionId
+      ));
+  }).filter(Boolean))].sort();
+}
+
+function semanticNodeCount(parts) {
+  return selectionIds(parts).length;
 }
 
 function summarizeDigests(newParts, legacyParts) {

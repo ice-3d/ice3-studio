@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use glam::Mat4;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use studio_assets::SourceGlb;
+use studio_assets::{AccessorData, SourceGlb, read_accessor};
 use studio_core::geometry::Bounds;
 
 use super::{PartitionError, PartitionLeaf, analyze_units};
@@ -83,6 +84,273 @@ pub(crate) fn build_leaf(
     leaf: &PartitionLeaf,
 ) -> Result<BuiltLeaf, PipelineError> {
     build_leaf_with_overrides(source, asset_id, leaf, &BTreeMap::new())
+}
+
+pub(crate) fn build_batched_leaf(
+    source: &SourceGlb,
+    asset_id: &str,
+    leaf: &PartitionLeaf,
+) -> Result<(BuiltLeaf, usize), PipelineError> {
+    let source_nodes = source_nodes(source)?;
+    let source_meshes = source
+        .json
+        .get("meshes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::Tileset("source meshes are missing".into()))?;
+    let source_materials = source
+        .json
+        .get("materials")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let mut writer = PartWriter::default();
+    let mut material_map = BTreeMap::new();
+    let mut batches = BTreeMap::<u64, BatchDraft>::new();
+    let mut semantic_ids = Vec::new();
+    let mut semantic_node_ids = Vec::new();
+    let mut semantic_selection_ids = Vec::new();
+    let mut selection_ids = BTreeSet::new();
+    let mut nodes = Vec::new();
+
+    for unit in &leaf.units {
+        for (node_id, matrix) in unit.node_ids.iter().zip(&unit.world_matrices) {
+            let (_, node) = source_nodes
+                .get(node_id)
+                .ok_or_else(|| PipelineError::Tileset(format!("node {node_id} is missing")))?;
+            let mut extras = node
+                .get("extras")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            let mut ice3 = extras
+                .get("ice3")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            let selection_id = ice3
+                .get("selectionId")
+                .and_then(Value::as_str)
+                .or_else(|| ice3.get("ownerId").and_then(Value::as_str))
+                .or_else(|| ice3.get("id").and_then(Value::as_str))
+                .map(str::to_owned)
+                .unwrap_or_else(|| node_id.clone());
+            ice3.entry("id")
+                .or_insert_with(|| Value::from(node_id.clone()));
+            ice3.insert("selectionId".into(), Value::from(selection_id.clone()));
+            extras.insert("ice3".into(), Value::Object(ice3));
+            let semantic_index = semantic_ids.len() as u32;
+            semantic_ids.push(node_id.clone());
+            semantic_node_ids.push(format!("{asset_id}/node/{node_id}"));
+            semantic_selection_ids.push(selection_id.clone());
+            selection_ids.insert(selection_id);
+            nodes.push(json!({
+                "name": node.get("name").and_then(Value::as_str).unwrap_or(node_id),
+                "matrix": Mat4::IDENTITY.to_cols_array(),
+                "extras": extras
+            }));
+            append_batch_geometry(
+                source,
+                source_meshes,
+                unit.mesh_index,
+                *matrix,
+                semantic_index,
+                &mut batches,
+            )?;
+        }
+    }
+
+    let mut batch_metadata = Vec::new();
+    for (batch_index, batch) in batches.values().enumerate() {
+        let (mesh, output_material, triangle_count, bounds) = writer.copy_batch(
+            batch,
+            &source_materials,
+            &mut material_map,
+            asset_id,
+            batch_index,
+        )?;
+        let mesh_index = writer.meshes.len();
+        writer.meshes.push(mesh);
+        nodes.push(json!({
+            "name": format!("render-batch-{batch_index:03}"),
+            "matrix": Mat4::IDENTITY.to_cols_array(),
+            "mesh": mesh_index,
+            "extras": {
+                "ice3": {
+                    "id": format!("{asset_id}/render-batch-node/{batch_index:03}")
+                }
+            }
+        }));
+        batch_metadata.push(json!({
+            "id": format!("batch-{batch_index:03}"),
+            "mesh": mesh_index,
+            "primitive": 0,
+            "material": output_material,
+            "mode": 4,
+            "triangleCount": triangle_count,
+            "bounds": bounds
+        }));
+    }
+    let root_nodes = (0..nodes.len()).collect::<Vec<_>>();
+    writer.root_nodes = root_nodes;
+    let batch_count = batch_metadata.len();
+    let batching = json!({
+        "version": "1.0",
+        "semanticIds": semantic_ids,
+        "semanticNodeIds": semantic_node_ids,
+        "semanticSelectionIds": semantic_selection_ids,
+        "batches": batch_metadata
+    });
+    let triangle_count = batches
+        .values()
+        .map(|batch| batch.indices.len() as u64 / 3)
+        .sum();
+    let bytes = writer.finish(
+        source,
+        asset_id,
+        leaf.bounds,
+        nodes,
+        triangle_count,
+        batch_count as u64,
+        selection_ids.len(),
+        Some(batching),
+    )?;
+    Ok((
+        BuiltLeaf {
+            bytes,
+            selection_ids,
+        },
+        batch_count,
+    ))
+}
+
+struct BatchDraft {
+    positions: Vec<f32>,
+    normals: Vec<f32>,
+    indices: Vec<u32>,
+    semantic_indices: Vec<u32>,
+    material: Option<usize>,
+    bounds_min: [f32; 3],
+    bounds_max: [f32; 3],
+}
+
+fn append_batch_geometry(
+    source: &SourceGlb,
+    meshes: &[Value],
+    mesh_index: usize,
+    matrix: Mat4,
+    semantic_index: u32,
+    batches: &mut BTreeMap<u64, BatchDraft>,
+) -> Result<(), PipelineError> {
+    let mesh = meshes
+        .get(mesh_index)
+        .and_then(Value::as_object)
+        .ok_or_else(|| PipelineError::Tileset("batch source mesh is missing".into()))?;
+    let primitives = mesh
+        .get("primitives")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::Tileset("batch primitives are missing".into()))?;
+    for primitive in primitives {
+        let primitive = primitive
+            .as_object()
+            .ok_or_else(|| PipelineError::Tileset("batch primitive is invalid".into()))?;
+        if primitive.get("mode").and_then(Value::as_u64).unwrap_or(4) != 4 {
+            continue;
+        }
+        let position_index = primitive
+            .get("attributes")
+            .and_then(Value::as_object)
+            .and_then(|attributes| attributes.get("POSITION"))
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| PipelineError::Tileset("batch POSITION is missing".into()))?;
+        let AccessorData::F32 {
+            values: positions,
+            components: 3,
+        } = read_accessor(source, position_index)?
+        else {
+            return Err(PipelineError::Tileset(
+                "batch POSITION must be VEC3 float".into(),
+            ));
+        };
+        let normals = match primitive
+            .get("attributes")
+            .and_then(Value::as_object)
+            .and_then(|attributes| attributes.get("NORMAL"))
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+        {
+            Some(index) => match read_accessor(source, index)? {
+                AccessorData::F32 {
+                    values,
+                    components: 3,
+                } if values.len() == positions.len() => values,
+                _ => vec![0.0; positions.len()],
+            },
+            None => vec![0.0; positions.len()],
+        };
+        let indices = match primitive
+            .get("indices")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+        {
+            Some(index) => match read_accessor(source, index)? {
+                AccessorData::U16 { values, .. } => {
+                    values.into_iter().map(u32::from).collect::<Vec<_>>()
+                }
+                AccessorData::U32 { values, .. } => values,
+                AccessorData::F32 { .. } => {
+                    return Err(PipelineError::Tileset(
+                        "batch indices must be integers".into(),
+                    ));
+                }
+            },
+            None => (0..positions.len() as u32 / 3).collect(),
+        };
+        let material = primitive
+            .get("material")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok());
+        let key = material.map_or(u64::MAX, |value| value as u64);
+        let batch = batches.entry(key).or_insert_with(|| BatchDraft {
+            positions: Vec::new(),
+            normals: Vec::new(),
+            indices: Vec::new(),
+            semantic_indices: Vec::new(),
+            material,
+            bounds_min: [f32::INFINITY; 3],
+            bounds_max: [f32::NEG_INFINITY; 3],
+        });
+        let vertex_offset = batch.positions.len() as u32 / 3;
+        let normal_matrix = glam::Mat3::from_mat4(matrix).inverse().transpose();
+        for (point, normal) in positions
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .zip(normals.as_chunks::<3>().0)
+        {
+            let transformed = matrix.transform_point3(glam::Vec3::from_array(*point));
+            batch.positions.extend_from_slice(&transformed.to_array());
+            let transformed_normal = if normal == &[0.0, 0.0, 0.0] {
+                glam::Vec3::Z
+            } else {
+                (normal_matrix * glam::Vec3::from_array(*normal)).normalize_or_zero()
+            };
+            batch
+                .normals
+                .extend_from_slice(&transformed_normal.to_array());
+            batch.semantic_indices.push(semantic_index);
+            batch.bounds_min[0] = batch.bounds_min[0].min(transformed.x);
+            batch.bounds_min[1] = batch.bounds_min[1].min(transformed.y);
+            batch.bounds_min[2] = batch.bounds_min[2].min(transformed.z);
+            batch.bounds_max[0] = batch.bounds_max[0].max(transformed.x);
+            batch.bounds_max[1] = batch.bounds_max[1].max(transformed.y);
+            batch.bounds_max[2] = batch.bounds_max[2].max(transformed.z);
+        }
+        batch
+            .indices
+            .extend(indices.into_iter().map(|index| index + vertex_offset));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -198,6 +466,7 @@ pub(crate) fn build_leaf_with_overrides(
         source_triangles,
         primitive_count,
         selection_ids.len(),
+        None,
     )?;
     Ok(BuiltLeaf {
         bytes,
@@ -218,6 +487,119 @@ struct PartWriter {
 }
 
 impl PartWriter {
+    fn copy_batch(
+        &mut self,
+        batch: &BatchDraft,
+        source_materials: &[Value],
+        material_map: &mut BTreeMap<usize, usize>,
+        asset_id: &str,
+        batch_index: usize,
+    ) -> Result<(Value, Option<usize>, u64, Value), PipelineError> {
+        self.align();
+        let position_view = self.buffer_views.len();
+        let position_bytes = bytemuck::cast_slice(&batch.positions);
+        self.buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": self.binary.len(),
+            "byteLength": position_bytes.len(),
+            "target": 34962
+        }));
+        self.binary.extend_from_slice(position_bytes);
+        let position_accessor = self.accessors.len();
+        self.accessors.push(json!({
+            "bufferView": position_view,
+            "componentType": 5126,
+            "count": batch.positions.len() / 3,
+            "type": "VEC3",
+            "min": batch.bounds_min,
+            "max": batch.bounds_max
+        }));
+        self.align();
+        let normal_view = self.buffer_views.len();
+        let normal_bytes = bytemuck::cast_slice(&batch.normals);
+        self.buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": self.binary.len(),
+            "byteLength": normal_bytes.len(),
+            "target": 34962
+        }));
+        self.binary.extend_from_slice(normal_bytes);
+        let normal_accessor = self.accessors.len();
+        self.accessors.push(json!({
+            "bufferView": normal_view,
+            "componentType": 5126,
+            "count": batch.normals.len() / 3,
+            "type": "VEC3"
+        }));
+        self.align();
+        let semantic_view = self.buffer_views.len();
+        let semantic_bytes = bytemuck::cast_slice(&batch.semantic_indices);
+        self.buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": self.binary.len(),
+            "byteLength": semantic_bytes.len(),
+            "target": 34962
+        }));
+        self.binary.extend_from_slice(semantic_bytes);
+        let semantic_accessor = self.accessors.len();
+        self.accessors.push(json!({
+            "bufferView": semantic_view,
+            "componentType": 5125,
+            "count": batch.semantic_indices.len(),
+            "type": "SCALAR"
+        }));
+        self.align();
+        let index_view = self.buffer_views.len();
+        let index_bytes = bytemuck::cast_slice(&batch.indices);
+        self.buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": self.binary.len(),
+            "byteLength": index_bytes.len(),
+            "target": 34963
+        }));
+        self.binary.extend_from_slice(index_bytes);
+        let index_accessor = self.accessors.len();
+        self.accessors.push(json!({
+            "bufferView": index_view,
+            "componentType": 5125,
+            "count": batch.indices.len(),
+            "type": "SCALAR"
+        }));
+        let output_material = batch
+            .material
+            .map(|material| self.copy_material(source_materials, material_map, material, asset_id))
+            .transpose()?;
+        let mut primitive = json!({
+            "attributes": {
+                "POSITION": position_accessor,
+                "NORMAL": normal_accessor,
+                "_ICE3_SEMANTIC_INDEX": semantic_accessor
+            },
+            "indices": index_accessor,
+            "mode": 4
+        });
+        if let Some(material) = output_material {
+            primitive["material"] = Value::from(material);
+        }
+        Ok((
+            json!({
+                "name": format!("render-batch-{batch_index:03}"),
+                "primitives": [primitive],
+                "extras": {
+                    "ice3": {
+                        "id": format!("{asset_id}/render-batch-mesh/{batch_index:03}")
+                    }
+                }
+            }),
+            output_material,
+            batch.indices.len() as u64 / 3,
+            json!({
+                "min": batch.bounds_min,
+                "max": batch.bounds_max
+            }),
+        ))
+    }
+
     fn copy_override(
         &mut self,
         geometry: &GeometryOverride,
@@ -563,6 +945,7 @@ impl PartWriter {
         triangle_count: u64,
         primitive_count: u64,
         selection_group_count: usize,
+        batching: Option<Value>,
     ) -> Result<Vec<u8>, PipelineError> {
         self.align();
         let digest = format!("{:x}", Sha256::digest(&self.binary));
@@ -623,6 +1006,9 @@ impl PartWriter {
         });
         if self.binary.is_empty() {
             json.as_object_mut().expect("object").remove("buffers");
+        }
+        if let Some(batching) = batching {
+            json["asset"]["extras"]["ice3"]["batching"] = batching;
         }
         pack_glb(
             &serde_json::to_vec(&json)

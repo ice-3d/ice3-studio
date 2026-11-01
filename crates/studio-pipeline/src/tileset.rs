@@ -9,6 +9,7 @@ use studio_core::geometry::Bounds;
 use crate::PipelineError;
 use studio_assets::{AccessorData, SourceGlb, read_accessor};
 
+use crate::partition::build::build_batched_leaf;
 use crate::partition::build::{GeometryOverride, build_leaf_with_overrides};
 use crate::partition::{PartitionLeaf, PartitionPlan, PartitionPlanNode, PartitionUnit};
 
@@ -188,6 +189,11 @@ pub fn build_with_profile(
             max_bytes: profile.max_bytes,
         },
     )?;
+    let render_batch_count = if profile.render_batch == RenderBatchMode::Static {
+        rebuild_with_static_batches(source, asset_id, &mut artifact)?
+    } else {
+        0
+    };
     let mut coarse_paths = BTreeMap::<String, Vec<String>>::new();
     let partitions = collect_internal_partitions(&artifact.plan.root, "group-root");
     for (partition_id, node) in partitions {
@@ -206,15 +212,30 @@ pub fn build_with_profile(
         &artifact.plan.root,
         &coarse_paths,
     );
-    let batching = if profile.render_batch == RenderBatchMode::Static {
-        let maximum = (artifact.plan.triangle_count / 2).max(1);
-        super::batching::build_static_batches(source, &artifact.plan.root.units, maximum)?
-    } else {
-        Default::default()
-    };
-    artifact.stats.render_batch_count = batching.batches.len();
+    artifact.stats.render_batch_count = render_batch_count;
     artifact.stats.coarse_count = coarse_paths.values().map(Vec::len).sum();
     Ok(artifact)
+}
+
+fn rebuild_with_static_batches(
+    source: &SourceGlb,
+    asset_id: &str,
+    artifact: &mut PartitionArtifact,
+) -> Result<usize, PipelineError> {
+    let mut render_batch_count = 0;
+    for (index, leaf) in artifact.plan.leaves.iter().enumerate() {
+        let (built, batches) = build_batched_leaf(source, asset_id, leaf)?;
+        render_batch_count += batches;
+        let file = artifact
+            .files
+            .iter_mut()
+            .find(|file| file.relative_path == format!("parts/part-{index:03}.glb"))
+            .ok_or_else(|| PipelineError::Tileset("fine partition file is missing".into()))?;
+        file.content_hash = format!("{:x}", sha2::Sha256::digest(&built.bytes));
+        file.byte_length = built.bytes.len();
+        file.bytes = built.bytes;
+    }
+    Ok(render_batch_count)
 }
 
 fn collect_internal_partitions<'a>(

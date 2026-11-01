@@ -38,6 +38,10 @@ pub fn scene_glb(meshes: Value, nodes: Value, triangle_count: usize) -> Vec<u8> 
         "scenes": [{"nodes": node_roots(&nodes)}],
         "nodes": nodes,
         "meshes": meshes,
+        "materials": [
+            {"name": "steel", "extras": {"ice3": {"id": "material-steel"}}},
+            {"name": "concrete", "extras": {"ice3": {"id": "material-concrete"}}}
+        ],
         "accessors": [
             {
                 "bufferView": 0,
@@ -67,6 +71,19 @@ pub fn mesh(id: &str) -> Value {
     json!({
         "name": id,
         "primitives": [{"attributes": {"POSITION": 0}, "indices": 1}],
+        "extras": {"ice3": {"id": id}}
+    })
+}
+
+#[allow(dead_code)]
+pub fn mesh_with_material(id: &str, material: usize) -> Value {
+    json!({
+        "name": id,
+        "primitives": [{
+            "attributes": {"POSITION": 0},
+            "indices": 1,
+            "material": material
+        }],
         "extras": {"ice3": {"id": id}}
     })
 }

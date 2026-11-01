@@ -1,6 +1,6 @@
 mod common;
 
-use common::{fixture_source, mesh, node};
+use common::{fixture_source, mesh, mesh_with_material, node};
 use serde_json::json;
 use studio_pipeline::lod::{
     CoarseChunkUnit, FitSamples, SemanticProxyMode, Simplifier, SimplifyOptions,
@@ -58,7 +58,10 @@ fn creates_an_opt_in_semantic_proxy() {
 #[test]
 fn coarse_chunks_keep_selection_identity() {
     let source = fixture_source(
-        json!([mesh("mesh-a"), mesh("mesh-b")]),
+        json!([
+            mesh_with_material("mesh-a", 0),
+            mesh_with_material("mesh-b", 1)
+        ]),
         json!([
             node("node-000001/wall-a", 0, 0.0),
             node("node-000001/wall-b", 1, 2.0)
@@ -77,7 +80,10 @@ fn coarse_chunks_keep_selection_identity() {
 #[test]
 fn static_batching_reduces_draws_without_changing_selection() {
     let source = fixture_source(
-        json!([mesh("mesh-a"), mesh("mesh-b")]),
+        json!([
+            mesh_with_material("mesh-a", 0),
+            mesh_with_material("mesh-b", 1)
+        ]),
         json!([node("node-a", 0, 0.0), node("node-b", 1, 2.0)]),
     );
     let before = vec!["node-a".to_owned(), "node-b".to_owned()];
