@@ -123,6 +123,26 @@ fn is_true(value: &bool) -> bool {
     *value
 }
 
+/// 一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export)]
+pub struct BoxCut {
+    pub width: ScalarBinding,
+    pub height: ScalarBinding,
+    pub depth: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub x: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub y: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub z: ScalarBinding,
+}
+
+fn zero_scalar() -> ScalarBinding {
+    ScalarBinding::Literal(0.0)
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
@@ -134,6 +154,10 @@ pub struct ComponentPart {
     #[serde(default, skip_serializing_if = "PartTransform::is_identity")]
     pub transform: PartTransform,
     pub content: PartContent,
+    /// 从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，
+    /// 墙上的门窗洞、管道穿墙口都属于这一类。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub subtract: Vec<BoxCut>,
     /// 重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repeat: Option<u32>,

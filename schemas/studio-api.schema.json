@@ -232,6 +232,39 @@
     },
     "ApplyRequest": {
       "$defs": {
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
         "ComponentDefinition": {
           "additionalProperties": false,
           "properties": {
@@ -375,6 +408,13 @@
                 "integer",
                 "null"
               ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
             },
             "transform": {
               "$ref": "#/$defs/PartTransform"
@@ -3535,6 +3575,39 @@
           ],
           "type": "object"
         },
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
         "ChangeSetEntry": {
           "additionalProperties": false,
           "properties": {
@@ -3741,6 +3814,13 @@
                 "integer",
                 "null"
               ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
             },
             "transform": {
               "$ref": "#/$defs/PartTransform"
@@ -6244,6 +6324,39 @@
     },
     "ChangeSetAddParams": {
       "$defs": {
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
         "ChangeSetNewEntry": {
           "additionalProperties": false,
           "properties": {
@@ -6428,6 +6541,13 @@
                 "integer",
                 "null"
               ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
             },
             "transform": {
               "$ref": "#/$defs/PartTransform"
@@ -8722,6 +8842,39 @@
     },
     "ChangeSetEntry": {
       "$defs": {
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
         "ChangeSetSource": {
           "additionalProperties": false,
           "properties": {
@@ -8890,6 +9043,13 @@
                 "integer",
                 "null"
               ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
             },
             "transform": {
               "$ref": "#/$defs/PartTransform"
@@ -11223,6 +11383,39 @@
           ],
           "type": "object"
         },
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
         "ChangeSetStatus": {
           "enum": [
             "draft",
@@ -11345,6 +11538,13 @@
                 "integer",
                 "null"
               ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
             },
             "transform": {
               "$ref": "#/$defs/PartTransform"
@@ -13216,6 +13416,39 @@
     },
     "ChangeSetNewEntry": {
       "$defs": {
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
         "ChangeSetSource": {
           "additionalProperties": false,
           "properties": {
@@ -13384,6 +13617,13 @@
                 "integer",
                 "null"
               ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
             },
             "transform": {
               "$ref": "#/$defs/PartTransform"
@@ -16096,6 +16336,39 @@
           ],
           "type": "object"
         },
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
         "ComponentDefinition": {
           "additionalProperties": false,
           "properties": {
@@ -16206,6 +16479,13 @@
                 "integer",
                 "null"
               ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
             },
             "transform": {
               "$ref": "#/$defs/PartTransform"
@@ -18364,6 +18644,39 @@
     },
     "Operation": {
       "$defs": {
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
         "ComponentDefinition": {
           "additionalProperties": false,
           "properties": {
@@ -18507,6 +18820,13 @@
                 "integer",
                 "null"
               ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
             },
             "transform": {
               "$ref": "#/$defs/PartTransform"

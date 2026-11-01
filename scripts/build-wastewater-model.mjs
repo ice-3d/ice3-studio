@@ -74,6 +74,7 @@ function createBuilder() {
     parentId: options.parentId,
     transform: partTransform(x, y, z, options),
     content,
+    subtract: options.subtract,
     metadata: options.metadata,
     role,
   });
@@ -453,20 +454,21 @@ function aerationBasin(b, prefix, { corridors = 3, airLines = 10, posts = 11 }) 
   parts.push(b.part(`${prefix}-wall-s`, b.box({ expr: 'length' }, { expr: 'depth' }, { expr: 'wall' }),
     0, { expr: '0.5 + depth / 2' }, { expr: 'width / 2' }, 'concrete'));
 
-  // 东西端墙开进水/出水洞：整面拆成上下与两侧颊板
+  // 东西端墙：整面一块，用 subtract 挖出进水/出水洞，由内核拆成子盒。
   for (const [side, sign] of [['w', -1], ['e', 1]]) {
-    parts.push(b.part(`${prefix}-wall-${side}-below`,
-      b.box({ expr: 'wall' }, { expr: '3.45' }, { expr: 'width' }),
-      { expr: `length / 2 * ${sign}` }, { expr: '1.725' }, 0, 'concrete'));
-    parts.push(b.part(`${prefix}-wall-${side}-above`,
-      b.box({ expr: 'wall' }, { expr: 'depth - 4.05' }, { expr: 'width' }),
-      { expr: `length / 2 * ${sign}` }, { expr: '5.525' }, 0, 'concrete'));
-    parts.push(b.part(`${prefix}-wall-${side}-cheek-a`,
-      b.box({ expr: 'wall' }, 1.1, { expr: '(width - 1.8) / 2' }),
-      { expr: `length / 2 * ${sign}` }, 4.0, { expr: '0.9 + (width - 1.8) / 4' }, 'concrete'));
-    parts.push(b.part(`${prefix}-wall-${side}-cheek-b`,
-      b.box({ expr: 'wall' }, 1.1, { expr: '(width - 1.8) / 2' }),
-      { expr: `length / 2 * ${sign}` }, 4.0, { expr: '-0.9 - (width - 1.8) / 4' }, 'concrete'));
+    parts.push(b.part(`${prefix}-wall-${side}`,
+      b.box({ expr: 'wall' }, { expr: 'depth' }, { expr: 'width' }),
+      { expr: `length / 2 * ${sign}` }, { expr: '0.5 + depth / 2' }, 0, 'concrete',
+      {
+        subtract: [{
+          width: { expr: 'wall + 0.4' },
+          height: 1.1,
+          depth: 1.8,
+          x: 0,
+          y: { expr: '4 - (0.5 + depth / 2)' },
+          z: 0,
+        }],
+      }));
   }
 
   parts.push(b.part(`${prefix}-water`, b.box({ expr: 'length - wall * 2' }, 0.06, { expr: 'width - wall * 2' }),
@@ -1004,8 +1006,8 @@ function buildPlan(projectId) {
   // 曝气池（推流式廊道）。首段接纳初沉出水，后续段接纳混合液，端口介质不同，
   // 因此按进水介质分成两种定义。
   b.define('aeration-feed', 'Aeration basin (feed)', aerationBasin(b, 'ae', {}), [
-    b.port('inlet', 'ae-wall-w-below', -21, 4.0, 0, vec(1, 0, 0), 'settled-water', 0.9),
-    b.port('outlet', 'ae-wall-e-below', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+    b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'settled-water', 0.9),
+    b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
   ], [
     { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
     { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
@@ -1013,8 +1015,8 @@ function buildPlan(projectId) {
     { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
   ]);
   b.define('aeration-mixed', 'Aeration basin (mixed liquor)', aerationBasin(b, 'ae', {}), [
-    b.port('inlet', 'ae-wall-w-below', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
-    b.port('outlet', 'ae-wall-e-below', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+    b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+    b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
   ], [
     { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
     { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },

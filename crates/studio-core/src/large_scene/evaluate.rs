@@ -663,6 +663,82 @@ fn expand_definition_parts(
                 )?;
             }
             content => {
+                // 声明了挖除区域时，先把长方体拆成若干子盒，再逐个生成节点。
+                // 墙上的门窗洞、管道穿墙口都走这条路径。
+                #[allow(clippy::collapsible_if)]
+                if !part.subtract.is_empty() {
+                    if let PartContent::Box {
+                        width,
+                        height,
+                        depth,
+                    } = content
+                    {
+                        let w = resolve_scalar(width, &part_parameters)?;
+                        let h = resolve_scalar(height, &part_parameters)?;
+                        let d = resolve_scalar(depth, &part_parameters)?;
+                        let mut cuts = Vec::with_capacity(part.subtract.len());
+                        for cut in &part.subtract {
+                            let cw = resolve_scalar(&cut.width, &part_parameters)?;
+                            let ch = resolve_scalar(&cut.height, &part_parameters)?;
+                            let cd = resolve_scalar(&cut.depth, &part_parameters)?;
+                            let cx = resolve_scalar(&cut.x, &part_parameters)?;
+                            let cy = resolve_scalar(&cut.y, &part_parameters)?;
+                            let cz = resolve_scalar(&cut.z, &part_parameters)?;
+                            cuts.push(Block {
+                                min: [cx - cw / 2.0, cy - ch / 2.0, cz - cd / 2.0],
+                                max: [cx + cw / 2.0, cy + ch / 2.0, cz + cd / 2.0],
+                            });
+                        }
+                        let whole = Block {
+                            min: [-w / 2.0, -h / 2.0, -d / 2.0],
+                            max: [w / 2.0, h / 2.0, d / 2.0],
+                        };
+                        for (index, block) in carve_all(whole, &cuts).iter().enumerate() {
+                            let size = block.size();
+                            let centre = block.centre();
+                            let piece_content = PartContent::Box {
+                                width: ScalarBinding::Literal(size[0]),
+                                height: ScalarBinding::Literal(size[1]),
+                                depth: ScalarBinding::Literal(size[2]),
+                            };
+                            let piece_id = format!("{}-{}", part.id, index + 1);
+                            let (mesh, mesh_key, resident_geometry_id) =
+                                load_or_evaluate_part_mesh(
+                                    store,
+                                    &mut scene.stats,
+                                    &mut scene.meshes,
+                                    blueprint,
+                                    &piece_id,
+                                    &piece_content,
+                                    &part_parameters,
+                                    evaluator,
+                                )?;
+                            let piece_transform = Transform {
+                                translation: Vec3 {
+                                    x: transform.translation.x + centre[0],
+                                    y: transform.translation.y + centre[1],
+                                    z: transform.translation.z + centre[2],
+                                },
+                                rotation: transform.rotation,
+                                scale: transform.scale,
+                            };
+                            scene.stats.effective_triangles += mesh.indices.len() / 3;
+                            scene.nodes.push(EvaluatedSceneNode {
+                                id: format!("{part_id}-{index}"),
+                                owner_id: instance_id.to_owned(),
+                                name: format!("{}/{}", source_node.name, piece_id),
+                                parent_id: parent_id.clone(),
+                                transform: piece_transform,
+                                material_id: material_id.clone(),
+                                mesh_key: Some(mesh_key),
+                                resident_geometry_id,
+                                metadata: metadata.clone(),
+                                visible,
+                            });
+                        }
+                        continue;
+                    }
+                }
                 let (mesh, mesh_key, mut resident_geometry_id) = load_or_evaluate_part_mesh(
                     store,
                     &mut scene.stats,
@@ -1132,4 +1208,165 @@ fn load_or_evaluate_mesh<S: GeometryStore>(
     store.store(key.to_owned(), mesh.clone());
     meshes.insert(key.to_owned(), mesh.clone());
     Ok(mesh)
+}
+
+/// 轴对齐包围盒，坐标相对部件中心。
+#[derive(Clone, Copy, Debug)]
+struct Block {
+    min: [f32; 3],
+    max: [f32; 3],
+}
+
+impl Block {
+    fn centre(self) -> [f32; 3] {
+        [
+            (self.min[0] + self.max[0]) / 2.0,
+            (self.min[1] + self.max[1]) / 2.0,
+            (self.min[2] + self.max[2]) / 2.0,
+        ]
+    }
+
+    fn size(self) -> [f32; 3] {
+        [
+            (self.max[0] - self.min[0]).abs(),
+            (self.max[1] - self.min[1]).abs(),
+            (self.max[2] - self.min[2]).abs(),
+        ]
+    }
+
+    fn is_degenerate(self) -> bool {
+        let size = self.size();
+        size[0] < 1e-4 || size[1] < 1e-4 || size[2] < 1e-4
+    }
+}
+
+/// 用切块把一个盒子拆成最多 6 个互不重叠的子盒。
+///
+/// 这是轴对齐盒相减的解析解：先按 X 切出左右，剩余的中段再按 Y 切出上下，
+/// 最后按 Z 切出前后。整个过程不需要网格运算，也不会产生退化面。
+fn carve(block: Block, cut: Block) -> Vec<Block> {
+    let intersects =
+        (0..3).all(|axis| block.min[axis] < cut.max[axis] && cut.min[axis] < block.max[axis]);
+    if !intersects {
+        return vec![block];
+    }
+    let mut pieces = Vec::new();
+    let mut push = |min: [f32; 3], max: [f32; 3]| {
+        let piece = Block { min, max };
+        if !piece.is_degenerate() {
+            pieces.push(piece);
+        }
+    };
+
+    // X 方向：左片、右片
+    if cut.min[0] > block.min[0] {
+        push(block.min, [cut.min[0], block.max[1], block.max[2]]);
+    }
+    if cut.max[0] < block.max[0] {
+        push([cut.max[0], block.min[1], block.min[2]], block.max);
+    }
+    let x0 = block.min[0].max(cut.min[0]);
+    let x1 = block.max[0].min(cut.max[0]);
+
+    // Y 方向：下片、上片
+    if cut.min[1] > block.min[1] {
+        push(
+            [x0, block.min[1], block.min[2]],
+            [x1, cut.min[1], block.max[2]],
+        );
+    }
+    if cut.max[1] < block.max[1] {
+        push(
+            [x0, cut.max[1], block.min[2]],
+            [x1, block.max[1], block.max[2]],
+        );
+    }
+    let y0 = block.min[1].max(cut.min[1]);
+    let y1 = block.max[1].min(cut.max[1]);
+
+    // Z 方向：前片、后片
+    if cut.min[2] > block.min[2] {
+        push([x0, y0, block.min[2]], [x1, y1, cut.min[2]]);
+    }
+    if cut.max[2] < block.max[2] {
+        push([x0, y0, cut.max[2]], [x1, y1, block.max[2]]);
+    }
+    pieces
+}
+
+/// 依次挖去所有区域，返回剩余的子盒。
+fn carve_all(block: Block, cuts: &[Block]) -> Vec<Block> {
+    let mut current = vec![block];
+    for cut in cuts {
+        let mut next = Vec::new();
+        for piece in current {
+            next.extend(carve(piece, *cut));
+        }
+        current = next;
+    }
+    current
+}
+
+#[cfg(test)]
+mod carve_tests {
+    use super::{Block, carve, carve_all};
+
+    fn block(min: [f32; 3], max: [f32; 3]) -> Block {
+        Block { min, max }
+    }
+
+    #[test]
+    fn carving_a_through_hole_leaves_four_pieces() {
+        // 一块 1×6×20 的墙，中间挖穿一个 1.1 高的洞
+        let wall = block([-0.2, -3.0, -10.0], [0.2, 3.0, 10.0]);
+        let hole = block([-0.4, -0.55, -0.9], [0.4, 0.55, 0.9]);
+        let pieces = carve(wall, hole);
+        // 洞上下各一片，左右各一片
+        assert_eq!(pieces.len(), 4);
+        let volume: f32 = pieces
+            .iter()
+            .map(|piece| {
+                let size = piece.size();
+                size[0] * size[1] * size[2]
+            })
+            .sum();
+        let wall_volume = 0.4 * 6.0 * 20.0;
+        let hole_volume = 0.4 * 1.1 * 1.8;
+        // 挖掉的部分不进入结果
+        assert!((volume - (wall_volume - hole_volume)).abs() < 0.5);
+    }
+
+    #[test]
+    fn carving_outside_keeps_the_block_whole() {
+        let wall = block([-0.2, -3.0, -10.0], [0.2, 3.0, 10.0]);
+        let far = block([10.0, 10.0, 10.0], [11.0, 11.0, 11.0]);
+        assert_eq!(carve(wall, far).len(), 1);
+    }
+
+    #[test]
+    fn multiple_cuts_apply_to_every_piece() {
+        let wall = block([-0.2, -3.0, -10.0], [0.2, 3.0, 10.0]);
+        let hole_a = block([-0.4, -0.55, -6.0], [0.4, 0.55, -4.2]);
+        let hole_b = block([-0.4, -0.55, 4.2], [0.4, 0.55, 6.0]);
+        let pieces = carve_all(wall, &[hole_a, hole_b]);
+        // 两个洞把墙切成三段主体，每段再带上下两片
+        assert!(pieces.len() >= 4, "两个洞应当把墙体进一步切开");
+        for piece in &pieces {
+            for hole in [hole_a, hole_b] {
+                let overlaps = (0..3).all(|axis| {
+                    piece.min[axis] < hole.max[axis] && hole.min[axis] < piece.max[axis]
+                });
+                assert!(!overlaps, "剩余块不应与挖除区重叠");
+            }
+        }
+    }
+
+    #[test]
+    fn degenerate_slices_are_dropped() {
+        let wall = block([-0.2, -3.0, -10.0], [0.2, 3.0, 10.0]);
+        // 洞贴近顶面，上面那片厚度为 0，应被丢弃
+        let hole = block([-0.4, -0.55, -0.9], [0.4, 3.0, 0.9]);
+        let pieces = carve(wall, hole);
+        assert!(pieces.iter().all(|piece| !piece.is_degenerate()));
+    }
 }
