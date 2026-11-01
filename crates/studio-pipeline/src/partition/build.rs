@@ -64,21 +64,39 @@ pub(crate) fn build_artifact(
                 .sum(),
             partition_count: plan.leaves.len(),
             max_part_bytes,
+            render_batch_count: 0,
+            coarse_count: 0,
         },
         selection_ids,
         plan,
     })
 }
 
-struct BuiltLeaf {
-    bytes: Vec<u8>,
-    selection_ids: BTreeSet<String>,
+pub(crate) struct BuiltLeaf {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) selection_ids: BTreeSet<String>,
 }
 
-fn build_leaf(
+pub(crate) fn build_leaf(
     source: &SourceGlb,
     asset_id: &str,
     leaf: &PartitionLeaf,
+) -> Result<BuiltLeaf, PipelineError> {
+    build_leaf_with_overrides(source, asset_id, leaf, &BTreeMap::new())
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct GeometryOverride {
+    pub positions: Vec<f32>,
+    pub indices: Vec<u32>,
+    pub material_index: Option<usize>,
+}
+
+pub(crate) fn build_leaf_with_overrides(
+    source: &SourceGlb,
+    asset_id: &str,
+    leaf: &PartitionLeaf,
+    overrides: &BTreeMap<usize, GeometryOverride>,
 ) -> Result<BuiltLeaf, PipelineError> {
     let source_nodes = source_nodes(source)?;
     let source_meshes = source
@@ -106,6 +124,20 @@ fn build_leaf(
             .ok_or_else(|| PipelineError::Tileset("partition mesh is missing".into()))?;
         let output_mesh = if let Some(index) = mesh_map.get(&unit.mesh_index) {
             *index
+        } else if let Some(geometry) = overrides.get(&unit.mesh_index) {
+            let (mesh, triangles) = output.copy_override(
+                geometry,
+                &source_materials,
+                &mut material_map,
+                asset_id,
+                unit.mesh_index,
+            )?;
+            let index = output.meshes.len();
+            output.meshes.push(mesh);
+            mesh_map.insert(unit.mesh_index, index);
+            primitive_count += 1;
+            source_triangles += triangles;
+            index
         } else {
             let (mesh, primitives, triangles) = output.copy_mesh(
                 source,
@@ -186,6 +218,139 @@ struct PartWriter {
 }
 
 impl PartWriter {
+    fn copy_override(
+        &mut self,
+        geometry: &GeometryOverride,
+        source_materials: &[Value],
+        material_map: &mut BTreeMap<usize, usize>,
+        asset_id: &str,
+        source_mesh_index: usize,
+    ) -> Result<(Value, u64), PipelineError> {
+        if geometry.positions.is_empty()
+            || geometry.positions.len() % 3 != 0
+            || geometry.indices.is_empty()
+            || geometry.indices.len() % 3 != 0
+        {
+            return Err(PipelineError::Tileset(
+                "LOD geometry buffers are invalid".into(),
+            ));
+        }
+        self.align();
+        let position_view = self.buffer_views.len();
+        let min =
+            (0..geometry.positions.len())
+                .step_by(3)
+                .fold([f32::INFINITY; 3], |mut min, offset| {
+                    min[0] = min[0].min(geometry.positions[offset]);
+                    min[1] = min[1].min(geometry.positions[offset + 1]);
+                    min[2] = min[2].min(geometry.positions[offset + 2]);
+                    min
+                });
+        let max = (0..geometry.positions.len()).step_by(3).fold(
+            [f32::NEG_INFINITY; 3],
+            |mut max, offset| {
+                max[0] = max[0].max(geometry.positions[offset]);
+                max[1] = max[1].max(geometry.positions[offset + 1]);
+                max[2] = max[2].max(geometry.positions[offset + 2]);
+                max
+            },
+        );
+        let position_bytes = bytemuck::cast_slice(&geometry.positions);
+        self.buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": self.binary.len(),
+            "byteLength": position_bytes.len(),
+            "target": 34962
+        }));
+        self.binary.extend_from_slice(position_bytes);
+        let position_accessor = self.accessors.len();
+        self.accessors.push(json!({
+            "bufferView": position_view,
+            "componentType": 5126,
+            "count": geometry.positions.len() / 3,
+            "type": "VEC3",
+            "min": min,
+            "max": max
+        }));
+        self.align();
+        let index_view = self.buffer_views.len();
+        let index_bytes = bytemuck::cast_slice(&geometry.indices);
+        self.buffer_views.push(json!({
+            "buffer": 0,
+            "byteOffset": self.binary.len(),
+            "byteLength": index_bytes.len(),
+            "target": 34963
+        }));
+        self.binary.extend_from_slice(index_bytes);
+        let index_accessor = self.accessors.len();
+        self.accessors.push(json!({
+            "bufferView": index_view,
+            "componentType": 5125,
+            "count": geometry.indices.len(),
+            "type": "SCALAR"
+        }));
+        let mut primitive = json!({
+            "attributes": {"POSITION": position_accessor},
+            "indices": index_accessor,
+            "mode": 4
+        });
+        if let Some(material) = geometry.material_index {
+            let output_material =
+                self.copy_material(source_materials, material_map, material, asset_id)?;
+            primitive["material"] = Value::from(output_material);
+        }
+        Ok((
+            json!({
+                "name": format!("LOD {source_mesh_index}"),
+                "primitives": [primitive],
+                "extras": {
+                    "ice3": {
+                        "id": format!("{asset_id}/lod-mesh/{source_mesh_index}"),
+                        "sourceMeshId": source_mesh_index
+                    }
+                }
+            }),
+            geometry.indices.len() as u64 / 3,
+        ))
+    }
+
+    fn copy_material(
+        &mut self,
+        source_materials: &[Value],
+        material_map: &mut BTreeMap<usize, usize>,
+        source_material_index: usize,
+        asset_id: &str,
+    ) -> Result<usize, PipelineError> {
+        if let Some(index) = material_map.get(&source_material_index) {
+            return Ok(*index);
+        }
+        let source_material = source_materials
+            .get(source_material_index)
+            .ok_or_else(|| PipelineError::Tileset("source material is missing".into()))?;
+        let mut material = source_material
+            .as_object()
+            .cloned()
+            .ok_or_else(|| PipelineError::Tileset("material is invalid".into()))?;
+        let mut extras = material
+            .get("extras")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        let mut ice3 = extras
+            .get("ice3")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        ice3.entry("id")
+            .or_insert_with(|| Value::from(format!("{asset_id}/material/{source_material_index}")));
+        extras.insert("ice3".into(), Value::Object(ice3));
+        material.insert("extras".into(), Value::Object(extras));
+        let index = self.materials.len();
+        self.materials.push(Value::Object(material));
+        material_map.insert(source_material_index, index);
+        Ok(index)
+    }
+
     fn copy_mesh(
         &mut self,
         source: &SourceGlb,

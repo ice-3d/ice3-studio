@@ -1,11 +1,16 @@
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use sha2::Digest;
 use studio_core::geometry::Bounds;
 
 use crate::PipelineError;
-use crate::partition::{PartitionPlan, PartitionPlanNode};
+use studio_assets::{AccessorData, SourceGlb, read_accessor};
+
+use crate::partition::build::{GeometryOverride, build_leaf_with_overrides};
+use crate::partition::{PartitionLeaf, PartitionPlan, PartitionPlanNode, PartitionUnit};
 
 #[derive(Debug, Clone)]
 pub struct BuildOptions {
@@ -29,6 +34,8 @@ pub struct PartitionStats {
     pub node_count: u64,
     pub partition_count: usize,
     pub max_part_bytes: u64,
+    pub render_batch_count: usize,
+    pub coarse_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -127,6 +134,372 @@ impl TilesetDocument {
             root,
         })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderBatchMode {
+    Off,
+    Static,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AssetProfile {
+    pub id: String,
+    pub max_triangles: u64,
+    pub max_bytes: usize,
+    pub lod_ratio: f64,
+    pub lod_allocation: super::lod::LodAllocationMode,
+    pub lod_max_triangles: u64,
+    pub lod_min_unit_triangles: u64,
+    pub lod_max_memory_bytes: usize,
+    pub coarse_chunk_max_bytes: usize,
+    pub semantic_proxy: super::lod::SemanticProxyMode,
+    pub render_batch: RenderBatchMode,
+}
+
+impl AssetProfile {
+    pub fn agent_console_v1() -> Self {
+        Self {
+            id: "agent-console-v1".into(),
+            max_triangles: 60_000,
+            max_bytes: 67_108_864,
+            lod_ratio: 0.5,
+            lod_allocation: super::lod::LodAllocationMode::Adaptive,
+            lod_max_triangles: 120_000,
+            lod_min_unit_triangles: 8,
+            lod_max_memory_bytes: 536_870_912,
+            coarse_chunk_max_bytes: 4_194_304,
+            semantic_proxy: super::lod::SemanticProxyMode::Off,
+            render_batch: RenderBatchMode::Static,
+        }
+    }
+}
+
+pub fn build_with_profile(
+    source: &studio_assets::SourceGlb,
+    asset_id: &str,
+    profile: &AssetProfile,
+) -> Result<PartitionArtifact, PipelineError> {
+    let mut artifact = crate::build_artifact(
+        source,
+        &BuildOptions {
+            asset_id: asset_id.into(),
+            max_triangles: profile.max_triangles,
+            max_bytes: profile.max_bytes,
+        },
+    )?;
+    let mut coarse_paths = BTreeMap::<String, Vec<String>>::new();
+    let partitions = collect_internal_partitions(&artifact.plan.root, "group-root");
+    for (partition_id, node) in partitions {
+        let files = build_coarse_files(source, asset_id, profile, &partition_id, &node.units)?;
+        coarse_paths.insert(
+            partition_id,
+            files
+                .iter()
+                .map(|file| file.relative_path.clone())
+                .collect(),
+        );
+        artifact.files.extend(files);
+    }
+    attach_coarse_content(
+        &mut artifact.tileset.root,
+        &artifact.plan.root,
+        &coarse_paths,
+    );
+    let batching = if profile.render_batch == RenderBatchMode::Static {
+        let maximum = (artifact.plan.triangle_count / 2).max(1);
+        super::batching::build_static_batches(source, &artifact.plan.root.units, maximum)?
+    } else {
+        Default::default()
+    };
+    artifact.stats.render_batch_count = batching.batches.len();
+    artifact.stats.coarse_count = coarse_paths.values().map(Vec::len).sum();
+    Ok(artifact)
+}
+
+fn collect_internal_partitions<'a>(
+    node: &'a PartitionPlanNode,
+    partition_id: &str,
+) -> Vec<(String, &'a PartitionPlanNode)> {
+    if node.children.is_empty() {
+        return Vec::new();
+    }
+    let mut output = vec![(partition_id.to_owned(), node)];
+    for (index, child) in node.children.iter().enumerate() {
+        output.extend(collect_internal_partitions(
+            child,
+            &format!("{partition_id}-{index}"),
+        ));
+    }
+    output
+}
+
+fn attach_coarse_content(
+    tile: &mut TilesetTile,
+    node: &PartitionPlanNode,
+    coarse_paths: &BTreeMap<String, Vec<String>>,
+) {
+    if let Some(partition_id) = tile
+        .extras
+        .get("ice3")
+        .and_then(|extras| extras.get("partitionId"))
+        .and_then(serde_json::Value::as_str)
+        && let Some(paths) = coarse_paths.get(partition_id)
+    {
+        if paths.len() == 1 {
+            tile.content = Some(TilesetContent {
+                uri: paths[0].clone(),
+            });
+        } else {
+            tile.content = None;
+            tile.contents = Some(
+                paths
+                    .iter()
+                    .cloned()
+                    .map(|uri| TilesetContent { uri })
+                    .collect(),
+            );
+        }
+    }
+    for (child_tile, child_node) in tile.children.iter_mut().zip(&node.children) {
+        attach_coarse_content(child_tile, child_node, coarse_paths);
+    }
+}
+
+fn build_coarse_files(
+    source: &SourceGlb,
+    asset_id: &str,
+    profile: &AssetProfile,
+    partition_id: &str,
+    units: &[PartitionUnit],
+) -> Result<Vec<PartitionFile>, PipelineError> {
+    if units.is_empty() {
+        return Err(PipelineError::Tileset(
+            "coarse partition has no units".into(),
+        ));
+    }
+    let source_bytes = units
+        .iter()
+        .map(|unit| {
+            unit.triangle_count
+                .saturating_mul(unit.node_ids.len() as u64)
+                .saturating_mul(64)
+        })
+        .sum::<u64>();
+    if source_bytes > profile.lod_max_memory_bytes as u64 {
+        return Err(PipelineError::Tileset(
+            "coarse partition exceeds the LOD memory budget".into(),
+        ));
+    }
+    let overrides = create_coarse_overrides(source, profile, units)?;
+    let leaf = PartitionLeaf {
+        id: partition_id.into(),
+        bounds: union_unit_bounds(units),
+        triangle_count: units.iter().map(|unit| unit.triangle_count).sum(),
+        units: units.to_vec(),
+    };
+    let built = build_leaf_with_overrides(
+        source,
+        &format!("{asset_id}:lod:{partition_id}"),
+        &leaf,
+        &overrides,
+    )?;
+    if built.bytes.len() <= profile.coarse_chunk_max_bytes || units.len() == 1 {
+        if built.bytes.len() > profile.coarse_chunk_max_bytes {
+            return Err(PipelineError::Tileset(format!(
+                "coarse unit {partition_id} exceeds the chunk byte budget"
+            )));
+        }
+        return Ok(vec![PartitionFile {
+            relative_path: format!("coarse/{partition_id}.glb"),
+            content_hash: format!("{:x}", sha2::Sha256::digest(&built.bytes)),
+            byte_length: built.bytes.len(),
+            bytes: built.bytes,
+        }]);
+    }
+    let middle = units.len() / 2;
+    let mut files = build_coarse_files(
+        source,
+        asset_id,
+        profile,
+        &format!("{partition_id}-chunk-0"),
+        &units[..middle],
+    )?;
+    files.extend(build_coarse_files(
+        source,
+        asset_id,
+        profile,
+        &format!("{partition_id}-chunk-1"),
+        &units[middle..],
+    )?);
+    Ok(files)
+}
+
+fn create_coarse_overrides(
+    source: &SourceGlb,
+    profile: &AssetProfile,
+    units: &[PartitionUnit],
+) -> Result<BTreeMap<usize, GeometryOverride>, PipelineError> {
+    let geometries = units
+        .iter()
+        .map(|unit| read_unit_geometry(source, unit))
+        .collect::<Result<Vec<_>, _>>()?;
+    let source_triangles = geometries
+        .iter()
+        .map(|geometry| geometry.indices.len() as u64 / 3)
+        .collect::<Vec<_>>();
+    let targets = super::lod::allocate_lod_targets(
+        &source_triangles,
+        profile.lod_ratio,
+        profile.lod_max_triangles,
+        profile.lod_min_unit_triangles,
+    );
+    let mut output = BTreeMap::new();
+    for ((unit, mut geometry), target) in units.iter().zip(geometries).zip(targets) {
+        if profile.semantic_proxy == super::lod::SemanticProxyMode::Auto
+            && geometry.indices.len() / 3 >= 64
+        {
+            let samples = super::lod::FitSamples {
+                vertices: geometry.positions.clone(),
+                indices: geometry.indices.clone(),
+            };
+            if let Some(proxy) =
+                super::lod::create_semantic_proxy(&samples, profile.semantic_proxy)?
+                && proxy.triangle_count < target.target_triangles as usize
+            {
+                geometry.positions = proxy.positions;
+                geometry.indices = proxy.indices;
+            }
+        } else {
+            let simplified = super::lod::simplify_geometry(
+                &geometry.positions,
+                &geometry.indices,
+                &super::lod::SimplifyOptions {
+                    target_triangles: target.target_triangles as usize,
+                    minimum_triangles: target.minimum_triangles as usize,
+                },
+                &super::lod::Simplifier,
+            );
+            geometry.positions = simplified.positions;
+            geometry.indices = simplified.indices;
+        }
+        output.insert(
+            unit.mesh_index,
+            GeometryOverride {
+                positions: geometry.positions,
+                indices: geometry.indices,
+                material_index: geometry.material_index,
+            },
+        );
+    }
+    Ok(output)
+}
+
+struct UnitGeometry {
+    positions: Vec<f32>,
+    indices: Vec<u32>,
+    material_index: Option<usize>,
+}
+
+fn read_unit_geometry(
+    source: &SourceGlb,
+    unit: &PartitionUnit,
+) -> Result<UnitGeometry, PipelineError> {
+    let mesh = source
+        .json
+        .get("meshes")
+        .and_then(serde_json::Value::as_array)
+        .and_then(|meshes| meshes.get(unit.mesh_index))
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| PipelineError::Tileset("coarse source mesh is missing".into()))?;
+    let primitives = mesh
+        .get("primitives")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| PipelineError::Tileset("coarse primitives are missing".into()))?;
+    let mut positions = Vec::new();
+    let mut indices = Vec::new();
+    let mut material_weights = BTreeMap::<usize, usize>::new();
+    for primitive in primitives {
+        let mode = primitive
+            .get("mode")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(4);
+        if mode != 4 {
+            continue;
+        }
+        let position_index = primitive
+            .get("attributes")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|attributes| attributes.get("POSITION"))
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| PipelineError::Tileset("coarse POSITION is missing".into()))?;
+        let AccessorData::F32 {
+            values: primitive_positions,
+            components: 3,
+        } = read_accessor(source, position_index)?
+        else {
+            return Err(PipelineError::Tileset(
+                "coarse POSITION must be VEC3 float".into(),
+            ));
+        };
+        let vertex_offset = positions.len() / 3;
+        let primitive_indices = match primitive
+            .get("indices")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+        {
+            Some(index) => match read_accessor(source, index)? {
+                AccessorData::U16 { values, .. } => {
+                    values.into_iter().map(u32::from).collect::<Vec<_>>()
+                }
+                AccessorData::U32 { values, .. } => values,
+                AccessorData::F32 { .. } => {
+                    return Err(PipelineError::Tileset(
+                        "coarse indices must be integers".into(),
+                    ));
+                }
+            },
+            None => (0..primitive_positions.len() as u32 / 3).collect(),
+        };
+        positions.extend(primitive_positions);
+        indices.extend(
+            primitive_indices
+                .into_iter()
+                .map(|index| index + vertex_offset as u32),
+        );
+        if let Some(material) = primitive
+            .get("material")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+        {
+            *material_weights.entry(material).or_default() += indices.len() / 3;
+        }
+    }
+    Ok(UnitGeometry {
+        positions,
+        indices,
+        material_index: material_weights
+            .into_iter()
+            .max_by_key(|(material, weight)| (*weight, usize::MAX - *material))
+            .map(|(material, _)| material),
+    })
+}
+
+fn union_unit_bounds(units: &[PartitionUnit]) -> Bounds {
+    let first = units[0].bounds;
+    units.iter().skip(1).fold(first, |current, unit| Bounds {
+        min: studio_core::math::Vec3 {
+            x: current.min.x.min(unit.bounds.min.x),
+            y: current.min.y.min(unit.bounds.min.y),
+            z: current.min.z.min(unit.bounds.min.z),
+        },
+        max: studio_core::math::Vec3 {
+            x: current.max.x.max(unit.bounds.max.x),
+            y: current.max.y.max(unit.bounds.max.y),
+            z: current.max.z.max(unit.bounds.max.z),
+        },
+    })
 }
 
 fn tile_from_node(
