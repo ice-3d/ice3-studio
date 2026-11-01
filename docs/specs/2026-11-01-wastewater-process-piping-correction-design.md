@@ -198,6 +198,22 @@ Core 不识别“初沉池”“RAS”或“沼气柜”等业务词。
 
 埋地管线不需要地面连续支撑，但需要在转弯、穿越道路和检修节点处提供检查井。
 
+### 7.5 功能颜色契约
+
+管线颜色按功能分组，不用单一色系统一覆盖。颜色是工艺阅读辅助，不替代 `medium`、
+`lineId`、流向和文字标识。
+
+| 颜色 | 功能类别 | 介质 |
+|---|---|---|
+| 黄色 | 原水与工艺水 | `raw-water`、`screened-water`、`lifted-water`、`degritted-water`、`settled-water`、`mixed-liquor` |
+| 绿色 | 清水与出水 | `secondary-effluent`、`filtered-water`、`final-effluent` |
+| 蓝色 | 气体 | `air`、`biogas` |
+| 红色 | 污泥 | `primary-sludge`、`return-sludge`、`waste-sludge`、`thickened-sludge`、`digested-sludge` |
+| 紫色 | 化学药剂 | `chemical` |
+
+同一功能组可以按介质使用同色系的轻微明度差异，但必须保持该组主色可辨。黄色、绿色、
+蓝色和红色是阶段二视觉验收的强制检查项。
+
 ## 8. 数据与 API
 
 ### 8.1 资产修改
