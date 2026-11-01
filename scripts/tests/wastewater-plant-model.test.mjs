@@ -201,6 +201,16 @@ test('biological basins expose process-correct equipment for each zone', () => {
       definition.parts.some(({ id }) => id.includes('mixer')),
       true,
     );
+    assert.equal(
+      definition.parts.filter(({ id }) => id.includes('mixer-draft-tube')).length,
+      3,
+    );
+    assert.equal(
+      definition.parts.filter(({ id }) => id.includes('mixer-access-post')).length,
+      8,
+    );
+    const draftTube = definition.parts.find(({ id }) => id.includes('mixer-draft-tube'));
+    assert.equal(draftTube.content.segments, 30);
   }
   assert.equal(
     aerobic.parts.some(({ id }) => id.includes('air-diffuser')),

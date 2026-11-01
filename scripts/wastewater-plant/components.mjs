@@ -253,6 +253,22 @@ function aerationBasin(
     for (const lane of [-1, 0, 1]) {
       parts.push(
         b.part(
+          `${prefix}-mixer-draft-tube-${lane + 2}`,
+          b.cylinder(1.15, 4.6, 30),
+          { expr: 'length / 2 - 4' },
+          2.6,
+          { expr: `${lane} * width / 3` },
+          'steel',
+        ),
+        b.part(
+          `${prefix}-mixer-support-${lane + 2}`,
+          b.box(1.8, 0.16, 0.24),
+          { expr: 'length / 2 - 4' },
+          5.05,
+          { expr: `${lane} * width / 3` },
+          'steel-dark',
+        ),
+        b.part(
           `${prefix}-mixer-column-${lane + 2}`,
           b.cylinder(0.22, 4.2, 16),
           { expr: 'length / 2 - 4' },
@@ -269,6 +285,26 @@ function aerationBasin(
           'steel-dark',
         ),
       );
+    }
+    parts.push(
+      b.part(`${prefix}-mixer-access-platform`, b.box(1.6, 0.12, 16),
+        { expr: 'length / 2 - 4' }, 5.1, 0, 'walkway'),
+      b.part(`${prefix}-mixer-access-rail-w`, b.box(0.08, 0.08, 16),
+        { expr: 'length / 2 - 4.85' }, 6.0, 0, 'steel-dark'),
+      b.part(`${prefix}-mixer-access-rail-e`, b.box(0.08, 0.08, 16),
+        { expr: 'length / 2 - 3.15' }, 6.0, 0, 'steel-dark'),
+    );
+    for (const [index, z] of [-8, -2.7, 2.7, 8].entries()) {
+      for (const side of [-1, 1]) {
+        parts.push(b.part(
+          `${prefix}-mixer-access-post-${index * 2 + (side > 0 ? 2 : 1)}`,
+          b.box(0.08, 0.95, 0.08),
+          { expr: `length / 2 - 4 + ${side} * 0.85` },
+          5.55,
+          z,
+          'steel-dark',
+        ));
+      }
     }
   }
 
