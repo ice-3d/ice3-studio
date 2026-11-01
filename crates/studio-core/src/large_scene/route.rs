@@ -170,7 +170,7 @@ fn build_route(
     };
     let start_stub = add_scaled(start, start_direction, 0.9);
     let end_stub = add_scaled(end, end_direction, 0.9);
-    let coarse = vec![
+    let candidates = [
         [start.x, start.y, start.z],
         [start_stub.x, start_stub.y, start_stub.z],
         [start_stub.x, elevation, start_stub.z],
@@ -179,6 +179,10 @@ fn build_route(
         [end_stub.x, end_stub.y, end_stub.z],
         [end.x, end.y, end.z],
     ];
+    let mut coarse = Vec::new();
+    for point in candidates {
+        push_unique(&mut coarse, point);
+    }
     smooth_route(&coarse, diameter * BEND_RADIUS_DIAMETERS)
 }
 

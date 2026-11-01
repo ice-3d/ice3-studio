@@ -70,6 +70,19 @@ fn orthogonal_route_uses_continuous_rounded_bends() {
     assert!(maximum_turn < 25.0_f32.to_radians());
 }
 
+#[test]
+fn orthogonal_route_drops_duplicate_coarse_points() {
+    let points = route_between_ports(
+        &port([0.0, 1.0, 0.0], [0.0, 1.0, 0.0], "water"),
+        &port([10.0, 1.4, 0.0], [1.0, 0.0, 0.0], "water"),
+        &RoutePolicy::Orthogonal,
+    )
+    .unwrap();
+    assert_eq!(points[0], [0.0, 1.0, 0.0]);
+    assert_eq!(points[points.len() - 1], [10.0, 1.4, 0.0]);
+    assert!(points.windows(2).all(|pair| pair[0] != pair[1]));
+}
+
 fn direction(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     let value = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
     let length = (value[0] * value[0] + value[1] * value[1] + value[2] * value[2]).sqrt();
