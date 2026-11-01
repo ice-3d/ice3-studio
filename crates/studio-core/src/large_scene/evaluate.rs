@@ -818,6 +818,17 @@ fn resolve_scalar(
             Some(ParameterValue::Number(value)) => Ok(*value),
             _ => Err(ParameterError::WrongType(name.clone()).into()),
         },
+        ScalarBinding::Expression { expr } => {
+            // 表达式可以使用该实例的任意数值参数，派生量不再需要硬编码。
+            let mut variables = BTreeMap::new();
+            for (name, value) in parameters {
+                if let ParameterValue::Number(number) = value {
+                    variables.insert(name.clone(), *number);
+                }
+            }
+            crate::large_scene::expression::evaluate(expr, &variables)
+                .map_err(|error| ParameterError::Expression(format!("{expr}: {error}")).into())
+        }
     }
 }
 

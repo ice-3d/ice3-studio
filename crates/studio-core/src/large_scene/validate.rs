@@ -26,6 +26,8 @@ pub enum ParameterError {
     OutOfRange(String),
     #[error("parameter {0} is not finite")]
     NonFinite(String),
+    #[error("expression failed: {0}")]
+    Expression(String),
 }
 
 pub fn resolve_parameters(
@@ -901,6 +903,9 @@ impl BindingName for ScalarBinding {
         match self {
             ScalarBinding::Literal(_) => None,
             ScalarBinding::Parameter { param: name } => Some(name),
+            // 表达式可以引用多个参数，无法归到单一名字；保守返回 None，
+            // 参数变化时按“整体重算”处理。
+            ScalarBinding::Expression { .. } => None,
         }
     }
 }

@@ -66,7 +66,13 @@ pub enum ParameterValue {
 #[ts(export)]
 pub enum ScalarBinding {
     Literal(f32),
-    Parameter { param: String },
+    Parameter {
+        param: String,
+    },
+    /// 参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。
+    Expression {
+        expr: String,
+    },
 }
 
 /// 向量字段：字面量写 `{ "x": 1, "y": 2, "z": 3 }`，引用参数写 `{ "param": "name" }`。

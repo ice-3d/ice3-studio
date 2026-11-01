@@ -3,4 +3,4 @@
 /**
  * 部件字段：字面量就是普通数字，引用参数写 `{ "param": "name" }`。
  */
-export type ScalarBinding = { "Literal": number } | { "Parameter": { param: string, } };
+export type ScalarBinding = { "Literal": number } | { "Parameter": { param: string, } } | { "Expression": { expr: string, } };

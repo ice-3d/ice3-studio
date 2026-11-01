@@ -2441,6 +2441,18 @@
                 "param"
               ],
               "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
+              ],
+              "type": "object"
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
@@ -5937,6 +5949,18 @@
                 "param"
               ],
               "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
+              ],
+              "type": "object"
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
@@ -8390,6 +8414,18 @@
                 "param"
               ],
               "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
+              ],
+              "type": "object"
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
@@ -10800,6 +10836,18 @@
                 "param"
               ],
               "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
+              ],
+              "type": "object"
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
@@ -12512,6 +12560,18 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
               ],
               "type": "object"
             }
@@ -15190,6 +15250,18 @@
                 "param"
               ],
               "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
+              ],
+              "type": "object"
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
@@ -17200,6 +17272,18 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
               ],
               "type": "object"
             }
@@ -19289,6 +19373,18 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
               ],
               "type": "object"
             }
