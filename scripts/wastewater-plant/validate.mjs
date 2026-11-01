@@ -61,8 +61,8 @@ export function validateWastewaterPlan(plan) {
 
   const processInstances = [...instances.values()].filter((operation) => (
     !['auxiliary', 'landscape'].includes(operation.metadata?.stage) &&
-    Number.isFinite(operation.metadata?.clearanceRadius) &&
-    operation.metadata.clearanceRadius > 0
+    Number.isFinite(Number(operation.metadata?.clearanceRadius)) &&
+    Number(operation.metadata.clearanceRadius) > 0
   ));
   for (let leftIndex = 0; leftIndex < processInstances.length; leftIndex += 1) {
     const left = processInstances[leftIndex];
@@ -70,7 +70,8 @@ export function validateWastewaterPlan(plan) {
       const right = processInstances[rightIndex];
       const dx = left.transform.translation.x - right.transform.translation.x;
       const dz = left.transform.translation.z - right.transform.translation.z;
-      const minimum = left.metadata.clearanceRadius + right.metadata.clearanceRadius;
+      const minimum = Number(left.metadata.clearanceRadius) +
+        Number(right.metadata.clearanceRadius);
       if (Math.hypot(dx, dz) < minimum) {
         issues.push({
           code: 'CLEARANCE_VIOLATION',

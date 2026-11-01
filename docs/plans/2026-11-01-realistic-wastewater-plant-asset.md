@@ -6,7 +6,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-015
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
@@ -84,7 +84,7 @@ React Viewer、WebGL2、Playwright、Google Chrome
 - Consumes: current `buildPlan(projectId)` output shape.
 - Produces: `buildPlan(projectId: string) => { projectId: string, operations: object[], summary: { components: number, instances: number, connections: number, materials: number } }`.
 
-- [ ] **Step 1: Write the failing module-boundary test**
+- [x] **Step 1: Write the failing module-boundary test**
 
 ```js
 import assert from 'node:assert/strict';
@@ -109,7 +109,7 @@ test('module split preserves the legacy production plan', async () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -120,7 +120,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 Expected: `ERR_MODULE_NOT_FOUND` for
 `scripts/wastewater-plant/site-plan.mjs`.
 
-- [ ] **Step 3: Move the existing implementation into focused modules**
+- [x] **Step 3: Move the existing implementation into focused modules**
 
 `model-kit.mjs` exports the unchanged values and functions:
 
@@ -174,7 +174,7 @@ export function buildPlan(projectId) {
 export { buildPlan } from './wastewater-plant/site-plan.mjs';
 ```
 
-- [ ] **Step 4: Run the focused test and inspect counts**
+- [x] **Step 4: Run the focused test and inspect counts**
 
 Run:
 
@@ -186,7 +186,7 @@ node --check scripts/build-wastewater-model.mjs
 Expected: both commands PASS; the plan digest remains
 `61409900f541447c8cd415d10067e8c17f246d660c9385b587bd4a4ef380b7ce`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/build-wastewater-model.mjs scripts/wastewater-plant \
@@ -211,7 +211,7 @@ git commit -m "refactor(wwtp): split asset generator into modules"
   - `WWTP_STATS_LIMITS` with `minTriangles: 300000`, `maxTriangles: 500000`,
     `maxUniqueTriangles: 150000`, `maxExpandedNodes: 15000`, `maxInstances: 500`.
 
-- [ ] **Step 1: Write failing topology and budget tests**
+- [x] **Step 1: Write failing topology and budget tests**
 
 ```js
 import {
@@ -252,7 +252,7 @@ test('project budget accepts the target band and rejects overflow', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -262,7 +262,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `validate.mjs`.
 
-- [ ] **Step 3: Implement deterministic validation**
+- [x] **Step 3: Implement deterministic validation**
 
 Implement the public interface in `validate.mjs`:
 
@@ -335,7 +335,7 @@ export function validateWastewaterPlan(plan) {
 Add the explicit bounds check shown by `validateProjectStats` in the test. Call
 `validateWastewaterPlan(plan)` from `buildPlan` before returning.
 
-- [ ] **Step 3a: Implement the statistics budget contract**
+- [x] **Step 3a: Implement the statistics budget contract**
 
 ```js
 export function validateProjectStats(stats, limits) {
@@ -376,7 +376,7 @@ export function validateProjectStats(stats, limits) {
 }
 ```
 
-- [ ] **Step 4: Run focused and existing Node tests**
+- [x] **Step 4: Run focused and existing Node tests**
 
 Run:
 
@@ -387,7 +387,7 @@ node --check scripts/wastewater-plant/validate.mjs
 
 Expected: PASS with no duplicate IDs, unknown ports or media mismatches.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/validate.mjs \
@@ -413,7 +413,7 @@ git commit -m "test(wwtp): enforce asset topology and budget contracts"
   - `detailSupport(b, prefix, { x, y, z, height, width }) => object[]`.
   - Every returned array uses unique part IDs derived from `prefix`.
 
-- [ ] **Step 1: Write failing detail-kit test**
+- [x] **Step 1: Write failing detail-kit test**
 
 ```js
 import {
@@ -460,7 +460,7 @@ test('engineering detail kit emits reusable fittings and access structures', () 
 });
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run:
 
@@ -470,7 +470,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: FAIL because the detail helpers are not exported.
 
-- [ ] **Step 3: Implement minimal detail helpers**
+- [x] **Step 3: Implement minimal detail helpers**
 
 Use boxes and cylinders already supported by Studio. Each flange is a short wide cylinder plus a
 short pipe sleeve. A valve is a body cylinder, bonnet box and handwheel cylinder. A stair is a
@@ -491,7 +491,7 @@ export function detailFlange(b, prefix, { diameter, position, rotation, material
 }
 ```
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run:
 
@@ -501,7 +501,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS, with unique IDs for every detail part.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/model-kit.mjs \
@@ -525,7 +525,7 @@ git commit -m "feat(wwtp): add engineering detail primitives"
 - `bridgeMode` accepts `"half"` and `"full"`.
 - Component ports retain stable names `inlet`, `outlet`, `air-in` and `sludge`.
 
-- [ ] **Step 1: Write failing component-fidelity tests**
+- [x] **Step 1: Write failing component-fidelity tests**
 
 ```js
 test('circular clarifier exposes credible civil and mechanical detail', () => {
@@ -561,7 +561,7 @@ test('aeration basin has lanes, baffles, air distribution and guardrails', () =>
 });
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -572,7 +572,7 @@ node --test --test-name-pattern="circular clarifier|aeration basin" \
 
 Expected: FAIL on missing waterline, scum band, sleeves, foam band and expanded part count.
 
-- [ ] **Step 3: Implement the two component families**
+- [x] **Step 3: Implement the two component families**
 
 Use at least 96 segments for the visible circular wall, weir and coping. Keep the current
 parameter expressions for `radius`, `depth` and `wall`. Add:
@@ -590,7 +590,7 @@ and continuous guardrails on both longitudinal edges.
 
 Replace the definitions in `site-plan.mjs` while retaining every existing port name and medium.
 
-- [ ] **Step 4: Run topology and component tests**
+- [x] **Step 4: Run topology and component tests**
 
 Run:
 
@@ -600,7 +600,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS; all connections still resolve and the plan remains deterministic.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/components.mjs \
@@ -629,7 +629,7 @@ git commit -m "feat(wwtp): rebuild clarifiers and biological basins"
   - `valveManifold(b, prefix, { branches, diameter }) => object[]`.
   - `serviceCanopy(b, prefix, { length, width, height }) => object[]`.
 
-- [ ] **Step 1: Write failing equipment-recognition tests**
+- [x] **Step 1: Write failing equipment-recognition tests**
 
 ```js
 test('major equipment has identity-bearing silhouettes and connecting ports', () => {
@@ -660,7 +660,7 @@ test('major equipment has identity-bearing silhouettes and connecting ports', ()
 });
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run:
 
@@ -671,7 +671,7 @@ node --test --test-name-pattern="major equipment" \
 
 Expected: FAIL because the new component definitions do not exist.
 
-- [ ] **Step 3: Implement equipment families and place them in the plan**
+- [x] **Step 3: Implement equipment families and place them in the plan**
 
 Each pump unit includes plinth, pump casing, motor, coupling guard, suction pipe, discharge pipe
 and local isolation valve. Each blower includes plinth, volute, motor, inlet filter, discharge
@@ -684,7 +684,7 @@ Add one lift-pump skid in `PS-101`, two blower skids beside `BLW-101`, one dosin
 thickener and digester area. Keep the existing coarse building shells but cut recognizable door,
 louver, canopy and roof-drain parts into each facade.
 
-- [ ] **Step 4: Run the complete asset test file**
+- [x] **Step 4: Run the complete asset test file**
 
 Run:
 
@@ -694,7 +694,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS; all equipment definitions are deterministic and all ports resolve.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/model-kit.mjs \
@@ -719,7 +719,7 @@ git commit -m "feat(wwtp): add process equipment and building detail"
   - Every site node has `metadata.role` in `"site" | "paving" | "landscape" | "piping"`.
 - Preserves all existing stable node IDs and component ports.
 
-- [ ] **Step 1: Write failing layout and naming tests**
+- [x] **Step 1: Write failing layout and naming tests**
 
 ```js
 test('site plan uses readable names and complete service routes', () => {
@@ -759,7 +759,7 @@ test('clearance validation rejects overlapping process footprints', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -771,7 +771,7 @@ node --test --test-name-pattern="site plan|parallel treatment trains" \
 Expected: FAIL because technical `标线 z=` names, service-yard names and clearance radii are
 missing.
 
-- [ ] **Step 3: Replace the flat site with six functional zones**
+- [x] **Step 3: Replace the flat site with six functional zones**
 
 Keep the existing site bounds unless validation shows clearance failures. Add:
 
@@ -798,7 +798,7 @@ zone and emit:
 }
 ```
 
-- [ ] **Step 4: Run validation and layout tests**
+- [x] **Step 4: Run validation and layout tests**
 
 Run:
 
@@ -808,7 +808,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS; no raw coordinate names, missing stage metadata or duplicate node IDs.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/site-plan.mjs \
@@ -835,7 +835,7 @@ git commit -m "feat(wwtp): rebuild plant circulation and site details"
   - `metadata.role` equal to `"pipe-flange"`, `"pipe-valve"` or `"pipe-support"`.
   - `metadata.lineId` equal to the connection's line ID.
 
-- [ ] **Step 1: Write failing pipeline-accessory tests**
+- [x] **Step 1: Write failing pipeline-accessory tests**
 
 ```js
 test('every visible process line has endpoint fittings and metadata', () => {
@@ -866,7 +866,7 @@ test('pipeline validation rejects a missing accessory line reference', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -877,7 +877,7 @@ node --test --test-name-pattern="process line|missing accessory" \
 
 Expected: FAIL because connection metadata and accessory nodes do not exist.
 
-- [ ] **Step 3: Generate fittings and supports from resolved ports**
+- [x] **Step 3: Generate fittings and supports from resolved ports**
 
 Extend `createBuilder()` to retain each instance's transform and definition. Add a deterministic
 `resolveWorldPort(instanceKey, portName)` function that applies instance translation and yaw to the
@@ -916,7 +916,7 @@ for (const operation of plan.operations) {
 }
 ```
 
-- [ ] **Step 4: Run topology and line tests**
+- [x] **Step 4: Run topology and line tests**
 
 Run:
 
@@ -926,7 +926,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS; all accessories reference an existing line and all connections retain valid ports.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/model-kit.mjs \
@@ -952,7 +952,7 @@ git commit -m "feat(wwtp): complete pipe fittings and supports"
   `foam`, `scum`, `asphalt-new`, `asphalt-worn`, `curb`, `drain`.
 - Existing material IDs remain available for compatibility during migration.
 
-- [ ] **Step 1: Write failing material tests**
+- [x] **Step 1: Write failing material tests**
 
 ```js
 test('materials separate civil, metal, water and site surfaces', () => {
@@ -975,7 +975,7 @@ test('materials separate civil, metal, water and site surfaces', () => {
 });
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- [x] **Step 2: Run test and verify RED**
 
 Run:
 
@@ -986,7 +986,7 @@ node --test --test-name-pattern="materials separate" \
 
 Expected: FAIL because the detailed material vocabulary does not exist.
 
-- [ ] **Step 3: Implement material zoning and surface geometry**
+- [x] **Step 3: Implement material zoning and surface geometry**
 
 Use warm off-white for new concrete, slightly grey-beige for weathered concrete, and darker
 bands for wet concrete. Use low-saturation pipe colors, galvanised rails and stainless wet-well
@@ -1003,7 +1003,7 @@ Add thin geometry for:
 
 Do not add free-floating labels or large black shadow patches.
 
-- [ ] **Step 4: Run material and topology tests**
+- [x] **Step 4: Run material and topology tests**
 
 Run:
 
@@ -1013,7 +1013,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS; every material reference resolves and all IDs remain deterministic.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/components.mjs \
@@ -1036,7 +1036,7 @@ git commit -m "feat(wwtp): add realistic material and surface detail"
 - Produces: `npm run verify` fails on broken asset topology, performance overflow or malformed
   generated plan.
 
-- [ ] **Step 1: Write a failing generation-budget test**
+- [x] **Step 1: Write a failing generation-budget test**
 
 ```js
 test('build fails before publication when final stats exceed the asset budget', () => {
@@ -1051,7 +1051,7 @@ test('build fails before publication when final stats exceed the asset budget', 
 });
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -1061,7 +1061,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: FAIL because the triangle budget diagnostic is not implemented.
 
-- [ ] **Step 3: Wire generation assertions and verify gate**
+- [x] **Step 3: Wire generation assertions and verify gate**
 
 After `evaluation.stats` in `scripts/build-wastewater-model.mjs`, call:
 
@@ -1087,7 +1087,7 @@ Add this step to `scripts/verify.mjs` before the large reference checks:
 },
 ```
 
-- [ ] **Step 4: Run the focused test and verify manifest**
+- [x] **Step 4: Run the focused test and verify manifest**
 
 Run:
 
@@ -1099,7 +1099,7 @@ node --check scripts/build-wastewater-model.mjs
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/verify.mjs scripts/build-wastewater-model.mjs \
@@ -1120,7 +1120,7 @@ git commit -m "test(wwtp): gate asset generation and verification"
 - Consumes: complete generator and validation pipeline.
 - Produces: updated persistent project, documented scale and final visual proofs.
 
-- [ ] **Step 1: Regenerate the project**
+- [x] **Step 1: Regenerate the project**
 
 Run:
 
@@ -1131,7 +1131,7 @@ node scripts/build-wastewater-model.mjs --workspace ./projects
 Expected: the command exits 0, reports 300,000 to 500,000 effective triangles, no validation
 errors, and replaces `projects/wastewater-plant` as one complete atomic project.
 
-- [ ] **Step 2: Verify the generated project through the API**
+- [x] **Step 2: Verify the generated project through the API**
 
 Start the project:
 
@@ -1158,7 +1158,7 @@ curl -fsS -X POST \
 Expected: `effectiveTriangles` is between 300000 and 500000, `uniqueTriangles` is at most 150000,
 and the response contains no error.
 
-- [ ] **Step 3: Capture Chrome visual acceptance**
+- [x] **Step 3: Capture Chrome visual acceptance**
 
 In system Google Chrome, inspect these URLs:
 
@@ -1185,7 +1185,7 @@ Acceptance requires zero console errors, zero failed requests, readable flow dir
 pipes and fittings, no obvious floating geometry, no black faces, and a clear distinction between
 concrete, metal, water, roads and landscape.
 
-- [ ] **Step 4: Update docs and run the complete suite**
+- [x] **Step 4: Update docs and run the complete suite**
 
 Update `projects/README.md` with final component, instance, connection, material and triangle
 counts. Update `docs/README.md`:
@@ -1203,7 +1203,7 @@ npm run verify
 
 Expected: every verification gate passes.
 
-- [ ] **Step 5: Clean temporary artifacts and commit**
+- [x] **Step 5: Clean temporary artifacts and commit**
 
 Confirm no stray worktree files remain:
 
@@ -1222,7 +1222,8 @@ touching source or user-owned outputs.
 ```bash
 git add scripts/build-wastewater-model.mjs scripts/wastewater-plant \
   scripts/tests/wastewater-plant-model.test.mjs scripts/verify.mjs \
-  projects/wastewater-plant projects/README.md docs/README.md \
-  output/wwtp-after-optimization.png output/wwtp-detail-biological.png
+  projects/wastewater-plant projects/README.md docs/README.md
 git commit -m "feat(wwtp): deliver engineering-grade treatment plant asset"
 ```
+
+`output/` 按仓库规则保持 Git 忽略；两张最终截图作为本地验收证据保留，不强制加入版本库。

@@ -109,6 +109,7 @@ test('circular clarifier exposes credible civil and mechanical detail', () => {
     assert.ok(ids.has(expected), expected);
   }
   assert.ok(definition.parts.length >= 30);
+  assert.ok(definition.parts.find(({ id }) => id === 'sc-wall').repeat >= 128);
 });
 
 test('aeration basin has lanes, baffles, air distribution and guardrails', () => {
@@ -124,6 +125,7 @@ test('aeration basin has lanes, baffles, air distribution and guardrails', () =>
   assert.ok([...ids].some((id) => id.startsWith('ae-air-')));
   assert.ok([...ids].some((id) => id.startsWith('ae-rail-')));
   assert.ok(definition.parts.length >= 35);
+  assert.ok([...ids].filter((id) => id.startsWith('ae-air-diffuser-')).length >= 90);
 });
 
 test('major equipment has identity-bearing silhouettes and connecting ports', () => {
@@ -251,4 +253,68 @@ test('generation budget throws before publication when final stats exceed limits
     expandedNodes: 12000,
     instances: 300,
   }, WWTP_STATS_LIMITS), /TRIANGLE_BUDGET_EXCEEDED/);
+});
+
+test('instance metadata stays within Studio string-value schema', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const instances = plan.operations.filter(({ type }) => type === 'instance.create');
+  assert.ok(instances.every(({ metadata }) => (
+    Object.values(metadata).every((value) => typeof value === 'string')
+  )));
+  assert.ok(instances.every(({ metadata }) => (
+    Number.isFinite(Number(metadata.clearanceRadius))
+  )));
+});
+
+test('every standalone node operation uses a typed node content', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const nodes = plan.operations.filter(({ type }) => type === 'node.create');
+  assert.ok(nodes.length > 0);
+  assert.ok(nodes.every(({ content }) => typeof content?.type === 'string'));
+});
+
+test('component radial segment counts stay within Studio limits', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definitions = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition);
+  for (const definition of definitions) {
+    for (const part of definition.parts) {
+      if (part.content.kind === 'cylinder') {
+        assert.ok(part.content.segments >= 3 && part.content.segments <= 256, part.id);
+      }
+      if (part.content.kind === 'sphere') {
+        assert.ok(part.content.segments >= 3 && part.content.segments <= 256, part.id);
+        assert.ok(part.content.rings >= 2 && part.content.rings <= 128, part.id);
+      }
+    }
+  }
+});
+
+test('site surfaces do not use baked shadow patches', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const materialNames = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name }) => [material_id, name]),
+  );
+  const shadowSites = plan.operations.filter(({ type, metadata, material_id }) => (
+    type === 'node.create' &&
+    metadata?.role === 'site' &&
+    materialNames.get(material_id) === 'Contact shadow'
+  ));
+  assert.deepEqual(shadowSites, []);
+});
+
+test('asphalt materials remain readable neutral greys', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const asphalt = plan.operations
+    .filter(({ type }) => type === 'material.upsert')
+    .filter(({ name }) => name.endsWith('asphalt'))
+    .map(({ base_color, name }) => ({
+      name,
+      luminance: base_color.slice(0, 3).reduce((sum, value) => sum + value, 0) / 3,
+    }));
+  assert.equal(asphalt.length, 2);
+  assert.ok(asphalt.every(({ luminance }) => luminance >= 0.1), JSON.stringify(asphalt));
 });
