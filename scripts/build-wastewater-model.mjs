@@ -263,6 +263,36 @@ function circularBasin(b, prefix, { radius = 12, depth = 4, wall = 0.45, segment
     ));
   }
 
+  // 池顶压顶：比墙体略宽的凸边，是真实圆池最显化的特征之一。
+  const top = 0.5 + depth;
+  const copingArc = (TAU * (radius + 0.1)) / segments;
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * TAU;
+    parts.push(b.part(
+      `${prefix}-coping-${index + 1}`,
+      b.box(copingArc, 0.22, wall + 0.34),
+      Math.cos(angle) * (radius - wall / 2 + 0.02),
+      top + 0.11,
+      Math.sin(angle) * (radius - wall / 2 + 0.02),
+      'concrete',
+      { rotation: b.rotateY(-angle) },
+    ));
+  }
+  // 池顶环形走道：贴内壁一圈，供检修人员站立。
+  const deckArc = (TAU * (radius - wall - 0.5)) / segments;
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * TAU;
+    parts.push(b.part(
+      `${prefix}-deck-${index + 1}`,
+      b.box(deckArc, 0.1, 0.9),
+      Math.cos(angle) * (radius - wall - 0.45),
+      top + 0.05,
+      Math.sin(angle) * (radius - wall - 0.45),
+      'walkway',
+      { rotation: b.rotateY(-angle) },
+    ));
+  }
+
   // 水面略低于池顶，避免与池壁共面。
   parts.push(b.part(`${prefix}-water`, b.cylinder(radius - wall, 0.06, segments * 2), 0, 0.5 + depth - 0.55, 0, 'water'));
   parts.push(b.part(`${prefix}-inlet-well`, b.cylinder(1.5, depth + 0.9, 32), 0, 0.5 + (depth + 0.9) / 2, 0, 'concrete'));
@@ -285,7 +315,30 @@ function circularBasin(b, prefix, { radius = 12, depth = 4, wall = 0.45, segment
 
   // 刮泥桥：跨池直径，两端落在池壁走道上。
   const bridgeY = 0.5 + depth + 0.55;
-  parts.push(b.part(`${prefix}-bridge`, b.box(radius * 2 + 1.2, 0.42, 1.6), 0, bridgeY, 0, 'walkway'));
+  // 主桥做成桁架：两根弦杆 + 若干竖腹杆，比整块板更像照片里的结构。
+  const bridgeSpan = radius * 2 + 1.2;
+  parts.push(b.part(`${prefix}-bridge-top`, b.box(bridgeSpan, 0.12, 0.16), 0, bridgeY + 0.42, -0.7, 'steel'));
+  parts.push(b.part(`${prefix}-bridge-top-b`, b.box(bridgeSpan, 0.12, 0.16), 0, bridgeY + 0.42, 0.7, 'steel'));
+  parts.push(b.part(`${prefix}-bridge-bottom`, b.box(bridgeSpan, 0.14, 1.5), 0, bridgeY, 0, 'walkway'));
+  for (let index = 0; index <= 8; index += 1) {
+    const x = -bridgeSpan / 2 + index * (bridgeSpan / 8);
+    parts.push(b.part(
+      `${prefix}-bridge-strut-${index + 1}`,
+      b.box(0.1, 0.44, 0.12),
+      x,
+      bridgeY + 0.21,
+      -0.7,
+      'steel',
+    ));
+    parts.push(b.part(
+      `${prefix}-bridge-strut-b-${index + 1}`,
+      b.box(0.1, 0.44, 0.12),
+      x,
+      bridgeY + 0.21,
+      0.7,
+      'steel',
+    ));
+  }
   parts.push(b.part(`${prefix}-bridge-rail-a`, b.box(radius * 2 + 1.2, 0.08, 0.08), 0, bridgeY + 1.05, -0.76, 'steel'));
   parts.push(b.part(`${prefix}-bridge-rail-b`, b.box(radius * 2 + 1.2, 0.08, 0.08), 0, bridgeY + 1.05, 0.76, 'steel'));
   parts.push(b.part(`${prefix}-drive`, b.cylinder(1.1, 1.0, 24), 0, bridgeY + 0.7, 0, 'steel'));
@@ -304,10 +357,10 @@ function circularBasin(b, prefix, { radius = 12, depth = 4, wall = 0.45, segment
       'steel',
       { rotation: b.rotateY(-angle) },
     ));
-    if (index % 2 === 0) {
+    if (index % 3 === 0) {
       parts.push(b.part(
         `${prefix}-post-${index + 1}`,
-        b.box(0.1, 1.1, 0.1),
+        b.box(0.06, 1.1, 0.06),
         Math.cos(angle) * radius,
         ringY,
         Math.sin(angle) * radius,
@@ -349,9 +402,9 @@ function aerationBasin(b, prefix, { length = 40, width = 20, depth = 6, wall = 0
     const x = -length / 2 + (index + 1) * (length / 4);
     parts.push(b.part(
       `${prefix}-baffle-${index + 1}`,
-      b.box(0.35, depth - 0.6, width - 4),
+      b.box(0.35, depth - 0.15, width - 4),
       x,
-      0.5 + (depth - 0.6) / 2,
+      0.5 + (depth - 0.15) / 2,
       index % 2 === 0 ? 1.6 : -1.6,
       'concrete',
     ));
@@ -377,7 +430,7 @@ function aerationBasin(b, prefix, { length = 40, width = 20, depth = 6, wall = 0
     const x = -length / 2 + index * (length / 10);
     parts.push(b.part(
       `${prefix}-walkway-post-${index + 1}`,
-      b.box(0.09, 0.95, 0.09),
+      b.box(0.06, 0.95, 0.06),
       x,
       top + 0.5,
       -width / 2 - 1.3,
@@ -422,7 +475,7 @@ function screeningChannel(b, prefix, { length = 20, width = 6, depth = 2.6 }) {
   for (let index = 0; index <= 8; index += 1) {
     parts.push(b.part(
       `${prefix}-walkway-post-${index + 1}`,
-      b.box(0.08, 0.9, 0.08),
+      b.box(0.06, 0.9, 0.06),
       -length / 2 + index * (length / 8),
       top + 0.5,
       -width / 2 - 1.05,
@@ -563,7 +616,7 @@ function filterCell(b, prefix, { length = 32, width = 26, depth = 3.6, cells = 4
   for (let index = 0; index <= 10; index += 1) {
     parts.push(b.part(
       `${prefix}-walkway-post-${index + 1}`,
-      b.box(0.08, 0.9, 0.08),
+      b.box(0.06, 0.9, 0.06),
       -length / 2 + index * (length / 10),
       top + 0.5,
       -width / 2 - 1.15,
@@ -670,10 +723,10 @@ function thickener(b, prefix, { radius = 8, depth = 4.4, segments = 24 }) {
       'steel',
       { rotation: b.rotateY(-angle) },
     ));
-    if (index % 2 === 0) {
+    if (index % 3 === 0) {
       parts.push(b.part(
         `${prefix}-post-${index + 1}`,
-        b.box(0.08, 1.05, 0.08),
+        b.box(0.06, 1.05, 0.06),
         Math.cos(angle) * radius,
         top + 0.05,
         Math.sin(angle) * radius,
@@ -692,13 +745,13 @@ function digester(b, prefix, { radius = 11, height = 17, segments = 28 }) {
 
   // 锥顶用三层递减圆柱近似
   const top = 0.8 + height;
-  for (let step = 0; step < 3; step += 1) {
-    const scale = 0.82 - step * 0.24;
+  for (let step = 0; step < 6; step += 1) {
+    const scale = 0.9 - step * 0.13;
     parts.push(b.part(
       `${prefix}-dome-${step + 1}`,
-      b.cylinder(radius * scale, 1.5, segments * 2),
+      b.cylinder(radius * scale, 0.85, segments * 2),
       0,
-      top + 0.75 + step * 1.5,
+      top + 0.42 + step * 0.85,
       0,
       'concrete',
     ));
@@ -807,14 +860,14 @@ function buildPlan(projectId) {
   // 配色取自真实厂区照片：池壁浅米色、水面深蓝绿、屋面蓝灰。
   b.material('concrete', 'Reinforced concrete', [0.84, 0.81, 0.75, 1]);
   b.material('water', 'Process water', [0.12, 0.30, 0.36, 0.95]);
-  b.material('steel', 'Galvanised steel', [0.66, 0.68, 0.70, 1]);
+  b.material('steel', 'Galvanised steel', [0.52, 0.545, 0.565, 1]);
   b.material('walkway', 'Grating walkway', [0.42, 0.45, 0.47, 1]);
   b.material('air', 'Air header', [0.3, 0.52, 0.7, 1]);
   b.material('media', 'Filter media', [0.3, 0.28, 0.24, 1]);
   b.material('lamp', 'UV lamp', [0.62, 0.66, 0.86, 1]);
   b.material('facade', 'Facade panel', [0.8, 0.79, 0.75, 1]);
   b.material('roof', 'Metal roof', [0.33, 0.40, 0.48, 1]);
-  b.material('lawn', 'Lawn', [0.36, 0.46, 0.26, 1]);
+  b.material('lawn', 'Lawn', [0.33, 0.41, 0.24, 1]);
   b.material('asphalt', 'Asphalt road', [0.24, 0.25, 0.27, 1]);
   b.material('glass', 'Glazing', [0.42, 0.52, 0.58, 0.55]);
   b.material('sludge', 'Sludge', [0.28, 0.22, 0.16, 1]);
