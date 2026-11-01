@@ -54,7 +54,8 @@ pub struct SourceNode {
     pub extras: Value,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImportWarning {
     pub code: String,
     pub message: String,

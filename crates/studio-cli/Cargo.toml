@@ -9,9 +9,12 @@ rust-version.workspace = true
 clap.workspace = true
 schemars.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+studio-assets = { path = "../studio-assets" }
 studio-core = { path = "../studio-core" }
+studio-import = { path = "../studio-import" }
 studio-project = { path = "../studio-project" }
 studio-server = { path = "../studio-server" }
 

@@ -2057,7 +2057,10 @@ dependencies = [
  "clap",
  "schemars",
  "serde_json",
+ "sha2",
+ "studio-assets",
  "studio-core",
+ "studio-import",
  "studio-project",
  "studio-server",
  "tempfile",
@@ -2100,6 +2103,7 @@ name = "studio-import"
 version = "0.1.0"
 dependencies = [
  "glam",
+ "serde",
  "serde_json",
  "studio-assets",
  "tempfile",

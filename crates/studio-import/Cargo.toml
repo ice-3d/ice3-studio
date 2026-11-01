@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 glam.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 studio-assets = { path = "../studio-assets" }
 thiserror.workspace = true

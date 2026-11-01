@@ -1,8 +1,15 @@
+use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use sha2::Digest;
+use studio_assets::canonical::{PreparedGlbOptions, write_prepared_glb};
+use studio_assets::{AssetError, read_glb, validate_prepared_profile};
 use studio_cli::schema;
 use studio_core::gpu_contract::GeometryBackendMode;
+use studio_import::{
+    GltfImporter, ImportRequest, ObjImporter, SourceImporterRegistry, to_canonical,
+};
 use studio_project::{ProjectStore, WorkspacePath};
 use studio_server::capabilities::WriteMode;
 use studio_server::runtime_tileset::RuntimeTilesetExporter;
@@ -17,6 +24,22 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// Import a source asset and write a Prepared GLB.
+    Import {
+        source: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        asset_id: String,
+        #[arg(long, default_value = "auto")]
+        adapter: String,
+        #[arg(long)]
+        warnings_as_errors: bool,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Validate a GLB, glTF, or Prepared GLB.
+    Validate { source: PathBuf },
     /// Export a committed Studio revision as a runtime Tileset bundle.
     Export {
         #[command(subcommand)]
@@ -78,6 +101,70 @@ enum ExportCommand {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     match cli.command {
+        Command::Import {
+            source,
+            output,
+            asset_id,
+            adapter,
+            warnings_as_errors,
+            force,
+        } => {
+            let registry = SourceImporterRegistry::try_new(vec![
+                Box::new(GltfImporter::new()),
+                Box::new(ObjImporter::new()),
+            ])?;
+            let imported = registry.import(&ImportRequest {
+                path: source.clone(),
+                asset_id: asset_id.clone(),
+                requested_adapter: Some(adapter),
+            })?;
+            if warnings_as_errors && let Some(warning) = imported.warnings.first() {
+                return Err(format!("{}: {}", warning.code, warning.message).into());
+            }
+            let source_bytes = std::fs::read(&source)?;
+            let source_digest = format!("{:x}", sha2::Sha256::digest(&source_bytes));
+            let canonical = to_canonical(&imported);
+            let bytes = write_prepared_glb(
+                &canonical,
+                &PreparedGlbOptions {
+                    asset_id,
+                    source_format: canonical.source_format.clone(),
+                    source_digest: source_digest.clone(),
+                },
+            )?;
+            let parsed = studio_assets::read_glb_bytes(&bytes, &std::env::temp_dir())?;
+            validate_prepared_profile(&parsed)?;
+            write_atomic_output(&output, &bytes, force)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "command": "import",
+                    "output": output,
+                    "adapter": imported.source_format.as_str(),
+                    "warnings": imported.warnings,
+                    "sourceDigest": source_digest,
+                    "bytes": bytes.len()
+                }))?
+            );
+        }
+        Command::Validate { source } => {
+            let parsed = read_glb(&source)?;
+            let report = match validate_prepared_profile(&parsed) {
+                Ok(profile) => serde_json::json!({
+                    "valid": true,
+                    "kind": "prepared",
+                    "assetId": profile.asset_id,
+                    "profileVersion": profile.profile_version
+                }),
+                Err(AssetError::ProfileUnsupported) => serde_json::json!({
+                    "valid": true,
+                    "kind": "source",
+                    "sourceDigest": parsed.digest
+                }),
+                Err(error) => return Err(error.into()),
+            };
+            println!("{}", serde_json::to_string_pretty(&report)?);
+        }
         Command::Export { command } => match command {
             ExportCommand::Tileset {
                 project,
@@ -155,6 +242,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn write_atomic_output(
+    output: &std::path::Path,
+    bytes: &[u8],
+    force: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if output.exists() && !force {
+        return Err("output already exists".into());
+    }
+    let parent = output
+        .parent()
+        .ok_or("output must have a parent directory")?;
+    std::fs::create_dir_all(parent)?;
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let name = output
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or("output name is invalid")?;
+    let temporary = parent.join(format!(".{name}.{nonce}.tmp"));
+    let result = (|| {
+        let mut file = std::fs::File::create(&temporary)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        std::fs::rename(&temporary, output)?;
+        Ok::<(), std::io::Error>(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(temporary);
+    }
+    result.map_err(Into::into)
+}
+
 fn parse_compute_mode(value: &str) -> Result<GeometryBackendMode, String> {
     match value {
         "cpu" => Ok(GeometryBackendMode::Cpu),
@@ -189,5 +310,35 @@ mod tests {
                 command: ExportCommand::Tileset { force: true, .. }
             }
         ));
+    }
+
+    #[test]
+    fn parses_import_and_validate_commands() {
+        let import = Cli::try_parse_from([
+            "ice3-studio",
+            "import",
+            "plant.obj",
+            "--output",
+            "plant.glb",
+            "--asset-id",
+            "plant",
+            "--adapter",
+            "obj",
+            "--warnings-as-errors",
+            "--force",
+        ])
+        .unwrap();
+        assert!(matches!(
+            import.command,
+            Command::Import {
+                adapter,
+                warnings_as_errors: true,
+                force: true,
+                ..
+            } if adapter == "obj"
+        ));
+
+        let validate = Cli::try_parse_from(["ice3-studio", "validate", "plant.glb"]).unwrap();
+        assert!(matches!(validate.command, Command::Validate { .. }));
     }
 }
