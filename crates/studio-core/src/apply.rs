@@ -350,6 +350,7 @@ fn apply_operation(
             name,
             transform,
             connection,
+            material_id,
             metadata,
         } => {
             ensure_new_node(document, &node_id, operation_index)?;
@@ -359,7 +360,7 @@ fn apply_operation(
                 name,
                 parent_id,
                 transform,
-                material_id: None,
+                material_id: material_id.clone(),
                 content: NodeContent::Connection(connection),
                 metadata,
                 visible: true,

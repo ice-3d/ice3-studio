@@ -1478,6 +1478,13 @@
                 "connection": {
                   "$ref": "#/$defs/ConnectionIntent"
                 },
+                "material_id": {
+                  "description": "管道材质。按介质分色时由调用方指定，缺省沿用默认。",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "metadata": {
                   "additionalProperties": {
                     "type": "string"
@@ -5066,6 +5073,13 @@
                 "connection": {
                   "$ref": "#/$defs/ConnectionIntent"
                 },
+                "material_id": {
+                  "description": "管道材质。按介质分色时由调用方指定，缺省沿用默认。",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "metadata": {
                   "additionalProperties": {
                     "type": "string"
@@ -7611,6 +7625,13 @@
                 "connection": {
                   "$ref": "#/$defs/ConnectionIntent"
                 },
+                "material_id": {
+                  "description": "管道材质。按介质分色时由调用方指定，缺省沿用默认。",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
                 "metadata": {
                   "additionalProperties": {
                     "type": "string"
@@ -10112,6 +10133,13 @@
               "properties": {
                 "connection": {
                   "$ref": "#/$defs/ConnectionIntent"
+                },
+                "material_id": {
+                  "description": "管道材质。按介质分色时由调用方指定，缺省沿用默认。",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "metadata": {
                   "additionalProperties": {
@@ -14686,6 +14714,13 @@
               "properties": {
                 "connection": {
                   "$ref": "#/$defs/ConnectionIntent"
+                },
+                "material_id": {
+                  "description": "管道材质。按介质分色时由调用方指定，缺省沿用默认。",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "metadata": {
                   "additionalProperties": {
@@ -20607,6 +20642,13 @@
           "properties": {
             "connection": {
               "$ref": "#/$defs/ConnectionIntent"
+            },
+            "material_id": {
+              "description": "管道材质。按介质分色时由调用方指定，缺省沿用默认。",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "metadata": {
               "additionalProperties": {

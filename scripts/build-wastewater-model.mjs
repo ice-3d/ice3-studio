@@ -135,6 +135,23 @@ function createBuilder() {
     return nodeId;
   };
 
+  // 管道按介质分色，和真实厂区一样用颜色编码工艺流向。
+  const PIPE_MATERIAL = {
+    'raw-water': 'pipe-raw',
+    'screened-water': 'pipe-raw',
+    'lifted-water': 'pipe-raw',
+    'degritted-water': 'pipe-raw',
+    'settled-water': 'pipe-process',
+    'mixed-liquor': 'pipe-process',
+    'secondary-effluent': 'pipe-clean',
+    'filtered-water': 'pipe-clean',
+    'final-effluent': 'pipe-clean',
+    'waste-sludge': 'pipe-sludge',
+    'thickened-sludge': 'pipe-sludge',
+    'digested-sludge': 'pipe-sludge',
+    'air': 'pipe-air',
+  };
+
   const connect = (fromKey, fromPort, toKey, toPort, name, medium, diameter) => {
     const from = state.nodes.get(fromKey);
     const to = state.nodes.get(toKey);
@@ -160,11 +177,13 @@ function createBuilder() {
         from: { kind: 'instance', nodeId: from, port: fromPort },
         to: { kind: 'instance', nodeId: to, port: toPort },
         medium,
-        diameter,
+        // 真实厂区的主管比图面上的细线粗得多，这里统一放大一档。
+        diameter: diameter * 1.8,
         routePolicy: { kind: 'orthogonal' },
         relationId,
         metadata: {},
       },
+      material_id: state.materials.get(PIPE_MATERIAL[medium] ?? 'pipe-process'),
     });
   };
 
@@ -657,87 +676,134 @@ function gritChamber(b, prefix, { length = 26, width = 11, depth = 4.2 }) {
 }
 
 // 滤池：分格矩形池，每格设滤料层与反冲洗配水。
-function filterCell(b, prefix, { length = 32, width = 26, depth = 3.6, cells = 4 }) {
+// 滤池：参数化。长度/宽度/深度走表达式，分格与滤料按索引展开。
+function filterCell(b, prefix, { cells = 4 }) {
   const parts = [];
-  const top = 0.5 + depth;
-  const cellWidth = width / cells;
-  parts.push(b.part(`${prefix}-base`, b.box(length, 0.45, width), 0, 0.22, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-n`, b.box(length, depth, 0.45), 0, 0.5 + depth / 2, -width / 2, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-s`, b.box(length, depth, 0.45), 0, 0.5 + depth / 2, width / 2, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-w`, b.box(0.45, depth, width), -length / 2, 0.5 + depth / 2, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-e`, b.box(0.45, depth, width), length / 2, 0.5 + depth / 2, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-base`, b.box({ expr: 'length' }, 0.45, { expr: 'width' }), 0, 0.22, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-n`, b.box({ expr: 'length' }, { expr: 'depth' }, 0.45),
+    0, { expr: '0.5 + depth / 2' }, { expr: '-width / 2' }, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-s`, b.box({ expr: 'length' }, { expr: 'depth' }, 0.45),
+    0, { expr: '0.5 + depth / 2' }, { expr: 'width / 2' }, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-w`, b.box(0.45, { expr: 'depth' }, { expr: 'width' }),
+    { expr: '-length / 2' }, { expr: '0.5 + depth / 2' }, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-e`, b.box(0.45, { expr: 'depth' }, { expr: 'width' }),
+    { expr: 'length / 2' }, { expr: '0.5 + depth / 2' }, 0, 'concrete'));
 
-  for (let index = 0; index < cells; index += 1) {
-    const z = -width / 2 + cellWidth * (index + 0.5);
-    // 分格墙
-    if (index > 0) {
-      parts.push(b.part(
-        `${prefix}-divider-${index}`,
-        b.box(length - 0.9, depth, 0.35),
-        0,
-        0.5 + depth / 2,
-        -width / 2 + cellWidth * index,
-        'concrete',
-      ));
-    }
-    // 滤料层与承托层
-    parts.push(b.part(`${prefix}-media-${index + 1}`, b.box(length - 1, 1.1, cellWidth - 0.9), 0, 1.2, z, 'media'));
-    parts.push(b.part(`${prefix}-water-${index + 1}`, b.box(length - 1, 0.05, cellWidth - 0.9), 0, top - 0.6, z, 'water'));
-    // 反冲洗配水管
-    parts.push(b.part(`${prefix}-wash-${index + 1}`, b.box(0.22, 0.22, cellWidth - 1.2), 0, 2.6, z, 'air'));
-  }
+  // 分格墙、滤料层、水面、反冲洗管随格数展开
+  parts.push(b.repeatPart(`${prefix}-divider`, cells,
+    b.box({ expr: 'length - 0.9' }, { expr: 'depth' }, 0.35),
+    {
+      transform: {
+        translation: {
+          x: 0,
+          y: { expr: '0.5 + depth / 2' },
+          z: { expr: '-width / 2 + i * width / count' },
+        },
+      },
+      role: 'concrete',
+      metadata: { skipFirst: 'true' },
+    }));
+  parts.push(b.repeatPart(`${prefix}-media`, cells,
+    b.box({ expr: 'length - 1' }, 1.1, { expr: 'width / count - 0.9' }),
+    {
+      transform: {
+        translation: {
+          x: 0,
+          y: 1.2,
+          z: { expr: '-width / 2 + (i + 0.5) * width / count' },
+        },
+      },
+      role: 'media',
+    }));
+  parts.push(b.repeatPart(`${prefix}-water`, cells,
+    b.box({ expr: 'length - 1' }, 0.05, { expr: 'width / count - 0.9' }),
+    {
+      transform: {
+        translation: {
+          x: 0,
+          y: { expr: '0.5 + depth - 0.6' },
+          z: { expr: '-width / 2 + (i + 0.5) * width / count' },
+        },
+      },
+      role: 'water',
+    }));
+  parts.push(b.repeatPart(`${prefix}-wash`, cells,
+    b.box(0.22, 0.22, { expr: 'width / count - 1.2' }),
+    {
+      transform: {
+        translation: {
+          x: 0,
+          y: 2.6,
+          z: { expr: '-width / 2 + (i + 0.5) * width / count' },
+        },
+      },
+      role: 'air',
+    }));
 
-  // 操作走道与栏杆
-  parts.push(b.part(`${prefix}-walkway`, b.box(length, 0.12, 1.2), 0, top + 0.1, -width / 2 - 0.6, 'walkway'));
-  parts.push(b.part(`${prefix}-walkway-rail`, b.box(length, 0.07, 0.07), 0, top + 0.95, -width / 2 - 1.15, 'steel'));
-  for (let index = 0; index <= 10; index += 1) {
-    parts.push(b.part(
-      `${prefix}-walkway-post-${index + 1}`,
-      b.box(0.06, 0.9, 0.06),
-      -length / 2 + index * (length / 10),
-      top + 0.5,
-      -width / 2 - 1.15,
-      'steel',
-    ));
-  }
+  parts.push(b.part(`${prefix}-walkway`, b.box({ expr: 'length' }, 0.12, 1.2),
+    0, { expr: '0.5 + depth + 0.1' }, { expr: '-width / 2 - 0.6' }, 'walkway'));
+  parts.push(b.part(`${prefix}-walkway-rail`, b.box({ expr: 'length' }, 0.07, 0.07),
+    0, { expr: '0.5 + depth + 0.95' }, { expr: '-width / 2 - 1.15' }, 'steel'));
+  parts.push(b.repeatPart(`${prefix}-walkway-post`, 11,
+    b.box(0.06, 0.9, 0.06),
+    {
+      transform: {
+        translation: {
+          x: { expr: '-length / 2 + i * length / (count - 1)' },
+          y: { expr: '0.5 + depth + 0.5' },
+          z: { expr: '-width / 2 - 1.15' },
+        },
+      },
+      role: 'steel',
+    }));
   return parts;
 }
-
-// 消毒渠：矩形渠道，槽内布置紫外灯组。
-function disinfectionChannel(b, prefix, { length = 26, width = 5.5, depth = 3 }) {
+// 消毒渠：参数化。灯架与灯管按索引展开。
+function disinfectionChannel(b, prefix, { banks = 3, lamps = 4 }) {
   const parts = [];
-  const top = 0.5 + depth;
-  parts.push(b.part(`${prefix}-base`, b.box(length, 0.4, width), 0, 0.2, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-n`, b.box(length, depth, 0.4), 0, 0.5 + depth / 2, -width / 2, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-s`, b.box(length, depth, 0.4), 0, 0.5 + depth / 2, width / 2, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-w`, b.box(0.4, depth, width), -length / 2, 0.5 + depth / 2, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-e`, b.box(0.4, depth, width), length / 2, 0.5 + depth / 2, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-water`, b.box(length - 0.8, 0.05, width - 0.8), 0, top - 0.45, 0, 'water'));
+  parts.push(b.part(`${prefix}-base`, b.box({ expr: 'length' }, 0.4, { expr: 'width' }), 0, 0.2, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-n`, b.box({ expr: 'length' }, { expr: 'depth' }, 0.4),
+    0, { expr: '0.5 + depth / 2' }, { expr: '-width / 2' }, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-s`, b.box({ expr: 'length' }, { expr: 'depth' }, 0.4),
+    0, { expr: '0.5 + depth / 2' }, { expr: 'width / 2' }, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-w`, b.box(0.4, { expr: 'depth' }, { expr: 'width' }),
+    { expr: '-length / 2' }, { expr: '0.5 + depth / 2' }, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-e`, b.box(0.4, { expr: 'depth' }, { expr: 'width' }),
+    { expr: 'length / 2' }, { expr: '0.5 + depth / 2' }, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-water`, b.box({ expr: 'length - 0.8' }, 0.05, { expr: 'width - 0.8' }),
+    0, { expr: '0.5 + depth - 0.45' }, 0, 'water'));
 
-  // 紫外灯架：三组横梁，每组下挂灯管
-  for (let bank = 0; bank < 3; bank += 1) {
-    const x = -length / 3 + bank * (length / 3);
-    parts.push(b.part(`${prefix}-bank${bank + 1}-beam`, b.box(0.5, 0.3, width - 0.6), x, top - 0.25, 0, 'steel'));
-    for (let lamp = 0; lamp < 4; lamp += 1) {
-      const z = -width / 2 + 0.9 + lamp * ((width - 1.8) / 3);
-      parts.push(b.part(
-        `${prefix}-bank${bank + 1}-lamp-${lamp + 1}`,
-        b.cylinder(0.09, 1.6, 10),
-        x,
-        top - 1.1,
-        z,
-        'lamp',
-      ));
-    }
-  }
+  parts.push(b.repeatPart(`${prefix}-bank-beam`, banks,
+    b.box(0.5, 0.3, { expr: 'width - 0.6' }),
+    {
+      transform: {
+        translation: {
+          x: { expr: '-length / 3 + i * length / 3' },
+          y: { expr: '0.5 + depth - 0.25' },
+          z: 0,
+        },
+      },
+      role: 'steel',
+    }));
+  parts.push(b.repeatPart(`${prefix}-lamp`, banks * lamps,
+    b.cylinder(0.09, { expr: 'depth * 0.5' }, 10),
+    {
+      transform: {
+        translation: {
+          x: { expr: '-length / 3 + floor(i / ' + lamps + ') * length / 3' },
+          y: { expr: '0.5 + depth - depth * 0.25' },
+          z: { expr: '-width / 2 + 0.9 + (i % ' + lamps + ') * (width - 1.8) / ' + (lamps - 1) },
+        },
+      },
+      role: 'lamp',
+    }));
 
-  // 走道与盖板支撑
-  parts.push(b.part(`${prefix}-walkway`, b.box(length, 0.12, 1.1), 0, top + 0.1, -width / 2 - 0.55, 'walkway'));
-  parts.push(b.part(`${prefix}-rail`, b.box(length, 0.07, 0.07), 0, top + 0.95, -width / 2 - 1.05, 'steel'));
+  parts.push(b.part(`${prefix}-walkway`, b.box({ expr: 'length' }, 0.12, 1.1),
+    0, { expr: '0.5 + depth + 0.1' }, { expr: '-width / 2 - 0.55' }, 'walkway'));
+  parts.push(b.part(`${prefix}-rail`, b.box({ expr: 'length' }, 0.07, 0.07),
+    0, { expr: '0.5 + depth + 0.95' }, { expr: '-width / 2 - 1.05' }, 'steel'));
   return parts;
 }
-
-// 通用建筑：三层厂房，带窗带与入口雨棚。
 function facilityBuilding(b, prefix, { length = 26, width = 14, floors = 3, floorHeight = 3.6 }) {
   const parts = [];
   const height = floors * floorHeight;
@@ -760,122 +826,127 @@ function facilityBuilding(b, prefix, { length = 26, width = 14, floors = 3, floo
 
 
 // 污泥浓缩池：小型圆池，带中心搅拌与周边出水堰。
-function thickener(b, prefix, { radius = 8, depth = 4.4, segments = 24 }) {
+// 污泥浓缩池：参数化。池壁与栏杆按索引展开。
+function thickener(b, prefix, { segments = 32 }) {
   const parts = [];
-  const top = 0.5 + depth;
-  parts.push(b.part(`${prefix}-base`, b.cylinder(radius, 0.45, segments * 2), 0, 0.22, 0, 'concrete'));
-  const wallR = radius - 0.2;
-  const arc = (TAU * wallR) / segments;
-  // 段长与弧长一致，段间不重叠，避免相邻面互闪。
-  for (let index = 0; index < segments; index += 1) {
-    const angle = (index / segments) * TAU;
-    parts.push(b.part(
-      `${prefix}-wall-${index + 1}`,
-      b.box(arc, depth, 0.4),
-      Math.cos(angle) * wallR,
-      0.5 + depth / 2,
-      Math.sin(angle) * wallR,
-      'concrete',
-      { rotation: b.rotateY(-angle) },
-    ));
-  }
-  parts.push(b.part(`${prefix}-water`, b.cylinder(radius - 0.4, 0.05, segments * 2), 0, top - 0.5, 0, 'sludge'));
+  parts.push(b.part(`${prefix}-base`, b.cylinder({ expr: 'radius' }, 0.45, segments * 2), 0, 0.22, 0, 'concrete'));
+  parts.push(b.repeatPart(`${prefix}-wall`, segments,
+    b.box({ expr: 'tau * (radius - 0.2) / count' }, { expr: 'depth' }, 0.4),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'cos(i * tau / count) * (radius - 0.2)' },
+          y: { expr: '0.5 + depth / 2' },
+          z: { expr: 'sin(i * tau / count) * (radius - 0.2)' },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'concrete',
+    }));
+  parts.push(b.part(`${prefix}-water`, b.cylinder({ expr: 'radius - 0.4' }, 0.05, segments * 2),
+    0, { expr: '0.5 + depth - 0.5' }, 0, 'sludge'));
 
-  // 中心搅拌器
-  parts.push(b.part(`${prefix}-mixer-column`, b.cylinder(0.5, depth + 1.2, 16), 0, 0.5 + (depth + 1.2) / 2, 0, 'steel'));
-  parts.push(b.part(`${prefix}-mixer-drive`, b.cylinder(0.9, 0.8, 18), 0, top + 1.0, 0, 'steel'));
-  parts.push(b.part(`${prefix}-mixer-arm-a`, b.box(radius * 1.6, 0.18, 0.3), 0, 1.6, 0, 'steel'));
-  parts.push(b.part(`${prefix}-mixer-arm-b`, b.box(0.3, 0.18, radius * 1.6), 0, 1.6, 0, 'steel'));
+  parts.push(b.part(`${prefix}-mixer-column`, b.cylinder(0.5, { expr: 'depth + 1.2' }, 16),
+    0, { expr: '0.5 + (depth + 1.2) / 2' }, 0, 'steel'));
+  parts.push(b.part(`${prefix}-mixer-drive`, b.cylinder(0.9, 0.8, 18),
+    0, { expr: '0.5 + depth + 1.0' }, 0, 'steel'));
+  parts.push(b.part(`${prefix}-mixer-arm-a`, b.box({ expr: 'radius * 1.6' }, 0.18, 0.3), 0, 1.6, 0, 'steel'));
+  parts.push(b.part(`${prefix}-mixer-arm-b`, b.box(0.3, 0.18, { expr: 'radius * 1.6' }), 0, 1.6, 0, 'steel'));
 
-  // 池顶栏杆
-  const railArc = (TAU * radius) / segments;
-  for (let index = 0; index < segments; index += 1) {
-    const angle = (index / segments) * TAU;
-    parts.push(b.part(
-      `${prefix}-rail-${index + 1}`,
-      b.box(railArc, 0.05, 0.05),
-      Math.cos(angle) * radius,
-      top + 0.55,
-      Math.sin(angle) * radius,
-      'steel',
-      { rotation: b.rotateY(-angle) },
-    ));
-    if (index % 3 === 0) {
-      parts.push(b.part(
-        `${prefix}-post-${index + 1}`,
-        b.box(0.06, 1.05, 0.06),
-        Math.cos(angle) * radius,
-        top + 0.05,
-        Math.sin(angle) * radius,
-        'steel',
-      ));
-    }
-  }
+  parts.push(b.repeatPart(`${prefix}-rail`, segments,
+    b.box({ expr: 'tau * radius / count' }, 0.07, 0.07),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'cos(i * tau / count) * radius' },
+          y: { expr: '0.5 + depth + 0.6' },
+          z: { expr: 'sin(i * tau / count) * radius' },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'steel',
+    }));
+  parts.push(b.repeatPart(`${prefix}-post`, Math.floor(segments / 2),
+    b.box(0.06, 1.05, 0.06),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'cos(i * 2 * tau / count) * radius' },
+          y: { expr: '0.5 + depth + 0.1' },
+          z: { expr: 'sin(i * 2 * tau / count) * radius' },
+        },
+      },
+      role: 'steel',
+    }));
   return parts;
 }
-
-// 污泥消化池：圆柱池体，阶梯收顶，附搅拌与检修平台。
-function digester(b, prefix, { radius = 11, height = 17, segments = 28 }) {
+function digester(b, prefix, { domeLayers = 6, gallerySegments = 44, rungs = 16 }) {
   const parts = [];
-  parts.push(b.part(`${prefix}-base`, b.cylinder(radius + 0.6, 0.8, segments * 2), 0, 0.4, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-shell`, b.cylinder(radius, height, segments * 2), 0, 0.8 + height / 2, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-base`, b.cylinder({ expr: 'radius + 0.6' }, 0.8, 56), 0, 0.4, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-shell`, b.cylinder({ expr: 'radius' }, { expr: 'height' }, 56),
+    0, { expr: '0.8 + height / 2' }, 0, 'concrete'));
 
-  // 锥顶用三层递减圆柱近似
-  const top = 0.8 + height;
-  for (let step = 0; step < 6; step += 1) {
-    const scale = 0.9 - step * 0.13;
-    parts.push(b.part(
-      `${prefix}-dome-${step + 1}`,
-      b.cylinder(radius * scale, 0.85, segments * 2),
-      0,
-      top + 0.42 + step * 0.85,
-      0,
-      'concrete',
-    ));
-  }
-  parts.push(b.part(`${prefix}-roof-cap`, b.cylinder(1.6, 0.6, 20), 0, top + 5.0, 0, 'steel'));
+  // 锥顶：逐层收径的圆柱近似
+  parts.push(b.repeatPart(`${prefix}-dome`, domeLayers,
+    b.cylinder({ expr: 'radius * (0.9 - i * 0.13)' }, { expr: 'height * 0.05' }, 56),
+    {
+      transform: {
+        translation: {
+          x: 0,
+          y: { expr: '0.8 + height + height * 0.025 + i * height * 0.05' },
+          z: 0,
+        },
+      },
+      role: 'concrete',
+    }));
+  parts.push(b.part(`${prefix}-roof-cap`, b.cylinder(1.6, 0.6, 20),
+    0, { expr: '0.8 + height + height * 0.32' }, 0, 'steel'));
 
-  // 检修平台与栏杆（沿池体中段）
-  const galleryY = top - 2.4;
-  const gallerySegments = segments;
-  const arc = (TAU * (radius + 0.7)) / gallerySegments;
-  for (let index = 0; index < gallerySegments; index += 1) {
-    const angle = (index / gallerySegments) * TAU;
-    parts.push(b.part(
-      `${prefix}-gallery-${index + 1}`,
-      b.box(arc + 0.1, 0.16, 1.1),
-      Math.cos(angle) * (radius + 0.2),
-      galleryY,
-      Math.sin(angle) * (radius + 0.2),
-      'walkway',
-      { rotation: b.rotateY(-angle) },
-    ));
-    parts.push(b.part(
-      `${prefix}-gallery-rail-${index + 1}`,
-      b.box(arc + 0.1, 0.07, 0.07),
-      Math.cos(angle) * (radius + 0.7),
-      galleryY + 0.95,
-      Math.sin(angle) * (radius + 0.7),
-      'steel',
-      { rotation: b.rotateY(-angle) },
-    ));
-  }
+  // 检修平台：沿池体外圈一圈走道与护栏
+  parts.push(b.repeatPart(`${prefix}-gallery`, gallerySegments,
+    b.box({ expr: 'tau * (radius + 0.7) / count' }, 0.16, 1.1),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'cos(i * tau / count) * (radius + 0.2)' },
+          y: { expr: '0.8 + height - 2.4' },
+          z: { expr: 'sin(i * tau / count) * (radius + 0.2)' },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'walkway',
+    }));
+  parts.push(b.repeatPart(`${prefix}-gallery-rail`, gallerySegments,
+    b.box({ expr: 'tau * (radius + 0.7) / count' }, 0.07, 0.07),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'cos(i * tau / count) * (radius + 0.7)' },
+          y: { expr: '0.8 + height - 1.45' },
+          z: { expr: 'sin(i * tau / count) * (radius + 0.7)' },
+        },
+        yaw: { expr: '-i * 360 / count' },
+      },
+      role: 'steel',
+    }));
 
   // 外壁爬梯
-  for (let index = 0; index < 16; index += 1) {
-    parts.push(b.part(
-      `${prefix}-ladder-${index + 1}`,
-      b.box(0.42, 0.05, 0.85),
-      radius + 0.35,
-      1.2 + index * 1.05,
-      0,
-      'steel',
-    ));
-  }
+  parts.push(b.repeatPart(`${prefix}-ladder`, rungs,
+    b.box(0.42, 0.05, 0.85),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'radius + 0.35' },
+          y: { expr: '1.2 + i * height / count' },
+          z: 0,
+        },
+      },
+      role: 'steel',
+    }));
+
   return parts;
 }
 
-// 脱水机房：厂房外加三台离心脱水机。
 function dewateringHouse(b, prefix, { length = 26, width = 15, height = 8 }) {
   const parts = [];
   parts.push(b.part(`${prefix}-slab`, b.box(length + 1, 0.6, width + 1), 0, 0.3, 0, 'concrete'));
@@ -1036,21 +1107,35 @@ function buildPlan(projectId) {
     { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
   ]);
 
-  b.define('filter-cell', 'Filtration cell', filterCell(b, 'fl', { length: 32, width: 26, depth: 3.6, cells: 4 }), [
+  b.define('filter-cell', 'Filtration cell', filterCell(b, 'fl', {}), [
     b.port('inlet', 'fl-wall-w', -16, 2.4, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
     b.port('outlet', 'fl-wall-e', 16, 2.4, 0, vec(1, 0, 0), 'filtered-water', 0.8),
+  ], [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 32, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 26, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 3.6, unit: 'm' },
   ]);
-  b.define('disinfection-channel', 'UV disinfection', disinfectionChannel(b, 'uv', { length: 26, width: 5.5, depth: 3 }), [
+  b.define('disinfection-channel', 'UV disinfection', disinfectionChannel(b, 'uv', {}), [
     b.port('inlet', 'uv-wall-w', -13, 2.2, 0, vec(1, 0, 0), 'filtered-water', 0.8),
     b.port('outlet', 'uv-wall-e', 13, 2.2, 0, vec(1, 0, 0), 'final-effluent', 0.8),
+  ], [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 26, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 5.5, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 3, unit: 'm' },
   ]);
-  b.define('thickener', 'Sludge thickener', thickener(b, 'th', { radius: 8, depth: 4.4, segments: 40 }), [
-    b.port('inlet', 'th-wall-1', 8, 3.0, 0, vec(-1, 0, 0), 'waste-sludge', 0.35),
+  b.define('thickener', 'Sludge thickener', thickener(b, 'th', {}), [
+    b.port('inlet', 'th-base', 8, 3.0, 0, vec(-1, 0, 0), 'waste-sludge', 0.35),
     b.port('outlet', 'th-mixer-column', 0, 3.6, 0, vec(0, -1, 0), 'thickened-sludge', 0.3),
+  ], [
+    { name: 'radius', valueType: { kind: 'number', minimum: null, maximum: null }, default: 8, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 4.4, unit: 'm' },
   ]);
-  b.define('digester', 'Anaerobic digester', digester(b, 'dg', { radius: 11, height: 17, segments: 44 }), [
+  b.define('digester', 'Anaerobic digester', digester(b, 'dg', {}), [
     b.port('inlet', 'dg-shell', 11, 4.0, 0, vec(-1, 0, 0), 'thickened-sludge', 0.3),
     b.port('outlet', 'dg-shell', -11, 4.0, 0, vec(1, 0, 0), 'digested-sludge', 0.3),
+  ], [
+    { name: 'radius', valueType: { kind: 'number', minimum: null, maximum: null }, default: 11, unit: 'm' },
+    { name: 'height', valueType: { kind: 'number', minimum: null, maximum: null }, default: 17, unit: 'm' },
   ]);
   b.define('gas-holder', 'Gas holder', gasHolder(b, 'gh', { radius: 8.5 }), []);
   b.define('dewatering-house', 'Dewatering house', dewateringHouse(b, 'dw', { length: 26, width: 15, height: 8 }), [
@@ -1071,6 +1156,12 @@ function buildPlan(projectId) {
   b.material('marking', 'Road marking', [0.86, 0.86, 0.84, 1]);
   // 接触阴影：贴在构筑物脚下的深色薄片，替代真正的阴影贴图。
   b.material('shadow', 'Contact shadow', [0.04, 0.05, 0.06, 0.30]);
+  // 管道按介质分色：原水灰、工艺水黄褐、清水绿、污泥深褐、空气蓝。
+  b.material('pipe-raw', 'Pipe / raw water', [0.52, 0.53, 0.55, 1]);
+  b.material('pipe-process', 'Pipe / process water', [0.66, 0.50, 0.26, 1]);
+  b.material('pipe-clean', 'Pipe / clean water', [0.28, 0.55, 0.36, 1]);
+  b.material('pipe-sludge', 'Pipe / sludge', [0.36, 0.24, 0.16, 1]);
+  b.material('pipe-air', 'Pipe / air', [0.26, 0.48, 0.76, 1]);
   for (const edgeZ of [-71.4, -62.6, 40.6, 49.4]) {
     b.ground(`标线 z=${edgeZ}`, -150, 470, edgeZ - 0.15, edgeZ + 0.15, 'marking', -0.018);
   }
@@ -1106,12 +1197,12 @@ function buildPlan(projectId) {
     }
   }
 
-  b.instance('filter-cell', 'fl-1', 'FL-101 滤池', 350, 0, 0, { stage: 'tertiary', tag: 'FL-101' });
-  b.instance('disinfection-channel', 'uv-1', 'UV-101 紫外消毒渠', 395, 0, 0, { stage: 'tertiary', tag: 'UV-101' });
-  b.instance('thickener', 'th-1', 'TH-101 污泥浓缩池', 250, 0, 62, { stage: 'sludge', tag: 'TH-101' });
-  b.instance('thickener', 'th-2', 'TH-102 污泥浓缩池', 288, 0, 62, { stage: 'sludge', tag: 'TH-102' });
-  b.instance('digester', 'dg-1', 'DG-101 消化池', 340, 0, 62, { stage: 'sludge', tag: 'DG-101' });
-  b.instance('digester', 'dg-2', 'DG-102 消化池', 340, 0, 102, { stage: 'sludge', tag: 'DG-102' });
+  b.instance('filter-cell', 'fl-1', 'FL-101 滤池', 350, 0, 0, { stage: 'tertiary', tag: 'FL-101' }, { length: 32, width: 26, depth: 3.6 });
+  b.instance('disinfection-channel', 'uv-1', 'UV-101 紫外消毒渠', 395, 0, 0, { stage: 'tertiary', tag: 'UV-101' }, { length: 26, width: 5.5, depth: 3 });
+  b.instance('thickener', 'th-1', 'TH-101 污泥浓缩池', 250, 0, 62, { stage: 'sludge', tag: 'TH-101' }, { radius: 8, depth: 4.4 });
+  b.instance('thickener', 'th-2', 'TH-102 污泥浓缩池', 288, 0, 62, { stage: 'sludge', tag: 'TH-102' }, { radius: 8, depth: 4.4 });
+  b.instance('digester', 'dg-1', 'DG-101 消化池', 340, 0, 62, { stage: 'sludge', tag: 'DG-101' }, { radius: 11, height: 17 });
+  b.instance('digester', 'dg-2', 'DG-102 消化池', 340, 0, 102, { stage: 'sludge', tag: 'DG-102' }, { radius: 11, height: 17 });
   b.instance('gas-holder', 'gh-1', 'GH-101 沼气柜', 380, 0, 118, { stage: 'sludge', tag: 'GH-101' });
   b.instance('dewatering-house', 'dw-1', 'DW-101 脱水机房', 405, 0, 78, { stage: 'sludge', tag: 'DW-101' });
   b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', -135, 0, -62, { stage: 'auxiliary', tag: 'CTRL-101' });

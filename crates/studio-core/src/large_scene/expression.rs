@@ -111,6 +111,15 @@ impl Parser<'_> {
                     }
                     value /= divisor;
                 }
+                // 取模：环形布置里常用来判断「第几组」，例如 i % 4。
+                Some('%') => {
+                    self.position += 1;
+                    let divisor = self.parse_factor()?;
+                    if divisor == 0.0 {
+                        return Err(ExpressionError::DivisionByZero);
+                    }
+                    value %= divisor;
+                }
                 _ => return Ok(value),
             }
         }
@@ -292,6 +301,13 @@ mod tests {
             evaluate("nope(1)", &BTreeMap::new()).unwrap_err(),
             ExpressionError::UnknownFunction(_)
         ));
+    }
+
+    #[test]
+    fn supports_modulo() {
+        let context = vars(&[("i", 7.0)]);
+        assert_eq!(evaluate("i % 4", &context).unwrap(), 3.0);
+        assert_eq!(evaluate("(i % 3) * 10", &context).unwrap(), 10.0);
     }
 
     #[test]

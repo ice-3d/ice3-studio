@@ -84,6 +84,9 @@ pub enum Operation {
         name: String,
         transform: Transform,
         connection: ConnectionIntent,
+        /// 管道材质。按介质分色时由调用方指定，缺省沿用默认。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        material_id: Option<MaterialId>,
         #[serde(default)]
         metadata: BTreeMap<String, String>,
     },
