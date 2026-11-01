@@ -556,6 +556,33 @@ test('materials separate civil, metal, water and site surfaces', () => {
   assert.ok(names.size <= 48);
 });
 
+test('process basin water stays readable blue-green instead of ink-dark', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const materials = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ name, base_color: color }) => [name, color]),
+  );
+  const luminance = ([r, g, b]) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const toSrgb = (value) => (
+    value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055
+  );
+  const expectedBrightness = new Map([
+    ['Anoxic water', 0.42],
+    ['Aerobic water', 0.50],
+    ['Clarified water', 0.58],
+  ]);
+
+  for (const [name, minimum] of expectedBrightness) {
+    const color = materials.get(name);
+    assert.ok(color, name);
+    const [r, g, b] = color.slice(0, 3).map(toSrgb);
+    assert.ok(luminance([r, g, b]) >= minimum, `${name} is too dark`);
+    assert.ok(g > r * 1.2, `${name} lost its blue-green hue`);
+    assert.ok(b > g, `${name} lost its blue-green hue`);
+  }
+});
+
 test('every component role resolves to a material', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const instance = plan.operations.find(({ name }) => name === 'PS-101 提升泵组');
