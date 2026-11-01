@@ -132,6 +132,7 @@ function buildPlan(projectId) {
   b.material('water-anoxic', 'Anoxic water', srgb('#687a78'));
   b.material('water-aerobic', 'Aerobic water', srgb('#738b84'));
   b.material('water-clarified', 'Clarified water', srgb('#839c97'));
+  b.material('water-primary', 'Primary clarifier water', srgb('#777867'));
   b.material('water-sludge', 'Sludge water', srgb('#625747'));
   b.material('foam', 'Aeration foam', srgb('#b9c8bd', 0.72));
   b.material('scum', 'Clarifier scum', srgb('#665b49'));
@@ -161,6 +162,7 @@ function buildPlan(projectId) {
     depth: 4.2,
     wall: 0.45,
     bridgeMode: 'half',
+    waterRole: 'water-primary',
   });
   b.define('primary-clarifier', 'Primary clarifier', primaryParts, [
     b.port('inlet', 'pc-inlet-well', 0, 5.4, 0, vec(0, -1, 0), 'degritted-water', 1.0),

@@ -16,7 +16,14 @@ import {
 function circularBasin(
   b,
   prefix,
-  { segments = 160, radius = 15, depth = 4.6, wall = 0.45, bridgeMode = 'full' },
+  {
+    segments = 160,
+    radius = 15,
+    depth = 4.6,
+    wall = 0.45,
+    bridgeMode = 'full',
+    waterRole = 'water-clarified',
+  },
 ) {
   const parts = [];
   const ring = 'i * tau / count';
@@ -41,7 +48,7 @@ function circularBasin(
   parts.push(ringPart(`${prefix}-wall`, radius, radius - wall, 0.5, 0.5 + depth, 'concrete-new'));
 
   parts.push(b.part(`${prefix}-water`, b.cylinder({ expr: 'radius - wall' }, 0.06, radialSegments),
-    0, { expr: '0.5 + depth - 0.55' }, 0, 'water-clarified'));
+    0, { expr: '0.5 + depth - 0.55' }, 0, waterRole));
   parts.push(ringPart(
     `${prefix}-waterline`,
     radius + 0.025,

@@ -165,6 +165,38 @@ test('circular clarifier exposes credible civil and mechanical detail', () => {
   }
 });
 
+test('primary and secondary clarifiers use distinct water tones', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const primary = plan.operations.find(({ type, name }) => (
+    type === 'instance.create' && name === 'PC-101 初沉池'
+  ));
+  const secondary = plan.operations.find(({ type, name }) => (
+    type === 'instance.create' && name === 'SC-101 二沉池'
+  ));
+  assert.ok(primary);
+  assert.ok(secondary);
+  const primaryMaterialId = primary.instance.overrides['pc-water'].materialId;
+  const secondaryMaterialId = secondary.instance.overrides['sc-water'].materialId;
+  assert.notEqual(primaryMaterialId, secondaryMaterialId);
+
+  const materials = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name, base_color: color }) => [material_id, { name, color }]),
+  );
+  const toSrgb = (value) => (
+    value <= 0.0031308 ? value * 12.92 : 1.055 * value ** (1 / 2.4) - 0.055
+  );
+  const primaryColor = materials.get(primaryMaterialId).color.slice(0, 3).map(toSrgb);
+  const secondaryColor = materials.get(secondaryMaterialId).color.slice(0, 3).map(toSrgb);
+  const distance = Math.hypot(
+    ...primaryColor.map((channel, index) => channel - secondaryColor[index]),
+  );
+  assert.ok(distance > 0.06, 'clarifier water tones are too similar');
+  assert.ok(primaryColor[0] > primaryColor[2], 'primary water should look warmer and more turbid');
+  assert.ok(secondaryColor[2] > secondaryColor[0], 'secondary water should look cooler and clearer');
+});
+
 test('aeration basin has lanes, baffles, air distribution and guardrails', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const definition = plan.operations
