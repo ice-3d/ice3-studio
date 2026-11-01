@@ -12,6 +12,7 @@ use crate::math::{Transform, Vec3};
 
 const BEND_SAMPLES: usize = 8;
 const BEND_RADIUS_DIAMETERS: f32 = 2.0;
+const ROUTE_POINT_EPSILON: f32 = 1.0e-5;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedPort {
@@ -140,18 +141,35 @@ pub fn route_between_ports(
     if distance(from.position, to.position) <= f32::EPSILON {
         return Err(ConnectionError::Degenerate);
     }
+    let mut start_stub = add_scaled(from.position, from.direction, 0.9);
+    let mut end_stub = add_scaled(to.position, to.direction, -0.9);
     let elevation = match policy {
         RoutePolicy::Direct => None,
-        RoutePolicy::Orthogonal => Some(from.position.y.max(to.position.y) + 0.5),
+        RoutePolicy::Orthogonal => Some(
+            from.position
+                .y
+                .max(to.position.y)
+                .max(start_stub.y)
+                .max(end_stub.y)
+                + 0.5,
+        ),
         RoutePolicy::Buried { depth } if depth.is_finite() && *depth >= 0.0 => Some(-*depth),
         RoutePolicy::Rack { elevation } if elevation.is_finite() => Some(*elevation),
         _ => return Err(ConnectionError::InvalidPolicy),
     };
+    if let Some(elevation) = elevation {
+        if (start_stub.y - from.position.y) * (elevation - from.position.y) < 0.0 {
+            start_stub = from.position;
+        }
+        if (end_stub.y - to.position.y) * (elevation - to.position.y) < 0.0 {
+            end_stub = to.position;
+        }
+    }
     build_route(
         from.position,
-        from.direction,
+        start_stub,
+        end_stub,
         to.position,
-        to.direction,
         elevation,
         from.diameter,
     )
@@ -159,17 +177,15 @@ pub fn route_between_ports(
 
 fn build_route(
     start: Vec3,
-    start_direction: Vec3,
+    start_stub: Vec3,
+    end_stub: Vec3,
     end: Vec3,
-    end_direction: Vec3,
     elevation: Option<f32>,
     diameter: f32,
 ) -> Result<Vec<[f32; 3]>, ConnectionError> {
     let Some(elevation) = elevation else {
         return Ok(vec![[start.x, start.y, start.z], [end.x, end.y, end.z]]);
     };
-    let start_stub = add_scaled(start, start_direction, 0.9);
-    let end_stub = add_scaled(end, end_direction, 0.9);
     let candidates = [
         [start.x, start.y, start.z],
         [start_stub.x, start_stub.y, start_stub.z],
@@ -230,7 +246,10 @@ fn smooth_route(points: &[[f32; 3]], bend_radius: f32) -> Result<Vec<[f32; 3]>, 
 }
 
 fn push_unique(points: &mut Vec<[f32; 3]>, point: [f32; 3]) {
-    if points.last() != Some(&point) {
+    if points
+        .last()
+        .is_none_or(|previous| distance3(*previous, point) > ROUTE_POINT_EPSILON)
+    {
         points.push(point);
     }
 }

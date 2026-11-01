@@ -41,7 +41,7 @@ fn an_orthogonal_route_starts_and_ends_at_the_ports() {
     assert_eq!(points[0], [0.0, 1.0, 0.0]);
     assert_eq!(points[points.len() - 1], [10.0, 2.0, 4.0]);
     assert!(points[1][0] < points[0][0]);
-    assert!(points[points.len() - 2][0] > points[points.len() - 1][0]);
+    assert!(points[points.len() - 2][0] < points[points.len() - 1][0]);
 }
 
 #[test]
@@ -71,16 +71,29 @@ fn orthogonal_route_uses_continuous_rounded_bends() {
 }
 
 #[test]
-fn orthogonal_route_drops_duplicate_coarse_points() {
+fn orthogonal_route_drops_near_duplicate_coarse_points() {
     let points = route_between_ports(
         &port([0.0, 1.0, 0.0], [0.0, 1.0, 0.0], "water"),
-        &port([10.0, 1.4, 0.0], [1.0, 0.0, 0.0], "water"),
+        &port([10.0, 1.4, 0.00000005], [1.0, 0.0, 0.0], "water"),
         &RoutePolicy::Orthogonal,
     )
     .unwrap();
     assert_eq!(points[0], [0.0, 1.0, 0.0]);
-    assert_eq!(points[points.len() - 1], [10.0, 1.4, 0.0]);
+    assert_eq!(points[points.len() - 1], [10.0, 1.4, 0.00000005]);
     assert!(points.windows(2).all(|pair| pair[0] != pair[1]));
+}
+
+#[test]
+fn orthogonal_route_does_not_reverse_before_a_downward_end_port() {
+    let points = route_between_ports(
+        &port([0.0, 1.0, 0.0], [1.0, 0.0, 0.0], "water"),
+        &port([10.0, 6.0, 0.0], [0.0, -1.0, 0.0], "water"),
+        &RoutePolicy::Orthogonal,
+    )
+    .unwrap();
+    assert_eq!(points[0], [0.0, 1.0, 0.0]);
+    assert_eq!(points[points.len() - 1], [10.0, 6.0, 0.0]);
+    assert!(points.iter().all(|point| point[1] >= 0.5));
 }
 
 fn direction(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
