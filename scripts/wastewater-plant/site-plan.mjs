@@ -98,7 +98,7 @@ function buildPlan(projectId) {
   ]);
   b.define('pump-house', 'Lift pump house', pumpHouse(b, 'ps', { length: 22, width: 13, height: 8 }), [
     b.port('inlet', 'ps-wall-w', -11, 3.0, 0, vec(1, 0, 0), 'screened-water', 1.0),
-    b.port('outlet', 'ps-wall-e', 11, 3.0, 0, vec(1, 0, 0), 'lifted-water', 1.0),
+    b.port('outlet', 'ps-wall-e', 11, 3.0, 0, vec(1, 0, 0), 'screened-water', 1.0),
   ]);
   b.define('grit-chamber', 'Aerated grit chamber', gritChamber(b, 'gc', { length: 26, width: 11, depth: 4.2 }), [
     b.port('inlet', 'gc-wall-w', -13, 2.6, 0, vec(1, 0, 0), 'lifted-water', 1.0),
@@ -154,6 +154,7 @@ function buildPlan(projectId) {
   b.define('filter-cell', 'Filtration cell', filterCell(b, 'fl', {}), [
     b.port('inlet', 'fl-wall-w', -16, 2.4, 0, vec(1, 0, 0), 'secondary-effluent', 0.8),
     b.port('outlet', 'fl-wall-e', 16, 2.4, 0, vec(1, 0, 0), 'filtered-water', 0.8),
+    b.port('chemical-in', 'fl-wall-n', 0, 2.2, -13, vec(0, 0, 1), 'chemical', 0.15),
   ], [
     { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 32, unit: 'm' },
     { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 26, unit: 'm' },
@@ -185,6 +186,8 @@ function buildPlan(projectId) {
   b.define('dewatering-house', 'Dewatering house', dewateringHouse(b, 'dw', { length: 26, width: 15, height: 8 }), [
     b.port('inlet-a', 'dw-shell', -13, 2.0, -3, vec(1, 0, 0), 'digested-sludge', 0.3),
     b.port('inlet-b', 'dw-shell', -13, 2.0, 3, vec(1, 0, 0), 'digested-sludge', 0.3),
+    b.port('cake-a', 'dw-shell', 13, 1.2, -3, vec(-1, 0, 0), 'dewatered-sludge', 0.25),
+    b.port('cake-b', 'dw-shell', 13, 1.2, 3, vec(-1, 0, 0), 'dewatered-sludge', 0.25),
   ]);
   b.define('tree', 'Tree', tree(b, 'tr'), []);
   b.define('site-fence', 'Site fence', siteFence(b, 'sf', { posts: 178 }), [], [
@@ -199,6 +202,7 @@ function buildPlan(projectId) {
   ]);
   b.define('blower-house', 'Blower house', facilityBuilding(b, 'bl', { length: 26, width: 14, floors: 1, floorHeight: 6 }), [
     b.port('air-out', 'bl-shell', 13, 4.4, 0, vec(1, 0, 0), 'air', 0.8),
+    b.port('air-out-b', 'bl-shell', 13, 4.4, 3, vec(1, 0, 0), 'air', 0.8),
   ]);
   b.define('chemical-house', 'Chemical dosing', facilityBuilding(b, 'ch', { length: 20, width: 12, floors: 2, floorHeight: 3.8 }), []);
   b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), []);
@@ -238,16 +242,18 @@ function buildPlan(projectId) {
       b.port('air-out', 'bls-blower-discharge-2', 2.75, 2.5, 0, vec(0, 1, 0), 'air', 0.8),
     ]);
   b.define('chemical-dosing-skid', 'Chemical dosing skid',
-    chemicalDosingSkid(b, 'cds', { tanks: 2, mixers: 2 }), []);
+    chemicalDosingSkid(b, 'cds', { tanks: 2, mixers: 2 }), [
+      b.port('chemical-out', 'cds-dosing-tank-2', 2.9, 2.4, 0, vec(1, 0, 0), 'chemical', 0.15),
+    ]);
   b.define('dewatering-skid', 'Dewatering skid',
     dewateringSkid(b, 'dws', { units: 2 }), [
       b.port('sludge-in', 'dws-centrifuge-feed-1', -6.85, 1.1, 0, vec(-1, 0, 0), 'digested-sludge', 0.35),
-      b.port('cake-out', 'dws-skid', 4.5, 0.5, 0, vec(1, 0, 0), 'digested-sludge', 0.35),
+      b.port('cake-out', 'dws-skid', 4.5, 0.5, 0, vec(1, 0, 0), 'dewatered-sludge', 0.35),
     ]);
   b.define('sludge-heat-exchanger', 'Sludge heat exchanger',
     sludgeHeatExchanger(b, 'she', { length: 6, shellDiameter: 1.1 }), [
       b.port('sludge-in', 'she-head-a', -3.2, 1.25, 0, vec(-1, 0, 0), 'thickened-sludge', 0.3),
-      b.port('sludge-out', 'she-head-b', 3.2, 1.25, 0, vec(1, 0, 0), 'digested-sludge', 0.3),
+      b.port('sludge-out', 'she-head-b', 3.2, 1.25, 0, vec(1, 0, 0), 'thickened-sludge', 0.3),
     ]);
   b.define('valve-manifold', 'Valve manifold',
     valveManifold(b, 'vmf', { branches: 4, diameter: 0.4 }), [
@@ -377,7 +383,8 @@ function buildPlan(projectId) {
 
   // 水系连接
   b.connect('gr-1', 'outlet', 'ps-1', 'inlet', 'GR-101 → PS-101 原水', 'screened-water', 1.0);
-  b.connect('ps-1', 'outlet', 'gc-1', 'inlet', 'PS-101 → GC-101 提升水', 'lifted-water', 1.0);
+  b.connect('ps-1', 'outlet', 'lps-1', 'inlet', 'PS-101 → 提升泵组', 'screened-water', 1.0);
+  b.connect('lps-1', 'outlet', 'gc-1', 'inlet', '提升泵组 → GC-101', 'lifted-water', 1.0);
   for (const train of trains) {
     const { key, series } = train;
     b.connect('gc-1', 'outlet', `pc-${key}`, 'inlet',
@@ -400,10 +407,14 @@ function buildPlan(projectId) {
   // 污泥线
   b.connect('sc-a1', 'sludge', 'th-1', 'inlet', 'SC-101 → TH-101 剩余污泥', 'waste-sludge', 0.35);
   b.connect('sc-b1', 'sludge', 'th-2', 'inlet', 'SC-201 → TH-102 剩余污泥', 'waste-sludge', 0.35);
-  b.connect('th-1', 'outlet', 'dg-1', 'inlet', 'TH-101 → DG-101 浓缩污泥', 'thickened-sludge', 0.3);
+  b.connect('th-1', 'outlet', 'she-1', 'sludge-in', 'TH-101 → HEX-101', 'thickened-sludge', 0.3);
+  b.connect('she-1', 'sludge-out', 'dg-1', 'inlet', 'HEX-101 → DG-101', 'thickened-sludge', 0.3);
   b.connect('th-2', 'outlet', 'dg-2', 'inlet', 'TH-102 → DG-102 浓缩污泥', 'thickened-sludge', 0.3);
-  b.connect('dg-1', 'outlet', 'dw-1', 'inlet-a', 'DG-101 → DW-101 消化污泥', 'digested-sludge', 0.3);
-  b.connect('dg-2', 'outlet', 'dw-1', 'inlet-b', 'DG-102 → DW-101 消化污泥', 'digested-sludge', 0.3);
+  b.connect('dg-1', 'outlet', 'dws-1', 'sludge-in', 'DG-101 → DW-101 脱水机 1', 'digested-sludge', 0.3);
+  b.connect('dws-1', 'cake-out', 'dw-1', 'cake-a', 'DW-101 脱水机 1 → 脱水机房', 'dewatered-sludge', 0.25);
+  b.connect('dg-2', 'outlet', 'dws-2', 'sludge-in', 'DG-102 → DW-101 脱水机 2', 'digested-sludge', 0.3);
+  b.connect('dws-2', 'cake-out', 'dw-1', 'cake-b', 'DW-101 脱水机 2 → 脱水机房', 'dewatered-sludge', 0.25);
+  b.connect('cds-1', 'chemical-out', 'fl-1', 'chemical-in', 'CHEM-101 → FL-101', 'chemical', 0.15);
 
 
   // 接触阴影贴片已全部拆除：渲染器现在有真正的方向光阴影贴图，
@@ -489,9 +500,11 @@ function buildPlan(projectId) {
   // 出水口挂在紫外消毒渠东侧
   b.instance('outfall', 'ofs-1', 'OUT-101 出水口', 592, 0, 0, { stage: 'tertiary', tag: 'OUT-101' }, {}, Math.PI / 2);
   b.connect('uv-1', 'outlet', 'ofs-1', 'inlet', 'UV-101 → OUT-101 出水', 'final-effluent', 0.6);
-  // 鼓风机房 → 两条系列的曝气干管
-  // 只连最近的这条系列：第二系列的空气走管廊，不在草地上拉一根一百多米的长管。
-  b.connect('bl-1', 'air-out', 'ae-a3', 'air-in', 'BLW-101 → AE-103 曝气干管', 'air', 0.8);
+  // 两台鼓风机分别向两组好氧池供气。
+  b.connect('bl-1', 'air-out', 'bls-1', 'air-in', 'BLW-101 → 鼓风机 1', 'air', 0.8);
+  b.connect('bls-1', 'air-out', 'ae-a3', 'air-in', '鼓风机 1 → AE-103', 'air', 0.8);
+  b.connect('bl-1', 'air-out-b', 'bls-2', 'air-in', 'BLW-101 → 鼓风机 2', 'air', 0.8);
+  b.connect('bls-2', 'air-out', 'ae-b3', 'air-in', '鼓风机 2 → AE-203', 'air', 0.8);
 
   // ── 综合管廊 ───────────────────────────────────────────
   // 三段主管廊把「进水泵房 → 生化 → 二沉 → 深度处理」串起来，

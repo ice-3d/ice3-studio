@@ -318,3 +318,25 @@ test('asphalt materials remain readable neutral greys', () => {
   assert.equal(asphalt.length, 2);
   assert.ok(asphalt.every(({ luminance }) => luminance >= 0.1), JSON.stringify(asphalt));
 });
+
+test('process skids are wired into the treatment train', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connectionNames = plan.operations
+    .filter(({ type }) => type === 'connection.create')
+    .map(({ name }) => name);
+  for (const expected of [
+    'PS-101 → 提升泵组',
+    '提升泵组 → GC-101',
+    'BLW-101 → 鼓风机 1',
+    '鼓风机 1 → AE-103',
+    'BLW-101 → 鼓风机 2',
+    '鼓风机 2 → AE-203',
+    'TH-101 → HEX-101',
+    'HEX-101 → DG-101',
+    'CHEM-101 → FL-101',
+    'DW-101 脱水机 1 → 脱水机房',
+    'DW-101 脱水机 2 → 脱水机房',
+  ]) {
+    assert.ok(connectionNames.includes(expected), expected);
+  }
+});

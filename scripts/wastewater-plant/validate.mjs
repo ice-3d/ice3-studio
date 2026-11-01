@@ -40,14 +40,15 @@ export function validateWastewaterPlan(plan) {
       if (!port) {
         issues.push({
           code: 'UNKNOWN_PORT',
-          message: `${endpoint.nodeId}/${endpoint.port}`,
+          message: `${operation.name}: ${instance?.name ?? endpoint.nodeId}/${endpoint.port}`,
         });
         continue;
       }
       if (port.medium !== operation.connection.medium) {
         issues.push({
           code: 'MEDIUM_MISMATCH',
-          message: `${endpoint.nodeId}/${endpoint.port}`,
+          message: `${operation.name}: ${instance?.name ?? endpoint.nodeId}/${endpoint.port} ` +
+            `expects ${operation.connection.medium}, found ${port.medium}`,
         });
       }
     }
