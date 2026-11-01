@@ -662,6 +662,27 @@ test('pipe racks contain supports only, never decorative disconnected pipes', ()
   assert.equal(rack.parts.some(({ id }) => id.includes('-pipe-')), false);
 });
 
+test('every pipe rack carries a real above-ground process line', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const racks = plan.operations.filter(({ type, metadata }) => (
+    type === 'instance.create' && metadata?.role === 'piping'
+  ));
+  const connections = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'connection.create')
+      .map((operation) => [operation.connection.metadata.lineId, operation]),
+  );
+
+  assert.ok(racks.length > 0);
+  for (const rack of racks) {
+    const lineId = rack.metadata.lineId;
+    assert.ok(lineId, `${rack.name} has no carrier line`);
+    const line = connections.get(lineId);
+    assert.ok(line, `${rack.name} references missing ${lineId}`);
+    assert.notEqual(line.connection.routePolicy.kind, 'buried', rack.name);
+  }
+});
+
 test('pump skid headers connect to every pump body', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const pump = plan.operations

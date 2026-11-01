@@ -434,6 +434,7 @@ function createBuilder() {
         );
       }
     }
+    return lineId;
   };
 
   const relate = (fromKey, toKey, relationType, metadata = {}) => {

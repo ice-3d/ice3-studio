@@ -623,7 +623,7 @@ function buildPlan(projectId) {
     'DG-101 → GCL-101 沼气', 'biogas', 0.35);
   b.connect('dg-2', 'gas-out', 'gcl-1', 'inlet-b',
     'DG-102 → GCL-101 沼气', 'biogas', 0.35);
-  b.connect('gcl-1', 'outlet', 'gh-1', 'gas-in',
+  const gasHeaderLineId = b.connect('gcl-1', 'outlet', 'gh-1', 'gas-in',
     'GCL-101 → GH-101 沼气', 'biogas', 0.35);
   b.connect('gh-1', 'gas-out', 'gf-1', 'inlet',
     'GH-101 → GF-101 安全放空', 'biogas', 0.35);
@@ -713,11 +713,9 @@ function buildPlan(projectId) {
   b.connect('bls-2', 'air-out', 'ae-b3', 'air-in', '鼓风机 2 → AE-203', 'air', 0.8);
 
   // ── 综合管廊 ───────────────────────────────────────────
-  // 三段主管廊把「进水泵房 → 生化 → 二沉 → 深度处理」串起来，
-  // 主管按介质分色，与池边支管同色系，远看就是一张流量图。
-  b.instance('pipe-rack', 'prk-1', '管廊 / 主工艺线', 241, 0, -3, { role: 'piping' }, { length: 222, height: 4.6 });
-  b.instance('pipe-rack', 'prk-2', '管廊 / 污泥线', 333, 0, -125, { role: 'piping' }, { length: 194, height: 4.2 });
-  b.instance('pipe-rack', 'prk-3', '管廊 / 深度处理线', 533, 0, -18, { role: 'piping' }, { length: 126, height: 4.0 });
+  // 只保留确有主管穿越的管廊；没有真实承载管线的空架不再保留。
+  b.instance('pipe-rack', 'prk-2', '管廊 / 沼气主管', 333, 0, -125,
+    { role: 'piping', lineId: gasHeaderLineId }, { length: 194, height: 4.2 });
 
   // ── 绿篱与路灯 ─────────────────────────────────────────
   // 绿篱沿主干道内侧连续布置，断口留在大门口与岔路口。
