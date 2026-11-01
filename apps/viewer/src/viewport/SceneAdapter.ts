@@ -615,23 +615,34 @@ function fallbackGlbUrl(url: string): string | null {
 
 /**
  * 允许用 `?view=方位角,仰角,距离` 指定相机，便于固定视角截图与分享。
- * 角度为度、距离为米，都相对场景中心；缺省或非法时沿用自动取景。
+ * 角度为度、距离为米，都相对视点；视点默认是场景中心，
+ * 也可以用 `?target=x,y,z` 指到厂区某一角，用来近看局部。
+ * 缺省或非法时沿用自动取景。
  */
 export function applyViewOverride(framing: CameraFraming): CameraFraming {
-  const view = new URLSearchParams(window.location.search).get('view');
+  const params = new URLSearchParams(window.location.search);
+  const view = params.get('view');
   if (!view) return framing;
   const parts = view.split(',').map((value) => Number.parseFloat(value));
   if (parts.length !== 3 || !parts.every(Number.isFinite)) return framing;
   const [azimuthDegrees = 0, elevationDegrees = 0, distance = 0] = parts;
   if (distance <= 0) return framing;
+  const target = parseTarget(params.get('target')) ?? framing.target;
   const azimuth = (azimuthDegrees * Math.PI) / 180;
   const elevation = (elevationDegrees * Math.PI) / 180;
   return {
-    target: framing.target,
+    target,
     position: [
-      framing.target[0] + distance * Math.cos(elevation) * Math.cos(azimuth),
-      framing.target[1] + distance * Math.sin(elevation),
-      framing.target[2] + distance * Math.cos(elevation) * Math.sin(azimuth),
+      target[0] + distance * Math.cos(elevation) * Math.cos(azimuth),
+      target[1] + distance * Math.sin(elevation),
+      target[2] + distance * Math.cos(elevation) * Math.sin(azimuth),
     ],
   };
+}
+
+function parseTarget(raw: string | null): [number, number, number] | null {
+  if (!raw) return null;
+  const parts = raw.split(',').map((value) => Number.parseFloat(value));
+  if (parts.length !== 3 || !parts.every(Number.isFinite)) return null;
+  return [parts[0]!, parts[1]!, parts[2]!];
 }
