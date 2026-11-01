@@ -100,8 +100,9 @@ function buildPlan(projectId) {
   b.material('paving', 'Paving', srgb('#ceccc8'));
   b.material('media', 'Filter media', srgb('#958f86'));
   b.material('lamp', 'UV lamp', srgb('#ced3ef'));
-  b.material('facade', 'Facade panel', srgb('#e7e6e1'));
-  b.material('roof', 'Metal roof', srgb('#9ba8b6'));
+  b.material('facade', 'Insulated metal panel', srgb('#d8d9d4'));
+  b.material('facade-masonry', 'Masonry facade', srgb('#c7b9a4'));
+  b.material('roof', 'Standing seam roof', srgb('#78858c'));
   b.material('lawn', 'Lawn', srgb('#94a97c'));
   b.material('asphalt', 'Asphalt road', srgb('#86898e'));
   b.material('glass', 'Glazing', srgb('#afc0c9', 0.55));
@@ -359,9 +360,24 @@ function buildPlan(projectId) {
   b.define('blower-house', 'Blower house', facilityBuilding(b, 'bl', { length: 26, width: 14, floors: 1, floorHeight: 6 }), [
     b.port('air-out', 'bl-shell', 13, 4.4, 0, vec(1, 0, 0), 'air', 0.8),
     b.port('air-out-b', 'bl-shell', 13, 4.4, 3, vec(1, 0, 0), 'air', 0.8),
+  ], [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 26, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 14, unit: 'm' },
   ]);
-  b.define('chemical-house', 'Chemical dosing', facilityBuilding(b, 'ch', { length: 20, width: 12, floors: 2, floorHeight: 3.8 }), []);
-  b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), []);
+  b.define('chemical-house', 'Chemical dosing', facilityBuilding(b, 'ch', {
+    length: 20,
+    width: 12,
+    floors: 2,
+    floorHeight: 3.8,
+    facadeRole: 'facade-masonry',
+  }), [], [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 12, unit: 'm' },
+  ]);
+  b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), [], [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 30, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 16, unit: 'm' },
+  ]);
 
   // 入口与场地设施
   b.define('entrance-gate', 'Entrance gate', entranceGate(b, 'eg'), []);
@@ -537,7 +553,7 @@ function buildPlan(projectId) {
   b.instance('dewatering-house', 'dw-1', 'DW-101 脱水机房', 430, 0, -145, { stage: 'sludge', tag: 'DW-101' });
 
   // 辅助区（南侧靠入口）
-  b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', 55, 0, 150, { stage: 'auxiliary', tag: 'CTRL-101' });
+  b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', 58, 0, 150, { stage: 'auxiliary', tag: 'CTRL-101' });
   // 鼓风机房必须贴着曝气池：风管走一百多米压损和造价都不现实。
   // 加药间同样就近设在深度处理区旁边，并与二沉池池体留出净空。
   b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 300, 0, 76, { stage: 'auxiliary', tag: 'BLW-101' });

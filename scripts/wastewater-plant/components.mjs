@@ -8,6 +8,14 @@ import {
   cylinder,
   sphere,
   annularPrismMesh,
+  detailCouplingGuard,
+  detailDoor,
+  detailDownpipe,
+  detailEquipmentServices,
+  detailLouver,
+  detailMotor,
+  detailRoofVent,
+  detailWindow,
 } from './model-kit.mjs';
 
 // 圆形池：底板 + 环形池壁 + 水面 + 中心进水筒 + 周边出水堰 + 刮泥桥 + 栏杆 + 爬梯
@@ -46,6 +54,32 @@ function circularBasin(
   parts.push(b.part(`${prefix}-base`, b.cylinder({ expr: 'radius' }, 0.5, radialSegments), 0, 0.25, 0, 'concrete-old'));
 
   parts.push(ringPart(`${prefix}-wall`, radius, radius - wall, 0.5, 0.5 + depth, 'concrete-new'));
+  parts.push(b.repeatPart(`${prefix}-formwork-joints`, 12,
+    b.box(0.035, { expr: 'depth - 0.08' }, 0.045),
+    {
+      transform: {
+        translation: {
+          x: { expr: 'cos(i * tau / count) * (radius + 0.015)' },
+          y: { expr: '0.5 + depth / 2' },
+          z: { expr: 'sin(i * tau / count) * (radius + 0.015)' },
+        },
+        yaw: { expr: 'i * 360 / count' },
+      },
+      role: 'concrete-old',
+    }));
+  for (const [suffix, bandY] of [
+    ['low', 0.5 + depth * 0.34],
+    ['high', 0.5 + depth * 0.68],
+  ]) {
+    parts.push(ringPart(
+      `${prefix}-formwork-band-${suffix}`,
+      radius + 0.02,
+      radius - wall - 0.02,
+      bandY,
+      bandY + 0.035,
+      'concrete-old',
+    ));
+  }
 
   parts.push(b.part(`${prefix}-water`, b.cylinder({ expr: 'radius - wall' }, 0.06, radialSegments),
     0, { expr: '0.5 + depth - 0.55' }, 0, waterRole));
@@ -201,6 +235,20 @@ function aerationBasin(
     0, { expr: '0.5 + depth / 2' }, { expr: '-width / 2' }, 'concrete-new'));
   parts.push(b.part(`${prefix}-wall-s`, b.box({ expr: 'length' }, { expr: 'depth' }, { expr: 'wall' }),
     0, { expr: '0.5 + depth / 2' }, { expr: 'width / 2' }, 'concrete-new'));
+  for (const [side, z] of [['n', { expr: '-width / 2 - 0.01' }], ['s', { expr: 'width / 2 + 0.01' }]]) {
+    parts.push(b.repeatPart(`${prefix}-wall-formwork-joints-${side}`, 9,
+      b.box(0.035, { expr: 'depth - 0.08' }, 0.05),
+      {
+        transform: {
+          translation: {
+            x: { expr: '-length / 2 + i * length / (count - 1)' },
+            y: { expr: '0.5 + depth / 2' },
+            z,
+          },
+        },
+        role: 'concrete-old',
+      }));
+  }
 
   // 东西端墙：整面一块，用 subtract 挖出进水/出水洞，由内核拆成子盒。
   for (const [side, sign] of [['w', -1], ['e', 1]]) {
@@ -389,6 +437,10 @@ function screeningChannel(b, prefix, { length = 20, width = 6, depth = 2.6 }) {
 function pumpHouse(b, prefix, { length = 22, width = 13, height = 8 }) {
   const parts = [];
   parts.push(b.part(`${prefix}-slab`, b.box(length + 1, 0.6, width + 1), 0, 0.3, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-plinth`, b.box(length + 1.5, 0.22, width + 1.5),
+    0, 0.11, 0, 'concrete-new'));
+  parts.push(b.part(`${prefix}-wall-base`, b.box(length + 0.08, 0.32, width + 0.08),
+    0, 0.78, 0, 'concrete-old'));
   parts.push(b.part(`${prefix}-wall-n`, b.box(length, height, 0.5), 0, 0.6 + height / 2, -width / 2, 'concrete'));
   parts.push(b.part(`${prefix}-wall-s`, b.box(length, height, 0.5), 0, 0.6 + height / 2, width / 2, 'concrete'));
   parts.push(b.part(`${prefix}-wall-w`, b.box(0.5, height, width), -length / 2, 0.6 + height / 2, 0, 'concrete'));
@@ -417,17 +469,37 @@ function pumpHouse(b, prefix, { length = 22, width = 13, height = 8 }) {
   ));
   parts.push(b.part(`${prefix}-ridge`, b.box(length + 1.5, 0.2, 0.35), 0, 0.6 + height + 1.12, 0, 'roof'));
 
-  // 门洞与通风百叶
-  parts.push(b.part(`${prefix}-door`, b.box(3.2, 4, 0.12), -length / 4, 0.6 + 2, width / 2 + 0.3, 'steel'));
-  for (let index = 0; index < 5; index += 1) {
-    parts.push(b.part(
-      `${prefix}-louver-${index + 1}`,
-      b.box(length * 0.5, 0.18, 0.1),
-      length / 4,
-      0.6 + 3.2 + index * 0.55,
-      width / 2 + 0.3,
-      'steel',
-    ));
+  // 近景可辨认的围护系统：框套、分格、百叶、落水与屋面服务件。
+  parts.push(...detailWindow(b, `${prefix}-window-frame-s`, {
+    width: 4.6, height: 1.55, x: length * 0.16, y: 3.4,
+    z: width / 2 + 0.31, mullions: 2,
+  }));
+  parts.push(...detailWindow(b, `${prefix}-window-frame-w`, {
+    width: 3.8, height: 1.45, x: -length / 2 - 0.31, y: 4.0,
+    z: -1.4, yaw: Math.PI / 2, mullions: 1,
+  }));
+  parts.push(...detailWindow(b, `${prefix}-window-frame-e`, {
+    width: 3.8, height: 1.45, x: length / 2 + 0.31, y: 4.0,
+    z: -1.4, yaw: Math.PI / 2, mullions: 1,
+  }));
+  parts.push(...detailDoor(b, `${prefix}-door`, {
+    width: 3.2, height: 4, x: -length / 4, y: 2.6,
+    z: width / 2 + 0.34,
+  }));
+  parts.push(...detailLouver(b, `${prefix}-louver`, {
+    width: length * 0.46, height: 2.35, x: length / 4, y: 4.55,
+    z: width / 2 + 0.33, slats: 6,
+  }));
+  for (const [side, x] of [['a', -length * 0.24], ['b', length * 0.24]]) {
+    parts.push(...detailRoofVent(b, `${prefix}-roof-vent-${side}`, {
+      x, y: 0.6 + height + 0.78, z: -width * 0.16, radius: 0.34, height: 0.95,
+    }));
+  }
+  for (const [side, x] of [['w', -length / 2 + 0.18], ['e', length / 2 - 0.18]]) {
+    parts.push(...detailDownpipe(b, `${prefix}-downpipe-${side}`, {
+      x, y: 0.35, z: width / 2 + 0.31, height: height + 0.45,
+      outletDirection: side === 'w' ? -1 : 1,
+    }));
   }
 
   // 三台立式泵，含底座与电机
@@ -608,23 +680,104 @@ function disinfectionChannel(b, prefix, { banks = 3, lamps = 4 }) {
     0, { expr: '0.5 + depth + 0.95' }, { expr: '-width / 2 - 1.05' }, 'steel'));
   return parts;
 }
-function facilityBuilding(b, prefix, { length = 26, width = 14, floors = 3, floorHeight = 3.6 }) {
+function facilityBuilding(
+  b,
+  prefix,
+  {
+    length = 26,
+    width = 14,
+    floors = 3,
+    floorHeight = 3.6,
+    facadeRole = 'facade',
+    roofRole = 'roof',
+  },
+) {
   const parts = [];
   const height = floors * floorHeight;
   parts.push(b.part(`${prefix}-slab`, b.box(length + 1, 0.6, width + 1), 0, 0.3, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-shell`, b.box(length, height, width), 0, 0.6 + height / 2, 0, 'facade'));
-  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, 'roof'));
+  parts.push(b.part(`${prefix}-plinth`, b.box(length + 1.5, 0.24, width + 1.5),
+    0, 0.12, 0, 'concrete-new'));
+  parts.push(b.part(`${prefix}-shell`, b.box(length, height, width), 0, 0.6 + height / 2, 0, facadeRole));
+  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, roofRole));
+  parts.push(b.part(`${prefix}-wall-base`, b.box(length + 0.08, 0.34, width + 0.08),
+    0, 0.77, 0, 'concrete-old'));
+  parts.push(b.part(`${prefix}-parapet`, b.box(length + 1.3, 0.24, width + 1.3),
+    0, 0.6 + height + 0.53, 0, 'steel-dark'));
+  const facadeJoints = Math.max(5, Math.round(length / 4));
+  for (const [side, z] of [
+    ['s', width / 2 + 0.09],
+    ['n', -width / 2 - 0.09],
+  ]) {
+    parts.push(b.repeatPart(`${prefix}-facade-joints-${side}`, facadeJoints,
+      b.box(0.055, height - 0.2, 0.06),
+      {
+        transform: {
+          translation: {
+            x: { expr: '-length / 2 + i * length / (count - 1)' },
+            y: 0.6 + height / 2,
+            z,
+          },
+        },
+        role: 'steel-dark',
+      }));
+  }
+  parts.push(b.repeatPart(`${prefix}-roof-seams`,
+    Math.max(6, Math.round(width / 1.8)),
+    b.box(length + 1.1, 0.025, 0.035),
+    {
+      transform: {
+        translation: {
+          x: 0,
+          y: 0.6 + height + 0.46,
+          z: { expr: '-width / 2 + i * width / (count - 1)' },
+        },
+      },
+      role: 'roof-light',
+    }));
 
   // 每层窗带
   for (let floor = 0; floor < floors; floor += 1) {
     const y = 0.6 + floorHeight * floor + floorHeight * 0.55;
-    parts.push(b.part(`${prefix}-window-s${floor + 1}`, b.box(length * 0.82, 1.3, 0.12), 0, y, width / 2 + 0.06, 'glass'));
-    parts.push(b.part(`${prefix}-window-n${floor + 1}`, b.box(length * 0.82, 1.3, 0.12), 0, y, -width / 2 - 0.06, 'glass'));
+    parts.push(...detailWindow(b, `${prefix}-window-frame-s${floor + 1}`, {
+      width: length * 0.82, height: 1.3, x: 0, y, z: width / 2 + 0.08,
+      mullions: Math.max(2, Math.floor(length / 5)),
+    }));
+    parts.push(...detailWindow(b, `${prefix}-window-frame-n${floor + 1}`, {
+      width: length * 0.82, height: 1.3, x: 0, y, z: -width / 2 - 0.08,
+      yaw: Math.PI, mullions: Math.max(2, Math.floor(length / 5)),
+    }));
+    parts.push(...detailWindow(b, `${prefix}-window-frame-e${floor + 1}`, {
+      width: width * 0.54, height: 1.2, x: length / 2 + 0.08, y,
+      z: 0, yaw: Math.PI / 2, mullions: 2,
+    }));
+    parts.push(...detailWindow(b, `${prefix}-window-frame-w${floor + 1}`, {
+      width: width * 0.54, height: 1.2, x: -length / 2 - 0.08, y,
+      z: 0, yaw: -Math.PI / 2, mullions: 2,
+    }));
   }
 
-  // 入口雨棚与门
-  parts.push(b.part(`${prefix}-canopy`, b.box(7, 0.3, 2.6), 0, 3.4, width / 2 + 1.2, 'steel'));
-  parts.push(b.part(`${prefix}-entrance`, b.box(3.6, 2.8, 0.14), 0, 1.9, width / 2 + 0.08, 'glass'));
+  // 入口与屋面附件
+  parts.push(...detailDoor(b, `${prefix}-door`, {
+    width: 3.6, height: 2.8, x: 0, y: 1.9, z: width / 2 + 0.12,
+  }));
+  parts.push(...detailDoor(b, `${prefix}-service-door`, {
+    width: 2.6, height: 2.4, x: length * 0.28, y: 1.8,
+    z: -width / 2 - 0.12, yaw: Math.PI,
+  }));
+  parts.push(...detailRoofVent(b, `${prefix}-roof-vent-a`, {
+    x: -length * 0.25, y: 0.6 + height + 0.44, z: width * 0.15,
+    radius: 0.44, height: 1.3,
+  }));
+  parts.push(...detailRoofVent(b, `${prefix}-roof-vent-b`, {
+    x: length * 0.25, y: 0.6 + height + 0.44, z: -width * 0.18,
+    radius: 0.44, height: 1.3,
+  }));
+  for (const [side, x] of [['w', -length / 2 + 0.22], ['e', length / 2 - 0.22]]) {
+    parts.push(...detailDownpipe(b, `${prefix}-downpipe-${side}`, {
+      x, y: 0.36, z: width / 2 + 0.35, height: 0.6 + height,
+      outletDirection: side === 'w' ? -1 : 1,
+    }));
+  }
   return parts;
 }
 
@@ -643,7 +796,7 @@ function thickener(b, prefix, { segments = 32 }) {
           y: { expr: '0.5 + depth / 2' },
           z: { expr: 'sin(i * tau / count) * (radius - 0.2)' },
         },
-        yaw: { expr: '-i * 360 / count' },
+        yaw: { expr: 'i * 360 / count' },
       },
       role: 'concrete',
     }));
@@ -666,7 +819,7 @@ function thickener(b, prefix, { segments = 32 }) {
           y: { expr: '0.5 + depth + 0.6' },
           z: { expr: 'sin(i * tau / count) * radius' },
         },
-        yaw: { expr: '-i * 360 / count' },
+        yaw: { expr: 'i * 360 / count' },
       },
       role: 'steel',
     }));
@@ -689,6 +842,18 @@ function digester(b, prefix, { domeLayers = 6, gallerySegments = 44, rungs = 16 
   parts.push(b.part(`${prefix}-base`, b.cylinder({ expr: 'radius + 0.6' }, 0.8, 56), 0, 0.4, 0, 'concrete'));
   parts.push(b.part(`${prefix}-shell`, b.cylinder({ expr: 'radius' }, { expr: 'height' }, 56),
     0, { expr: '0.8 + height / 2' }, 0, 'concrete'));
+  parts.push(b.repeatPart(`${prefix}-shell-weld-bands`, 3,
+    b.cylinder({ expr: 'radius + 0.015' }, 0.04, 56),
+    {
+      transform: {
+        translation: {
+          x: 0,
+          y: { expr: '0.8 + height * (i + 1) / (count + 1)' },
+          z: 0,
+        },
+      },
+      role: 'concrete-old',
+    }));
 
   // 锥顶：逐层收径的圆柱近似
   parts.push(b.repeatPart(`${prefix}-dome`, domeLayers,
@@ -716,7 +881,7 @@ function digester(b, prefix, { domeLayers = 6, gallerySegments = 44, rungs = 16 
           y: { expr: '0.8 + height - 2.4' },
           z: { expr: 'sin(i * tau / count) * (radius + 0.2)' },
         },
-        yaw: { expr: '-i * 360 / count' },
+        yaw: { expr: 'i * 360 / count' },
       },
       role: 'walkway',
     }));
@@ -729,7 +894,7 @@ function digester(b, prefix, { domeLayers = 6, gallerySegments = 44, rungs = 16 
           y: { expr: '0.8 + height - 1.45' },
           z: { expr: 'sin(i * tau / count) * (radius + 0.7)' },
         },
-        yaw: { expr: '-i * 360 / count' },
+        yaw: { expr: 'i * 360 / count' },
       },
       role: 'steel',
     }));
@@ -751,21 +916,48 @@ function digester(b, prefix, { domeLayers = 6, gallerySegments = 44, rungs = 16 
   return parts;
 }
 
-function dewateringHouse(b, prefix, { length = 26, width = 15, height = 8 }) {
+function dewateringHouse(
+  b,
+  prefix,
+  {
+    length = 26,
+    width = 15,
+    height = 8,
+    facadeRole = 'facade',
+    roofRole = 'roof',
+  },
+) {
   const parts = [];
   parts.push(b.part(`${prefix}-slab`, b.box(length + 1, 0.6, width + 1), 0, 0.3, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-shell`, b.box(length, height, width), 0, 0.6 + height / 2, 0, 'facade'));
-  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, 'roof'));
-  parts.push(b.part(`${prefix}-entrance`, b.box(4, 3.2, 0.14), -length / 4, 2.2, width / 2 + 0.08, 'glass'));
+  parts.push(b.part(`${prefix}-plinth`, b.box(length + 1.5, 0.22, width + 1.5),
+    0, 0.11, 0, 'concrete-new'));
+  parts.push(b.part(`${prefix}-shell`, b.box(length, height, width), 0, 0.6 + height / 2, 0, facadeRole));
+  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, roofRole));
+  parts.push(b.part(`${prefix}-wall-base`, b.box(length + 0.08, 0.34, width + 0.08),
+    0, 0.77, 0, 'concrete-old'));
+  parts.push(...detailDoor(b, `${prefix}-door`, {
+    width: 4, height: 3.2, x: -length / 4, y: 2.2,
+    z: width / 2 + 0.12,
+  }));
   for (let floor = 0; floor < 2; floor += 1) {
-    parts.push(b.part(
-      `${prefix}-window-${floor + 1}`,
-      b.box(length * 0.6, 1.2, 0.12),
-      length / 5,
-      2.6 + floor * 2.4,
-      width / 2 + 0.06,
-      'glass',
-    ));
+    parts.push(...detailWindow(b, `${prefix}-window-frame-${floor + 1}`, {
+      width: length * 0.6, height: 1.2, x: length / 5,
+      y: 2.6 + floor * 2.4, z: width / 2 + 0.08, mullions: 4,
+    }));
+  }
+  parts.push(...detailRoofVent(b, `${prefix}-roof-vent-a`, {
+    x: -length * 0.23, y: 0.6 + height + 0.44, z: 0,
+    radius: 0.38, height: 1.15,
+  }));
+  parts.push(...detailRoofVent(b, `${prefix}-roof-vent-b`, {
+    x: length * 0.24, y: 0.6 + height + 0.44, z: 0,
+    radius: 0.38, height: 1.15,
+  }));
+  for (const [side, x] of [['w', -length / 2 + 0.2], ['e', length / 2 - 0.2]]) {
+    parts.push(...detailDownpipe(b, `${prefix}-downpipe-${side}`, {
+      x, y: 0.34, z: width / 2 + 0.34, height: height + 0.35,
+      outletDirection: side === 'w' ? -1 : 1,
+    }));
   }
 
   // 三台卧式离心机：机座 + 转鼓 + 电机
@@ -978,20 +1170,31 @@ function entranceGate(b, prefix) {
 
 // 门卫房：单层小房 + 雨篷 + 两面带窗 + 侧门。
 function gateHouse(b, prefix) {
-  return [
+  const parts = [
     b.part(`${prefix}-base`, b.box(4.8, 0.3, 4.0), 0, 0.15, 0, 'concrete'),
-    b.part(`${prefix}-body`, b.box(4.4, 3.0, 3.6), 0, 1.8, 0, 'facade'),
+    b.part(`${prefix}-body`, b.box(4.4, 3.0, 3.6), 0, 1.8, 0, 'facade-masonry'),
     b.part(`${prefix}-roof`, b.box(5.1, 0.24, 4.3), 0, 3.42, 0, 'roof'),
     b.part(`${prefix}-canopy`, b.box(5.6, 0.18, 1.9), 0, 3.16, -2.7, 'roof'),
     b.part(`${prefix}-canopy-post-a`, b.cylinder(0.09, 3.1, 8), -2.4, 1.55, -3.5, 'steel'),
     b.part(`${prefix}-canopy-post-b`, b.cylinder(0.09, 3.1, 8), 2.4, 1.55, -3.5, 'steel'),
-    // 玻璃略微凸出墙面 4 厘米，避免和墙体共面闪烁。
-    b.part(`${prefix}-glass-a`, b.box(3.6, 1.2, 0.06), 0, 2.0, -1.82, 'glass'),
-    b.part(`${prefix}-glass-b`, b.box(3.6, 1.2, 0.06), 0, 2.0, 1.82, 'glass'),
-    b.part(`${prefix}-sill-a`, b.box(3.7, 0.1, 0.16), 0, 1.35, -1.86, 'concrete'),
-    b.part(`${prefix}-sill-b`, b.box(3.7, 0.1, 0.16), 0, 1.35, 1.86, 'concrete'),
-    b.part(`${prefix}-door`, b.box(0.06, 2.1, 1.0), 2.24, 1.35, 0, 'steel'),
   ];
+  parts.push(...detailWindow(b, `${prefix}-window-frame-a`, {
+    width: 3.6, height: 1.2, x: 0, y: 2, z: -1.85,
+    yaw: Math.PI, mullions: 2,
+  }));
+  parts.push(...detailWindow(b, `${prefix}-window-frame-b`, {
+    width: 3.6, height: 1.2, x: 0, y: 2, z: 1.85, mullions: 2,
+  }));
+  parts.push(...detailDoor(b, `${prefix}-door`, {
+    width: 1, height: 2.1, x: 2.24, y: 1.35, z: 0, yaw: Math.PI / 2,
+  }));
+  parts.push(...detailRoofVent(b, `${prefix}-roof-vent`, {
+    x: 0, y: 3.54, z: 0.7, radius: 0.24, height: 0.72,
+  }));
+  parts.push(...detailDownpipe(b, `${prefix}-downpipe`, {
+    x: -2.12, y: 0.28, z: 1.98, height: 3.05, outletDirection: -1,
+  }));
+  return parts;
 }
 
 // 厂区铭牌：矮墙 + 深色石板，实际项目里这里是厂名与标识。
@@ -1086,6 +1289,9 @@ function parkingBay(b, prefix, { stalls = 12, depth = 5.2 } = {}) {
 function pumpSkid(b, prefix, { length = 16, width = 8, count = 3 }) {
   const parts = [
     b.part(`${prefix}-plinth`, b.box(length, 0.3, width), 0, 0.15, 0, 'concrete'),
+    ...detailEquipmentServices(b, prefix, {
+      x: 0, y: 0.3, z: 0, length, width, controlSide: -1,
+    }),
     b.part(`${prefix}-suction-header`, b.cylinder(0.45, length - 1.5, 16),
       0, 1.15, -width / 2 + 0.8, 'pipe-raw', { rotation: LIE_ALONG_X }),
     b.part(`${prefix}-discharge-header`, b.cylinder(0.38, length - 1.5, 16),
@@ -1102,10 +1308,12 @@ function pumpSkid(b, prefix, { length = 16, width = 8, count = 3 }) {
         { rotation: [Math.SQRT1_2, 0, 0, Math.SQRT1_2] }),
       b.part(`${prefix}-pump-body-${index + 1}`, b.cylinder(0.62, 1.55, 20),
         x, 1.15, -0.7, 'stainless', { rotation: LIE_ALONG_X }),
-      b.part(`${prefix}-pump-motor-${index + 1}`, b.cylinder(0.48, 1.25, 18),
-        x + 0.95, 1.15, -0.7, 'steel', { rotation: LIE_ALONG_X }),
-      b.part(`${prefix}-pump-coupling-${index + 1}`, b.box(0.55, 0.42, 0.42),
-        x + 0.22, 1.15, -0.7, 'steel'),
+      ...detailMotor(b, `${prefix}-pump-motor-${index + 1}`, {
+        x: x + 1.08, y: 1.15, z: -0.7, radius: 0.44, length: 1.2, axis: 'x',
+      }),
+      ...detailCouplingGuard(b, `${prefix}-pump-coupling-${index + 1}`, {
+        x: x + 0.28, y: 1.15, z: -0.7, length: 0.55, width: 0.52, height: 0.48,
+      }),
       b.part(`${prefix}-pump-valve-${index + 1}`, b.cylinder(0.3, 0.55, 14),
         x, 1.75, width / 2 - 0.8, 'pipe-process'),
       b.part(`${prefix}-pump-gauge-${index + 1}`, b.cylinder(0.16, 0.08, 14),
@@ -1116,14 +1324,20 @@ function pumpSkid(b, prefix, { length = 16, width = 8, count = 3 }) {
 }
 
 function blowerSkid(b, prefix, { length = 8, width = 4.8, count = 2 }) {
-  const parts = [b.part(`${prefix}-plinth`, b.box(length, 0.24, width), 0, 0.12, 0, 'concrete')];
+  const parts = [
+    b.part(`${prefix}-plinth`, b.box(length, 0.24, width), 0, 0.12, 0, 'concrete'),
+    ...detailEquipmentServices(b, prefix, {
+      x: 0, y: 0.24, z: 0, length, width, controlSide: -1,
+    }),
+  ];
   for (let index = 0; index < count; index += 1) {
     const x = -length / 2 + (index + 0.5) * (length / count);
     parts.push(
       b.part(`${prefix}-blower-volute-${index + 1}`, b.cylinder(0.78, 1.2, 22),
         x, 1.0, 0, 'stainless', { rotation: LIE_ALONG_X }),
-      b.part(`${prefix}-blower-motor-${index + 1}`, b.box(1.25, 1.1, 1.2),
-        x + 1.05, 0.83, 0, 'steel'),
+      ...detailMotor(b, `${prefix}-blower-motor-${index + 1}`, {
+        x: x + 1.18, y: 0.92, z: 0, radius: 0.46, length: 1.25, axis: 'x',
+      }),
       b.part(`${prefix}-blower-filter-${index + 1}`, b.box(1.0, 1.0, 1.0),
         x - 1.05, 0.78, 0, 'steel'),
       b.part(`${prefix}-blower-discharge-${index + 1}`, b.cylinder(0.26, 1.5, 14),
@@ -1134,7 +1348,12 @@ function blowerSkid(b, prefix, { length = 8, width = 4.8, count = 2 }) {
 }
 
 function chemicalDosingSkid(b, prefix, { tanks = 2, mixers = 2 }) {
-  const parts = [b.part(`${prefix}-containment`, b.box(10, 0.35, 5.5), 0, 0.175, 0, 'concrete')];
+  const parts = [
+    b.part(`${prefix}-containment`, b.box(10, 0.35, 5.5), 0, 0.175, 0, 'concrete'),
+    ...detailEquipmentServices(b, prefix, {
+      x: 0, y: 0.35, z: 0, length: 10, width: 5.5, controlSide: 1,
+    }),
+  ];
   for (let index = 0; index < tanks; index += 1) {
     const x = -2.4 + index * 4.8;
     parts.push(
@@ -1157,14 +1376,20 @@ function chemicalDosingSkid(b, prefix, { tanks = 2, mixers = 2 }) {
 }
 
 function dewateringSkid(b, prefix, { units = 2 }) {
-  const parts = [b.part(`${prefix}-skid`, b.box(9, 0.35, 5.2), 0, 0.175, 0, 'steel')];
+  const parts = [
+    b.part(`${prefix}-skid`, b.box(9, 0.35, 5.2), 0, 0.175, 0, 'steel'),
+    ...detailEquipmentServices(b, prefix, {
+      x: 0, y: 0.35, z: 0, length: 9, width: 5.2, controlSide: -1,
+    }),
+  ];
   for (let index = 0; index < units; index += 1) {
     const x = -2.2 + index * 4.4;
     parts.push(
       b.part(`${prefix}-centrifuge-bowl-${index + 1}`, b.cylinder(0.72, 3.4, 24),
         x, 1.4, 0, 'stainless', { rotation: LIE_ALONG_X }),
-      b.part(`${prefix}-centrifuge-motor-${index + 1}`, b.box(1.2, 1.2, 1.1),
-        x + 2.05, 1.05, 0, 'steel'),
+      ...detailMotor(b, `${prefix}-centrifuge-motor-${index + 1}`, {
+        x: x + 2.22, y: 1.2, z: 0, radius: 0.5, length: 1.25, axis: 'x',
+      }),
       b.part(`${prefix}-centrifuge-feed-${index + 1}`, b.cylinder(0.22, 1.2, 12),
         x - 1.85, 1.1, 0, 'pipe-sludge'),
     );
@@ -1276,11 +1501,31 @@ function emergencyBasin(b, prefix, { length = 44, width = 26, depth = 5.2, wall 
 function odorControl(b, prefix) {
   const parts = [
     b.part(`${prefix}-slab`, b.box(24, 0.5, 14), 0, 0.25, 0, 'concrete'),
+    b.part(`${prefix}-plinth`, b.box(24.6, 0.2, 14.6), 0, 0.1, 0, 'concrete-new'),
     b.part(`${prefix}-shell`, b.box(23, 6.2, 13), 0, 3.6, 0, 'facade'),
     b.part(`${prefix}-roof`, b.box(24, 0.4, 14), 0, 6.9, 0, 'roof'),
-    b.part(`${prefix}-door`, b.box(3.2, 3.4, 0.14), -6, 2.2, 6.55, 'steel'),
-    b.part(`${prefix}-louver`, b.box(6, 2.2, 0.14), 6, 2.6, 6.55, 'glass'),
+    b.part(`${prefix}-wall-base`, b.box(23.08, 0.34, 13.08), 0, 0.67, 0, 'concrete-old'),
   ];
+  parts.push(...detailDoor(b, `${prefix}-door`, {
+    width: 3.2, height: 3.4, x: -6, y: 2.2, z: 6.59,
+  }));
+  parts.push(...detailLouver(b, `${prefix}-louver`, {
+    width: 6, height: 2.2, x: 6, y: 2.6, z: 6.59, slats: 7,
+  }));
+  parts.push(...detailWindow(b, `${prefix}-window-frame-main`, {
+    width: 8, height: 1.05, x: 0, y: 4.9, z: 6.59, mullions: 5,
+  }));
+  for (const [side, x] of [['w', -4.6], ['e', 4.6]]) {
+    parts.push(...detailRoofVent(b, `${prefix}-roof-vent-${side}`, {
+      x, y: 7.1, z: 1.8, radius: 0.36, height: 1.15,
+    }));
+  }
+  for (const [side, x] of [['w', -11.3], ['e', 11.3]]) {
+    parts.push(...detailDownpipe(b, `${prefix}-downpipe-${side}`, {
+      x, y: 0.3, z: 6.72, height: 6.6,
+      outletDirection: side === 'w' ? -1 : 1,
+    }));
+  }
   for (const sign of [-1, 1]) {
     parts.push(b.part(`${prefix}-stack-${sign > 0 ? 'e' : 'w'}`,
       b.cylinder(0.9, 11, 16), sign * 8.5, 5.5, -4, 'steel'));

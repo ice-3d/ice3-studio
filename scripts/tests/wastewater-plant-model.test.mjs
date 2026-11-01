@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { buildPlan as buildLegacyPlan } from '../../scripts/build-wastewater-model.mjs';
+import * as ModelKit from '../../scripts/wastewater-plant/model-kit.mjs';
 import {
   createBuilder,
   detailFlange,
@@ -31,6 +32,60 @@ test('command wrapper and site module produce the same deterministic plan', asyn
     digest(module.buildPlan('wastewater-plant')),
     digest(buildLegacyPlan('wastewater-plant')),
   );
+});
+
+test('visual review entry exposes four deterministic inspection distances', async (context) => {
+  const scriptUrl = new URL('../../scripts/wastewater-visual-review.mjs', import.meta.url);
+  let module;
+  try {
+    module = await import(scriptUrl);
+  } catch (error) {
+    assert.fail(`visual review entry is missing: ${error.message}`);
+  }
+  const views = module.buildWastewaterVisualReview({
+    baseUrl: 'http://127.0.0.1:8150',
+    token: 'wastewater-review',
+  });
+  context.diagnostic(JSON.stringify(views));
+
+  assert.deepEqual(views.map(({ name }) => name), [
+    'overview',
+    'process-mid',
+    'building-close',
+    'equipment-close',
+  ]);
+  assert.deepEqual(
+    views.map(({ distance }) => distance),
+    [360, 58, 42, 30],
+  );
+  assert.deepEqual(views[3]?.target, [62, 2.2, 10]);
+  assert.ok(views.every(({ url }) => (
+    url.startsWith('http://127.0.0.1:8150/?')
+    && url.includes('token=wastewater-review')
+    && url.includes('target=')
+    && url.includes('view=')
+  )));
+});
+
+test('capability report proves the asset exercises advanced Studio modeling paths', async () => {
+  const scriptUrl = new URL('../../scripts/wastewater-capability-report.mjs', import.meta.url);
+  let module;
+  try {
+    module = await import(scriptUrl);
+  } catch (error) {
+    assert.fail(`capability report entry is missing: ${error.message}`);
+  }
+  const report = module.buildWastewaterCapabilityReport(
+    buildLegacyPlan('wastewater-plant'),
+  );
+
+  assert.ok(report.componentDefinitions >= 40);
+  assert.ok(report.repeatPartDefinitions >= 30);
+  assert.ok(report.parameterizedComponents >= 19);
+  assert.ok(report.sharedComponentDefinitions >= 10);
+  assert.ok(report.customMeshParts >= 20);
+  assert.ok(report.closeUpDetailComponents >= 8);
+  assert.deepEqual(report.missingInstanceDefinitions, []);
 });
 
 test('current plan has valid connections and unique node ids', () => {
@@ -141,6 +196,215 @@ test('engineering detail kit emits reusable fittings and access structures', () 
   assert.ok(ids.some((id) => id.startsWith('support-a')));
 });
 
+test('close-up detail kit emits framing, weather protection and roof services', () => {
+  const b = createBuilder();
+  const kit = ModelKit;
+  const detailWindow = kit.detailWindow;
+  const detailDoor = kit.detailDoor;
+  const detailLouver = kit.detailLouver;
+  const detailRoofVent = kit.detailRoofVent;
+  const detailDownpipe = kit.detailDownpipe;
+
+  assert.equal(typeof detailWindow, 'function');
+  assert.equal(typeof detailDoor, 'function');
+  assert.equal(typeof detailLouver, 'function');
+  assert.equal(typeof detailRoofVent, 'function');
+  assert.equal(typeof detailDownpipe, 'function');
+
+  const parts = [
+    ...detailWindow(b, 'window-a', {
+      width: 4.2, height: 1.6, x: 0, y: 3, z: 7, yaw: 0,
+    }),
+    ...detailDoor(b, 'door-a', {
+      width: 3, height: 3.6, x: 5, y: 1.8, z: 7, yaw: 0,
+    }),
+    ...detailLouver(b, 'louver-a', {
+      width: 5, height: 2, x: -5, y: 4, z: 7, yaw: 0, slats: 6,
+    }),
+    ...detailRoofVent(b, 'vent-a', { x: 2, y: 8, z: -2, radius: 0.45 }),
+    ...detailDownpipe(b, 'pipe-a', {
+      x: -7, y: 0, z: 7, height: 7, radius: 0.09, outletDirection: 1,
+    }),
+  ];
+  const ids = parts.map(({ id }) => id);
+
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(parts.length >= 24);
+  assert.ok(ids.some((id) => id.includes('window-a-frame-top')));
+  assert.ok(ids.some((id) => id.includes('window-a-glass')));
+  assert.ok(ids.some((id) => id.includes('door-a-frame-top')));
+  assert.ok(ids.some((id) => id.includes('door-a-handle')));
+  assert.equal(parts.find(({ id }) => id === 'louver-a-slats')?.repeat, 6);
+  assert.ok(ids.some((id) => id.includes('vent-a-cowl')));
+  assert.ok(ids.some((id) => id.includes('pipe-a-shoe')));
+  assert.ok(parts.every(({ content }) => typeof content?.kind === 'string'));
+});
+
+test('close-up equipment kit emits motor accessories and protection', () => {
+  const b = createBuilder();
+  const detailMotor = ModelKit.detailMotor;
+  const detailCouplingGuard = ModelKit.detailCouplingGuard;
+
+  assert.equal(typeof detailMotor, 'function');
+  assert.equal(typeof detailCouplingGuard, 'function');
+  const parts = [
+    ...detailMotor(b, 'motor-a', {
+      x: 2, y: 1.2, z: 0, radius: 0.55, length: 1.4, axis: 'x',
+    }),
+    ...detailCouplingGuard(b, 'guard-a', {
+      x: 0.8, y: 1.2, z: 0, length: 0.7, width: 0.65, height: 0.55,
+    }),
+  ];
+  const ids = parts.map(({ id }) => id);
+
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(ids.some((id) => id.includes('motor-a-fan-cowl')));
+  assert.ok(ids.some((id) => id.includes('motor-a-terminal-box')));
+  assert.ok(ids.some((id) => id.includes('motor-a-anchor-plate')));
+  assert.ok(ids.some((id) => id.includes('guard-a-frame')));
+  assert.ok(ids.some((id) => id.includes('guard-a-mesh')));
+});
+
+test('equipment service kit emits cable containment and local controls', () => {
+  const b = createBuilder();
+  const parts = ModelKit.detailEquipmentServices(b, 'skid-a', {
+    x: 0, y: 0.3, z: 0, length: 8, width: 4,
+  });
+  const byId = new Map(parts.map((part) => [part.id, part]));
+
+  assert.ok(byId.has('skid-a-cable-tray'));
+  assert.ok((byId.get('skid-a-cable-tray-supports')?.repeat ?? 0) >= 3);
+  assert.ok((byId.get('skid-a-cable-drops')?.repeat ?? 0) >= 3);
+  assert.ok(byId.has('skid-a-local-control-pole'));
+  assert.ok(byId.has('skid-a-local-control-cabinet'));
+  assert.ok(byId.has('skid-a-emergency-stop'));
+  assert.equal(byId.get('skid-a-maintenance-lugs')?.repeat, 2);
+});
+
+test('process skids include cable trays and local service controls', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definitions = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition);
+  for (const [name, prefix] of [
+    ['Lift pump skid', 'lps'],
+    ['Blower skid', 'bls'],
+    ['Chemical dosing skid', 'cds'],
+    ['Dewatering skid', 'dws'],
+  ]) {
+    const definition = definitions.find((candidate) => candidate.name === name);
+    assert.ok(definition, name);
+    const ids = new Set(definition.parts.map(({ id }) => id));
+    assert.ok(ids.has(`${prefix}-cable-tray`), name);
+    assert.ok(ids.has(`${prefix}-local-control-cabinet`), name);
+    assert.ok(ids.has(`${prefix}-emergency-stop`), name);
+    assert.ok(ids.has(`${prefix}-maintenance-lugs`), name);
+  }
+});
+
+test('repeated close-up details use deterministic component expansion', () => {
+  const b = createBuilder();
+  const singleWindow = ModelKit.detailWindow(b, 'window-single', {
+    width: 3.2, height: 1.4, x: 1.5, y: 3, z: 0, mullions: 1,
+  });
+  const parts = [
+    ...singleWindow,
+    ...ModelKit.detailWindow(b, 'window-repeat', {
+      width: 5, height: 1.8, x: 0, y: 3, z: 0, mullions: 4,
+    }),
+    ...ModelKit.detailLouver(b, 'louver-repeat', {
+      width: 6, height: 2.4, x: 0, y: 4, z: 0, slats: 8,
+    }),
+    ...ModelKit.detailDownpipe(b, 'pipe-repeat', {
+      x: 0, y: 0, z: 0, height: 8,
+    }),
+  ];
+  const byId = new Map(parts.map((part) => [part.id, part]));
+
+  assert.equal(byId.get('window-single-mullions')?.repeat, undefined);
+  assert.equal(
+    byId.get('window-single-mullions')?.transform.translation.x,
+    1.5,
+  );
+  assert.equal(byId.get('window-repeat-mullions')?.repeat, 4);
+  assert.equal(byId.get('louver-repeat-slats')?.repeat, 8);
+  assert.equal(byId.get('pipe-repeat-brackets')?.repeat, 3);
+  assert.equal(
+    byId.get('window-repeat-mullions')?.transform.translation.x.expr,
+    '-2.5 + 5 * (i + 1) / (count + 1)',
+  );
+});
+
+test('service buildings expose close-up envelope and roof details', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definitions = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition);
+  const expected = new Map([
+    ['Lift pump house', 'ps'],
+    ['Blower house', 'bl'],
+    ['Dewatering house', 'dw'],
+    ['Odour control', 'odr'],
+    ['Gate house', 'gho'],
+  ]);
+
+  for (const [name, prefix] of expected) {
+    const definition = definitions.find((candidate) => candidate.name === name);
+    assert.ok(definition, name);
+    const ids = new Set(definition.parts.map(({ id }) => id));
+    for (const suffix of ['window-frame', 'door-frame', 'roof-vent', 'downpipe']) {
+      assert.ok(
+        [...ids].some((id) => id.startsWith(`${prefix}-${suffix}`)),
+        `${name} is missing ${suffix}`,
+      );
+    }
+  }
+});
+
+test('service buildings expose repeated facade bays, roof seams and service access', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definition = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition: value }) => value)
+    .find(({ name }) => name === 'Blower house');
+  const byId = new Map(definition.parts.map((part) => [part.id, part]));
+
+  assert.ok((byId.get('bl-facade-joints-s')?.repeat ?? 0) >= 5);
+  assert.ok((byId.get('bl-facade-joints-n')?.repeat ?? 0) >= 5);
+  assert.ok((byId.get('bl-roof-seams')?.repeat ?? 0) >= 6);
+  assert.ok(byId.has('bl-service-door-frame-top'));
+  assert.ok([...byId.keys()].some((id) => id.startsWith('bl-window-frame-e1-')));
+  assert.ok([...byId.keys()].some((id) => id.startsWith('bl-window-frame-w1-')));
+});
+
+test('service buildings use material families that distinguish their functions', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const materialNames = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name }) => [material_id, name]),
+  );
+  const instance = (name) => plan.operations.find(({ type, name: candidate }) => (
+    type === 'instance.create' && candidate === name
+  ));
+  const materialFor = (name, partId) => (
+    materialNames.get(instance(name)?.instance.overrides[partId]?.materialId)
+  );
+
+  assert.equal(materialFor('BLW-101 鼓风机房', 'bl-shell'), 'Insulated metal panel');
+  assert.equal(materialFor('CHEM-101 加药间', 'ch-shell'), 'Masonry facade');
+  assert.equal(materialFor('DW-101 脱水机房', 'dw-shell'), 'Insulated metal panel');
+  assert.equal(materialFor('GTE-101 门卫房', 'gho-body'), 'Masonry facade');
+  assert.equal(
+    materialFor('BLW-101 鼓风机房', 'bl-roof'),
+    'Standing seam roof',
+  );
+  assert.equal(
+    materialFor('CHEM-101 加药间', 'ch-roof'),
+    'Standing seam roof',
+  );
+});
+
 test('circular clarifier exposes credible civil and mechanical detail', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const definition = plan.operations
@@ -165,6 +429,29 @@ test('circular clarifier exposes credible civil and mechanical detail', () => {
     )), part.id);
     assert.equal(part.content.mesh.indices.length % 3, 0, part.id);
   }
+});
+
+test('concrete structures expose formwork joints and construction bands', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definitions = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition);
+  const definition = (name) => definitions.find((candidate) => candidate.name === name);
+  const parts = (name) => new Map(
+    definition(name).parts.map((part) => [part.id, part]),
+  );
+
+  const secondary = parts('Secondary clarifier');
+  assert.ok((secondary.get('sc-formwork-joints')?.repeat ?? 0) >= 8);
+  assert.ok(secondary.has('sc-formwork-band-low'));
+  assert.ok(secondary.has('sc-formwork-band-high'));
+
+  const aerobic = parts('Aerobic basin');
+  assert.ok((aerobic.get('ae-wall-formwork-joints-n')?.repeat ?? 0) >= 6);
+  assert.ok((aerobic.get('ae-wall-formwork-joints-s')?.repeat ?? 0) >= 6);
+
+  const digester = parts('Anaerobic digester');
+  assert.ok((digester.get('dg-shell-weld-bands')?.repeat ?? 0) >= 3);
 });
 
 test('primary and secondary clarifiers use distinct water tones', () => {
@@ -768,6 +1055,25 @@ test('every visible process line has endpoint fittings and metadata', () => {
   assert.ok(connections.every(({ connection }) => (
     ['forward', 'reverse'].includes(connection.metadata.flow)
   )));
+});
+
+test('pipe network emits close-up collars, valve actuators and support clamps', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connections = plan.operations.filter(({ type }) => type === 'connection.create');
+  const accessories = plan.operations.filter(({ type, metadata }) => (
+    type === 'node.create' && String(metadata?.role ?? '').startsWith('pipe-')
+  ));
+  const collars = accessories.filter(({ metadata }) => metadata.role === 'pipe-collar');
+  const actuators = accessories.filter(({ metadata }) => (
+    metadata.role === 'pipe-valve-actuator'
+  ));
+  const clamps = accessories.filter(({ metadata }) => metadata.role === 'pipe-clamp');
+
+  assert.ok(collars.length >= connections.length * 2);
+  assert.ok(actuators.length >= 6);
+  assert.ok(clamps.length >= 6);
+  assert.ok(actuators.every(({ metadata }) => metadata.lineId));
+  assert.ok(clamps.every(({ metadata }) => metadata.lineId));
 });
 
 test('pipeline validation rejects a missing accessory line reference', () => {

@@ -460,6 +460,22 @@ function createBuilder() {
         { role: 'pipe-flange', lineId, stage: toEndpoint.metadata.stage },
         cylinderAlignment(toEndpoint.direction),
       );
+      addPipeAccessory(
+        `${name} 起点连接套`,
+        cylinder(diameter * 1.08, 0.06, 20),
+        fromEndpoint.position,
+        'steel-dark',
+        { role: 'pipe-collar', lineId, stage: fromEndpoint.metadata.stage },
+        cylinderAlignment(fromEndpoint.direction),
+      );
+      addPipeAccessory(
+        `${name} 终点连接套`,
+        cylinder(diameter * 1.08, 0.06, 20),
+        toEndpoint.position,
+        'steel-dark',
+        { role: 'pipe-collar', lineId, stage: toEndpoint.metadata.stage },
+        cylinderAlignment(toEndpoint.direction),
+      );
       if (medium === 'air' || /泵|提升|回流/.test(name)) {
         addPipeAccessory(
           `${name} 隔离阀`,
@@ -468,6 +484,17 @@ function createBuilder() {
           'steel',
           { role: 'pipe-valve', lineId, stage: fromEndpoint.metadata.stage },
           cylinderAlignment(fromEndpoint.direction),
+        );
+        addPipeAccessory(
+          `${name} 阀门执行器`,
+          box(diameter * 0.45, diameter * 0.42, diameter * 0.45),
+          vec(
+            fromEndpoint.position.x,
+            fromEndpoint.position.y + diameter * 0.78,
+            fromEndpoint.position.z,
+          ),
+          'steel-dark',
+          { role: 'pipe-valve-actuator', lineId, stage: fromEndpoint.metadata.stage },
         );
       }
     }
@@ -514,6 +541,14 @@ function createBuilder() {
             vec(attachment.x, supportTop, attachment.z),
           'steel',
           { ...supportMetadata, supportPart: 'beam' },
+          [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
+        );
+        addPipeAccessory(
+          `${name} 管道夹`,
+          box(0.42, 0.14, 0.42),
+          vec(attachment.x, supportTop + 0.16, attachment.z),
+          'steel-dark',
+          { ...supportMetadata, role: 'pipe-clamp', supportPart: 'clamp' },
           [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
         );
       }
@@ -779,6 +814,350 @@ export function detailSupport(b, prefix, { x, y, z, height, width }) {
       x, y + height / 2, z + width / 2, 'steel'),
     b.part(`${prefix}-beam`, b.box(0.3, 0.3, width + 0.6),
       x, y + height - 0.15, z, 'steel'),
+  ];
+}
+
+export function detailWindow(
+  b,
+  prefix,
+  {
+    width,
+    height,
+    x,
+    y,
+    z,
+    yaw = 0,
+    frameMaterial = 'steel-dark',
+    glassMaterial = 'glass',
+    mullions = 1,
+  },
+) {
+  const rotation = quaternionY(yaw);
+  const frame = 0.09;
+  const depth = 0.14;
+  const parts = [
+    b.part(`${prefix}-glass`, b.box(width - frame * 2, height - frame * 2, 0.035),
+      x, y, z, glassMaterial, { rotation }),
+    b.part(`${prefix}-frame-top`, b.box(width, frame, depth),
+      x, y + height / 2 - frame / 2, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-frame-bottom`, b.box(width, frame, depth),
+      x, y - height / 2 + frame / 2, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-frame-left`, b.box(frame, height, depth),
+      x - width / 2 + frame / 2, y, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-frame-right`, b.box(frame, height, depth),
+      x + width / 2 - frame / 2, y, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-sill`, b.box(width + 0.16, 0.09, 0.28),
+      x, y - height / 2 - 0.045, z + 0.05, 'concrete-new', { rotation }),
+  ];
+  if (mullions === 1) {
+    parts.push(b.part(
+      `${prefix}-mullions`,
+      b.box(0.055, height - frame * 2, 0.08),
+      x,
+      y,
+      z,
+      frameMaterial,
+      { rotation },
+    ));
+  } else if (mullions > 1) {
+    parts.push(b.repeatPart(
+      `${prefix}-mullions`,
+      mullions,
+      b.box(0.055, height - frame * 2, 0.08),
+      {
+        transform: {
+          translation: {
+            x: { expr: `-${width / 2} + ${width} * (i + 1) / (count + 1)` },
+            y,
+            z,
+          },
+          yaw: yaw * 180 / Math.PI,
+        },
+        role: frameMaterial,
+      },
+    ));
+  }
+  return parts;
+}
+
+export function detailDoor(
+  b,
+  prefix,
+  {
+    width,
+    height,
+    x,
+    y,
+    z,
+    yaw = 0,
+    frameMaterial = 'steel-dark',
+    doorMaterial = 'steel',
+  },
+) {
+  const rotation = quaternionY(yaw);
+  const frame = 0.1;
+  return [
+    b.part(`${prefix}-leaf`, b.box(width - frame * 2, height - frame,
+      0.07), x, y, z, doorMaterial, { rotation }),
+    b.part(`${prefix}-frame-top`, b.box(width, frame, 0.16),
+      x, y + height / 2 - frame / 2, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-frame-left`, b.box(frame, height, 0.16),
+      x - width / 2 + frame / 2, y, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-frame-right`, b.box(frame, height, 0.16),
+      x + width / 2 - frame / 2, y, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-threshold`, b.box(width + 0.14, 0.08, 0.3),
+      x, y - height / 2, z + 0.06, 'concrete-new', { rotation }),
+    b.part(`${prefix}-handle`, b.box(0.08, 0.32, 0.08),
+      x + width * 0.32, y, z + 0.1, frameMaterial, { rotation }),
+    b.part(`${prefix}-canopy`, b.box(width + 0.8, 0.12, 0.8),
+      x, y + height / 2 + 0.22, z + 0.32, 'roof-light', { rotation }),
+  ];
+}
+
+export function detailLouver(
+  b,
+  prefix,
+  {
+    width,
+    height,
+    x,
+    y,
+    z,
+    yaw = 0,
+    slats = 6,
+    frameMaterial = 'steel-dark',
+    bladeMaterial = 'steel',
+  },
+) {
+  const rotation = quaternionY(yaw);
+  const frame = 0.08;
+  const parts = [
+    b.part(`${prefix}-frame-top`, b.box(width, frame, 0.14),
+      x, y + height / 2 - frame / 2, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-frame-bottom`, b.box(width, frame, 0.14),
+      x, y - height / 2 + frame / 2, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-frame-left`, b.box(frame, height, 0.14),
+      x - width / 2 + frame / 2, y, z, frameMaterial, { rotation }),
+    b.part(`${prefix}-frame-right`, b.box(frame, height, 0.14),
+      x + width / 2 - frame / 2, y, z, frameMaterial, { rotation }),
+  ];
+  const bladeDepth = (height - frame * 2) / Math.max(1, slats);
+  if (slats === 1) {
+    parts.push(b.part(
+      `${prefix}-slats`,
+      b.box(width - frame * 2.4, Math.max(0.055, bladeDepth * 0.46), 0.16),
+      x,
+      y,
+      z,
+      bladeMaterial,
+      { rotation },
+    ));
+  } else if (slats > 1) {
+    parts.push(b.repeatPart(
+      `${prefix}-slats`,
+      slats,
+      b.box(width - frame * 2.4, Math.max(0.055, bladeDepth * 0.46), 0.16),
+      {
+        transform: {
+          translation: {
+            x,
+            y: {
+              expr: `-${height / 2} + ${frame} + ${bladeDepth} * (i + 0.5)`,
+            },
+            z,
+          },
+          yaw: yaw * 180 / Math.PI,
+        },
+        role: bladeMaterial,
+      },
+    ));
+  }
+  return parts;
+}
+
+export function detailRoofVent(
+  b,
+  prefix,
+  {
+    x,
+    y,
+    z,
+    radius = 0.4,
+    height = 1.15,
+    material = 'steel',
+  },
+) {
+  return [
+    b.part(`${prefix}-curb`, b.cylinder(radius * 1.45, 0.16, 16),
+      x, y + 0.08, z, 'concrete-new'),
+    b.part(`${prefix}-stack`, b.cylinder(radius, height, 16),
+      x, y + 0.16 + height / 2, z, material),
+    b.part(`${prefix}-cowl`, b.cylinder(radius * 1.55, 0.12, 18),
+      x, y + 0.16 + height, z, 'steel-dark'),
+    b.part(`${prefix}-cowl-rim`, b.cylinder(radius * 1.32, 0.08, 18),
+      x, y - 0.02 + height * 0.46, z, 'steel-dark'),
+  ];
+}
+
+export function detailDownpipe(
+  b,
+  prefix,
+  {
+    x,
+    y,
+    z,
+    height,
+    radius = 0.08,
+    outletDirection = 1,
+    material = 'steel-dark',
+  },
+) {
+  const parts = [
+    b.part(`${prefix}-riser`, b.cylinder(radius, height, 12),
+      x, y + height / 2, z, material),
+  ];
+  parts.push(b.repeatPart(
+    `${prefix}-brackets`,
+    3,
+    b.box(0.18, 0.06, 0.06),
+    {
+      transform: {
+        translation: {
+          x: x + outletDirection * (radius + 0.08),
+          y: { expr: `${height} * (i + 1) / (count + 1)` },
+          z,
+        },
+      },
+      role: 'steel',
+    },
+  ));
+  parts.push(
+    b.part(`${prefix}-inlet`, b.cylinder(radius * 1.05, 0.24, 12),
+      x, y + height, z, material),
+    b.part(`${prefix}-shoe`, b.cylinder(radius * 1.1, 0.7, 12),
+      x + outletDirection * 0.34, y + radius * 1.1, z,
+      material, { rotation: LIE_ALONG_X }),
+  );
+  return parts;
+}
+
+export function detailMotor(
+  b,
+  prefix,
+  {
+    x,
+    y,
+    z,
+    radius,
+    length,
+    axis = 'x',
+    bodyMaterial = 'steel',
+    accessoryMaterial = 'steel-dark',
+  },
+) {
+  const rotation = axis === 'x' ? LIE_ALONG_X : [0, 0, 0, 1];
+  const endX = axis === 'x' ? length / 2 : 0;
+  const endY = axis === 'y' ? length / 2 : 0;
+  return [
+    b.part(`${prefix}-body`, b.cylinder(radius, length, 20),
+      x, y, z, bodyMaterial, { rotation }),
+    b.part(`${prefix}-fan-cowl`, b.cylinder(radius * 1.08, 0.14, 20),
+      x + endX, y + endY, z, accessoryMaterial, { rotation }),
+    b.part(`${prefix}-terminal-box`, b.box(0.3, 0.24, 0.28),
+      x, y + radius * 0.86, z, accessoryMaterial),
+    b.part(`${prefix}-anchor-plate`, b.box(length * 0.72, 0.08, radius * 2.1),
+      x, y - radius * 0.95, z, accessoryMaterial),
+    b.part(`${prefix}-lifting-lug`, b.box(0.18, 0.22, 0.08),
+      x - length * 0.2, y + radius, z, accessoryMaterial),
+  ];
+}
+
+export function detailCouplingGuard(
+  b,
+  prefix,
+  {
+    x,
+    y,
+    z,
+    length,
+    width,
+    height,
+    material = 'steel-dark',
+  },
+) {
+  return [
+    b.part(`${prefix}-frame`, b.box(length, 0.07, width),
+      x, y + height / 2, z, material),
+    b.part(`${prefix}-mesh`, b.box(length * 0.92, height * 0.82, 0.025),
+      x, y, z + width / 2, 'steel'),
+    b.part(`${prefix}-side-a`, b.box(length, height, 0.06),
+      x, y, z - width / 2, material),
+    b.part(`${prefix}-side-b`, b.box(0.05, height, width),
+      x - length / 2, y, z, material),
+  ];
+}
+
+export function detailEquipmentServices(
+  b,
+  prefix,
+  {
+    x,
+    y,
+    z,
+    length,
+    width,
+    controlSide = 1,
+  },
+) {
+  const trayZ = z - width * 0.44;
+  const controlX = x - length * 0.42 * controlSide;
+  const controlZ = z + width * 0.48;
+  return [
+    b.part(`${prefix}-cable-tray`, b.box(length * 0.88, 0.08, 0.32),
+      x, y + 2.35, trayZ, 'walkway'),
+    b.repeatPart(`${prefix}-cable-tray-supports`, 3,
+      b.box(0.06, 2.3, 0.06),
+      {
+        transform: {
+          translation: {
+            x: { expr: `${x} - ${length * 0.38} + i * ${length * 0.76} / (count - 1)` },
+            y: y + 1.17,
+            z: trayZ,
+          },
+        },
+        role: 'steel',
+      }),
+    b.repeatPart(`${prefix}-cable-drops`, 3,
+      b.box(0.045, 2.15, 0.045),
+      {
+        transform: {
+          translation: {
+            x: { expr: `${x} - ${length * 0.3} + i * ${length * 0.6} / (count - 1)` },
+            y: y + 1.1,
+            z: trayZ + 0.26,
+          },
+        },
+        role: 'steel-dark',
+      }),
+    b.part(`${prefix}-local-control-pole`, b.cylinder(0.075, 2.1, 10),
+      controlX, y + 1.05, controlZ, 'steel'),
+    b.part(`${prefix}-local-control-cabinet`, b.box(0.58, 0.76, 0.3),
+      controlX, y + 1.86, controlZ, 'facade'),
+    b.part(`${prefix}-emergency-stop`, b.cylinder(0.11, 0.08, 14),
+      controlX, y + 1.96, controlZ + 0.18, 'lamp',
+      { rotation: LIE_ALONG_X }),
+    b.repeatPart(`${prefix}-maintenance-lugs`, 2,
+      b.box(0.16, 0.2, 0.08),
+      {
+        transform: {
+          translation: {
+            x: { expr: `${x} + (i - 0.5) * ${length * 0.72}` },
+            y: y + 0.28,
+            z: z + width * 0.32,
+          },
+        },
+        role: 'steel-dark',
+      }),
   ];
 }
 

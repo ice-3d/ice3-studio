@@ -131,7 +131,13 @@ function componentInstanceBounds(operation, definition) {
       const scope = { ...parameters, count, i: index };
       const localPoints = primitivePoints(part.content, scope);
       const localTransform = part.transform ?? {};
-      const localRotation = localTransform.rotation ?? [0, 0, 0, 1];
+      const yaw = localTransform.yaw === undefined
+        ? 0
+        : resolveNumber(localTransform.yaw, scope) * Math.PI / 180;
+      const localRotation = localTransform.rotation
+        ?? (yaw === 0
+          ? [0, 0, 0, 1]
+          : [0, Math.sin(yaw / 2), 0, Math.cos(yaw / 2)]);
       const localTranslation = localTransform.translation ?? { x: 0, y: 0, z: 0 };
       const translated = [
         resolveNumber(localTranslation.x, scope),
