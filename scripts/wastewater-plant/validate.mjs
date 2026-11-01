@@ -59,6 +59,27 @@ export function validateWastewaterPlan(plan) {
     }
   }
 
+  const processInstances = [...instances.values()].filter((operation) => (
+    !['auxiliary', 'landscape'].includes(operation.metadata?.stage) &&
+    Number.isFinite(operation.metadata?.clearanceRadius) &&
+    operation.metadata.clearanceRadius > 0
+  ));
+  for (let leftIndex = 0; leftIndex < processInstances.length; leftIndex += 1) {
+    const left = processInstances[leftIndex];
+    for (let rightIndex = leftIndex + 1; rightIndex < processInstances.length; rightIndex += 1) {
+      const right = processInstances[rightIndex];
+      const dx = left.transform.translation.x - right.transform.translation.x;
+      const dz = left.transform.translation.z - right.transform.translation.z;
+      const minimum = left.metadata.clearanceRadius + right.metadata.clearanceRadius;
+      if (Math.hypot(dx, dz) < minimum) {
+        issues.push({
+          code: 'CLEARANCE_VIOLATION',
+          message: `${left.name} overlaps ${right.name}`,
+        });
+      }
+    }
+  }
+
   return { ok: issues.length === 0, issues };
 }
 

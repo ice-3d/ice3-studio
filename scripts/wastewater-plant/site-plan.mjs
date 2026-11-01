@@ -137,6 +137,22 @@ function createBuilder() {
     if (!entry) throw new Error(`unknown component ${definitionKey}`);
     const nodeId = id('node');
     state.nodes.set(key, nodeId);
+    const stage = metadata.stage ?? (metadata.role === 'landscape' ? 'landscape' : 'auxiliary');
+    const parametricExtent = Number.isFinite(parameters.radius)
+      ? parameters.radius
+      : Math.max(
+        ...['length', 'width', 'depth']
+          .map((name) => parameters[name])
+          .filter(Number.isFinite),
+        0,
+      ) / 2;
+    const clearanceRadius = Number.isFinite(metadata.clearanceRadius)
+      ? metadata.clearanceRadius
+      : (['auxiliary', 'landscape'].includes(stage) ||
+        ['equipment', 'landscape', 'piping', 'site'].includes(metadata.role)
+        ? 0
+        : parametricExtent + 3);
+    const normalizedMetadata = { ...metadata, stage, clearanceRadius };
     state.ops.push({
       type: 'instance.create',
       node_id: nodeId,
@@ -147,9 +163,9 @@ function createBuilder() {
         definitionId: entry.definition.id,
         parameters,
         overrides: entry.overrides,
-        metadata,
+        metadata: normalizedMetadata,
       },
-      metadata,
+      metadata: normalizedMetadata,
     });
     return nodeId;
   };
@@ -1722,9 +1738,19 @@ function buildPlan(projectId) {
   b.ground('广场（入口）', 6, 60, 140, 168, 'paving', -0.04);
   b.ground('停车场', 44, 92, 150, 166, 'asphalt', -0.03);
 
-  for (const edgeZ of [-179, -169, 169, 179]) {
-    b.ground(`标线 z=${edgeZ}`, -10, 610, edgeZ - 0.15, edgeZ + 0.15, 'marking', -0.018);
-  }
+  b.ground('北侧道路标线', -10, 610, -179.15, -178.85, 'marking', -0.018);
+  b.ground('北侧道路内标线', -10, 610, -169.15, -168.85, 'marking', -0.018);
+  b.ground('南侧道路标线', -10, 610, 168.85, 169.15, 'marking', -0.018);
+  b.ground('南侧道路外标线', -10, 610, 178.85, 179.15, 'marking', -0.018);
+  b.ground('生物池检修通道', 178, 365, 58, 64, 'paving', -0.04);
+  b.ground('二沉池检修通道', 365, 528, 58, 64, 'paving', -0.04);
+  b.ground('北侧设备装卸场地', 400, 477, -161, -132, 'paving', -0.04);
+  b.ground('预处理设备装卸场地', 42, 72, 18, 30, 'paving', -0.04);
+  b.ground('深度处理检修场地', 500, 578, 12, 32, 'paving', -0.04);
+  b.ground('生化区检修环路西', 172, 178, -62, 62, 'asphalt', -0.026);
+  b.ground('生化区检修环路东', 350, 356, -62, 62, 'asphalt', -0.026);
+  b.ground('南侧路缘', -10, 610, 167.7, 168.2, 'paving', -0.015);
+  b.ground('北侧路缘', -10, 610, -168.2, -167.7, 'paving', -0.015);
 
   // 总平面：按功能分区，成组紧凑布置。
   //
@@ -1795,19 +1821,19 @@ function buildPlan(projectId) {
   b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 300, 0, 76, { stage: 'auxiliary', tag: 'BLW-101' });
   b.instance('chemical-house', 'ch-1', 'CHEM-101 加药间', 470, 0, 46, { stage: 'auxiliary', tag: 'CHEM-101' });
   b.instance('lift-pump-skid', 'lps-1', 'PS-101 提升泵组', 62, 0, 10,
-    { stage: 'intake', tag: 'PS-101-P' });
+    { stage: 'intake', tag: 'PS-101-P', role: 'equipment' });
   b.instance('blower-skid', 'bls-1', 'BLW-101 鼓风机 1', 284, 0, 68,
-    { stage: 'auxiliary', tag: 'BLW-101-A' });
+    { stage: 'auxiliary', tag: 'BLW-101-A', role: 'equipment' });
   b.instance('blower-skid', 'bls-2', 'BLW-101 鼓风机 2', 314, 0, 68,
-    { stage: 'auxiliary', tag: 'BLW-101-B' });
+    { stage: 'auxiliary', tag: 'BLW-101-B', role: 'equipment' });
   b.instance('chemical-dosing-skid', 'cds-1', 'CHEM-101 加药装置', 470, 0, 30,
-    { stage: 'auxiliary', tag: 'CHEM-101-D' });
+    { stage: 'auxiliary', tag: 'CHEM-101-D', role: 'equipment' });
   b.instance('sludge-heat-exchanger', 'she-1', 'HEX-101 污泥换热器', 290, 0, -145,
-    { stage: 'sludge', tag: 'HEX-101' });
+    { stage: 'sludge', tag: 'HEX-101', role: 'equipment' });
   b.instance('dewatering-skid', 'dws-1', 'DW-101 脱水机 1', 458, 0, -138,
-    { stage: 'sludge', tag: 'DW-101-C1' });
+    { stage: 'sludge', tag: 'DW-101-C1', role: 'equipment' });
   b.instance('dewatering-skid', 'dws-2', 'DW-101 脱水机 2', 458, 0, -156,
-    { stage: 'sludge', tag: 'DW-101-C2' });
+    { stage: 'sludge', tag: 'DW-101-C2', role: 'equipment' });
   b.instance('valve-manifold', 'vmf-1', '生化配水阀组', 177, 0, 5,
     { stage: 'biological', role: 'equipment' });
   b.instance('service-canopy', 'svc-1', '提升泵组检修棚', 62, 0, 10,

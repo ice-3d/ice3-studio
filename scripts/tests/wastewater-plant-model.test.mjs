@@ -151,3 +151,39 @@ test('major equipment has identity-bearing silhouettes and connecting ports', ()
   assert.ok(pump.ports.length >= 2);
   assert.ok(blower.ports.length >= 2);
 });
+
+test('site plan uses readable names and complete service routes', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const instances = plan.operations.filter(({ type }) => type === 'instance.create');
+  const siteNodes = plan.operations.filter(({ type }) => type === 'node.create');
+  const names = instances.map(({ name }) => name).concat(siteNodes.map(({ name }) => name));
+
+  assert.equal(names.some((name) => /^标线 z=/.test(name)), false);
+  assert.ok(names.includes('南侧道路标线'));
+  assert.ok(names.includes('北侧设备装卸场地'));
+  assert.ok(names.includes('生物池检修通道'));
+  assert.ok(instances.some(({ metadata }) => metadata.stage === 'sludge'));
+  assert.equal(instances.some(({ metadata }) => !metadata.stage), false);
+});
+
+test('parallel treatment trains are related without being exact copies', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const instances = plan.operations.filter(({ type }) => type === 'instance.create');
+  const trainA = instances.filter(({ metadata }) => metadata.train === 'Train1');
+  const trainB = instances.filter(({ metadata }) => metadata.train === 'Train2');
+  assert.equal(trainA.length, trainB.length);
+  assert.notDeepEqual(
+    trainA.map(({ transform }) => transform.translation),
+    trainB.map(({ transform }) => transform.translation),
+  );
+});
+
+test('clearance validation rejects overlapping process footprints', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const primary = plan.operations.find(({ name }) => name === 'PC-101 初沉池');
+  const grit = plan.operations.find(({ name }) => name === 'GC-101 曝气沉砂池');
+  grit.transform.translation = { ...primary.transform.translation };
+  const result = validateWastewaterPlan(plan);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some(({ code }) => code === 'CLEARANCE_VIOLATION'));
+});
