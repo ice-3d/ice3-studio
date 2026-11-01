@@ -158,13 +158,13 @@ function createBuilder() {
   };
 
   // 场地：一块很薄的板，略低于池底，不参与工艺连接。
-  const ground = (minX, maxX, minZ, maxZ, materialKey) => {
+  const ground = (name, minX, maxX, minZ, maxZ, materialKey) => {
     const nodeId = id('node');
     state.ops.push({
       type: 'node.create',
       node_id: nodeId,
       parent_id: null,
-      name: '场地',
+      name,
       transform: nodeTransform((minX + maxX) / 2, -0.06, (minZ + maxZ) / 2),
       content: {
         type: 'primitive',
@@ -174,7 +174,7 @@ function createBuilder() {
         depth: maxZ - minZ,
       },
       material_id: state.materials.get(materialKey),
-      metadata: { role: 'site' },
+      metadata: { role: 'site', bounds: 'ignore' },
     });
   };
 
@@ -439,7 +439,29 @@ function pumpHouse(b, prefix, { length = 22, width = 13, height = 8 }) {
   parts.push(b.part(`${prefix}-wall-s`, b.box(length, height, 0.5), 0, 0.6 + height / 2, width / 2, 'concrete'));
   parts.push(b.part(`${prefix}-wall-w`, b.box(0.5, height, width), -length / 2, 0.6 + height / 2, 0, 'concrete'));
   parts.push(b.part(`${prefix}-wall-e`, b.box(0.5, height, width), length / 2, 0.6 + height / 2, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.4, 0.5, width + 1.4), 0, 0.6 + height + 0.25, 0, 'roof'));
+  // 坡屋顶：两块反向斜板拼成人字，比平顶更像厂区里的小泵房。
+  const pitch = 0.30;
+  const slope = [Math.sin(pitch / 2), 0, 0, Math.cos(pitch / 2)];
+  const slopeNeg = [-Math.sin(pitch / 2), 0, 0, Math.cos(pitch / 2)];
+  parts.push(b.part(
+    `${prefix}-roof-a`,
+    b.box(length + 1.4, 0.22, width * 0.64),
+    0,
+    0.6 + height + 0.85,
+    -width * 0.26,
+    'roof',
+    { rotation: slope },
+  ));
+  parts.push(b.part(
+    `${prefix}-roof-b`,
+    b.box(length + 1.4, 0.22, width * 0.64),
+    0,
+    0.6 + height + 0.85,
+    width * 0.26,
+    'roof',
+    { rotation: slopeNeg },
+  ));
+  parts.push(b.part(`${prefix}-ridge`, b.box(length + 1.5, 0.2, 0.35), 0, 0.6 + height + 1.12, 0, 'roof'));
 
   // 门洞与通风百叶
   parts.push(b.part(`${prefix}-door`, b.box(3.2, 4, 0.12), -length / 4, 0.6 + 2, width / 2 + 0.3, 'steel'));
@@ -751,6 +773,33 @@ function dewateringHouse(b, prefix, { length = 26, width = 15, height = 8 }) {
   return parts;
 }
 
+// 沼气柜：球形储气罐，坐在四根支柱上。
+function gasHolder(b, prefix, { radius = 8.5 }) {
+  const parts = [];
+  const supportHeight = radius * 0.9;
+  parts.push(b.part(`${prefix}-base`, b.cylinder(radius * 0.75, 0.4, 28), 0, 0.2, 0, 'concrete'));
+  for (let index = 0; index < 4; index += 1) {
+    const angle = (index / 4) * TAU + Math.PI / 4;
+    parts.push(b.part(
+      `${prefix}-leg-${index + 1}`,
+      b.box(0.6, supportHeight, 0.6),
+      Math.cos(angle) * radius * 0.55,
+      supportHeight / 2,
+      Math.sin(angle) * radius * 0.55,
+      'steel',
+    ));
+  }
+  parts.push(b.part(
+    `${prefix}-sphere`,
+    { kind: 'sphere', radius, segments: 28, rings: 18 },
+    0,
+    supportHeight + radius * 0.75,
+    0,
+    'roof',
+  ));
+  return parts;
+}
+
 function buildPlan(projectId) {
   const b = createBuilder();
   // 配色取自真实厂区照片：池壁浅米色、水面深蓝绿、屋面蓝灰。
@@ -764,6 +813,7 @@ function buildPlan(projectId) {
   b.material('facade', 'Facade panel', [0.8, 0.79, 0.75, 1]);
   b.material('roof', 'Metal roof', [0.3, 0.38, 0.47, 1]);
   b.material('lawn', 'Lawn', [0.29, 0.42, 0.21, 1]);
+  b.material('asphalt', 'Asphalt road', [0.24, 0.25, 0.27, 1]);
   b.material('glass', 'Glazing', [0.42, 0.52, 0.58, 0.55]);
   b.material('sludge', 'Sludge', [0.28, 0.22, 0.16, 1]);
 
@@ -823,6 +873,7 @@ function buildPlan(projectId) {
     b.port('inlet', 'dg-shell', 11, 4.0, 0, vec(-1, 0, 0), 'thickened-sludge', 0.3),
     b.port('outlet', 'dg-shell', -11, 4.0, 0, vec(1, 0, 0), 'digested-sludge', 0.3),
   ]);
+  b.define('gas-holder', 'Gas holder', gasHolder(b, 'gh', { radius: 8.5 }), []);
   b.define('dewatering-house', 'Dewatering house', dewateringHouse(b, 'dw', { length: 26, width: 15, height: 8 }), [
     b.port('inlet-a', 'dw-shell', -13, 2.0, -3, vec(1, 0, 0), 'digested-sludge', 0.3),
     b.port('inlet-b', 'dw-shell', -13, 2.0, 3, vec(1, 0, 0), 'digested-sludge', 0.3),
@@ -832,7 +883,11 @@ function buildPlan(projectId) {
   b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), []);
 
   // 场地先铺，构筑物叠在上面。范围覆盖整条生产线与污泥区。
-  b.ground(-150, 440, -110, 130, 'lawn');
+  b.ground('场地（草坪）', -150, 440, -110, 130, 'lawn');
+  // 主干道：沿生产线南北两侧各一条，外加通往污泥区的支路。
+  b.ground('道路（北）', -150, 470, -72, -62, 'asphalt');
+  b.ground('道路（南）', -150, 470, 40, 50, 'asphalt');
+  b.ground('道路（污泥区支路）', 240, 250, 40, 130, 'asphalt');
 
   // 总平面：两条并联系列共用进水段与深度处理，沿 x 轴自西向东。
   b.instance('screening-channel', 'gr-1', 'GR-101 进水格栅渠', -135, 0, 0, { stage: 'intake', tag: 'GR-101' });
@@ -871,6 +926,7 @@ function buildPlan(projectId) {
   b.instance('thickener', 'th-2', 'TH-102 污泥浓缩池', 288, 0, 62, { stage: 'sludge', tag: 'TH-102' });
   b.instance('digester', 'dg-1', 'DG-101 消化池', 340, 0, 62, { stage: 'sludge', tag: 'DG-101' });
   b.instance('digester', 'dg-2', 'DG-102 消化池', 340, 0, 102, { stage: 'sludge', tag: 'DG-102' });
+  b.instance('gas-holder', 'gh-1', 'GH-101 沼气柜', 380, 0, 118, { stage: 'sludge', tag: 'GH-101' });
   b.instance('dewatering-house', 'dw-1', 'DW-101 脱水机房', 405, 0, 78, { stage: 'sludge', tag: 'DW-101' });
   b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', -135, 0, -62, { stage: 'auxiliary', tag: 'CTRL-101' });
   b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 92, 0, -62, { stage: 'auxiliary', tag: 'BLW-101' });
@@ -921,7 +977,7 @@ function buildPlan(projectId) {
     operations: b.state.ops,
     summary: {
       components: b.state.components.size,
-      instances: 21,
+      instances: 22,
       connections: 24,
       materials: b.state.materials.size,
     },

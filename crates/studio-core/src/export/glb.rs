@@ -307,6 +307,14 @@ fn scene_bounds(evaluated: &EvaluatedScene) -> ([f32; 3], [f32; 3]) {
     let mut max = [f32::NEG_INFINITY; 3];
     let mut found = false;
     for node in evaluated.nodes.iter() {
+        // 场地之类的环境元素可以声明不参与取景包围盒，避免把相机推远。
+        if node
+            .metadata
+            .get("bounds")
+            .is_some_and(|value| value == "ignore")
+        {
+            continue;
+        }
         let (Some(mesh_key), Some(matrix)) = (&node.mesh_key, world.get(&node.id)) else {
             continue;
         };
