@@ -142,10 +142,37 @@ fn generate_sphere(@builtin(global_invocation_id) invocation: vec3<u32>) {
     }
 }
 
-fn tangent_at(index: u32, last_index: u32) -> vec3<f32> {
-    let previous_index = select(index - 1u, 0u, index == 0u);
-    let next_index = select(index + 1u, last_index, index >= last_index);
-    return safe_normalize(points[next_index].xyz - points[previous_index].xyz);
+fn rotate_around_axis(value: vec3<f32>, axis: vec3<f32>, angle: f32) -> vec3<f32> {
+    let cosine = cos(angle);
+    let sine = sin(angle);
+    return value * cosine
+        + cross(axis, value) * sine
+        + axis * dot(axis, value) * (1.0 - cosine);
+}
+
+fn transported_frame(point_index: u32) -> array<vec3<f32>, 2> {
+    var previous_tangent = safe_normalize(points[1u].xyz - points[0u].xyz);
+    let reference = select(
+        vec3<f32>(0.0, 1.0, 0.0),
+        vec3<f32>(1.0, 0.0, 0.0),
+        abs(previous_tangent.y) > 0.9,
+    );
+    var side = safe_normalize(cross(previous_tangent, reference));
+    for (var index = 1u; index <= point_index; index += 1u) {
+        let tangent = safe_normalize(points[index].xyz - points[index - 1u].xyz);
+        let axis = cross(previous_tangent, tangent);
+        let axis_length = length(axis);
+        if (axis_length > NORMAL_EPSILON) {
+            let angle = acos(clamp(dot(previous_tangent, tangent), -1.0, 1.0));
+            side = rotate_around_axis(side, axis / axis_length, angle);
+        }
+        side = safe_normalize(side - tangent * dot(side, tangent));
+        previous_tangent = tangent;
+    }
+    return array<vec3<f32>, 2>(
+        side,
+        safe_normalize(cross(side, previous_tangent)),
+    );
 }
 
 @compute @workgroup_size(64)
@@ -161,14 +188,9 @@ fn generate_sweep(@builtin(global_invocation_id) invocation: vec3<u32>) {
     if (index < params.vertex_count) {
         let point_index = index / segments;
         let segment = index % segments;
-        let tangent = tangent_at(point_index, point_count - 1u);
-        let reference = select(
-            vec3<f32>(0.0, 1.0, 0.0),
-            vec3<f32>(1.0, 0.0, 0.0),
-            abs(tangent.y) > 0.9,
-        );
-        let side = safe_normalize(cross(tangent, reference));
-        let up = safe_normalize(cross(side, tangent));
+        let frame = transported_frame(point_index);
+        let side = frame[0];
+        let up = frame[1];
         let angle = TAU * f32(segment) / f32(segments);
         let normal = safe_normalize(side * cos(angle) + up * sin(angle));
         vertices[index] = GpuVertex(

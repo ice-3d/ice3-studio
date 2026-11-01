@@ -10,6 +10,10 @@ use crate::large_scene::evaluate::{compose_transform, expand_instance_layout};
 use crate::large_scene::validate::instance_count;
 use crate::math::{Transform, Vec3};
 
+const BEND_SAMPLES: usize = 8;
+const BEND_RADIUS_DIAMETERS: f32 = 2.0;
+const ROUTE_POINT_EPSILON: f32 = 1.0e-5;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedPort {
     pub position: Vec3,
@@ -137,49 +141,146 @@ pub fn route_between_ports(
     if distance(from.position, to.position) <= f32::EPSILON {
         return Err(ConnectionError::Degenerate);
     }
+    let mut start_stub = add_scaled(from.position, from.direction, 0.9);
+    let mut end_stub = add_scaled(to.position, to.direction, -0.9);
     let elevation = match policy {
         RoutePolicy::Direct => None,
-        RoutePolicy::Orthogonal => Some(from.position.y.max(to.position.y) + 0.5),
+        RoutePolicy::Orthogonal => Some(
+            from.position
+                .y
+                .max(to.position.y)
+                .max(start_stub.y)
+                .max(end_stub.y)
+                + 0.5,
+        ),
         RoutePolicy::Buried { depth } if depth.is_finite() && *depth >= 0.0 => Some(-*depth),
         RoutePolicy::Rack { elevation } if elevation.is_finite() => Some(*elevation),
         _ => return Err(ConnectionError::InvalidPolicy),
     };
-    Ok(build_route(
+    if let Some(elevation) = elevation {
+        if (start_stub.y - from.position.y) * (elevation - from.position.y) < 0.0 {
+            start_stub = from.position;
+        }
+        if (end_stub.y - to.position.y) * (elevation - to.position.y) < 0.0 {
+            end_stub = to.position;
+        }
+    }
+    build_route(
         from.position,
-        from.direction,
+        start_stub,
+        end_stub,
         to.position,
-        to.direction,
         elevation,
-    ))
+        from.diameter,
+    )
 }
 
 fn build_route(
     start: Vec3,
-    start_direction: Vec3,
+    start_stub: Vec3,
+    end_stub: Vec3,
     end: Vec3,
-    end_direction: Vec3,
     elevation: Option<f32>,
-) -> Vec<[f32; 3]> {
+    diameter: f32,
+) -> Result<Vec<[f32; 3]>, ConnectionError> {
     let Some(elevation) = elevation else {
-        return vec![[start.x, start.y, start.z], [end.x, end.y, end.z]];
+        return Ok(vec![[start.x, start.y, start.z], [end.x, end.y, end.z]]);
     };
-    let start_stub = add_scaled(start, start_direction, 0.9);
-    let end_stub = add_scaled(end, end_direction, 0.9);
-    let mut points = Vec::new();
-    push_unique(&mut points, [start.x, start.y, start.z]);
-    push_unique(&mut points, [start_stub.x, start_stub.y, start_stub.z]);
-    push_unique(&mut points, [start_stub.x, elevation, start_stub.z]);
-    push_unique(&mut points, [end_stub.x, elevation, start_stub.z]);
-    push_unique(&mut points, [end_stub.x, elevation, end_stub.z]);
-    push_unique(&mut points, [end_stub.x, end_stub.y, end_stub.z]);
-    push_unique(&mut points, [end.x, end.y, end.z]);
-    points
+    let candidates = [
+        [start.x, start.y, start.z],
+        [start_stub.x, start_stub.y, start_stub.z],
+        [start_stub.x, elevation, start_stub.z],
+        [end_stub.x, elevation, start_stub.z],
+        [end_stub.x, elevation, end_stub.z],
+        [end_stub.x, end_stub.y, end_stub.z],
+        [end.x, end.y, end.z],
+    ];
+    let mut coarse = Vec::new();
+    for point in candidates {
+        push_unique(&mut coarse, point);
+    }
+    smooth_route(&coarse, diameter * BEND_RADIUS_DIAMETERS)
+}
+
+fn smooth_route(points: &[[f32; 3]], bend_radius: f32) -> Result<Vec<[f32; 3]>, ConnectionError> {
+    if points.len() < 2 || !bend_radius.is_finite() || bend_radius <= 0.0 {
+        return Err(ConnectionError::Degenerate);
+    }
+    let mut output = vec![points[0]];
+    for index in 1..points.len() - 1 {
+        let previous = points[index - 1];
+        let corner = points[index];
+        let next = points[index + 1];
+        let incoming = unit(subtract3(corner, previous))?;
+        let outgoing = unit(subtract3(next, corner))?;
+        let alignment = dot3(incoming, outgoing);
+        if alignment > 0.999_999 {
+            push_unique(&mut output, corner);
+            continue;
+        }
+        if alignment < -0.999_999 {
+            return Err(ConnectionError::Degenerate);
+        }
+        let trim = bend_radius
+            .min(distance3(previous, corner) * 0.4)
+            .min(distance3(corner, next) * 0.4);
+        if trim <= f32::EPSILON {
+            return Err(ConnectionError::Degenerate);
+        }
+        let before = add3(corner, scale3(incoming, -trim));
+        let after = add3(corner, scale3(outgoing, trim));
+        push_unique(&mut output, before);
+        for step in 1..=BEND_SAMPLES {
+            let t = step as f32 / BEND_SAMPLES as f32;
+            let one = 1.0 - t;
+            let sample = [
+                one * one * before[0] + 2.0 * one * t * corner[0] + t * t * after[0],
+                one * one * before[1] + 2.0 * one * t * corner[1] + t * t * after[1],
+                one * one * before[2] + 2.0 * one * t * corner[2] + t * t * after[2],
+            ];
+            push_unique(&mut output, sample);
+        }
+    }
+    push_unique(&mut output, points[points.len() - 1]);
+    Ok(output)
 }
 
 fn push_unique(points: &mut Vec<[f32; 3]>, point: [f32; 3]) {
-    if points.last() != Some(&point) {
+    if points
+        .last()
+        .is_none_or(|previous| distance3(*previous, point) > ROUTE_POINT_EPSILON)
+    {
         points.push(point);
     }
+}
+
+fn subtract3(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+    [left[0] - right[0], left[1] - right[1], left[2] - right[2]]
+}
+
+fn add3(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+    [left[0] + right[0], left[1] + right[1], left[2] + right[2]]
+}
+
+fn scale3(value: [f32; 3], factor: f32) -> [f32; 3] {
+    [value[0] * factor, value[1] * factor, value[2] * factor]
+}
+
+fn dot3(left: [f32; 3], right: [f32; 3]) -> f32 {
+    left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+}
+
+fn unit(value: [f32; 3]) -> Result<[f32; 3], ConnectionError> {
+    let length = distance3([0.0; 3], value);
+    if length <= f32::EPSILON {
+        return Err(ConnectionError::Degenerate);
+    }
+    Ok([value[0] / length, value[1] / length, value[2] / length])
+}
+
+fn distance3(left: [f32; 3], right: [f32; 3]) -> f32 {
+    let delta = subtract3(right, left);
+    dot3(delta, delta).sqrt()
 }
 
 fn distance(left: Vec3, right: Vec3) -> f32 {

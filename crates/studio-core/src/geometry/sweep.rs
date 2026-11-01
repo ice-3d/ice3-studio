@@ -22,18 +22,31 @@ pub fn evaluate_sweep(
 
     let mut vertices = Vec::with_capacity(points.len() * radial_segments as usize);
     let mut indices = Vec::new();
+    let mut previous_tangent = unit(subtract(points[1], points[0]));
+    let initial_reference = if previous_tangent[1].abs() > 0.9 {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
+    let mut side = unit(cross(previous_tangent, initial_reference));
+    let mut up = unit(cross(side, previous_tangent));
     for (index, point) in points.iter().enumerate() {
-        let tangent = tangent_at(points, index);
-        let reference = if tangent[1].abs() > 0.9 {
-            [1.0, 0.0, 0.0]
-        } else {
-            [0.0, 1.0, 0.0]
-        };
-        let side = normalize(cross(tangent, reference));
-        let up = normalize(cross(side, tangent));
+        if index > 0 {
+            let tangent = unit(subtract(points[index], points[index - 1]));
+            let axis = cross(previous_tangent, tangent);
+            let axis_length = length(axis);
+            if axis_length > f32::EPSILON {
+                let angle = dot(previous_tangent, tangent).clamp(-1.0, 1.0).acos();
+                let axis = scale(axis, 1.0 / axis_length);
+                side = rotate_around_axis(side, axis, angle);
+            }
+            side = unit(subtract(side, scale(tangent, dot(side, tangent))));
+            up = unit(cross(side, tangent));
+            previous_tangent = tangent;
+        }
         for segment in 0..radial_segments {
             let angle = std::f32::consts::TAU * segment as f32 / radial_segments as f32;
-            let normal = normalize([
+            let normal = unit([
                 side[0] * angle.cos() + up[0] * angle.sin(),
                 side[1] * angle.cos() + up[1] * angle.sin(),
                 side[2] * angle.cos() + up[2] * angle.sin(),
@@ -83,19 +96,25 @@ fn cap(indices: &mut Vec<u32>, base: u32, segments: u32, reverse: bool) {
     }
 }
 
-fn tangent_at(points: &[[f32; 3]], index: usize) -> [f32; 3] {
-    let previous = points[index.saturating_sub(1)];
-    let next = points[(index + 1).min(points.len() - 1)];
-    normalize([
-        next[0] - previous[0],
-        next[1] - previous[1],
-        next[2] - previous[2],
-    ])
-}
-
 fn distance(left: [f32; 3], right: [f32; 3]) -> f32 {
     let delta = [right[0] - left[0], right[1] - left[1], right[2] - left[2]];
     (delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2]).sqrt()
+}
+
+fn subtract(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+    [left[0] - right[0], left[1] - right[1], left[2] - right[2]]
+}
+
+fn scale(value: [f32; 3], factor: f32) -> [f32; 3] {
+    [value[0] * factor, value[1] * factor, value[2] * factor]
+}
+
+fn dot(left: [f32; 3], right: [f32; 3]) -> f32 {
+    left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+}
+
+fn length(value: [f32; 3]) -> f32 {
+    dot(value, value).sqrt()
 }
 
 fn cross(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
@@ -106,13 +125,25 @@ fn cross(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
     ]
 }
 
-fn normalize(value: [f32; 3]) -> [f32; 3] {
-    let length = (value[0] * value[0] + value[1] * value[1] + value[2] * value[2]).sqrt();
-    if length <= f32::EPSILON {
-        [0.0, 1.0, 0.0]
+fn unit(value: [f32; 3]) -> [f32; 3] {
+    let magnitude = length(value);
+    if magnitude <= f32::EPSILON {
+        [1.0, 0.0, 0.0]
     } else {
-        value.map(|component| component / length)
+        value.map(|component| component / magnitude)
     }
+}
+
+fn rotate_around_axis(value: [f32; 3], axis: [f32; 3], angle: f32) -> [f32; 3] {
+    let cosine = angle.cos();
+    let sine = angle.sin();
+    let rotated_cross = cross(axis, value);
+    let axis_dot = dot(axis, value) * (1.0 - cosine);
+    [
+        value[0] * cosine + rotated_cross[0] * sine + axis[0] * axis_dot,
+        value[1] * cosine + rotated_cross[1] * sine + axis[1] * axis_dot,
+        value[2] * cosine + rotated_cross[2] * sine + axis[2] * axis_dot,
+    ]
 }
 
 fn bounds(positions: &[[f32; 3]]) -> Bounds {
