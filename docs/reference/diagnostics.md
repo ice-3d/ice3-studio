@@ -64,6 +64,28 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_GPU_DEVICE_LOST` | The native GPU device was lost during derived-geometry evaluation |
 | `ICE3_STUDIO_GPU_PARITY_FAILED` | GPU output failed finite-value, topology, bounds, or CPU parity validation |
 
+## 源导入 CLI 代码
+
+这些码由 `ice3-studio import` 返回或作为 warning 进入命令结果，不属于 JSON-RPC
+`DiagnosticCode` enum。
+
+| 代码 | 含义 |
+|---|---|
+| `ICE3_STUDIO_IMPORT_UNSUPPORTED` | 自动 adapter 无法根据扩展名选择格式 |
+| `ICE3_STUDIO_IMPORT_ADAPTER_UNAVAILABLE` | 显式 adapter 不存在或与扩展名不匹配 |
+| `ICE3_STUDIO_IMPORT_REGISTRY_INVALID` | adapter ID 或扩展名重复/无效 |
+| `ICE3_STUDIO_IMPORT_INVALID_SOURCE` | Source、OBJ face 或 MTL 内容无效 |
+| `ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY` | Source 不包含可导入三角形 |
+| `ICE3_STUDIO_IMPORT_RESOURCE_IGNORED` | 不安全或缺失资源被忽略 |
+| `ICE3_STUDIO_IMPORT_IO` | Source 或输出文件 I/O 失败 |
+| `ICE3_STUDIO_IMPORT_OBJ_UNIT_ASSUMED_METERS` | OBJ 没有单位信息，按米解释 |
+| `ICE3_STUDIO_IMPORT_OBJ_VERTEX_COLORS_UNSUPPORTED` | OBJ 顶点色未导入 |
+| `ICE3_STUDIO_IMPORT_OBJ_TEXTURE_UNSUPPORTED` | MTL 纹理未导入 |
+| `ICE3_STUDIO_IMPORT_OBJ_RESOURCE_IGNORED` | MTL 路径越界或不安全 |
+| `ICE3_STUDIO_IMPORT_OBJ_MATERIAL_UNAVAILABLE` | 引用的 MTL 或 material 不可用 |
+| `ICE3_STUDIO_IMPORT_PRIMITIVE_UNSUPPORTED` | glTF 非三角形 primitive 被跳过 |
+| `ICE3_STUDIO_IMPORT_RESOURCE_UNSUPPORTED` | glTF animation、skin、texture 等资源被跳过 |
+
 ## Recovery Rules
 
 - Validation or operation failures leave the current revision unchanged.

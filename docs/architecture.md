@@ -28,6 +28,9 @@ Studio Server（仅 loopback）
         +---- studio-pipeline
         |     partition、LOD、coarse、Tileset、render batch
         |
+        +---- studio-import
+        |     glTF/GLB、OBJ/MTL、SourceScene、adapter registry
+        |
         +---- studio-project
         |     revision、锁、ChangeSet、缓存
         |
@@ -71,6 +74,17 @@ cache 和项目完整性检查。新 revision 只有在 snapshot 持久化完成
 base directory 内解析外部资源。Draco primitive 在读取阶段物化为普通 accessor；绝对
 路径、URI scheme、`..`、symlink escape、畸形 chunk 和越界 accessor 均失败关闭。
 
+### `studio-import`
+
+定义格式无关的 `SourceImporter`、registry 和 `SourceScene`。当前 adapter：
+
+- `gltf`：`.gltf`、`.glb`，保留层级、共享 Mesh、Material、extras 和 Selection。
+- `obj`：`.obj`，Rust parser 支持 OBJ face、负索引、多边形三角化、object/group 和
+  同目录 MTL。
+
+adapter 不写 Tileset；`studio-assets::canonical` 把 `SourceScene` 写成 Prepared GLB。
+重要安全边界：外部资源只能读取源文件目录内文件。
+
 ### `studio-pipeline`
 
 拥有 partition unit 分析、确定性的空间切分、meshopt LOD、coarse chunk、可选 semantic
@@ -95,13 +109,14 @@ Compute service 负责 GPU 内存、并发、优先级、取消、健康检查�
 崩溃后一次重启重试和 workspace-relative path 校验。Sidecar 只能准备派生 Asset，不能
 修改 Document、ChangeSet、审批状态或 revision。
 
-Phase 1 的 `export tileset` 不经过该客户端。Toolchain 只保留为 parity oracle，以及后续
-FBX、USD、STEP、IFC、JT Source Importer 的迁移兼容层。
+新 `import` 和 `export tileset` 都不经过该客户端。Toolchain 只保留为 parity oracle，
+以及后续 FBX、USD、STEP、IFC、JT Source Importer 的迁移兼容层。
 
 ### `studio-cli`
 
 启动本地 Server，生成确定性的 JSON Schema/TypeScript declaration，提供 project pack
-和 unpack，并从 committed revision 发布 `agent-console-v1` Runtime bundle。
+和 unpack、Source Import/validate，并从 committed revision 发布
+`agent-console-v1` Runtime bundle。
 
 ### Web Viewer
 
@@ -189,8 +204,9 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 - 跨项目持久 GPU buffer pool。
 
 Runtime LOD、空间 partition 和 GLB Runtime Asset 发布已由 Studio 原生 crate 实现。
-OBJ、FBX、USD、STEP、IFC 和 JT Source Import 仍按 Spec-016 后续阶段迁移；在这些阶段完成
-前，Toolchain 仅作为迁移兼容层和 parity oracle 保留。
+glTF/GLB 与 OBJ/MTL Source Import 已迁入 Studio。FBX、USD、STEP、IFC 和 JT 仍按
+Spec-016 后续阶段迁移；在这些阶段完成前，Toolchain 仅作为迁移兼容层和 parity oracle
+保留。
 
 ## 关联文档
 

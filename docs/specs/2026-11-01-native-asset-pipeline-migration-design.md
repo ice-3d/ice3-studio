@@ -6,8 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **Phase 状态：** Phase 1 已实现。后续 Source Importer 阶段仍未实现，因此整份迁移设计
-> 继续保持 `Approved`。
+> **Phase 状态：** Phase 1 与 Phase 2 已实现。后续 FBX、USD、STEP、IFC、JT 和最终
+> Toolchain 退役仍未实现，因此整份迁移设计继续保持 `Approved`。
 
 ## 1. 目标
 
@@ -99,7 +99,7 @@ pub trait SourceImporter {
     fn id(&self) -> &'static str;
     fn extensions(&self) -> &'static [&'static str];
     fn capabilities(&self) -> SourceCapabilities;
-    fn import(&self, request: SourceImportRequest) -> Result<SourceImportResult>;
+    fn import(&self, request: &ImportRequest) -> Result<SourceScene, ImportError>;
 }
 ```
 
@@ -174,6 +174,10 @@ publication；`studio-pipeline` 负责 tile/LOD 计算。输出不包含完整 s
 - 不删除 Toolchain，先用 parity tests 做双跑比较。
 
 ### Phase 2：glTF 与 OBJ
+
+**状态：Implemented（2026-11-02）。** glTF/GLB adapter、OBJ/MTL Rust parser、CLI
+`import`/`validate` 和 Toolchain OBJ adapter 退役已经交付。Toolchain 继续保留 FBX、
+USD、STEP、IFC、JT 的迁移兼容能力。
 
 - 将 glTF/GLB importer 正式并入 `studio-import`。
 - 实现 OBJ/MTL native importer。

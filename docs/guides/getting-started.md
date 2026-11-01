@@ -162,7 +162,7 @@ cargo run -p studio-cli -- export tileset \
 
 `agent-console-v1` 使用 60,000 triangles/part、64 MiB/part、0.5 LOD ratio、adaptive
 allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk 和 static render batch。
-Phase 1 不调用 Node、Blender 或 Toolchain Sidecar。CLI 可以在 Studio Server 持有 writer
+命令不调用 Node、Blender 或 Toolchain Sidecar。CLI 可以在 Studio Server 持有 writer
 lock 时读取 committed revision，但不会修改工程。
 
 Parity 双跑：
@@ -172,6 +172,23 @@ node scripts/compare-asset-pipelines.mjs
 ```
 
 机器可读结果写入 `output/asset-pipeline-parity.json`。
+
+## 导入 Source Asset
+
+glTF/GLB 与 OBJ/MTL 由 Studio 原生导入：
+
+```bash
+cargo run -p studio-cli -- import plant.obj \
+  --output /tmp/plant.glb \
+  --asset-id plant \
+  --adapter obj
+
+cargo run -p studio-cli -- validate /tmp/plant.glb
+```
+
+OBJ 假定单位为米；`mtllib` 和纹理引用只能访问源文件同目录。绝对路径、URI scheme、
+`..` 和 symlink escape 不会读取。输出先完成 Prepared GLB 校验，再以 sibling temporary
+file 原子发布。失败、warning-as-error 或已有 output 且未指定 `--force` 时不会替换文件。
 
 ## 停止与恢复
 

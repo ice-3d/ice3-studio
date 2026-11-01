@@ -164,12 +164,22 @@ Material 的 `opacity < 1` 导出为 alpha blend；`shading` 可为 `directional
 
 完整说明与恢复规则见 [Diagnostics](diagnostics.md)。
 
+Source Import CLI 另有稳定码：
+`ICE3_STUDIO_IMPORT_UNSUPPORTED`、`ICE3_STUDIO_IMPORT_ADAPTER_UNAVAILABLE`、
+`ICE3_STUDIO_IMPORT_REGISTRY_INVALID`、`ICE3_STUDIO_IMPORT_INVALID_SOURCE`、
+`ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY`、`ICE3_STUDIO_IMPORT_RESOURCE_IGNORED` 和
+`ICE3_STUDIO_IMPORT_IO`。OBJ warning 使用 `ICE3_STUDIO_IMPORT_OBJ_*` 命名空间。
+
 ## CLI
 
 ```
 ice3-studio schema --output <dir> [--check]
 ice3-studio pack --project <dir> --output <file.ice3>
 ice3-studio unpack <file.ice3> --into <dir>
+ice3-studio import SOURCE --output FILE --asset-id ID
+                        [--adapter auto|gltf|obj]
+                        [--warnings-as-errors] [--force]
+ice3-studio validate FILE
 ice3-studio export tileset --project <dir> --output <dir>
                          [--profile agent-console-v1] [--force]
 ice3-studio serve --workspace <dir> --project <id>
@@ -186,6 +196,11 @@ ice3-studio serve --workspace <dir> --project <id>
 | `--write-mode` | `review-required` | 或 `autonomous` |
 | `--native-gpu` | `cpu` | 启动期策略，不能被 API 请求覆盖 |
 
+`import` 支持 `.gltf`、`.glb` 和 `.obj`。adapter 生成统一 `SourceScene`，canonical writer
+生成 `ice3-prepared` GLB；OBJ MTL、纹理和其它外部资源被限制在源文件同目录。OBJ 假定米制，
+顶点色和纹理不支持 warning；`--warnings-as-errors` 在发布前拒绝，默认拒绝已有 output，
+`--force` 才原子替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。
+
 `export tileset` 读取当前 committed revision，生成：
 
 ```text
@@ -200,7 +215,7 @@ source GLB 只保留在 `projects/<id>/cache/preview/`，不会复制到发布�
 不可覆盖；`--force` 通过 sibling staging、backup 和 rename 原子替换，失败时恢复上一份
 成功 bundle。`agent-console-v1` 固定使用 60,000 triangles/part、64 MiB/part、LOD ratio
 0.5、adaptive allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk、
-`semanticProxy=off` 和 static render batch。Phase 1 只接受 Studio-authored Prepared GLB。
+`semanticProxy=off` 和 static render batch。导出只读取 Studio committed revision。
 
 `bindings.json` 优先按 metadata `tag` 聚合完整设备，`selectionId` 为
 `plant/equipment/<tag>`；无 tag 的独立场景对象使用 source owner ID。`nodeSelectionIds`
