@@ -36,6 +36,7 @@ fn definition(id: &str) -> ComponentDefinition {
                 height: ScalarBinding::Literal(1.0),
                 depth: ScalarBinding::Literal(1.0),
             },
+            repeat: None,
             material_role: None,
             metadata: BTreeMap::new(),
             visible: true,

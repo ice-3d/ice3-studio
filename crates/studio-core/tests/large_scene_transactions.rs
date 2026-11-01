@@ -23,6 +23,7 @@ fn applies_a_component_and_instance_in_one_revision() {
                 height: ScalarBinding::Literal(1.0),
                 depth: ScalarBinding::Literal(1.0),
             },
+            repeat: None,
             material_role: None,
             metadata: BTreeMap::new(),
             visible: true,

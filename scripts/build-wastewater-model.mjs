@@ -249,6 +249,23 @@ function createBuilder() {
     }
   };
 
+  // 接触阴影：贴在构筑物正下方的一层深色薄片，压掉「悬浮感」。
+  const shadowPatch = (name, x, z, sizeX, sizeZ, round = false) => {
+    const nodeId = id('node');
+    state.ops.push({
+      type: 'node.create',
+      node_id: nodeId,
+      parent_id: null,
+      name,
+      transform: nodeTransform(x, 0.012, z),
+      content: round
+        ? { type: 'primitive', kind: 'cylinder', radius: Math.max(sizeX, sizeZ) * 0.575, height: 0.02, segments: 32 }
+        : { type: 'primitive', kind: 'box', width: sizeX * 1.15, height: 0.02, depth: sizeZ * 1.15 },
+      material_id: state.materials.get('shadow'),
+      metadata: { role: 'shadow' },
+    });
+  };
+
   // 小型设备：一个控制箱加一台立式泵，作为独立节点放在构筑物旁。
   const equipment = (kind, name, x, y, z, metadata = {}) => {
     const nodeId = id('node');
@@ -275,7 +292,7 @@ function createBuilder() {
     });
   };
 
-  return { state, material, part, repeatPart, port, define, instance, connect, ground, walkway, equipment, box, cylinder, rotateY };
+  return { state, material, part, repeatPart, port, define, instance, connect, ground, walkway, equipment, shadowPatch, box, cylinder, rotateY };
 }
 
 // 圆形池：底板 + 环形池壁 + 水面 + 中心进水筒 + 周边出水堰 + 刮泥桥 + 栏杆 + 爬梯
@@ -426,84 +443,81 @@ function circularBasin(b, prefix, { segments = 48 }) {
   return parts;
 }
 
-function aerationBasin(b, prefix, { length = 40, width = 20, depth = 6, wall = 0.45 }) {
+// 矩形曝气池：参数化。length / width / depth / wall 走表达式，
+// 导流墙、曝气支管、走道立柱按索引展开。
+function aerationBasin(b, prefix, { corridors = 3, airLines = 10, posts = 11 }) {
   const parts = [];
-  const top = 0.5 + depth;
-  parts.push(b.part(`${prefix}-base`, b.box(length, 0.5, width), 0, 0.25, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-n`, b.box(length, depth, wall), 0, 0.5 + depth / 2, -width / 2, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-s`, b.box(length, depth, wall), 0, 0.5 + depth / 2, width / 2, 'concrete'));
-  // 东西两端墙在进水/出水标高开洞：把整面墙拆成四段，等价于减去一个盒子。
-  const openY = 4.0;
-  const openH = 1.1;
-  const openW = 1.8;
-  for (const [side, x] of [['w', -length / 2], ['e', length / 2]]) {
-    const lowerTop = openY - openH / 2;
-    const upperBottom = openY + openH / 2;
+  parts.push(b.part(`${prefix}-base`, b.box({ expr: 'length' }, 0.5, { expr: 'width' }), 0, 0.25, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-n`, b.box({ expr: 'length' }, { expr: 'depth' }, { expr: 'wall' }),
+    0, { expr: '0.5 + depth / 2' }, { expr: '-width / 2' }, 'concrete'));
+  parts.push(b.part(`${prefix}-wall-s`, b.box({ expr: 'length' }, { expr: 'depth' }, { expr: 'wall' }),
+    0, { expr: '0.5 + depth / 2' }, { expr: 'width / 2' }, 'concrete'));
+
+  // 东西端墙开进水/出水洞：整面拆成上下与两侧颊板
+  for (const [side, sign] of [['w', -1], ['e', 1]]) {
     parts.push(b.part(`${prefix}-wall-${side}-below`,
-      b.box(wall, lowerTop, width), x, lowerTop / 2, 0, 'concrete'));
+      b.box({ expr: 'wall' }, { expr: '3.45' }, { expr: 'width' }),
+      { expr: `length / 2 * ${sign}` }, { expr: '1.725' }, 0, 'concrete'));
     parts.push(b.part(`${prefix}-wall-${side}-above`,
-      b.box(wall, 0.5 + depth - upperBottom, width), x,
-      upperBottom + (0.5 + depth - upperBottom) / 2, 0, 'concrete'));
-    const cheek = (width - openW) / 2;
-    for (const sign of [-1, 1]) {
-      parts.push(b.part(
-        `${prefix}-wall-${side}-cheek-${sign > 0 ? 'a' : 'b'}`,
-        b.box(wall, openH, cheek),
-        x,
-        openY,
-        sign * (openW / 2 + cheek / 2),
-        'concrete',
-      ));
-    }
-  }
-  parts.push(b.part(`${prefix}-water`, b.box(length - wall * 2, 0.06, width - wall * 2), 0, top - 0.5, 0, 'water'));
-
-  // 导流墙：形成推流廊道，三段错位布置。
-  for (let index = 0; index < 3; index += 1) {
-    const x = -length / 2 + (index + 1) * (length / 4);
-    parts.push(b.part(
-      `${prefix}-baffle-${index + 1}`,
-      b.box(0.35, depth - 0.15, width - 4),
-      x,
-      0.5 + (depth - 0.15) / 2,
-      index % 2 === 0 ? 1.6 : -1.6,
-      'concrete',
-    ));
+      b.box({ expr: 'wall' }, { expr: 'depth - 4.05' }, { expr: 'width' }),
+      { expr: `length / 2 * ${sign}` }, { expr: '5.525' }, 0, 'concrete'));
+    parts.push(b.part(`${prefix}-wall-${side}-cheek-a`,
+      b.box({ expr: 'wall' }, 1.1, { expr: '(width - 1.8) / 2' }),
+      { expr: `length / 2 * ${sign}` }, 4.0, { expr: '0.9 + (width - 1.8) / 4' }, 'concrete'));
+    parts.push(b.part(`${prefix}-wall-${side}-cheek-b`,
+      b.box({ expr: 'wall' }, 1.1, { expr: '(width - 1.8) / 2' }),
+      { expr: `length / 2 * ${sign}` }, 4.0, { expr: '-0.9 - (width - 1.8) / 4' }, 'concrete'));
   }
 
-  // 曝气支管：沿池长均布，接口朝上接空气干管。
-  for (let index = 0; index < 10; index += 1) {
-    const x = -length / 2 + 2 + index * ((length - 4) / 9);
-    parts.push(b.part(
-      `${prefix}-air-${index + 1}`,
-      b.box(0.18, 0.18, width - 3),
-      x,
-      0.9,
-      0,
-      'air',
-    ));
-  }
+  parts.push(b.part(`${prefix}-water`, b.box({ expr: 'length - wall * 2' }, 0.06, { expr: 'width - wall * 2' }),
+    0, { expr: '0.5 + depth - 0.5' }, 0, 'water'));
 
-  // 检修走道沿一侧布置，外侧加栏杆。
-  parts.push(b.part(`${prefix}-walkway`, b.box(length, 0.14, 1.3), 0, top + 0.05, -width / 2 - 0.7, 'walkway'));
-  parts.push(b.part(`${prefix}-walkway-rail`, b.box(length, 0.08, 0.08), 0, top + 0.95, -width / 2 - 1.3, 'steel'));
-  for (let index = 0; index <= 10; index += 1) {
-    const x = -length / 2 + index * (length / 10);
-    parts.push(b.part(
-      `${prefix}-walkway-post-${index + 1}`,
-      b.box(0.06, 0.95, 0.06),
-      x,
-      top + 0.5,
-      -width / 2 - 1.3,
-      'steel',
-    ));
-  }
+  parts.push(b.repeatPart(`${prefix}-baffle`, corridors,
+    b.box(0.35, { expr: 'depth - 0.15' }, { expr: 'width - 4' }),
+    {
+      transform: {
+        translation: {
+          x: { expr: '(i + 1) * length / (count + 1)' },
+          y: { expr: '0.5 + (depth - 0.15) / 2' },
+          z: 1.6,
+        },
+      },
+      role: 'concrete',
+    }));
+
+  parts.push(b.repeatPart(`${prefix}-air`, airLines,
+    b.box(0.18, 0.18, { expr: 'width - 3' }),
+    {
+      transform: {
+        translation: {
+          x: { expr: '-length / 2 + 2 + i * (length - 4) / (count - 1)' },
+          y: 0.9,
+          z: 0,
+        },
+      },
+      role: 'air',
+    }));
+
+  parts.push(b.part(`${prefix}-walkway`, b.box({ expr: 'length' }, 0.14, 1.3),
+    0, { expr: '0.5 + depth + 0.05' }, { expr: '-width / 2 - 0.7' }, 'walkway'));
+  parts.push(b.part(`${prefix}-walkway-rail`, b.box({ expr: 'length' }, 0.07, 0.07),
+    0, { expr: '0.5 + depth + 0.95' }, { expr: '-width / 2 - 1.3' }, 'steel'));
+  parts.push(b.repeatPart(`${prefix}-walkway-post`, posts,
+    b.box(0.06, 0.95, 0.06),
+    {
+      transform: {
+        translation: {
+          x: { expr: '-length / 2 + i * length / (count - 1)' },
+          y: { expr: '0.5 + depth + 0.5' },
+          z: { expr: '-width / 2 - 1.3' },
+        },
+      },
+      role: 'steel',
+    }));
 
   return parts;
 }
 
-
-// 进水格栅渠：矩形渠道，内设粗细两道格栅，渠道两侧留检修走道。
 function screeningChannel(b, prefix, { length = 20, width = 6, depth = 2.6 }) {
   const parts = [];
   const top = 0.5 + depth;
@@ -989,13 +1003,23 @@ function buildPlan(projectId) {
 
   // 曝气池（推流式廊道）。首段接纳初沉出水，后续段接纳混合液，端口介质不同，
   // 因此按进水介质分成两种定义。
-  b.define('aeration-feed', 'Aeration basin (feed)', aerationBasin(b, 'ae', { length: 42, width: 20, depth: 6 }), [
+  b.define('aeration-feed', 'Aeration basin (feed)', aerationBasin(b, 'ae', {}), [
     b.port('inlet', 'ae-wall-w-below', -21, 4.0, 0, vec(1, 0, 0), 'settled-water', 0.9),
     b.port('outlet', 'ae-wall-e-below', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+  ], [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 6, unit: 'm' },
+    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
   ]);
-  b.define('aeration-mixed', 'Aeration basin (mixed liquor)', aerationBasin(b, 'ae', { length: 42, width: 20, depth: 6 }), [
+  b.define('aeration-mixed', 'Aeration basin (mixed liquor)', aerationBasin(b, 'ae', {}), [
     b.port('inlet', 'ae-wall-w-below', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
     b.port('outlet', 'ae-wall-e-below', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+  ], [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 42, unit: 'm' },
+    { name: 'width', valueType: { kind: 'number', minimum: null, maximum: null }, default: 20, unit: 'm' },
+    { name: 'depth', valueType: { kind: 'number', minimum: null, maximum: null }, default: 6, unit: 'm' },
+    { name: 'wall', valueType: { kind: 'number', minimum: null, maximum: null }, default: 0.45, unit: 'm' },
   ]);
 
   // 二沉池（与初沉池同构，尺寸与用途不同）
@@ -1043,6 +1067,8 @@ function buildPlan(projectId) {
   b.ground('道路（污泥区支路）', 240, 250, 40, 130, 'asphalt', -0.03);
   // 道路标线：两侧各一条白线。
   b.material('marking', 'Road marking', [0.86, 0.86, 0.84, 1]);
+  // 接触阴影：贴在构筑物脚下的深色薄片，替代真正的阴影贴图。
+  b.material('shadow', 'Contact shadow', [0.04, 0.05, 0.06, 0.30]);
   for (const edgeZ of [-71.4, -62.6, 40.6, 49.4]) {
     b.ground(`标线 z=${edgeZ}`, -150, 470, edgeZ - 0.15, edgeZ + 0.15, 'marking', -0.018);
   }
@@ -1063,13 +1089,13 @@ function buildPlan(projectId) {
     }, { radius: 13, depth: 4.2, wall: 0.45 });
     b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 45, 0, z, {
       stage: 'biological', tag: `AE-${series}01`, train: `Train${series}`,
-    });
+    }, { length: 42, width: 20, depth: 6, wall: 0.45 });
     b.instance('aeration-mixed', `ae-${key}2`, `AE-${series}02 曝气池（缺氧段）`, 92, 0, z, {
       stage: 'biological', tag: `AE-${series}02`, train: `Train${series}`,
-    });
+    }, { length: 42, width: 20, depth: 6, wall: 0.45 });
     b.instance('aeration-mixed', `ae-${key}3`, `AE-${series}03 曝气池（好氧段）`, 139, 0, z, {
       stage: 'biological', tag: `AE-${series}03`, train: `Train${series}`,
-    });
+    }, { length: 42, width: 20, depth: 6, wall: 0.45 });
     for (let index = 1; index <= 3; index += 1) {
       b.instance('secondary-clarifier', `sc-${key}${index}`,
         `SC-${series}0${index} 二沉池`, 190 + (index - 1) * 45, 0, z, {
@@ -1121,6 +1147,30 @@ function buildPlan(projectId) {
     b.walkway(`ST-${series}05 二沉间栈桥`, [212, z], [223, z], { y: 4.4 });
     b.walkway(`ST-${series}06 二沉间栈桥`, [257, z], [268, z], { y: 4.4 });
   }
+
+  // 接触阴影：按构筑物占地铺一层，位置略偏右下（光从左上来）。
+  for (const train of trains) {
+    const { series, z } = train;
+    b.shadowPatch(`SH-PC${series}`, 0.9, z + 0.8, 29, 29, true);
+    for (let index = 1; index <= 3; index += 1) {
+      b.shadowPatch(`SH-AE${series}0${index}`, 45 + (index - 1) * 47 + 0.9, z + 0.8, 45, 23);
+      b.shadowPatch(`SH-SC${series}0${index}`, 190 + (index - 1) * 45 + 0.9, z + 0.8, 33, 33, true);
+    }
+  }
+  b.shadowPatch('SH-GR', -135, 0, 23, 9);
+  b.shadowPatch('SH-PS', -105, 0, 25, 16);
+  b.shadowPatch('SH-GC', -70, 0, 29, 14);
+  b.shadowPatch('SH-FL', 350, 0, 36, 30);
+  b.shadowPatch('SH-UV', 395, 0, 29, 9);
+  b.shadowPatch('SH-TH1', 250, 62, 19, 19, true);
+  b.shadowPatch('SH-TH2', 288, 62, 19, 19, true);
+  b.shadowPatch('SH-DG1', 340, 62, 26, 26, true);
+  b.shadowPatch('SH-DG2', 340, 102, 26, 26, true);
+  b.shadowPatch('SH-DW', 405, 78, 29, 18);
+  b.shadowPatch('SH-GH', 380, 118, 20, 20, true);
+  b.shadowPatch('SH-CB', -135, -62, 33, 19);
+  b.shadowPatch('SH-BLW', 92, -62, 29, 17);
+  b.shadowPatch('SH-CH', 350, -55, 23, 15);
 
   // 池边设备：控制箱与立式泵，让池与池之间不再空旷。
   const equipment = (name, x, z) => {

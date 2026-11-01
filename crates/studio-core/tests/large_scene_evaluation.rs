@@ -26,6 +26,7 @@ fn group_parts_create_hierarchy_without_empty_meshes() {
         parent_id: None,
         transform: PartTransform::default(),
         content: PartContent::Group,
+        repeat: None,
         material_role: None,
         metadata: BTreeMap::new(),
         visible: true,

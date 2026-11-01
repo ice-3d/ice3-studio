@@ -219,6 +219,7 @@ fn box_component_document() -> Document {
                 height: ScalarBinding::Literal(1.0),
                 depth: ScalarBinding::Literal(1.0),
             },
+            repeat: None,
             material_role: None,
             metadata: BTreeMap::new(),
             visible: true,
