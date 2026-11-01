@@ -239,7 +239,33 @@ function createBuilder() {
     }
   };
 
-  return { state, material, part, port, define, instance, connect, ground, walkway, box, cylinder, rotateY };
+  // 小型设备：一个控制箱加一台立式泵，作为独立节点放在构筑物旁。
+  const equipment = (kind, name, x, y, z, metadata = {}) => {
+    const nodeId = id('node');
+    state.ops.push({
+      type: 'node.create',
+      node_id: nodeId,
+      parent_id: null,
+      name,
+      transform: nodeTransform(x, y, z),
+      content: { type: 'primitive', kind: 'box', width: 1.2, height: 1.6, depth: 0.8 },
+      material_id: state.materials.get('facade'),
+      metadata: { role: 'equipment', kind, ...metadata },
+    });
+    const pumpId = id('node');
+    state.ops.push({
+      type: 'node.create',
+      node_id: pumpId,
+      parent_id: null,
+      name: `${name} 泵`,
+      transform: nodeTransform(x + 1.8, y + 0.6, z),
+      content: { type: 'primitive', kind: 'cylinder', radius: 0.45, height: 1.2, segments: 18 },
+      material_id: state.materials.get('steel'),
+      metadata: { role: 'equipment', kind: 'pump' },
+    });
+  };
+
+  return { state, material, part, port, define, instance, connect, ground, walkway, equipment, box, cylinder, rotateY };
 }
 
 // 圆形池：底板 + 环形池壁 + 水面 + 中心进水筒 + 周边出水堰 + 刮泥桥 + 栏杆 + 爬梯
@@ -382,6 +408,22 @@ function circularBasin(b, prefix, { radius = 12, depth = 4, wall = 0.45, segment
   }
   parts.push(b.part(`${prefix}-ladder-rail-a`, b.box(0.06, depth + 1.2, 0.06), radius + 0.25, (depth + 1.2) / 2, -0.42, 'steel'));
   parts.push(b.part(`${prefix}-ladder-rail-b`, b.box(0.06, depth + 1.2, 0.06), radius + 0.25, (depth + 1.2) / 2, 0.42, 'steel'));
+  // 护笼：自 2 米起每 2 米一道 U 形圈，共 3 段折线近似半圆。
+  const cageStart = 2.0;
+  const cageCount = Math.max(0, Math.floor((depth - cageStart) / 2));
+  for (let index = 0; index < cageCount; index += 1) {
+    const y = cageStart + index * 2;
+    for (const [offsetZ, offsetX] of [[-0.55, 0.15], [0, 0.55], [0.55, 0.15]]) {
+      parts.push(b.part(
+        `${prefix}-cage-${index + 1}-${offsetZ}`,
+        b.box(offsetZ === 0 ? 0.6 : 0.5, 0.05, 0.05),
+        radius + 0.25 + offsetX,
+        y,
+        offsetZ,
+        'steel',
+      ));
+    }
+  }
 
   return parts;
 }
@@ -393,8 +435,30 @@ function aerationBasin(b, prefix, { length = 40, width = 20, depth = 6, wall = 0
   parts.push(b.part(`${prefix}-base`, b.box(length, 0.5, width), 0, 0.25, 0, 'concrete'));
   parts.push(b.part(`${prefix}-wall-n`, b.box(length, depth, wall), 0, 0.5 + depth / 2, -width / 2, 'concrete'));
   parts.push(b.part(`${prefix}-wall-s`, b.box(length, depth, wall), 0, 0.5 + depth / 2, width / 2, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-w`, b.box(wall, depth, width), -length / 2, 0.5 + depth / 2, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-wall-e`, b.box(wall, depth, width), length / 2, 0.5 + depth / 2, 0, 'concrete'));
+  // 东西两端墙在进水/出水标高开洞：把整面墙拆成四段，等价于减去一个盒子。
+  const openY = 4.0;
+  const openH = 1.1;
+  const openW = 1.8;
+  for (const [side, x] of [['w', -length / 2], ['e', length / 2]]) {
+    const lowerTop = openY - openH / 2;
+    const upperBottom = openY + openH / 2;
+    parts.push(b.part(`${prefix}-wall-${side}-below`,
+      b.box(wall, lowerTop, width), x, lowerTop / 2, 0, 'concrete'));
+    parts.push(b.part(`${prefix}-wall-${side}-above`,
+      b.box(wall, 0.5 + depth - upperBottom, width), x,
+      upperBottom + (0.5 + depth - upperBottom) / 2, 0, 'concrete'));
+    const cheek = (width - openW) / 2;
+    for (const sign of [-1, 1]) {
+      parts.push(b.part(
+        `${prefix}-wall-${side}-cheek-${sign > 0 ? 'a' : 'b'}`,
+        b.box(wall, openH, cheek),
+        x,
+        openY,
+        sign * (openW / 2 + cheek / 2),
+        'concrete',
+      ));
+    }
+  }
   parts.push(b.part(`${prefix}-water`, b.box(length - wall * 2, 0.06, width - wall * 2), 0, top - 0.5, 0, 'water'));
 
   // 导流墙：形成推流廊道，三段错位布置。
@@ -855,6 +919,35 @@ function gasHolder(b, prefix, { radius = 8.5 }) {
   return parts;
 }
 
+// 带开孔的墙板：把一整面墙拆成四段，中间留出矩形洞。
+// 这是"减一个盒子"的手工等价物，洞口的坐标由调用方给出。
+function wallWithOpening(b, prefix, {
+  width, depth, wall, along = 'z', centreY = 4, holeWidth = 1.6, holeHeight = 1.1,
+}) {
+  const lower = centreY - holeHeight / 2;
+  const upper = centreY + holeHeight / 2;
+  const parts = [];
+  // 洞下方整条
+  parts.push(b.part(`${prefix}-below`, b.box(along === 'z' ? 0.45 : width, lower, along === 'z' ? width : wall),
+    0, lower / 2, 0, 'concrete'));
+  // 洞上方整条
+  parts.push(b.part(`${prefix}-above`, b.box(along === 'z' ? 0.45 : width, depth - upper, along === 'z' ? width : wall),
+    0, upper + (depth - upper) / 2, 0, 'concrete'));
+  // 洞两侧各一条
+  const side = (width - holeWidth) / 2;
+  for (const sign of [-1, 1]) {
+    parts.push(b.part(
+      `${prefix}-side-${sign > 0 ? 'a' : 'b'}`,
+      b.box(along === 'z' ? 0.45 : side, holeHeight, along === 'z' ? side : wall),
+      0,
+      centreY,
+      along === 'z' ? sign * (holeWidth / 2 + side / 2) : 0,
+      'concrete',
+    ));
+  }
+  return parts;
+}
+
 function buildPlan(projectId) {
   const b = createBuilder();
   // 配色取自真实厂区照片：池壁浅米色、水面深蓝绿、屋面蓝灰。
@@ -896,12 +989,12 @@ function buildPlan(projectId) {
   // 曝气池（推流式廊道）。首段接纳初沉出水，后续段接纳混合液，端口介质不同，
   // 因此按进水介质分成两种定义。
   b.define('aeration-feed', 'Aeration basin (feed)', aerationBasin(b, 'ae', { length: 42, width: 20, depth: 6 }), [
-    b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'settled-water', 0.9),
-    b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+    b.port('inlet', 'ae-wall-w-below', -21, 4.0, 0, vec(1, 0, 0), 'settled-water', 0.9),
+    b.port('outlet', 'ae-wall-e-below', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
   ]);
   b.define('aeration-mixed', 'Aeration basin (mixed liquor)', aerationBasin(b, 'ae', { length: 42, width: 20, depth: 6 }), [
-    b.port('inlet', 'ae-wall-w', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
-    b.port('outlet', 'ae-wall-e', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+    b.port('inlet', 'ae-wall-w-below', -21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
+    b.port('outlet', 'ae-wall-e-below', 21, 4.0, 0, vec(1, 0, 0), 'mixed-liquor', 0.9),
   ]);
 
   // 二沉池（与初沉池同构，尺寸与用途不同）
@@ -943,6 +1036,11 @@ function buildPlan(projectId) {
   b.ground('道路（北）', -150, 470, -72, -62, 'asphalt', -0.03);
   b.ground('道路（南）', -150, 470, 40, 50, 'asphalt', -0.03);
   b.ground('道路（污泥区支路）', 240, 250, 40, 130, 'asphalt', -0.03);
+  // 道路标线：两侧各一条白线。
+  b.material('marking', 'Road marking', [0.86, 0.86, 0.84, 1]);
+  for (const edgeZ of [-71.4, -62.6, 40.6, 49.4]) {
+    b.ground(`标线 z=${edgeZ}`, -150, 470, edgeZ - 0.15, edgeZ + 0.15, 'marking', -0.018);
+  }
 
   // 总平面：两条并联系列共用进水段与深度处理，沿 x 轴自西向东。
   b.instance('screening-channel', 'gr-1', 'GR-101 进水格栅渠', -135, 0, 0, { stage: 'intake', tag: 'GR-101' });
@@ -1018,6 +1116,19 @@ function buildPlan(projectId) {
     b.walkway(`ST-${series}05 二沉间栈桥`, [212, z], [223, z], { y: 4.4 });
     b.walkway(`ST-${series}06 二沉间栈桥`, [257, z], [268, z], { y: 4.4 });
   }
+
+  // 池边设备：控制箱与立式泵，让池与池之间不再空旷。
+  const equipment = (name, x, z) => {
+    b.equipment('control-box', name, x, 0, z, { tag: name.split(' ')[0] });
+  };
+  for (const train of trains) {
+    for (let index = 1; index <= 3; index += 1) {
+      equipment(`EQ-SC${train.series}0${index} 控制箱`, 190 + (index - 1) * 45 + 16, train.z - 18);
+    }
+    equipment(`EQ-AE${train.series} 控制箱`, 92, train.z - 16);
+  }
+  equipment('EQ-FL 控制箱', 350, -18);
+  equipment('EQ-GC 控制箱', -70, -14);
 
   // 污泥线：剩余污泥 → 浓缩 → 消化 → 脱水
   b.connect('sc-a1', 'sludge', 'th-1', 'inlet', 'SC-101 → TH-101 剩余污泥', 'waste-sludge', 0.35);
@@ -1097,6 +1208,10 @@ async function main() {
       return envelope.result;
     };
 
+    // 同名工程已存在时先移除，避免重复生成时卡在 project already exists。
+    if (explicitWorkspace) {
+      await rm(join(workspace, plan.projectId), { recursive: true, force: true }).catch(() => {});
+    }
     await rpc('project.create', { projectId: plan.projectId });
     const committed = await rpc('document.apply', {
       expectedRevision: 0,
