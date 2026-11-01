@@ -30,6 +30,8 @@ export interface ScenePreviewSource {
   readonly packetUrl?: string | null;
 }
 
+export const SCENE_BACKGROUND_COLOR = '#8ecdf1';
+
 type ReferenceSelectionBinding = {
   nodeId: string | null;
   selectionId: string;
@@ -62,7 +64,7 @@ export class SceneAdapter {
   async mount(container: HTMLElement): Promise<void> {
     this.viewportElement = container;
     const engine = await new ICE3({ renderer: 'webgl2' }).initAsync(container);
-    engine.setBackgroundColor('#14181c');
+    engine.setBackgroundColor(SCENE_BACKGROUND_COLOR);
     const camera = new ICEPerspectiveCamera({
       id: 'studio-camera',
       fov: 42,

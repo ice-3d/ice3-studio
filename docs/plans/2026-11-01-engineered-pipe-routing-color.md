@@ -10,8 +10,8 @@
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
 > checkbox (`- [x]`) syntax for tracking.
 
-**Goal:** 让污水处理厂管线在近景连续、平滑、可辨，并按黄色工艺水、绿色出水、蓝色气体、
-红色污泥和紫色药剂分组着色。
+**Goal:** 让污水处理厂管线在近景连续、平滑、可辨，并按亮银普通水线、绿色出水、蓝色气体、
+红色污泥和黄色药剂分组着色。
 
 **Architecture:** 在 Studio Core 中把直角折线替换为采样后的圆滑中心线，并把扫掠截面
 改为平行传输坐标系，保持整根管道连续且不扭结。资产层继续通过公开 Operation 指定介质
@@ -32,8 +32,11 @@ Studio JSON-RPC、React Viewer、Playwright、Google Chrome
 - 不推送远端；当前任务只产生本地提交。
 - 工程必须保持 300,000 至 500,000 有效三角形、最多 150,000 唯一三角形、
   15,000 展开节点、500 实例和 48 材质。
-- 管线颜色按功能分组，黄色、绿色、蓝色和红色必须一眼可辨。
+- 管线颜色按功能分组，亮银、绿色、蓝色、红色和黄色必须一眼可辨。
 - 验收截图写入现有 `output/`，该目录保持 git-ignored。
+
+> **Implementation note:** 最终验收配色覆盖了 Task 1 初稿：普通水线由黄色改为亮银色，
+> 化学药剂由紫色改为黄色；下方 Task 1 保留原始 TDD 记录。
 
 ## Review Focus
 

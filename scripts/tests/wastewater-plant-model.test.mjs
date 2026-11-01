@@ -308,7 +308,7 @@ test('every fluid medium has explicit material and one-purpose ports', () => {
   assert.deepEqual(result.issues, []);
 });
 
-test('pipe materials use functional yellow, green, blue and red groups', () => {
+test('pipe materials distinguish ordinary silver and functional colors', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const materials = new Map(
     plan.operations
@@ -316,7 +316,7 @@ test('pipe materials use functional yellow, green, blue and red groups', () => {
       .map(({ name, base_color }) => [name, base_color.slice(0, 3)]),
   );
   const groups = {
-    yellow: [
+    silver: [
       'Pipe / raw water',
       'Pipe / process water',
     ],
@@ -328,9 +328,10 @@ test('pipe materials use functional yellow, green, blue and red groups', () => {
       'Pipe / return sludge',
     ],
   };
-  for (const name of groups.yellow) {
+  for (const name of groups.silver) {
     const [r, g, b] = materials.get(name);
-    assert.ok(r > b * 1.8 && g > b * 1.5, name);
+    assert.ok(Math.min(r, g, b) > 0.5, name);
+    assert.ok(Math.max(r, g, b) - Math.min(r, g, b) < 0.1, name);
   }
   for (const name of groups.green) {
     const [r, g, b] = materials.get(name);
@@ -345,8 +346,8 @@ test('pipe materials use functional yellow, green, blue and red groups', () => {
     assert.ok(r > g * 1.7 && r > b * 1.5, name);
   }
   const chemical = materials.get('Pipe / chemical');
-  assert.ok(chemical[0] > chemical[1] * 1.3);
-  assert.ok(chemical[2] > chemical[1] * 1.2);
+  assert.ok(chemical[0] > chemical[2] * 1.8);
+  assert.ok(chemical[1] > chemical[2] * 1.5);
 });
 
 test('port validation rejects reuse of a normal process port', () => {

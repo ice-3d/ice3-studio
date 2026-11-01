@@ -109,15 +109,15 @@ function buildPlan(projectId) {
   // 管道按介质分色：原水灰、工艺水黄褐、清水绿、污泥深褐、空气蓝。
   // 这些材质同时给「连接管线」和「管廊主管」用，必须在任何 define 之前声明：
   // 组件在 define 时就把材质 id 写进 overrides，声明晚了取到的就是 undefined。
-  b.material('pipe-raw', 'Pipe / raw water', srgb('#d9b62d'));
-  b.material('pipe-process', 'Pipe / process water', srgb('#c89f22'));
-  b.material('pipe-clean', 'Pipe / clean water', srgb('#3f9f62'));
+  b.material('pipe-raw', 'Pipe / raw water', srgb('#e5e9eb'));
+  b.material('pipe-process', 'Pipe / process water', srgb('#d2d9dc'));
+  b.material('pipe-clean', 'Pipe / clean water', srgb('#36c46f'));
   b.material('pipe-sludge', 'Pipe / sludge', srgb('#c43b39'));
   b.material('pipe-primary-sludge', 'Pipe / primary sludge', srgb('#b93232'));
   b.material('pipe-return-sludge', 'Pipe / return sludge', srgb('#db4945'));
   b.material('pipe-air', 'Pipe / air', srgb('#3479c8'));
   b.material('pipe-biogas', 'Pipe / biogas', srgb('#2766ad'));
-  b.material('pipe-chemical', 'Pipe / chemical', srgb('#8b5fc0'));
+  b.material('pipe-chemical', 'Pipe / chemical', srgb('#d9bb3a'));
   // 道路标线、接触阴影、绿篱、铭牌石板。
   b.material('marking', 'Road marking', srgb('#f0f0ee'));
   b.material('shadow', 'Contact shadow', srgb('#0e1113', 0.3));

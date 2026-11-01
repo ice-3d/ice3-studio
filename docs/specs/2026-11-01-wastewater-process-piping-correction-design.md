@@ -205,14 +205,14 @@ Core 不识别“初沉池”“RAS”或“沼气柜”等业务词。
 
 | 颜色 | 功能类别 | 介质 |
 |---|---|---|
-| 黄色 | 原水与工艺水 | `raw-water`、`screened-water`、`lifted-water`、`degritted-water`、`settled-water`、`mixed-liquor` |
+| 亮银 | 普通原水与工艺水 | `raw-water`、`screened-water`、`lifted-water`、`degritted-water`、`settled-water`、`mixed-liquor` |
 | 绿色 | 清水与出水 | `secondary-effluent`、`filtered-water`、`final-effluent` |
 | 蓝色 | 气体 | `air`、`biogas` |
 | 红色 | 污泥 | `primary-sludge`、`return-sludge`、`waste-sludge`、`thickened-sludge`、`digested-sludge` |
-| 紫色 | 化学药剂 | `chemical` |
+| 黄色 | 化学药剂 | `chemical` |
 
-同一功能组可以按介质使用同色系的轻微明度差异，但必须保持该组主色可辨。黄色、绿色、
-蓝色和红色是阶段二视觉验收的强制检查项。
+同一功能组可以按介质使用同色系的轻微明度差异，但必须保持该组主色可辨。亮银、绿色、
+蓝色、红色和黄色是阶段二视觉验收的强制检查项。
 
 ## 8. 数据与 API
 

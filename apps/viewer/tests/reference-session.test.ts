@@ -5,7 +5,12 @@ import {
   applyReferenceOverrides,
   lightenReferenceColor,
   mapReferenceSelection,
+  SCENE_BACKGROUND_COLOR,
 } from '../src/viewport/SceneAdapter';
+
+test('uses a bright daylight scene background', () => {
+  assert.equal(SCENE_BACKGROUND_COLOR, '#8ecdf1');
+});
 
 test('loads reference metadata without requesting document geometry', async () => {
   const source = {
