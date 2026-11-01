@@ -22,6 +22,11 @@ const steps = [
     args: ['--test', 'scripts/tests/toolchain-bundle.test.mjs'],
   },
   {
+    label: 'Toolchain independence',
+    command: 'node',
+    args: ['scripts/verify-toolchain-independence.mjs'],
+  },
+  {
     label: 'Generated schemas',
     command: 'cargo',
     args: [
