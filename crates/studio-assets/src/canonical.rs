@@ -285,7 +285,12 @@ fn write_mesh(
             "max": component_bounds(&primitive.positions, 1)
         }));
         let mut attributes = Map::from_iter([("POSITION".into(), Value::from(position_accessor))]);
-        if let Some(normals) = &primitive.normals {
+        let generated_normals = primitive
+            .normals
+            .is_none()
+            .then(|| compute_normals(&primitive.positions, &primitive.indices));
+        let normals = primitive.normals.as_ref().or(generated_normals.as_ref());
+        if let Some(normals) = normals {
             let values = normals.iter().flat_map(|value| *value).collect::<Vec<_>>();
             let view = binary.append(bytemuck::cast_slice(&values), Some(34962));
             let accessor = binary.accessor(json!({
@@ -490,6 +495,30 @@ fn validate_output_meshes(meshes: &[CanonicalMesh]) -> AssetResult<()> {
         }
     }
     Ok(())
+}
+
+fn compute_normals(positions: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
+    let mut normals = vec![Vec3::ZERO; positions.len()];
+    for triangle in indices.as_chunks::<3>().0 {
+        let [a, b, c] = triangle.map(|index| Vec3::from_array(positions[index as usize]));
+        let normal = (b - a).cross(c - a);
+        if normal.length_squared() <= f32::EPSILON {
+            continue;
+        }
+        normals[triangle[0] as usize] += normal;
+        normals[triangle[1] as usize] += normal;
+        normals[triangle[2] as usize] += normal;
+    }
+    normals
+        .into_iter()
+        .map(|normal| {
+            if normal.length_squared() <= f32::EPSILON {
+                Vec3::Z.to_array()
+            } else {
+                normal.normalize().to_array()
+            }
+        })
+        .collect()
 }
 
 fn node_indices(scene: &CanonicalScene) -> AssetResult<BTreeMap<String, usize>> {

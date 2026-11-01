@@ -39,6 +39,22 @@ fn writes_stable_bytes_for_the_same_scene() {
     assert_eq!(first, second);
 }
 
+#[test]
+fn generates_normals_when_the_source_has_none() {
+    let mut scene = fixture_scene();
+    scene.meshes[0].primitives[0].normals = None;
+    let bytes = write_prepared_glb(&scene, &options("writer-fixture")).unwrap();
+    let source = read_glb_bytes(&bytes, &std::env::temp_dir()).unwrap();
+    let primitive = &source.json["meshes"][0]["primitives"][0];
+    let normal_accessor = primitive["attributes"]["NORMAL"]
+        .as_u64()
+        .expect("generated NORMAL accessor");
+    assert_eq!(
+        source.json["accessors"][normal_accessor as usize]["count"],
+        3
+    );
+}
+
 fn options(asset_id: &str) -> PreparedGlbOptions {
     PreparedGlbOptions {
         asset_id: asset_id.into(),
