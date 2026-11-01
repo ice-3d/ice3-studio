@@ -121,6 +121,9 @@ function createBuilder() {
     const overrides = {};
     for (const item of parts) {
       if (item.role) {
+        if (!state.materials.has(item.role)) {
+          throw new Error(`component ${name} references unknown material role ${item.role}`);
+        }
         overrides[item.id] = {
           materialId: state.materials.get(item.role),
           parameters: {},
@@ -510,7 +513,7 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
   const bridgeLength = bridgeMode === 'half' ? 'radius + 0.6' : 'radius * 2 + 1.2';
   const bridgeX = bridgeMode === 'half' ? 'radius / 2' : '0';
 
-  parts.push(b.part(`${prefix}-base`, b.cylinder({ expr: 'radius' }, 0.5, segments * 2), 0, 0.25, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-base`, b.cylinder({ expr: 'radius' }, 0.5, segments * 2), 0, 0.25, 0, 'concrete-old'));
 
   // 池壁：段长等于弧长，位置与朝向按索引算
   parts.push(b.repeatPart(`${prefix}-wall`, segments,
@@ -524,11 +527,11 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
         },
         yaw: { expr: '-i * 360 / count' },
       },
-      role: 'concrete',
+      role: 'concrete-new',
     }));
 
   parts.push(b.part(`${prefix}-water`, b.cylinder({ expr: 'radius - wall' }, 0.06, segments * 2),
-    0, { expr: '0.5 + depth - 0.55' }, 0, 'water'));
+    0, { expr: '0.5 + depth - 0.55' }, 0, 'water-clarified'));
   parts.push(b.repeatPart(`${prefix}-waterline`, segments,
     b.box({ expr: 'tau * (radius - wall / 2) / count' }, 0.24, 0.1),
     {
@@ -540,7 +543,7 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
         },
         yaw: { expr: '-i * 360 / count' },
       },
-      role: 'water',
+      role: 'concrete-wet',
     }));
   parts.push(b.repeatPart(`${prefix}-scum-band`, segments,
     b.box({ expr: 'tau * (radius - wall - 0.86) / count' }, 0.1, 0.3),
@@ -553,14 +556,14 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
         },
         yaw: { expr: '-i * 360 / count' },
       },
-      role: 'sludge',
+      role: 'scum',
     }));
   parts.push(b.part(`${prefix}-inlet-well`, b.cylinder(1.5, { expr: 'depth + 0.9' }, 32),
-    0, { expr: '0.5 + (depth + 0.9) / 2' }, 0, 'concrete'));
+    0, { expr: '0.5 + (depth + 0.9) / 2' }, 0, 'concrete-old'));
   parts.push(b.part(`${prefix}-inlet-sleeve`, b.cylinder(0.58, 1.3, 18),
-    0, { expr: '0.5 + depth + 0.15' }, 0, 'steel'));
+    0, { expr: '0.5 + depth + 0.15' }, 0, 'stainless'));
   parts.push(b.part(`${prefix}-outlet-sleeve`, b.cylinder(0.5, 1.1, 18),
-    { expr: 'radius' }, { expr: '0.5 + depth - 0.15' }, 0, 'steel',
+    { expr: 'radius' }, { expr: '0.5 + depth - 0.15' }, 0, 'stainless',
     { rotation: LIE_ALONG_X }));
 
   // 出水堰：贴内壁一圈，堰顶高于水面
@@ -575,7 +578,7 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
         },
         yaw: { expr: '-i * 360 / count' },
       },
-      role: 'concrete',
+      role: 'concrete-new',
     }));
 
   // 池顶压顶：比墙宽的凸边
@@ -590,7 +593,7 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
         },
         yaw: { expr: '-i * 360 / count' },
       },
-      role: 'concrete',
+      role: 'concrete-new',
     }));
 
   // 池顶环形走道
@@ -620,7 +623,7 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
         },
         yaw: { expr: '-i * 360 / count' },
       },
-      role: 'steel',
+      role: 'steel-dark',
     }));
   parts.push(b.repeatPart(`${prefix}-post`, Math.floor(segments / 3),
     b.box(0.06, 1.1, 0.06),
@@ -632,7 +635,7 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
           z: { expr: 'sin(i * 3 * tau / count) * radius' },
         },
       },
-      role: 'steel',
+      role: 'steel-dark',
     }));
 
   // 外壁爬梯：9 级踏步 + 两根边轨
@@ -646,18 +649,18 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
           z: 0,
         },
       },
-      role: 'steel',
+      role: 'steel-dark',
     }));
   parts.push(b.part(`${prefix}-ladder-rail-a`, b.box(0.06, { expr: 'depth + 1.2' }, 0.06),
-    { expr: 'radius + 0.25' }, { expr: '(depth + 1.2) / 2' }, -0.42, 'steel'));
+    { expr: 'radius + 0.25' }, { expr: '(depth + 1.2) / 2' }, -0.42, 'steel-dark'));
   parts.push(b.part(`${prefix}-ladder-rail-b`, b.box(0.06, { expr: 'depth + 1.2' }, 0.06),
-    { expr: 'radius + 0.25' }, { expr: '(depth + 1.2) / 2' }, 0.42, 'steel'));
+    { expr: 'radius + 0.25' }, { expr: '(depth + 1.2) / 2' }, 0.42, 'steel-dark'));
 
   // 刮泥桥：初沉池使用半桥，二沉池使用贯穿池心的全桥。
   parts.push(b.part(`${prefix}-bridge-top`, b.box({ expr: bridgeLength }, 0.12, 0.16),
-    { expr: bridgeX }, { expr: '0.5 + depth + 0.97' }, -0.7, 'steel'));
+    { expr: bridgeX }, { expr: '0.5 + depth + 0.97' }, -0.7, 'steel-dark'));
   parts.push(b.part(`${prefix}-bridge-top-b`, b.box({ expr: bridgeLength }, 0.12, 0.16),
-    { expr: bridgeX }, { expr: '0.5 + depth + 0.97' }, 0.7, 'steel'));
+    { expr: bridgeX }, { expr: '0.5 + depth + 0.97' }, 0.7, 'steel-dark'));
   parts.push(b.part(`${prefix}-bridge-bottom`, b.box({ expr: bridgeLength }, 0.14, 1.5),
     { expr: bridgeX }, { expr: '0.5 + depth + 0.55' }, 0, 'walkway'));
   parts.push(b.repeatPart(`${prefix}-bridge-strut`, 9,
@@ -670,22 +673,22 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
           z: -0.7,
         },
       },
-      role: 'steel',
+      role: 'steel-dark',
     }));
   parts.push(b.part(`${prefix}-drive`, b.cylinder(1.1, 1.0, 24),
-    0, { expr: '0.5 + depth + 1.25' }, 0, 'steel'));
+    0, { expr: '0.5 + depth + 1.25' }, 0, 'steel-dark'));
   parts.push(b.part(`${prefix}-bridge-rail-a`, b.box({ expr: bridgeLength }, 0.08, 0.08),
-    { expr: bridgeX }, { expr: '0.5 + depth + 1.55' }, -0.76, 'steel'));
+    { expr: bridgeX }, { expr: '0.5 + depth + 1.55' }, -0.76, 'steel-dark'));
   parts.push(b.part(`${prefix}-bridge-rail-b`, b.box({ expr: bridgeLength }, 0.08, 0.08),
-    { expr: bridgeX }, { expr: '0.5 + depth + 1.55' }, 0.76, 'steel'));
+    { expr: bridgeX }, { expr: '0.5 + depth + 1.55' }, 0.76, 'steel-dark'));
   for (let index = 0; index < 8; index += 1) {
     parts.push(b.part(`${prefix}-stair-tread-${index + 1}`, b.box(0.36, 0.07, 1.1),
       { expr: 'radius + 0.5' }, 0.75 + index * 0.33, -1.1, 'walkway'));
   }
   parts.push(b.part(`${prefix}-stair-stringer-a`, b.box(0.1, { expr: 'depth' }, 0.1),
-    { expr: 'radius + 0.32' }, { expr: '0.5 + depth / 2' }, -1.65, 'steel'));
+    { expr: 'radius + 0.32' }, { expr: '0.5 + depth / 2' }, -1.65, 'steel-dark'));
   parts.push(b.part(`${prefix}-stair-stringer-b`, b.box(0.1, { expr: 'depth' }, 0.1),
-    { expr: 'radius + 0.32' }, { expr: '0.5 + depth / 2' }, -0.55, 'steel'));
+    { expr: 'radius + 0.32' }, { expr: '0.5 + depth / 2' }, -0.55, 'steel-dark'));
 
   return parts;
 }
@@ -695,17 +698,17 @@ function circularBasin(b, prefix, { segments = 96, bridgeMode = 'full' }) {
 function aerationBasin(b, prefix, { lanes = 3, airLines = 10, posts = 11 }) {
   const corridors = lanes;
   const parts = [];
-  parts.push(b.part(`${prefix}-base`, b.box({ expr: 'length' }, 0.5, { expr: 'width' }), 0, 0.25, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-base`, b.box({ expr: 'length' }, 0.5, { expr: 'width' }), 0, 0.25, 0, 'concrete-old'));
   parts.push(b.part(`${prefix}-wall-n`, b.box({ expr: 'length' }, { expr: 'depth' }, { expr: 'wall' }),
-    0, { expr: '0.5 + depth / 2' }, { expr: '-width / 2' }, 'concrete'));
+    0, { expr: '0.5 + depth / 2' }, { expr: '-width / 2' }, 'concrete-new'));
   parts.push(b.part(`${prefix}-wall-s`, b.box({ expr: 'length' }, { expr: 'depth' }, { expr: 'wall' }),
-    0, { expr: '0.5 + depth / 2' }, { expr: 'width / 2' }, 'concrete'));
+    0, { expr: '0.5 + depth / 2' }, { expr: 'width / 2' }, 'concrete-new'));
 
   // 东西端墙：整面一块，用 subtract 挖出进水/出水洞，由内核拆成子盒。
   for (const [side, sign] of [['w', -1], ['e', 1]]) {
     parts.push(b.part(`${prefix}-wall-${side}`,
       b.box({ expr: 'wall' }, { expr: 'depth' }, { expr: 'width' }),
-      { expr: `length / 2 * ${sign}` }, { expr: '0.5 + depth / 2' }, 0, 'concrete',
+      { expr: `length / 2 * ${sign}` }, { expr: '0.5 + depth / 2' }, 0, 'concrete-new',
       {
         subtract: [{
           width: { expr: 'wall + 0.4' },
@@ -719,7 +722,7 @@ function aerationBasin(b, prefix, { lanes = 3, airLines = 10, posts = 11 }) {
   }
 
   parts.push(b.part(`${prefix}-water`, b.box({ expr: 'length - wall * 2' }, 0.06, { expr: 'width - wall * 2' }),
-    0, { expr: '0.5 + depth - 0.5' }, 0, 'water'));
+    0, { expr: '0.5 + depth - 0.5' }, 0, 'water-aerobic'));
 
   parts.push(b.repeatPart(`${prefix}-baffle-1`, corridors,
     b.box(0.35, { expr: 'depth - 0.15' }, { expr: 'width - 4' }),
@@ -731,16 +734,16 @@ function aerationBasin(b, prefix, { lanes = 3, airLines = 10, posts = 11 }) {
           z: 1.6,
         },
       },
-      role: 'concrete',
+      role: 'concrete-old',
     }));
 
   for (let lane = 0; lane < 3; lane += 1) {
     const z = { expr: `(${lane} - 1) * width / 3` };
     parts.push(b.part(`${prefix}-lane-wall-${lane + 1}`, b.box(0.3, { expr: 'depth - 0.2' }, 0.35),
-      { expr: 'length / 2 - 1' }, { expr: '0.5 + depth / 2' }, z, 'concrete'));
+      { expr: 'length / 2 - 1' }, { expr: '0.5 + depth / 2' }, z, 'concrete-old'));
     const foamId = lane === 0 ? `${prefix}-foam-band` : `${prefix}-foam-band-${lane + 1}`;
     parts.push(b.part(foamId, b.box({ expr: 'length / 4' }, 0.04, 0.7),
-      { expr: '-length / 4' }, { expr: '0.5 + depth - 0.43' }, z, 'water'));
+      { expr: '-length / 4' }, { expr: '0.5 + depth - 0.43' }, z, 'foam'));
   }
   for (let index = 0; index < airLines; index += 1) {
     const x = { expr: `-length / 2 + 2 + ${index} * (length - 4) / ${airLines - 1}` };
@@ -755,7 +758,7 @@ function aerationBasin(b, prefix, { lanes = 3, airLines = 10, posts = 11 }) {
   parts.push(b.part(`${prefix}-walkway`, b.box({ expr: 'length' }, 0.14, 1.3),
     0, { expr: '0.5 + depth + 0.05' }, { expr: '-width / 2 - 0.7' }, 'walkway'));
   parts.push(b.part(`${prefix}-walkway-rail`, b.box({ expr: 'length' }, 0.07, 0.07),
-    0, { expr: '0.5 + depth + 0.95' }, { expr: '-width / 2 - 1.3' }, 'steel'));
+    0, { expr: '0.5 + depth + 0.95' }, { expr: '-width / 2 - 1.3' }, 'steel-dark'));
   parts.push(b.repeatPart(`${prefix}-walkway-post`, posts,
     b.box(0.06, 0.95, 0.06),
     {
@@ -766,16 +769,16 @@ function aerationBasin(b, prefix, { lanes = 3, airLines = 10, posts = 11 }) {
           z: { expr: '-width / 2 - 1.3' },
         },
       },
-      role: 'steel',
+      role: 'steel-dark',
     }));
   parts.push(b.part(`${prefix}-rail-n`, b.box({ expr: 'length' }, 0.07, 0.07),
-    0, { expr: '0.5 + depth + 0.95' }, { expr: '-width / 2 - 0.1' }, 'steel'));
+    0, { expr: '0.5 + depth + 0.95' }, { expr: '-width / 2 - 0.1' }, 'steel-dark'));
   parts.push(b.part(`${prefix}-rail-s`, b.box({ expr: 'length' }, 0.07, 0.07),
-    0, { expr: '0.5 + depth + 0.95' }, { expr: 'width / 2 + 0.1' }, 'steel'));
+    0, { expr: '0.5 + depth + 0.95' }, { expr: 'width / 2 + 0.1' }, 'steel-dark'));
   parts.push(b.part(`${prefix}-rail-toe-n`, b.box({ expr: 'length' }, 0.12, 0.05),
-    0, { expr: '0.5 + depth + 0.1' }, { expr: '-width / 2 - 0.1' }, 'steel'));
+    0, { expr: '0.5 + depth + 0.1' }, { expr: '-width / 2 - 0.1' }, 'steel-dark'));
   parts.push(b.part(`${prefix}-rail-toe-s`, b.box({ expr: 'length' }, 0.12, 0.05),
-    0, { expr: '0.5 + depth + 0.1' }, { expr: 'width / 2 + 0.1' }, 'steel'));
+    0, { expr: '0.5 + depth + 0.1' }, { expr: 'width / 2 + 0.1' }, 'steel-dark'));
 
   return parts;
 }
@@ -1573,11 +1576,11 @@ function valveManifold(b, prefix, { branches = 4, diameter = 0.4 }) {
 
 function serviceCanopy(b, prefix, { length = 10, width = 6, height = 5 }) {
   return [
-    b.part(`${prefix}-roof`, b.box(length, 0.18, width), 0, height, 0, 'roof'),
-    b.part(`${prefix}-post-a`, b.box(0.2, height, 0.2), -length / 2 + 0.4, height / 2, -width / 2 + 0.4, 'steel'),
-    b.part(`${prefix}-post-b`, b.box(0.2, height, 0.2), -length / 2 + 0.4, height / 2, width / 2 - 0.4, 'steel'),
-    b.part(`${prefix}-post-c`, b.box(0.2, height, 0.2), length / 2 - 0.4, height / 2, -width / 2 + 0.4, 'steel'),
-    b.part(`${prefix}-post-d`, b.box(0.2, height, 0.2), length / 2 - 0.4, height / 2, width / 2 - 0.4, 'steel'),
+    b.part(`${prefix}-roof`, b.box(length, 0.18, width), 0, height, 0, 'roof-light'),
+    b.part(`${prefix}-post-a`, b.box(0.2, height, 0.2), -length / 2 + 0.4, height / 2, -width / 2 + 0.4, 'steel-dark'),
+    b.part(`${prefix}-post-b`, b.box(0.2, height, 0.2), -length / 2 + 0.4, height / 2, width / 2 - 0.4, 'steel-dark'),
+    b.part(`${prefix}-post-c`, b.box(0.2, height, 0.2), length / 2 - 0.4, height / 2, -width / 2 + 0.4, 'steel-dark'),
+    b.part(`${prefix}-post-d`, b.box(0.2, height, 0.2), length / 2 - 0.4, height / 2, width / 2 - 0.4, 'steel-dark'),
   ];
 }
 
@@ -1691,6 +1694,22 @@ function buildPlan(projectId) {
   b.material('shadow', 'Contact shadow', srgb('#0e1113', 0.3));
   b.material('hedge', 'Clipped hedge', srgb('#869d79'));
   b.material('sign-panel', 'Sign panel', srgb('#696f75'));
+  b.material('concrete-new', 'New concrete', srgb('#ddd5c7'));
+  b.material('concrete-old', 'Weathered concrete', srgb('#aaa398'));
+  b.material('concrete-wet', 'Wet concrete', srgb('#77776f'));
+  b.material('steel-dark', 'Dark steel', srgb('#454a4e'));
+  b.material('stainless', 'Stainless steel', srgb('#aeb7ba'));
+  b.material('roof-light', 'Light metal roof', srgb('#c7ced1'));
+  b.material('water-anoxic', 'Anoxic water', srgb('#29434c'));
+  b.material('water-aerobic', 'Aerobic water', srgb('#386a73'));
+  b.material('water-clarified', 'Clarified water', srgb('#4f7f89'));
+  b.material('water-sludge', 'Sludge water', srgb('#625747'));
+  b.material('foam', 'Aeration foam', srgb('#b9c8bd', 0.72));
+  b.material('scum', 'Clarifier scum', srgb('#665b49'));
+  b.material('asphalt-new', 'New asphalt', srgb('#34383c'));
+  b.material('asphalt-worn', 'Worn asphalt', srgb('#4b4e50'));
+  b.material('curb', 'Curb', srgb('#c8c2b6'));
+  b.material('drain', 'Drain', srgb('#555a5e'));
 
   // 进水段
   b.define('screening-channel', 'Screening channel', screeningChannel(b, 'gr', { length: 20, width: 6, depth: 2.6 }), [
@@ -1861,17 +1880,17 @@ function buildPlan(projectId) {
   // 场地：按功能分区铺草坪，四周留出环形主干道。
   b.ground('场地（草坪）', -10, 610, -185, 185, 'lawn', -0.08);
   // 环形主干道：南北两条沿厂界，东西两端各一条。
-  b.ground('道路（北）', -10, 620, -180, -168, 'asphalt', -0.03);
-  b.ground('道路（南）', -10, 620, 168, 180, 'asphalt', -0.03);
-  b.ground('道路（西）', -10, 2, -185, 185, 'asphalt', -0.03);
-  b.ground('道路（东）', 600, 612, -185, 185, 'asphalt', -0.03);
+  b.ground('道路（北）', -10, 620, -180, -168, 'asphalt-new', -0.03);
+  b.ground('道路（南）', -10, 620, 168, 180, 'asphalt-worn', -0.03);
+  b.ground('道路（西）', -10, 2, -185, 185, 'asphalt-new', -0.03);
+  b.ground('道路（东）', 600, 612, -185, 185, 'asphalt-worn', -0.03);
   // 横向支路：分隔预处理 / 生化 / 二沉三个区块。
-  b.ground('道路（支路一）', 120, 130, -160, 160, 'asphalt', -0.03);
-  b.ground('道路（支路二）', 355, 365, -160, 160, 'asphalt', -0.03);
+  b.ground('道路（支路一）', 120, 130, -160, 160, 'asphalt-worn', -0.03);
+  b.ground('道路（支路二）', 355, 365, -160, 160, 'asphalt-new', -0.03);
   // 入口引道：从南主干道穿进厂内，直抵中控楼前的广场。
-  b.ground('道路（入口引道）', 23, 37, 140, 180, 'asphalt', -0.03);
+  b.ground('道路（入口引道）', 23, 37, 140, 180, 'asphalt-new', -0.03);
   b.ground('广场（入口）', 6, 60, 140, 168, 'paving', -0.04);
-  b.ground('停车场', 44, 92, 150, 166, 'asphalt', -0.03);
+  b.ground('停车场', 44, 92, 150, 166, 'asphalt-worn', -0.03);
 
   b.ground('北侧道路标线', -10, 610, -179.15, -178.85, 'marking', -0.018);
   b.ground('北侧道路内标线', -10, 610, -169.15, -168.85, 'marking', -0.018);
@@ -1882,10 +1901,15 @@ function buildPlan(projectId) {
   b.ground('北侧设备装卸场地', 400, 477, -161, -132, 'paving', -0.04);
   b.ground('预处理设备装卸场地', 42, 72, 18, 30, 'paving', -0.04);
   b.ground('深度处理检修场地', 500, 578, 12, 32, 'paving', -0.04);
-  b.ground('生化区检修环路西', 172, 178, -62, 62, 'asphalt', -0.026);
-  b.ground('生化区检修环路东', 350, 356, -62, 62, 'asphalt', -0.026);
-  b.ground('南侧路缘', -10, 610, 167.7, 168.2, 'paving', -0.015);
-  b.ground('北侧路缘', -10, 610, -168.2, -167.7, 'paving', -0.015);
+  b.ground('生化区检修环路西', 172, 178, -62, 62, 'asphalt-worn', -0.026);
+  b.ground('生化区检修环路东', 350, 356, -62, 62, 'asphalt-new', -0.026);
+  b.ground('南侧路缘', -10, 610, 167.7, 168.2, 'curb', -0.015);
+  b.ground('北侧路缘', -10, 610, -168.2, -167.7, 'curb', -0.015);
+  b.ground('南侧排水沟', -10, 610, 166.9, 167.35, 'drain', -0.012);
+  b.ground('北侧排水沟', -10, 610, -167.35, -166.9, 'drain', -0.012);
+  b.ground('鼓风机房设备接触带', 278, 322, 62, 74, 'shadow', -0.006);
+  b.ground('提升泵组设备接触带', 50, 74, 5, 15, 'shadow', -0.006);
+  b.ground('脱水机房设备接触带', 447, 469, -162, -132, 'shadow', -0.006);
 
   // 总平面：按功能分区，成组紧凑布置。
   //

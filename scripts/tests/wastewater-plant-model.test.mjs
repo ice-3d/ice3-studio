@@ -214,3 +214,31 @@ test('pipeline validation rejects a missing accessory line reference', () => {
   assert.equal(result.ok, false);
   assert.ok(result.issues.some(({ code }) => code === 'UNKNOWN_LINE'));
 });
+
+test('materials separate civil, metal, water and site surfaces', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const names = new Set(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ name }) => name),
+  );
+  for (const expected of [
+    'New concrete', 'Weathered concrete', 'Wet concrete',
+    'Dark steel', 'Stainless steel', 'Light metal roof',
+    'Anoxic water', 'Aerobic water', 'Clarified water', 'Sludge water',
+    'Aeration foam', 'Clarifier scum', 'Worn asphalt', 'Curb', 'Drain',
+  ]) {
+    assert.ok(names.has(expected), expected);
+  }
+  assert.ok(names.size >= 35);
+  assert.ok(names.size <= 48);
+});
+
+test('every component role resolves to a material', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const instance = plan.operations.find(({ name }) => name === 'PS-101 提升泵组');
+  assert.ok(instance);
+  assert.ok(Object.values(instance.instance.overrides).every(({ materialId }) => (
+    typeof materialId === 'string' && materialId.length > 0
+  )));
+});
