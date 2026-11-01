@@ -3,6 +3,14 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { buildPlan as buildLegacyPlan } from '../../scripts/build-wastewater-model.mjs';
 import {
+  createBuilder,
+  detailFlange,
+  detailGuardrail,
+  detailStair,
+  detailSupport,
+  detailValve,
+} from '../../scripts/wastewater-plant/model-kit.mjs';
+import {
   WWTP_STATS_LIMITS,
   validateProjectStats,
   validateWastewaterPlan,
@@ -53,4 +61,38 @@ test('project budget accepts the target band and rejects overflow', () => {
     expandedNodes: 15001,
     instances: 501,
   }, WWTP_STATS_LIMITS).ok, false);
+});
+
+test('engineering detail kit emits reusable fittings and access structures', () => {
+  const b = createBuilder();
+  const parts = [
+    ...detailFlange(b, 'flange-a', {
+      diameter: 0.8,
+      position: { x: 0, y: 3, z: 0 },
+      rotation: [0, 0, 0, 1],
+      material: 'steel',
+    }),
+    ...detailValve(b, 'valve-a', {
+      diameter: 0.8,
+      position: { x: 1, y: 3, z: 0 },
+      rotation: [0, 0, 0, 1],
+      material: 'pipe-air',
+    }),
+    ...detailStair(b, 'stair-a', {
+      x: 2, y: 0, z: 0, width: 1.2, height: 4, yaw: 0,
+    }),
+    ...detailGuardrail(b, 'rail-a', {
+      x: 2, y: 4, z: 0, length: 8, yaw: 0,
+    }),
+    ...detailSupport(b, 'support-a', {
+      x: 10, y: 0, z: 0, height: 4.6, width: 3.8,
+    }),
+  ];
+  const ids = parts.map(({ id }) => id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.ok(ids.some((id) => id.startsWith('flange-a')));
+  assert.ok(ids.some((id) => id.startsWith('valve-a')));
+  assert.ok(ids.some((id) => id.startsWith('stair-a')));
+  assert.ok(ids.some((id) => id.startsWith('rail-a')));
+  assert.ok(ids.some((id) => id.startsWith('support-a')));
 });
