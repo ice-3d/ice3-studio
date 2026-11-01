@@ -60,7 +60,7 @@ export class SceneAdapter {
   async mount(container: HTMLElement): Promise<void> {
     this.viewportElement = container;
     const engine = await new ICE3({ renderer: 'webgl2' }).initAsync(container);
-    engine.setBackgroundColor('#000000');
+    engine.setBackgroundColor('#14181c');
     const camera = new ICEPerspectiveCamera({
       id: 'studio-camera',
       fov: 42,
