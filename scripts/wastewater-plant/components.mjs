@@ -1,6 +1,7 @@
 // 过渡导出：构筑物组件暂时位于 site-plan，后续任务继续按职责迁移。
 export {
   circularBasin,
+  circularBasin as circularClarifier,
   aerationBasin,
   screeningChannel,
   pumpHouse,

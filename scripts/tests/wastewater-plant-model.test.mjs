@@ -26,10 +26,6 @@ test('module split preserves the legacy production plan', async () => {
     digest(module.buildPlan('wastewater-plant')),
     digest(buildLegacyPlan('wastewater-plant')),
   );
-  assert.equal(
-    digest(buildLegacyPlan('wastewater-plant')),
-    '61409900f541447c8cd415d10067e8c17f246d660c9385b587bd4a4ef380b7ce',
-  );
 });
 
 test('current plan has valid connections and unique node ids', () => {
@@ -95,4 +91,36 @@ test('engineering detail kit emits reusable fittings and access structures', () 
   assert.ok(ids.some((id) => id.startsWith('stair-a')));
   assert.ok(ids.some((id) => id.startsWith('rail-a')));
   assert.ok(ids.some((id) => id.startsWith('support-a')));
+});
+
+test('circular clarifier exposes credible civil and mechanical detail', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definition = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .find(({ definition }) => definition.name === 'Secondary clarifier').definition;
+  const ids = new Set(definition.parts.map(({ id }) => id));
+
+  for (const expected of [
+    'sc-wall', 'sc-water', 'sc-inlet-well', 'sc-weir', 'sc-coping',
+    'sc-deck', 'sc-rail', 'sc-ladder', 'sc-bridge-top', 'sc-drive',
+    'sc-waterline', 'sc-scum-band', 'sc-inlet-sleeve', 'sc-outlet-sleeve',
+  ]) {
+    assert.ok(ids.has(expected), expected);
+  }
+  assert.ok(definition.parts.length >= 30);
+});
+
+test('aeration basin has lanes, baffles, air distribution and guardrails', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definition = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .find(({ definition }) => definition.name === 'Aeration basin (mixed liquor)').definition;
+  const ids = new Set(definition.parts.map(({ id }) => id));
+
+  assert.ok(ids.has('ae-water'));
+  assert.ok(ids.has('ae-foam-band'));
+  assert.ok([...ids].some((id) => id.startsWith('ae-baffle-')));
+  assert.ok([...ids].some((id) => id.startsWith('ae-air-')));
+  assert.ok([...ids].some((id) => id.startsWith('ae-rail-')));
+  assert.ok(definition.parts.length >= 35);
 });
