@@ -10,6 +10,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
+import { validateWastewaterPlan } from './validate.mjs';
 
 const TAU = Math.PI * 2;
 // 材质在工程里存的是线性空间的量，渲染器输出时才做 sRGB 编码。
@@ -1726,7 +1727,7 @@ function buildPlan(projectId) {
 
 
 
-  return {
+  const plan = {
     projectId,
     operations: b.state.ops,
     summary: {
@@ -1736,6 +1737,11 @@ function buildPlan(projectId) {
       materials: b.state.materials.size,
     },
   };
+  const validation = validateWastewaterPlan(plan);
+  if (!validation.ok) {
+    throw new Error(validation.issues.map(({ message }) => message).join('; '));
+  }
+  return plan;
 }
 
 function waitForServer(server) {
