@@ -1032,6 +1032,36 @@ function wallWithOpening(b, prefix, {
   return parts;
 }
 
+// 绿化乔木：一根树干加一个球形树冠，尺寸固定，靠位置与数量形成层次。
+function tree(b, prefix) {
+  return [
+    b.part(`${prefix}-trunk`, b.cylinder(0.28, 3.4, 8), 0, 1.7, 0, 'trunk'),
+    b.part(`${prefix}-crown`,
+      { kind: 'sphere', radius: 2.7, segments: 14, rings: 10 },
+      0, 5.4, 0, 'foliage'),
+  ];
+}
+
+// 厂区围栏：沿边界每 3.5 米一根立柱，两道横杆。
+function siteFence(b, prefix, { length = 620, posts = 178 }) {
+  const parts = [];
+  parts.push(b.repeatPart(`${prefix}-post`, posts,
+    b.box(0.12, 2.2, 0.12),
+    {
+      transform: {
+        translation: {
+          x: { expr: '-length / 2 + i * length / (count - 1)' },
+          y: 1.1,
+          z: 0,
+        },
+      },
+      role: 'steel',
+    }));
+  parts.push(b.part(`${prefix}-rail-high`, b.box({ expr: 'length' }, 0.08, 0.08), 0, 2.0, 0, 'steel'));
+  parts.push(b.part(`${prefix}-rail-low`, b.box({ expr: 'length' }, 0.08, 0.08), 0, 1.0, 0, 'steel'));
+  return parts;
+}
+
 function buildPlan(projectId) {
   const b = createBuilder();
   // 配色取自真实厂区照片：池壁浅米色、水面深蓝绿、屋面蓝灰。
@@ -1040,6 +1070,10 @@ function buildPlan(projectId) {
   b.material('steel', 'Galvanised steel', [0.52, 0.545, 0.565, 1]);
   b.material('walkway', 'Grating walkway', [0.42, 0.45, 0.47, 1]);
   b.material('air', 'Air header', [0.3, 0.52, 0.7, 1]);
+  // 绿化与围栏。必须定义在组件声明之前，否则 define 时取不到材质。
+  b.material('trunk', 'Tree trunk', [0.28, 0.2, 0.14, 1]);
+  b.material('foliage', 'Foliage', [0.22, 0.38, 0.18, 1]);
+  b.material('paving', 'Paving', [0.62, 0.61, 0.58, 1]);
   b.material('media', 'Filter media', [0.3, 0.28, 0.24, 1]);
   b.material('lamp', 'UV lamp', [0.62, 0.66, 0.86, 1]);
   b.material('facade', 'Facade panel', [0.8, 0.79, 0.75, 1]);
@@ -1142,6 +1176,10 @@ function buildPlan(projectId) {
     b.port('inlet-a', 'dw-shell', -13, 2.0, -3, vec(1, 0, 0), 'digested-sludge', 0.3),
     b.port('inlet-b', 'dw-shell', -13, 2.0, 3, vec(1, 0, 0), 'digested-sludge', 0.3),
   ]);
+  b.define('tree', 'Tree', tree(b, 'tr'), []);
+  b.define('site-fence', 'Site fence', siteFence(b, 'sf', {}), [], [
+    { name: 'length', valueType: { kind: 'number', minimum: null, maximum: null }, default: 620, unit: 'm' },
+  ]);
   b.define('blower-house', 'Blower house', facilityBuilding(b, 'bl', { length: 26, width: 14, floors: 1, floorHeight: 6 }), []);
   b.define('chemical-house', 'Chemical dosing', facilityBuilding(b, 'ch', { length: 20, width: 12, floors: 2, floorHeight: 3.8 }), []);
   b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), []);
@@ -1166,6 +1204,7 @@ function buildPlan(projectId) {
   b.material('pipe-clean', 'Pipe / clean water', [0.28, 0.55, 0.36, 1]);
   b.material('pipe-sludge', 'Pipe / sludge', [0.36, 0.24, 0.16, 1]);
   b.material('pipe-air', 'Pipe / air', [0.26, 0.48, 0.76, 1]);
+
   for (const edgeZ of [-179, -169, 169, 179]) {
     b.ground(`标线 z=${edgeZ}`, -10, 610, edgeZ - 0.15, edgeZ + 0.15, 'marking', -0.018);
   }
@@ -1181,33 +1220,34 @@ function buildPlan(projectId) {
   b.instance('pump-house', 'ps-1', 'PS-101 提升泵房', 62, 0, 0, { stage: 'intake', tag: 'PS-101' });
   b.instance('grit-chamber', 'gc-1', 'GC-101 曝气沉砂池', 95, 0, 0, { stage: 'intake', tag: 'GC-101' });
 
+  // 两条系列刻意不完全对称：z 间距不同、x 略有偏移，像分期建设留下的错位。
   const trains = [
-    { key: 'a', series: '1', z: 40 },
-    { key: 'b', series: '2', z: -40 },
+    { key: 'a', series: '1', z: 40, dx: 0 },
+    { key: 'b', series: '2', z: -46, dx: 6 },
   ];
 
   // 初沉区（x 150）：两座并排，横向间距 80 米（一个池径加通道）
   for (const train of trains) {
-    const { key, series, z } = train;
-    b.instance('primary-clarifier', `pc-${key}`, `PC-${series}01 初沉池`, 150, 0, z, {
+    const { key, series, z, dx } = train;
+    b.instance('primary-clarifier', `pc-${key}`, `PC-${series}01 初沉池`, 150 + dx, 0, z, {
       stage: 'primary', tag: `PC-${series}01`, train: `Train${series}`,
     }, { radius: 13, depth: 4.2, wall: 0.45 });
 
     // 生化区（x 215–340）：三段推流廊道首尾相接，段间留 13 米管廊
-    b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 215, 0, z, {
+    b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 215 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}01`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
-    b.instance('aeration-mixed', `ae-${key}2`, `AE-${series}02 曝气池（缺氧段）`, 270, 0, z, {
+    b.instance('aeration-mixed', `ae-${key}2`, `AE-${series}02 曝气池（缺氧段）`, 270 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}02`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
-    b.instance('aeration-mixed', `ae-${key}3`, `AE-${series}03 曝气池（好氧段）`, 325, 0, z, {
+    b.instance('aeration-mixed', `ae-${key}3`, `AE-${series}03 曝气池（好氧段）`, 325 + dx, 0, z, {
       stage: 'biological', tag: `AE-${series}03`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
 
     // 二沉区（x 380–470）：三座一排，间距 45 米（直径 30 加通道）
     for (let index = 1; index <= 3; index += 1) {
       b.instance('secondary-clarifier', `sc-${key}${index}`,
-        `SC-${series}0${index} 二沉池`, 375 + (index - 1) * 45, 0, z, {
+        `SC-${series}0${index} 二沉池`, 375 + dx + (index - 1) * 45, 0, z, {
           stage: 'secondary', tag: `SC-${series}0${index}`, train: `Train${series}`,
         }, { radius: 15, depth: 4.6, wall: 0.45 });
     }
@@ -1265,6 +1305,77 @@ function buildPlan(projectId) {
   b.connect('th-2', 'outlet', 'dg-2', 'inlet', 'TH-102 → DG-102 浓缩污泥', 'thickened-sludge', 0.3);
   b.connect('dg-1', 'outlet', 'dw-1', 'inlet-a', 'DG-101 → DW-101 消化污泥', 'digested-sludge', 0.3);
   b.connect('dg-2', 'outlet', 'dw-1', 'inlet-b', 'DG-102 → DW-101 消化污泥', 'digested-sludge', 0.3);
+
+
+  // 接触阴影：跟随构筑物位置（含系列偏移）
+  for (const train of trains) {
+    const { series, z, dx } = train;
+    b.shadowPatch(`SH-PC${series}`, 150 + dx + 0.9, z + 0.8, 29, 29, true);
+    for (let index = 1; index <= 3; index += 1) {
+      b.shadowPatch(`SH-AE${series}0${index}`, 215 + dx + (index - 1) * 55 + 0.9, z + 0.8, 45, 23);
+      b.shadowPatch(`SH-SC${series}0${index}`, 375 + dx + (index - 1) * 45 + 0.9, z + 0.8, 33, 33, true);
+    }
+  }
+  b.shadowPatch('SH-GR', 30, 0, 23, 9);
+  b.shadowPatch('SH-PS', 62, 0, 25, 16);
+  b.shadowPatch('SH-GC', 95, 0, 29, 14);
+  b.shadowPatch('SH-FL', 520, 0, 36, 30);
+  b.shadowPatch('SH-UV', 560, 0, 29, 9);
+  b.shadowPatch('SH-TH1', 230, -145, 19, 19, true);
+  b.shadowPatch('SH-TH2', 262, -145, 19, 19, true);
+  b.shadowPatch('SH-DG1', 320, -145, 26, 26, true);
+  b.shadowPatch('SH-DG2', 320, -105, 26, 26, true);
+  b.shadowPatch('SH-DW', 430, -145, 29, 18);
+  b.shadowPatch('SH-GH', 372, -125, 20, 20, true);
+  b.shadowPatch('SH-CB', 55, 150, 33, 19);
+  b.shadowPatch('SH-BLW', 270, 150, 29, 17);
+  b.shadowPatch('SH-CH', 440, 150, 23, 15);
+
+  // 跨池栈桥
+  for (const train of trains) {
+    const { series, z, dx } = train;
+    b.walkway(`ST-${series}01 初沉至生化栈桥`, [172 + dx, z], [189 + dx, z], { y: 5.0 });
+    b.walkway(`ST-${series}02 生化一至二栈桥`, [238 + dx, z], [246 + dx, z], { y: 5.6 });
+    b.walkway(`ST-${series}03 生化二至三栈桥`, [293 + dx, z], [301 + dx, z], { y: 5.6 });
+    b.walkway(`ST-${series}04 生化至二沉栈桥`, [348 + dx, z], [358 + dx, z], { y: 4.6 });
+    b.walkway(`ST-${series}05 二沉间栈桥`, [394 + dx, z], [401 + dx, z], { y: 4.4 });
+    b.walkway(`ST-${series}06 二沉间栈桥`, [439 + dx, z], [446 + dx, z], { y: 4.4 });
+  }
+
+  // 围栏：南北沿厂界
+  b.instance('site-fence', 'fence-n', '围栏 / 北界', 300, 0, -176, { role: 'landscape' }, { length: 620 });
+  b.instance('site-fence', 'fence-s', '围栏 / 南界', 300, 0, 176, { role: 'landscape' }, { length: 620 });
+
+  // 绿化：成排乔木，位置带确定性抖动
+  const jitter = (index, salt) => {
+    const raw = Math.abs(Math.sin(index * 12.9898 + salt) * 43758.5453) % 1;
+    return raw - 0.5;
+  };
+  for (let index = 0; index < 26; index += 1) {
+    const x = 12 + index * 23 + jitter(index, 0.7) * 5;
+    b.instance('tree', `tree-s-a-${index}`, `绿化 / 南排 ${index + 1}`, x, 0, 156 + jitter(index, 2.1) * 5, { role: 'landscape' });
+    b.instance('tree', `tree-s-b-${index}`, `绿化 / 南外排 ${index + 1}`, x + 8, 0, 172 + jitter(index, 3.3) * 4, { role: 'landscape' });
+    b.instance('tree', `tree-n-a-${index}`, `绿化 / 北排 ${index + 1}`, x + 4, 0, -158 + jitter(index, 4.7) * 5, { role: 'landscape' });
+  }
+  for (let index = 0; index < 8; index += 1) {
+    const z = -120 + index * 32 + jitter(index, 5.9) * 6;
+    b.instance('tree', `tree-mid-${index}`, `绿化 / 中带 ${index + 1}`, 122 + jitter(index, 6.1) * 6, 0, z, { role: 'landscape' });
+    b.instance('tree', `tree-mid2-${index}`, `绿化 / 中带二 ${index + 1}`, 358 + jitter(index, 7.3) * 6, 0, z, { role: 'landscape' });
+  }
+
+  // 池边设备
+  const equipmentNode = (name, x, z) => {
+    b.equipment('control-box', name, x, 0, z, { tag: name.split(' ')[0] });
+  };
+  for (const train of trains) {
+    for (let index = 1; index <= 3; index += 1) {
+      equipmentNode(`EQ-SC${train.series}0${index} 控制箱`, 375 + train.dx + (index - 1) * 45 + 16, train.z - 18);
+    }
+    equipmentNode(`EQ-AE${train.series} 控制箱`, 270 + train.dx, train.z - 16);
+    equipmentNode(`EQ-PC${train.series} 控制箱`, 150 + train.dx, train.z + 16);
+  }
+  equipmentNode('EQ-FL 控制箱', 520, -20);
+  equipmentNode('EQ-GC 控制箱', 95, -14);
 
 
   return {
