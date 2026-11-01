@@ -211,6 +211,41 @@ test('biological basins expose process-correct equipment for each zone', () => {
   );
 });
 
+test('asset exposes complete sludge, RAS, split, gas and cake topology', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connections = plan.operations.filter(({ type }) => (
+    type === 'connection.create'
+  ));
+  const media = (from, to) => connections.some(({ connection }) => (
+    connection.metadata?.service?.includes(from) &&
+    connection.metadata?.service?.includes(to)
+  ));
+
+  for (const train of ['1', '2']) {
+    assert.ok(media(`PC-${train}01`, 'SCW-101'));
+    assert.ok(media(`AE-${train}03`, `DD-${train}01`));
+    for (let index = 1; index <= 3; index += 1) {
+      assert.ok(media(`DD-${train}01`, `SC-${train}0${index}`));
+      assert.ok(media(`SC-${train}0${index}`, 'RWS-101'));
+    }
+    assert.ok(media('RWS-101', `AE-${train}02`));
+  }
+  assert.ok(media('DG-101', 'GCL-101'));
+  assert.ok(media('DG-102', 'GCL-101'));
+  assert.ok(media('GCL-101', 'GH-101'));
+  assert.ok(media('GH-101', 'GF-101'));
+  assert.equal(
+    connections.some(({ connection }) => (
+      connection.medium === 'dewatered-sludge'
+    )),
+    false,
+  );
+  assert.ok(plan.operations.some(({ type, relation }) => (
+    type === 'relation.create' &&
+    relation.relationType === 'material-handling'
+  )));
+});
+
 test('major equipment has identity-bearing silhouettes and connecting ports', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const definitions = plan.operations
@@ -410,6 +445,9 @@ test('process skids are wired into the treatment train', () => {
   const connectionNames = plan.operations
     .filter(({ type }) => type === 'connection.create')
     .map(({ name }) => name);
+  const handlingServices = plan.operations
+    .filter(({ type }) => type === 'relation.create')
+    .map(({ relation }) => relation.metadata?.service);
   for (const expected of [
     'PS-101 → 提升泵组',
     '提升泵组 → GC-101',
@@ -420,11 +458,11 @@ test('process skids are wired into the treatment train', () => {
     'TH-101 → HEX-101',
     'HEX-101 → DG-101',
     'CHEM-101 → FL-101',
-    'DW-101 脱水机 1 → 脱水机房',
-    'DW-101 脱水机 2 → 脱水机房',
   ]) {
     assert.ok(connectionNames.includes(expected), expected);
   }
+  assert.ok(handlingServices.includes('CV-101 → DW-101 泥饼'));
+  assert.ok(handlingServices.includes('CV-102 → DW-101 泥饼'));
 });
 
 test('process pipe diameters stay within the engineered line size', () => {

@@ -421,6 +421,22 @@ function createBuilder() {
     }
   };
 
+  const relate = (fromKey, toKey, relationType, metadata = {}) => {
+    const from = state.nodes.get(fromKey);
+    const to = state.nodes.get(toKey);
+    if (!from || !to) throw new Error(`missing relation endpoint ${fromKey} -> ${toKey}`);
+    state.ops.push({
+      type: 'relation.create',
+      relation: {
+        id: id('relation'),
+        relationType,
+        fromNodeId: from,
+        toNodeId: to,
+        metadata,
+      },
+    });
+  };
+
   // 场地：一块很薄的板，略低于池底，不参与工艺连接。
   const ground = (name, minX, maxX, minZ, maxZ, materialKey, level = -0.06) => {
     const nodeId = id('node');
@@ -546,7 +562,7 @@ function createBuilder() {
     });
   };
 
-  return { state, material, part, repeatPart, port, define, instance, connect, ground, walkway, equipment, shadowPatch, box, cylinder, rotateY };
+  return { state, material, part, repeatPart, port, define, instance, connect, relate, ground, walkway, equipment, shadowPatch, box, cylinder, rotateY };
 }
 
 
