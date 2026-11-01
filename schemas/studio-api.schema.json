@@ -775,6 +775,14 @@
           ],
           "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -1770,6 +1778,17 @@
                 "opacity": {
                   "format": "float",
                   "type": "number"
+                },
+                "shading": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialShading"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
                 },
                 "type": {
                   "const": "material.upsert",
@@ -4370,6 +4389,14 @@
           ],
           "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -5365,6 +5392,17 @@
                 "opacity": {
                   "format": "float",
                   "type": "number"
+                },
+                "shading": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialShading"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
                 },
                 "type": {
                   "const": "material.upsert",
@@ -6922,6 +6960,14 @@
           ],
           "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -7917,6 +7963,17 @@
                 "opacity": {
                   "format": "float",
                   "type": "number"
+                },
+                "shading": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialShading"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
                 },
                 "type": {
                   "const": "material.upsert",
@@ -9431,6 +9488,14 @@
           ],
           "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -10426,6 +10491,17 @@
                 "opacity": {
                   "format": "float",
                   "type": "number"
+                },
+                "shading": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialShading"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
                 },
                 "type": {
                   "const": "material.upsert",
@@ -12133,6 +12209,17 @@
             "opacity": {
               "format": "float",
               "type": "number"
+            },
+            "shading": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialShading"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             }
           },
           "required": [
@@ -12161,6 +12248,14 @@
             }
           ],
           "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
         },
         "NodeContent": {
           "oneOf": [
@@ -14012,6 +14107,14 @@
           ],
           "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -15007,6 +15110,17 @@
                 "opacity": {
                   "format": "float",
                   "type": "number"
+                },
+                "shading": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialShading"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
                 },
                 "type": {
                   "const": "material.upsert",
@@ -17012,6 +17126,17 @@
             "opacity": {
               "format": "float",
               "type": "number"
+            },
+            "shading": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialShading"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             }
           },
           "required": [
@@ -17040,6 +17165,14 @@
             }
           ],
           "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
         },
         "NodeContent": {
           "oneOf": [
@@ -19222,6 +19355,14 @@
           ],
           "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -20935,6 +21076,17 @@
             "opacity": {
               "format": "float",
               "type": "number"
+            },
+            "shading": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialShading"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
             },
             "type": {
               "const": "material.upsert",

@@ -618,6 +618,26 @@ test('process basin water stays muted and readable instead of paint-bright', () 
   }
 });
 
+test('liquid surfaces declare the generic water shading mode', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const materials = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ name, shading }) => [name, shading]),
+  );
+  for (const name of [
+    'Process water',
+    'Anoxic water',
+    'Aerobic water',
+    'Clarified water',
+    'Primary clarifier water',
+    'Sludge water',
+    'Sludge',
+  ]) {
+    assert.equal(materials.get(name), 'water', name);
+  }
+});
+
 test('every component role resolves to a material', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const instance = plan.operations.find(({ name }) => name === 'PS-101 提升泵组');

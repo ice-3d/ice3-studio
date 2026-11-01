@@ -46,6 +46,7 @@ fn applies_a_batch_and_increments_revision_once() {
                     base_color: [0.4, 0.39, 0.36, 1.0],
                     opacity: 1.0,
                     edge_color: None,
+                    shading: None,
                 },
                 Operation::NodeCreate {
                     node_id: "node-000001".into(),

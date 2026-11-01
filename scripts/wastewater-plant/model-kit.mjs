@@ -68,7 +68,7 @@ function createBuilder() {
   };
   const id = (prefix) => `${prefix}-${String(state.next++).padStart(6, '0')}`;
 
-  const material = (key, name, color, edgeColor = null) => {
+  const material = (key, name, color, edgeColor = null, shading = null) => {
     const materialId = id('material');
     state.materials.set(key, materialId);
     state.ops.push({
@@ -78,6 +78,7 @@ function createBuilder() {
       base_color: color,
       opacity: color[3],
       edge_color: edgeColor,
+      ...(shading ? { shading } : {}),
     });
     return materialId;
   };

@@ -1,4 +1,4 @@
-use studio_core::document::{Document, Material, NodeContent, SceneNode};
+use studio_core::document::{Document, Material, MaterialShading, NodeContent, SceneNode};
 use studio_core::export::glb::export_glb;
 use studio_core::geometry::Primitive;
 use studio_core::ids::{MaterialId, NodeId};
@@ -31,6 +31,7 @@ fn exports_material_opacity_as_a_gltf_blend_material() {
         base_color: [0.1, 0.3, 0.5, 1.0],
         opacity: 0.4,
         edge_color: None,
+        shading: None,
     });
     let mut node = SceneNode::group(NodeId::from("node-000001"), "Water");
     node.material_id = Some(material_id);
@@ -63,6 +64,7 @@ fn exports_material_edge_color_and_directional_shading_metadata() {
         base_color: [0.2, 0.4, 0.6, 1.0],
         opacity: 1.0,
         edge_color: Some([0.1, 0.2, 0.3, 1.0]),
+        shading: None,
     });
     let mut node = SceneNode::group(NodeId::from("node-000001"), "Equipment");
     node.material_id = Some(material_id);
@@ -85,4 +87,31 @@ fn exports_material_edge_color_and_directional_shading_metadata() {
         gltf["materials"][0]["extras"]["ice3"]["shading"],
         "directional"
     );
+}
+
+#[test]
+fn exports_water_materials_with_a_liquid_surface_shading_mode() {
+    let mut document = Document::new("water-material");
+    let material_id = MaterialId::from("mat-000001");
+    document.materials.push(Material {
+        id: material_id.clone(),
+        name: "Process water".into(),
+        base_color: [0.2, 0.4, 0.6, 1.0],
+        opacity: 1.0,
+        edge_color: None,
+        shading: Some(MaterialShading::Water),
+    });
+    let mut node = SceneNode::group(NodeId::from("node-000001"), "Basin");
+    node.material_id = Some(material_id);
+    node.content = NodeContent::Primitive(Primitive::Box {
+        width: 1.0,
+        height: 1.0,
+        depth: 1.0,
+    });
+    document.scene.nodes_mut().push(node);
+
+    let bytes = export_glb(&document).unwrap();
+    let json_len = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    let gltf: serde_json::Value = serde_json::from_slice(&bytes[20..20 + json_len]).unwrap();
+    assert_eq!(gltf["materials"][0]["extras"]["ice3"]["shading"], "water");
 }

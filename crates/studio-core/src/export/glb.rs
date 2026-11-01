@@ -4,7 +4,7 @@ use glam::{Mat4, Quat, Vec3};
 use serde_json::{Value, json};
 use thiserror::Error;
 
-use crate::document::Document;
+use crate::document::{Document, MaterialShading};
 use crate::geometry::EvaluatedMesh;
 use crate::large_scene::evaluate::{EvaluatedScene, EvaluatedSceneNode, evaluate_large_scene};
 use crate::validation::validate_document;
@@ -56,6 +56,11 @@ pub fn export_glb_from_scene(
             let mut base_color = material.base_color.map(srgb_to_linear);
             base_color[3] = material.opacity;
             let edge_color = material.edge_color.map(srgb_color_hex);
+            let shading = match material.shading.as_ref() {
+                Some(MaterialShading::Flat) => "flat",
+                Some(MaterialShading::Water) => "water",
+                Some(MaterialShading::Directional) | None => "directional",
+            };
             json!({
                 "name": material.name,
                 "pbrMetallicRoughness": {
@@ -69,7 +74,7 @@ pub fn export_glb_from_scene(
                         "id": material.id.as_str(),
                         "edges": edge_color.is_some(),
                         "edgeColor": edge_color,
-                        "shading": "directional"
+                        "shading": shading
                     }
                 }
             })

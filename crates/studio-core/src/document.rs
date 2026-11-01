@@ -136,12 +136,23 @@ pub enum NodeContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
+pub enum MaterialShading {
+    Directional,
+    Flat,
+    Water,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct Material {
     pub id: MaterialId,
     pub name: String,
     pub base_color: [f32; 4],
     pub opacity: f32,
     pub edge_color: Option<[f32; 4]>,
+    #[serde(default)]
+    pub shading: Option<MaterialShading>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]

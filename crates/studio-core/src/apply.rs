@@ -418,6 +418,7 @@ fn apply_operation(
             base_color,
             opacity,
             edge_color,
+            shading,
         } => {
             let material = Material {
                 id: material_id.clone(),
@@ -425,6 +426,7 @@ fn apply_operation(
                 base_color,
                 opacity,
                 edge_color,
+                shading,
             };
             if let Some(existing) = document
                 .materials

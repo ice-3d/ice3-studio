@@ -403,6 +403,7 @@ fn fixture_document() -> Document {
         base_color: [0.2, 0.3, 0.4, 1.0],
         opacity: 1.0,
         edge_color: Some([0.1, 0.1, 0.1, 1.0]),
+        shading: None,
     });
     document.components.push(ComponentDefinition {
         id: component_id.clone(),
