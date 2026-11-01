@@ -780,10 +780,54 @@ function dewateringHouse(b, prefix, { length = 26, width = 15, height = 8 }) {
   return parts;
 }
 
-// 沼气柜：球形储气罐，坐在四根支柱上。
+function torusMesh({
+  majorRadius,
+  tubeRadius,
+  plane = 'xz',
+  majorSegments = 48,
+  minorSegments = 6,
+}) {
+  const positions = [];
+  const indices = [];
+  for (let major = 0; major <= majorSegments; major += 1) {
+    const u = (major / majorSegments) * TAU;
+    for (let minor = 0; minor <= minorSegments; minor += 1) {
+      const v = (minor / minorSegments) * TAU;
+      const ringRadius = majorRadius + tubeRadius * Math.cos(v);
+      if (plane === 'xy') {
+        positions.push([
+          ringRadius * Math.cos(u),
+          ringRadius * Math.sin(u),
+          tubeRadius * Math.sin(v),
+        ]);
+      } else {
+        positions.push([
+          ringRadius * Math.cos(u),
+          tubeRadius * Math.sin(v),
+          ringRadius * Math.sin(u),
+        ]);
+      }
+    }
+  }
+  const stride = minorSegments + 1;
+  for (let major = 0; major < majorSegments; major += 1) {
+    for (let minor = 0; minor < minorSegments; minor += 1) {
+      const a = major * stride + minor;
+      const b = (major + 1) * stride + minor;
+      const c = (major + 1) * stride + minor + 1;
+      const d = major * stride + minor + 1;
+      indices.push(a, d, c, a, c, b);
+    }
+  }
+  return { kind: 'custom_mesh', mesh: { positions, indices } };
+}
+
+// 沼气柜：亮色不锈钢球壳，以深色焊缝、赤道加强带和纬向加强带明确表达
+// 分瓣压制的金属结构，而不是一整块无特征的灰色球面。
 function gasHolder(b, prefix, { radius = 8.5 }) {
   const parts = [];
   const supportHeight = radius * 0.9;
+  const sphereY = supportHeight + radius * 0.75;
   parts.push(b.part(`${prefix}-base`, b.cylinder(radius * 0.75, 0.4, 28), 0, 0.2, 0, 'concrete'));
   for (let index = 0; index < 4; index += 1) {
     const angle = (index / 4) * TAU + Math.PI / 4;
@@ -800,10 +844,46 @@ function gasHolder(b, prefix, { radius = 8.5 }) {
     `${prefix}-sphere`,
     { kind: 'sphere', radius, segments: 28, rings: 18 },
     0,
-    supportHeight + radius * 0.75,
+    sphereY,
     0,
-    'roof',
+    'vessel-steel',
   ));
+  const bandRadius = radius + 0.035;
+  parts.push(b.part(
+    `${prefix}-equator-band`,
+    torusMesh({ majorRadius: bandRadius, tubeRadius: 0.075 }),
+    0,
+    sphereY,
+    0,
+    'steel-dark',
+  ));
+  for (const [suffix, direction] of [['north', 1], ['south', -1]]) {
+    const offset = radius * 0.52 * direction;
+    const latitudeRadius = Math.sqrt(radius ** 2 - offset ** 2) + 0.035;
+    parts.push(b.part(
+      `${prefix}-latitude-band-${suffix}`,
+      torusMesh({ majorRadius: latitudeRadius, tubeRadius: 0.055 }),
+      0,
+      sphereY + offset,
+      0,
+      'steel-dark',
+    ));
+  }
+  for (let index = 0; index < 4; index += 1) {
+    parts.push(b.part(
+      `${prefix}-meridian-rib-${index + 1}`,
+      torusMesh({
+        majorRadius: bandRadius,
+        tubeRadius: 0.04,
+        plane: 'xy',
+      }),
+      0,
+      sphereY,
+      0,
+      'steel-dark',
+      { rotation: rotateY(index * Math.PI / 4) },
+    ));
+  }
   return parts;
 }
 
@@ -1192,7 +1272,7 @@ function emergencyBasin(b, prefix, { length = 44, width = 26, depth = 5.2, wall 
   return parts;
 }
 
-// 生物除臭：一间矮厂房 + 两根排气筒 + 进风管，用来处理格栅间与污泥区的臭气。
+// 生物除臭：一间矮厂房 + 两根排气筒，用来处理格栅间与污泥区的臭气。
 function odorControl(b, prefix) {
   const parts = [
     b.part(`${prefix}-slab`, b.box(24, 0.5, 14), 0, 0.25, 0, 'concrete'),
@@ -1207,8 +1287,6 @@ function odorControl(b, prefix) {
     parts.push(b.part(`${prefix}-stack-cap-${sign > 0 ? 'e' : 'w'}`,
       b.cylinder(1.15, 0.5, 16), sign * 8.5, 11.2, -4, 'roof'));
   }
-  parts.push(b.part(`${prefix}-duct`, b.cylinder(0.7, 16, 12), 0, 7.9, 0, 'pipe-air',
-    { rotation: [0, 0, -Math.SQRT1_2, Math.SQRT1_2] }));
   return parts;
 }
 

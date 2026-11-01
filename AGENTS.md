@@ -16,6 +16,17 @@
 - 外部 AI 负责语言理解，Studio 不内置模型凭据或 Agent policy。
 - 外部建模应用不得作为 Studio Core 的建模实现。
 
+## 开发界面与模型
+
+- Web 界面开发、调试、截图和视觉检查始终使用用户已安装的 Google Chrome，
+  不使用无头浏览器、Chrome for Testing 或其它浏览器。
+- 启动 Studio Viewer 时始终加载最新模型：从 `projects/*/project.json` 中选择
+  `project.json` 修改时间最新的工程；若修改时间相同，选择 `currentRevision` 更高者，
+  并从该工程加载最高 revision。仅当用户明确要求时，才改用 fixture 或参考项目。
+- 污水处理厂场景的道路净空是硬约束：只允许管道从道路上方跨越；设备、池体、建筑、
+  栈桥、支架、检查井、绿化、围栏、路灯及其它构件都必须完全避开道路面。
+- 树木只能种在绿地内，不得占用道路、广场、停车场、设备装卸场地或其它硬化地坪。
+
 ## 架构边界
 
 - 公开 API 是产品边界；Web Viewer 只通过公开 API 展示和审查。

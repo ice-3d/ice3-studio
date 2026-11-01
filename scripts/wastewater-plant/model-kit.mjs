@@ -317,6 +317,97 @@ function createBuilder() {
     if (!from || !to) throw new Error(`missing endpoint ${fromKey} -> ${toKey}`);
     const fromEndpoint = resolveWorldPort(fromKey, fromPort);
     const toEndpoint = resolveWorldPort(toKey, toPort);
+    // A pipe may span a road, but its supports and covers may not stand in the
+    // carriageway. They also need to sit on the actual routed pipe. The kernel
+    // orthogonally routes between stubs, so using the endpoint midpoint puts
+    // accessories in open grass whenever the route turns.
+    const roadCorridors = state.ops
+      .filter(({ type, metadata }) => (
+        type === 'node.create' && metadata?.roadClass
+      ))
+      .map(({ transform, content }) => ({
+        minX: transform.translation.x - content.width / 2,
+        maxX: transform.translation.x + content.width / 2,
+        minZ: transform.translation.z - content.depth / 2,
+        maxZ: transform.translation.z + content.depth / 2,
+      }));
+    const clearOfRoads = (x, z, radius) => !roadCorridors.some((road) => (
+      x + radius > road.minX
+      && x - radius < road.maxX
+      && z + radius > road.minZ
+      && z - radius < road.maxZ
+    ));
+    const routePolicy = ROUTE_POLICY[medium] ?? { kind: 'orthogonal' };
+    const elevated = routePolicy.kind === 'buried'
+      ? -routePolicy.depth
+      : routePolicy.kind === 'rack'
+        ? routePolicy.elevation
+        : routePolicy.kind === 'orthogonal'
+          ? Math.max(fromEndpoint.position.y, toEndpoint.position.y) + 0.5
+          : null;
+    let startStub = vec(
+      fromEndpoint.position.x + fromEndpoint.direction.x * 0.9,
+      fromEndpoint.position.y + fromEndpoint.direction.y * 0.9,
+      fromEndpoint.position.z + fromEndpoint.direction.z * 0.9,
+    );
+    let endStub = vec(
+      toEndpoint.position.x - toEndpoint.direction.x * 0.9,
+      toEndpoint.position.y - toEndpoint.direction.y * 0.9,
+      toEndpoint.position.z - toEndpoint.direction.z * 0.9,
+    );
+    if (elevated !== null) {
+      if ((startStub.y - fromEndpoint.position.y) * (elevated - fromEndpoint.position.y) < 0) {
+        startStub = fromEndpoint.position;
+      }
+      if ((endStub.y - toEndpoint.position.y) * (elevated - toEndpoint.position.y) < 0) {
+        endStub = toEndpoint.position;
+      }
+    }
+    const coarseRoute = elevated === null
+      ? [fromEndpoint.position, toEndpoint.position]
+      : [
+        fromEndpoint.position,
+        startStub,
+        vec(startStub.x, elevated, startStub.z),
+        vec(endStub.x, elevated, startStub.z),
+        vec(endStub.x, elevated, endStub.z),
+        vec(endStub.x, endStub.y, endStub.z),
+        toEndpoint.position,
+      ].filter((point, index, points) => (
+        index === 0
+        || Math.hypot(
+          point.x - points[index - 1].x,
+          point.y - points[index - 1].y,
+          point.z - points[index - 1].z,
+        ) > 1e-5
+      ));
+    const horizontalRuns = coarseRoute.slice(1)
+      .map((point, index) => ({ from: coarseRoute[index], to: point }))
+      .map((run) => ({
+        ...run,
+        length: Math.hypot(run.to.x - run.from.x, run.to.z - run.from.z),
+      }))
+      .filter(({ length }) => length > 1e-5)
+      .sort((left, right) => right.length - left.length);
+    const chooseAttachmentPoint = (radius) => {
+      for (const run of horizontalRuns) {
+        for (const ratio of [0.5, 0.35, 0.65, 0.2, 0.8, 0.1, 0.9]) {
+          const point = vec(
+            run.from.x + (run.to.x - run.from.x) * ratio,
+            run.from.y,
+            run.from.z + (run.to.z - run.from.z) * ratio,
+          );
+          if (clearOfRoads(point.x, point.z, radius)) return { ...point, run };
+        }
+      }
+      return {
+        ...fromEndpoint.position,
+        run: horizontalRuns[0] ?? {
+          from: fromEndpoint.position,
+          to: toEndpoint.position,
+        },
+      };
+    };
     const lineId = options.lineId ?? `L-${String(++state.lineSequence).padStart(3, '0')}`;
     const flow = options.flow ?? 'forward';
     const relationId = id('relation');
@@ -380,28 +471,20 @@ function createBuilder() {
         );
       }
     }
-    const midpoint = vec(
-      (fromEndpoint.position.x + toEndpoint.position.x) / 2,
-      fromEndpoint.position.y,
-      (fromEndpoint.position.z + toEndpoint.position.z) / 2,
-    );
     if (options.supports !== false) {
-      if (ROUTE_POLICY[medium]?.kind === 'buried') {
-        addPipeAccessory(
-          `${name} 检查井`,
-          cylinder(0.52, 0.08, 18),
-          vec(midpoint.x, 0.04, midpoint.z),
-          'steel',
-          { role: 'pipe-cover', lineId, stage: fromEndpoint.metadata.stage },
-        );
+      if (routePolicy.kind === 'buried') {
+        // Buried runs have no visible support. A lone surface cover reads as
+        // unexplained debris at site scale, so expose buried access only when
+        // a cutaway or detail view can provide surrounding context.
       } else {
-        const dx = toEndpoint.position.x - fromEndpoint.position.x;
-        const dz = toEndpoint.position.z - fromEndpoint.position.z;
+        const attachment = chooseAttachmentPoint(1.4);
+        const dx = attachment.run.to.x - attachment.run.from.x;
+        const dz = attachment.run.to.z - attachment.run.from.z;
         const horizontalLength = Math.hypot(dx, dz);
         const normalX = horizontalLength > Number.EPSILON ? -dz / horizontalLength : 0;
         const normalZ = horizontalLength > Number.EPSILON ? dx / horizontalLength : 1;
-        const supportTop = ROUTE_POLICY[medium]?.kind === 'rack'
-          ? ROUTE_POLICY[medium].elevation
+        const supportTop = routePolicy.kind === 'rack'
+          ? routePolicy.elevation
           : Math.max(fromEndpoint.position.y, toEndpoint.position.y) + 0.5;
         const columnHeight = Math.max(0.5, supportTop - 0.12);
         const supportGroup = `${lineId}-mid`;
@@ -416,9 +499,9 @@ function createBuilder() {
             `${name} 管道支架立柱 ${side < 0 ? 'A' : 'B'}`,
             box(0.16, columnHeight, 0.16),
             vec(
-              midpoint.x + normalX * side * 0.95,
+              attachment.x + normalX * side * 0.95,
               columnHeight / 2,
-              midpoint.z + normalZ * side * 0.95,
+              attachment.z + normalZ * side * 0.95,
             ),
             'steel',
             { ...supportMetadata, supportPart: 'column' },
@@ -428,7 +511,7 @@ function createBuilder() {
         addPipeAccessory(
           `${name} 管道支架横梁`,
           box(2.2, 0.22, 0.22),
-          vec(midpoint.x, supportTop, midpoint.z),
+            vec(attachment.x, supportTop, attachment.z),
           'steel',
           { ...supportMetadata, supportPart: 'beam' },
           [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
@@ -455,7 +538,16 @@ function createBuilder() {
   };
 
   // 场地：一块很薄的板，略低于池底，不参与工艺连接。
-  const ground = (name, minX, maxX, minZ, maxZ, materialKey, level = -0.06) => {
+  const ground = (
+    name,
+    minX,
+    maxX,
+    minZ,
+    maxZ,
+    materialKey,
+    level = -0.06,
+    metadata = {},
+  ) => {
     const nodeId = id('node');
     state.ops.push({
       type: 'node.create',
@@ -471,7 +563,7 @@ function createBuilder() {
         depth: maxZ - minZ,
       },
       material_id: state.materials.get(materialKey),
-      metadata: { role: 'site', bounds: 'ignore' },
+      metadata: { role: 'site', bounds: 'ignore', ...metadata },
     });
   };
 

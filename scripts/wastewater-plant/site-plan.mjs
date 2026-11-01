@@ -128,6 +128,7 @@ function buildPlan(projectId) {
   b.material('concrete-wet', 'Wet concrete', srgb('#77776f'));
   b.material('steel-dark', 'Dark steel', srgb('#62717a'));
   b.material('stainless', 'Stainless steel', srgb('#aeb7ba'));
+  b.material('vessel-steel', 'Pressure vessel steel', srgb('#c7d5dc'));
   b.material('roof-light', 'Light metal roof', srgb('#c7ced1'));
   b.material('water-anoxic', 'Anoxic water', srgb('#687a78', 0.68), null, 'water');
   b.material('water-aerobic', 'Aerobic water', srgb('#738b84', 0.64), null, 'water');
@@ -419,35 +420,57 @@ function buildPlan(projectId) {
     serviceCanopy(b, 'svc', { length: 10, width: 6, height: 5 }), []);
 
   // 场地：按功能分区铺草坪，四周留出环形主干道。
-  b.ground('场地（草坪）', -10, 610, -185, 185, 'lawn', -0.08);
-  // 环形主干道：南北两条沿厂界，东西两端各一条。
-  b.ground('道路（北）', -10, 610, -180, -168, 'asphalt-new', -0.03);
-  b.ground('道路（南）', -10, 610, 168, 180, 'asphalt-worn', -0.03);
-  b.ground('道路（西）', -10, 2, -185, 185, 'asphalt-new', -0.03);
-  b.ground('道路（东）', 598, 610, -185, 185, 'asphalt-worn', -0.03);
-  // 横向支路：分隔预处理 / 生化 / 二沉三个区块。
-  b.ground('道路（支路一）', 119, 131, -180, 180, 'asphalt-worn', -0.03);
-  b.ground('道路（支路二）', 354, 366, -180, 180, 'asphalt-new', -0.03);
-  // 入口引道：从南主干道穿进厂内，直抵中控楼前的广场。
-  b.ground('道路（入口引道）', 24, 36, 140, 180, 'asphalt-new', -0.03);
-  b.ground('广场（入口）', 6, 60, 140, 168, 'paving', -0.04);
-  b.ground('停车场', 44, 92, 150, 166, 'asphalt-worn', -0.03);
+  // Each surface class gets a deeper physical separation than the camera's
+  // world-scale depth resolution so overlapping paving and asphalt cannot
+  // z-fight while orbiting.
+  const siteLevels = Object.freeze({
+    lawn: -0.20,
+    paving: -0.12,
+    asphalt: -0.03,
+    marking: 0,
+    curb: 0.03,
+    drain: 0.06,
+  });
+  b.ground('场地（草坪）', -10, 610, -185, 185, 'lawn', siteLevels.lawn);
+  // 道路轮廓只声明一次，铺地、路灯避让和净空校验共用同一组边界。
+  const roadSurfaces = [
+    { name: '道路（北）', minX: -10, maxX: 610, minZ: -180, maxZ: -168, material: 'asphalt-new' },
+    { name: '道路（南）', minX: -10, maxX: 610, minZ: 168, maxZ: 180, material: 'asphalt-new' },
+    { name: '道路（西）', minX: -10, maxX: 2, minZ: -185, maxZ: 185, material: 'asphalt-new' },
+    { name: '道路（东）', minX: 598, maxX: 610, minZ: -185, maxZ: 185, material: 'asphalt-new' },
+    { name: '道路（支路一）', minX: 119, maxX: 131, minZ: -180, maxZ: 180, material: 'asphalt-new' },
+    { name: '道路（支路二）', minX: 364, maxX: 376, minZ: -180, maxZ: 180, material: 'asphalt-new' },
+    { name: '道路（入口引道）', minX: 24, maxX: 36, minZ: 140, maxZ: 180, material: 'asphalt-new' },
+    { name: '生物池检修通道', minX: 178, maxX: 365, minZ: 58, maxZ: 64, material: 'paving' },
+    { name: '二沉池检修通道', minX: 365, maxX: 528, minZ: 58, maxZ: 64, material: 'paving' },
+    { name: '生化区检修环路西', minX: 172, maxX: 178, minZ: -62, maxZ: 62, material: 'asphalt-new' },
+  ];
+  for (const road of roadSurfaces) {
+    b.ground(
+      road.name,
+      road.minX,
+      road.maxX,
+      road.minZ,
+      road.maxZ,
+      road.material,
+      road.material === 'paving' ? siteLevels.paving : siteLevels.asphalt,
+      { roadClass: 'site-access' },
+    );
+  }
+  b.ground('广场（入口）', 6, 60, 140, 168, 'paving', siteLevels.paving);
+  b.ground('停车场', 78, 128, 150, 166, 'asphalt-worn', siteLevels.paving);
 
-  b.ground('北侧道路标线', -10, 610, -179.15, -178.85, 'marking', -0.018);
-  b.ground('北侧道路内标线', -10, 610, -169.15, -168.85, 'marking', -0.018);
-  b.ground('南侧道路标线', -10, 610, 168.85, 169.15, 'marking', -0.018);
-  b.ground('南侧道路外标线', -10, 610, 178.85, 179.15, 'marking', -0.018);
-  b.ground('生物池检修通道', 178, 365, 58, 64, 'paving', -0.04);
-  b.ground('二沉池检修通道', 365, 528, 58, 64, 'paving', -0.04);
-  b.ground('北侧设备装卸场地', 400, 477, -161, -132, 'paving', -0.04);
-  b.ground('预处理设备装卸场地', 42, 72, 18, 30, 'paving', -0.04);
-  b.ground('深度处理检修场地', 500, 578, 12, 32, 'paving', -0.04);
-  b.ground('生化区检修环路西', 172, 178, -62, 62, 'asphalt-worn', -0.026);
-  b.ground('生化区检修环路东', 350, 356, -62, 62, 'asphalt-new', -0.026);
-  b.ground('南侧路缘', -10, 610, 167.7, 168.2, 'curb', -0.015);
-  b.ground('北侧路缘', -10, 610, -168.2, -167.7, 'curb', -0.015);
-  b.ground('南侧排水沟', -10, 610, 166.9, 167.35, 'drain', -0.012);
-  b.ground('北侧排水沟', -10, 610, -167.35, -166.9, 'drain', -0.012);
+  b.ground('北侧道路标线', -10, 610, -179.15, -178.85, 'marking', siteLevels.marking);
+  b.ground('北侧道路内标线', -10, 610, -169.15, -168.85, 'marking', siteLevels.marking);
+  b.ground('南侧道路标线', -10, 610, 168.85, 169.15, 'marking', siteLevels.marking);
+  b.ground('南侧道路外标线', -10, 610, 178.85, 179.15, 'marking', siteLevels.marking);
+  b.ground('北侧设备装卸场地', 400, 477, -161, -132, 'paving', siteLevels.paving);
+  b.ground('预处理设备装卸场地', 42, 72, 18, 30, 'paving', siteLevels.paving);
+  b.ground('深度处理检修场地', 500, 578, 12, 32, 'paving', siteLevels.paving);
+  b.ground('南侧路缘', -10, 610, 167.7, 168.2, 'curb', siteLevels.curb);
+  b.ground('北侧路缘', -10, 610, -168.2, -167.7, 'curb', siteLevels.curb);
+  b.ground('南侧排水沟', -10, 610, 166.9, 167.35, 'drain', siteLevels.drain);
+  b.ground('北侧排水沟', -10, 610, -167.35, -166.9, 'drain', siteLevels.drain);
 
   // 总平面：按功能分区，成组紧凑布置。
   //
@@ -484,19 +507,21 @@ function buildPlan(projectId) {
       stage: 'biological', tag: `AE-${series}03`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
 
-    // 二沉区（x 380–470）：三座一排，间距 45 米（直径 30 加通道）
+    // 二沉区：先给支路留出净宽，再按 36 米中心距紧凑排成三座。
     for (let index = 1; index <= 3; index += 1) {
       b.instance('secondary-clarifier', `sc-${key}${index}`,
-        `SC-${series}0${index} 二沉池`, 375 + dx + (index - 1) * 45, 0, z, {
+        `SC-${series}0${index} 二沉池`, 399 + dx + (index - 1) * 36, 0, z, {
           stage: 'secondary', tag: `SC-${series}0${index}`, train: `Train${series}`,
         }, { radius: 15, depth: 4.6, wall: 0.45 });
     }
   }
 
   // 深度处理区（东端）
-  b.instance('filter-cell', 'fl-1', 'FL-101 滤池', 520, 0, 0, { stage: 'tertiary', tag: 'FL-101' },
+  b.instance('filter-cell', 'fl-1', 'FL-101 滤池', 536, 0, 0,
+    { stage: 'tertiary', tag: 'FL-101', clearanceRadius: '17' },
     { length: 32, width: 26, depth: 3.6 });
-  b.instance('disinfection-channel', 'uv-1', 'UV-101 紫外消毒渠', 560, 0, 0, { stage: 'tertiary', tag: 'UV-101' },
+  b.instance('disinfection-channel', 'uv-1', 'UV-101 紫外消毒渠', 567, 0, 0,
+    { stage: 'tertiary', tag: 'UV-101', clearanceRadius: '14' },
     { length: 26, width: 5.5, depth: 3 });
 
   // 污泥区（北侧独立成角，与生产区隔一条绿化带）
@@ -508,7 +533,7 @@ function buildPlan(projectId) {
     { radius: 11, height: 17 });
   b.instance('digester', 'dg-2', 'DG-102 消化池', 320, 0, -105, { stage: 'sludge', tag: 'DG-102' },
     { radius: 11, height: 17 });
-  b.instance('gas-holder', 'gh-1', 'GH-101 沼气柜', 372, 0, -125, { stage: 'sludge', tag: 'GH-101' });
+  b.instance('gas-holder', 'gh-1', 'GH-101 沼气柜', 388, 0, -125, { stage: 'sludge', tag: 'GH-101' });
   b.instance('dewatering-house', 'dw-1', 'DW-101 脱水机房', 430, 0, -145, { stage: 'sludge', tag: 'DW-101' });
 
   // 辅助区（南侧靠入口）
@@ -531,20 +556,22 @@ function buildPlan(projectId) {
     { stage: 'sludge', tag: 'DW-101-C1', role: 'equipment' });
   b.instance('dewatering-skid', 'dws-2', 'DW-101 脱水机 2', 458, 0, -156,
     { stage: 'sludge', tag: 'DW-101-C2', role: 'equipment' });
-  b.instance('valve-manifold', 'vmf-1', '生化配水阀组', 177, 0, 5,
+  b.instance('valve-manifold', 'vmf-1', '生化配水阀组', 187, 0, 5,
     { stage: 'biological', role: 'equipment' });
   b.instance('service-canopy', 'svc-1', '提升泵组检修棚', 62, 0, 10,
     { stage: 'intake', role: 'equipment' });
 
   // 分流、汇流和回流节点。每个方向使用独立端口，避免多根主管叠在同一点。
-  b.instance('grit-distribution', 'dd-g', 'DD-001 沉砂配水井', 128, 0, 0,
+  b.instance('grit-distribution', 'dd-g', 'DD-001 沉砂配水井', 112, 0, 0,
     { stage: 'intake', tag: 'DD-001' });
   for (const train of trains) {
     const { key, series, z } = train;
     b.instance('clarifier-distribution', `dd-${key}`, `DD-${series}01 二沉分流井`,
-      key === 'a' ? 353 : 359, 0, z, { stage: 'secondary', tag: `DD-${series}01` });
+      380, 0, z,
+      { stage: 'secondary', tag: `DD-${series}01`, clearanceRadius: '1' },
+      {}, Math.PI / 2);
   }
-  b.instance('filter-collection', 'fb-1', 'FB-101 二沉集水井', 495, 0, 0,
+  b.instance('filter-collection', 'fb-1', 'FB-101 二沉集水井', 506, 0, 0,
     { stage: 'secondary', tag: 'FB-101' });
   b.instance('sludge-collection-well', 'scw-1', 'SCW-101 初沉集泥井', 190, 0, 0,
     { stage: 'sludge', tag: 'SCW-101' });
@@ -645,26 +672,56 @@ function buildPlan(projectId) {
   // 跨池栈桥
   for (const train of trains) {
     const { series, z, dx } = train;
-    b.walkway(`ST-${series}01 初沉至生化栈桥`, [172 + dx, z], [189 + dx, z], { y: 5.0 });
     b.walkway(`ST-${series}02 生化一至二栈桥`, [238 + dx, z], [246 + dx, z], { y: 5.6 });
     b.walkway(`ST-${series}03 生化二至三栈桥`, [293 + dx, z], [301 + dx, z], { y: 5.6 });
-    b.walkway(`ST-${series}04 生化至二沉栈桥`, [348 + dx, z], [358 + dx, z], { y: 4.6 });
     b.walkway(`ST-${series}05 二沉间栈桥`, [394 + dx, z], [401 + dx, z], { y: 4.4 });
     b.walkway(`ST-${series}06 二沉间栈桥`, [439 + dx, z], [446 + dx, z], { y: 4.4 });
   }
 
   // 围栏：南北沿厂界，南界中间给大门留出 16 米开口
-  b.instance('site-fence', 'fence-n', '围栏 / 北界', 300, 0, -182, { role: 'landscape' }, { length: 620 });
-  b.instance('site-fence-gate-w', 'fence-s-w', '围栏 / 南界西段', 6, 0, 182, { role: 'landscape' }, { length: 32 });
-  b.instance('site-fence-gate-e', 'fence-s-e', '围栏 / 南界东段', 324, 0, 182, { role: 'landscape' }, { length: 572 });
+  b.instance('site-fence', 'fence-n', '围栏 / 北界', 300, 0, -182, { role: 'landscape' }, { length: 584 });
+  b.instance('site-fence-gate-w', 'fence-s-w', '围栏 / 南界西段', 13, 0, 182, { role: 'landscape' }, { length: 18 });
+  b.instance('site-fence-gate-e', 'fence-s-e', '围栏 / 南界东段', 316, 0, 182, { role: 'landscape' }, { length: 556 });
 
   // ── 北侧预留区：事故池与除臭装置，把原本空着的北带补满 ──────
-  b.instance('emergency-basin', 'emg-1', 'EMG-101 事故池', 150, 0, -122,
+  b.instance('emergency-basin', 'emg-1', 'EMG-101 事故池', 155, 0, -122,
     { stage: 'auxiliary', tag: 'EMG-101' }, { length: 44, width: 26, depth: 5.2 });
   b.instance('odor-control', 'odr-1', 'ODR-101 生物除臭间', 470, 0, -122,
     { stage: 'auxiliary', tag: 'ODR-101' });
 
-  // 绿化：成排乔木，位置带确定性抖动。入口广场一带留空，不种树。
+  // 绿化：只种在草坪上。除道路外，广场、停车场和装卸场地同样是硬质地坪。
+  const hardscapeMaterialKeys = new Set([
+    'asphalt',
+    'asphalt-new',
+    'asphalt-worn',
+    'paving',
+    'curb',
+    'drain',
+    'marking',
+  ]);
+  const hardscapeMaterialIds = new Set(
+    [...hardscapeMaterialKeys]
+      .map((key) => b.state.materials.get(key))
+      .filter(Boolean),
+  );
+  const hardscapeFootprints = b.state.ops
+    .filter(({ type, material_id, metadata }) => (
+      type === 'node.create'
+      && metadata?.role === 'site'
+      && hardscapeMaterialIds.has(material_id)
+    ))
+    .map(({ transform, content }) => ({
+      minX: transform.translation.x - content.width / 2,
+      maxX: transform.translation.x + content.width / 2,
+      minZ: transform.translation.z - content.depth / 2,
+      maxZ: transform.translation.z + content.depth / 2,
+    }));
+  const treeClearOfHardscape = (x, z) => !hardscapeFootprints.some((surface) => (
+    x > surface.minX - 4
+    && x < surface.maxX + 4
+    && z > surface.minZ - 4
+    && z < surface.maxZ + 4
+  ));
   const jitter = (index, salt) => {
     const raw = Math.abs(Math.sin(index * 12.9898 + salt) * 43758.5453) % 1;
     return raw - 0.5;
@@ -675,38 +732,56 @@ function buildPlan(projectId) {
     const zs = 156 + jitter(index, 2.1) * 5;
     const ze = 173 + jitter(index, 3.3) * 4;
     const zn = -160 + jitter(index, 4.7) * 5;
-    if (!inEntranceZone(x, zs)) {
+    if (!inEntranceZone(x, zs) && treeClearOfHardscape(x, zs)) {
       b.instance('tree', `tree-s-a-${index}`, `绿化 / 南排 ${index + 1}`, x, 0, zs, { role: 'landscape' });
     }
-    if (!inEntranceZone(x + 8, ze)) {
+    if (!inEntranceZone(x + 8, ze) && treeClearOfHardscape(x + 8, ze)) {
       b.instance('tree', `tree-s-b-${index}`, `绿化 / 南外排 ${index + 1}`, x + 8, 0, ze, { role: 'landscape' });
     }
-    b.instance('tree', `tree-n-a-${index}`, `绿化 / 北排 ${index + 1}`, x + 4, 0, zn, { role: 'landscape' });
+    if (treeClearOfHardscape(x + 4, zn)) {
+      b.instance('tree', `tree-n-a-${index}`, `绿化 / 北排 ${index + 1}`, x + 4, 0, zn, { role: 'landscape' });
+    }
   }
   for (let index = 0; index < 8; index += 1) {
     const z = -120 + index * 32 + jitter(index, 5.9) * 6;
-    b.instance('tree', `tree-mid-${index}`, `绿化 / 中带 ${index + 1}`, 122 + jitter(index, 6.1) * 6, 0, z, { role: 'landscape' });
-    b.instance('tree', `tree-mid2-${index}`, `绿化 / 中带二 ${index + 1}`, 358 + jitter(index, 7.3) * 6, 0, z, { role: 'landscape' });
+    const westX = 122 + jitter(index, 6.1) * 6;
+    const eastX = 358 + jitter(index, 7.3) * 6;
+    if (treeClearOfHardscape(westX, z)) {
+      b.instance('tree', `tree-mid-${index}`, `绿化 / 中带 ${index + 1}`, westX, 0, z, { role: 'landscape' });
+    }
+    if (treeClearOfHardscape(eastX, z)) {
+      b.instance('tree', `tree-mid2-${index}`, `绿化 / 中带二 ${index + 1}`, eastX, 0, z, { role: 'landscape' });
+    }
   }
   // 东西两端与污泥区补种，避免出现大片空草坪。
   for (let index = 0; index < 10; index += 1) {
     const z = -150 + index * 33 + jitter(index, 8.1) * 5;
-    b.instance('tree', `tree-west-${index}`, `绿化 / 西端 ${index + 1}`, 14 + jitter(index, 9.4) * 4, 0, z, { role: 'landscape' });
-    b.instance('tree', `tree-east-${index}`, `绿化 / 东端 ${index + 1}`, 592 + jitter(index, 10.2) * 4, 0, z, { role: 'landscape' });
+    const westX = 14 + jitter(index, 9.4) * 4;
+    const eastX = 592 + jitter(index, 10.2) * 4;
+    if (treeClearOfHardscape(westX, z)) {
+      b.instance('tree', `tree-west-${index}`, `绿化 / 西端 ${index + 1}`, westX, 0, z, { role: 'landscape' });
+    }
+    if (treeClearOfHardscape(eastX, z)) {
+      b.instance('tree', `tree-east-${index}`, `绿化 / 东端 ${index + 1}`, eastX, 0, z, { role: 'landscape' });
+    }
   }
   for (let index = 0; index < 9; index += 1) {
     const x = 150 + index * 34 + jitter(index, 11.3) * 6;
-    b.instance('tree', `tree-sludge-${index}`, `绿化 / 污泥区 ${index + 1}`, x, 0, -96 + jitter(index, 12.7) * 5, { role: 'landscape' });
+    const z = -96 + jitter(index, 12.7) * 5;
+    if (treeClearOfHardscape(x, z)) {
+      b.instance('tree', `tree-sludge-${index}`, `绿化 / 污泥区 ${index + 1}`, x, 0, z, { role: 'landscape' });
+    }
   }
 
   // ── 入口区 ─────────────────────────────────────────────
   // 大门开在南界正中偏西，正对引道；门卫房在门内侧偏东，雨篷朝大门。
   b.instance('entrance-gate', 'gate-1', 'GATE-101 入口大门', 30, 0, 182, { stage: 'auxiliary', tag: 'GATE-101' });
-  b.instance('gate-house', 'gho-1', 'GTE-101 门卫房', 45, 0, 174, { stage: 'auxiliary', tag: 'GTE-101' }, {}, Math.PI);
-  b.instance('sign-wall', 'sign-1', '厂区铭牌', 53, 0, 176, { stage: 'auxiliary', tag: 'SIGN-101' }, {}, Math.PI);
+  b.instance('gate-house', 'gho-1', 'GTE-101 门卫房', 45, 0, 160, { stage: 'auxiliary', tag: 'GTE-101' }, {}, Math.PI);
+  b.instance('sign-wall', 'sign-1', '厂区铭牌', 53, 0, 162, { stage: 'auxiliary', tag: 'SIGN-101' }, {}, Math.PI);
   b.instance('parking-bay', 'pkb-1', '停车场车位', 100, 0, 158, { stage: 'auxiliary', role: 'site' }, { length: 31.2 });
   // 出水口挂在紫外消毒渠东侧
-  b.instance('outfall', 'ofs-1', 'OUT-101 出水口', 592, 0, 0, { stage: 'tertiary', tag: 'OUT-101' }, {}, Math.PI / 2);
+  b.instance('outfall', 'ofs-1', 'OUT-101 出水口', 586, 0, 0,
+    { stage: 'tertiary', tag: 'OUT-101', clearanceRadius: '1' }, {}, Math.PI / 2);
   b.connect('uv-1', 'outlet', 'ofs-1', 'inlet', 'UV-101 → OUT-101 出水', 'final-effluent', 0.6);
   // 两台鼓风机分别向两组好氧池供气。
   b.connect('bl-1', 'air-out', 'bls-1', 'air-in', 'BLW-101 → 鼓风机 1', 'air', 0.8);
@@ -716,23 +791,40 @@ function buildPlan(projectId) {
 
   // ── 综合管廊 ───────────────────────────────────────────
   // 只保留确有主管穿越的管廊；没有真实承载管线的空架不再保留。
-  b.instance('pipe-rack', 'prk-2', '管廊 / 沼气主管', 333, 0, -125,
-    { role: 'piping', lineId: gasHeaderLineId }, { length: 194, height: 4.2 });
+  // 支路只允许管道跨越，管廊在道路两侧断开。
+  b.instance('pipe-rack', 'prk-2-w', '管廊 / 沼气主管西段', 296, 0, -125,
+    { role: 'piping', lineId: gasHeaderLineId }, { length: 120, height: 4.2 });
+  b.instance('pipe-rack', 'prk-2-e', '管廊 / 沼气主管东段', 404, 0, -125,
+    { role: 'piping', lineId: gasHeaderLineId }, { length: 52, height: 4.2 });
 
   // ── 绿篱与路灯 ─────────────────────────────────────────
   // 绿篱沿主干道内侧连续布置，断口留在大门口与岔路口。
-  b.instance('hedge', 'hedge-s1', '绿篱 / 南一', 110, 0, 166, { role: 'landscape' }, { length: 92 });
-  b.instance('hedge', 'hedge-s2', '绿篱 / 南二', 300, 0, 166, { role: 'landscape' }, { length: 296 });
-  b.instance('hedge', 'hedge-s3', '绿篱 / 南三', 500, 0, 166, { role: 'landscape' }, { length: 180 });
-  b.instance('hedge', 'hedge-n1', '绿篱 / 北一', 300, 0, -166, { role: 'landscape' }, { length: 590 });
+  b.instance('hedge', 'hedge-s1', '绿篱 / 南一', 88.5, 0, 166, { role: 'landscape' }, { length: 53 });
+  b.instance('hedge', 'hedge-s2', '绿篱 / 南二', 244.5, 0, 166, { role: 'landscape' }, { length: 219 });
+  b.instance('hedge', 'hedge-s3', '绿篱 / 南三', 485, 0, 166, { role: 'landscape' }, { length: 214 });
+  b.instance('hedge', 'hedge-n1', '绿篱 / 北一', 60.5, 0, -166, { role: 'landscape' }, { length: 109 });
+  b.instance('hedge', 'hedge-n2', '绿篱 / 北二', 244.5, 0, -166, { role: 'landscape' }, { length: 219 });
+  b.instance('hedge', 'hedge-n3', '绿篱 / 北三', 486, 0, -166, { role: 'landscape' }, { length: 216 });
   // 路灯：主干道内侧每 42 米一盏，灯臂伸向路心。
+  const lampXClearOfRoads = (x, z, clearance = 2) => {
+    for (const road of roadSurfaces) {
+      if (z < road.minZ - clearance || z > road.maxZ + clearance) continue;
+      if (x < road.minX - clearance || x > road.maxX + clearance) continue;
+      x = x < (road.minX + road.maxX) / 2
+        ? road.minX - clearance
+        : road.maxX + clearance;
+    }
+    return x;
+  };
   for (let index = 0; index < 13; index += 1) {
-    const x = 66 + index * 42;
-    b.instance('lamp-post', `lamp-s-${index}`, `路灯 / 南 ${index + 1}`, x, 0, 163, { role: 'landscape' }, {}, -Math.PI / 2);
-    b.instance('lamp-post', `lamp-n-${index}`, `路灯 / 北 ${index + 1}`, x + 20, 0, -163, { role: 'landscape' }, {}, Math.PI / 2);
+    const southX = lampXClearOfRoads(66 + index * 42, 163);
+    const northX = lampXClearOfRoads(86 + index * 42, -163);
+    b.instance('lamp-post', `lamp-s-${index}`, `路灯 / 南 ${index + 1}`, southX, 0, 163, { role: 'landscape' }, {}, -Math.PI / 2);
+    b.instance('lamp-post', `lamp-n-${index}`, `路灯 / 北 ${index + 1}`, northX, 0, -163, { role: 'landscape' }, {}, Math.PI / 2);
   }
   for (let index = 0; index < 3; index += 1) {
-    b.instance('lamp-post', `lamp-e-${index}`, `路灯 / 引道 ${index + 1}`, 20, 0, 150 + index * 14, { role: 'landscape' }, {}, 0);
+    const z = 143 + index * 10;
+    b.instance('lamp-post', `lamp-e-${index}`, `路灯 / 引道 ${index + 1}`, 20, 0, z, { role: 'landscape' }, {}, 0);
   }
 
 

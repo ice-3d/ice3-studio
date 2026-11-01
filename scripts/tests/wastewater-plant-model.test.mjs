@@ -14,8 +14,10 @@ import {
   WWTP_STATS_LIMITS,
   assertProjectStats,
   validateConnectionPorts,
+  validatePipeAccessoryAlignment,
   validateProcessGraph,
   validateProjectStats,
+  validateSiteRoadClearance,
   validateWastewaterPlan,
 } from '../../scripts/wastewater-plant/validate.mjs';
 
@@ -429,6 +431,44 @@ test('major equipment has identity-bearing silhouettes and connecting ports', ()
   assert.ok(blower.ports.length >= 2);
 });
 
+test('gas holder uses pressure-vessel steel on a concrete and steel frame', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const holder = plan.operations.find(({ type, name }) => (
+    type === 'instance.create' && name === 'GH-101 沼气柜'
+  ));
+  assert.ok(holder);
+  const definition = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition: value }) => value)
+    .find(({ id }) => id === holder.instance.definitionId);
+  assert.ok(definition);
+  const materialNames = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name }) => [material_id, name]),
+  );
+  const materialFor = (partId) => (
+    materialNames.get(holder.instance.overrides[partId]?.materialId)
+  );
+
+  assert.equal(materialFor('gh-sphere'), 'Pressure vessel steel');
+  assert.equal(materialFor('gh-base'), 'Reinforced concrete');
+  assert.equal(materialFor('gh-leg-1'), 'Galvanised steel');
+  for (const partId of [
+    'gh-equator-band',
+    'gh-latitude-band-north',
+    'gh-latitude-band-south',
+    'gh-meridian-rib-1',
+    'gh-meridian-rib-2',
+    'gh-meridian-rib-3',
+    'gh-meridian-rib-4',
+  ]) {
+    const part = definition.parts.find(({ id }) => id === partId);
+    assert.equal(part?.content.kind, 'custom_mesh', partId);
+    assert.equal(materialFor(partId), 'Dark steel', partId);
+  }
+});
+
 test('site plan uses readable names and complete service routes', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const instances = plan.operations.filter(({ type }) => type === 'instance.create');
@@ -479,6 +519,41 @@ test('asphalt surfaces stay inside the site boundary', () => {
       `${surface.name} extends outside the site boundary`,
     );
   }
+});
+
+test('overlapping site surface materials have stable depth separation', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const materialNames = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name }) => [material_id, name]),
+  );
+  const surfaces = plan.operations
+    .filter(({ type, metadata }) => type === 'node.create' && metadata?.role === 'site')
+    .map(({ name, material_id, transform, content }) => ({
+      name,
+      material: materialNames.get(material_id),
+      y: transform.translation.y,
+      minX: transform.translation.x - content.width / 2,
+      maxX: transform.translation.x + content.width / 2,
+      minZ: transform.translation.z - content.depth / 2,
+      maxZ: transform.translation.z + content.depth / 2,
+    }));
+  const conflicts = [];
+  for (let leftIndex = 0; leftIndex < surfaces.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < surfaces.length; rightIndex += 1) {
+      const left = surfaces[leftIndex];
+      const right = surfaces[rightIndex];
+      if (left.material === right.material) continue;
+      const overlapX = Math.min(left.maxX, right.maxX) - Math.max(left.minX, right.minX);
+      const overlapZ = Math.min(left.maxZ, right.maxZ) - Math.max(left.minZ, right.minZ);
+      if (overlapX > 0.01 && overlapZ > 0.01 && Math.abs(left.y - right.y) < 0.03) {
+        conflicts.push(`${left.name} / ${right.name}: ${Math.abs(left.y - right.y).toFixed(3)}m`);
+      }
+    }
+  }
+
+  assert.deepEqual(conflicts, []);
 });
 
 test('all road surfaces use the same twelve metre carriageway width', () => {
@@ -532,6 +607,90 @@ test('the road network forms one connected surface', () => {
     roads.filter(({ name }) => !connected.has(name)).map(({ name }) => name),
     [],
   );
+});
+
+test('trees keep a four metre clear zone from road surfaces', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const roads = plan.operations
+    .filter(({ type, name }) => (
+      type === 'node.create' && name.startsWith('道路')
+    ))
+    .map(({ transform, content }) => ({
+      minX: transform.translation.x - content.width / 2,
+      maxX: transform.translation.x + content.width / 2,
+      minZ: transform.translation.z - content.depth / 2,
+      maxZ: transform.translation.z + content.depth / 2,
+    }));
+  const trees = plan.operations.filter(({ type, name }) => (
+    type === 'instance.create' && name.startsWith('绿化 /')
+  ));
+  const obstructing = trees.filter(({ transform }) => (
+    roads.some(({ minX, maxX, minZ, maxZ }) => (
+      transform.translation.x > minX - 4
+      && transform.translation.x < maxX + 4
+      && transform.translation.z > minZ - 4
+      && transform.translation.z < maxZ + 4
+    ))
+  ));
+  assert.deepEqual(obstructing.map(({ name }) => name), []);
+});
+
+test('trees do not grow through paved surfaces', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const materialNames = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name }) => [material_id, name]),
+  );
+  const hardscapeMaterials = new Set([
+    'Paving',
+    'Asphalt road',
+    'New asphalt',
+    'Worn asphalt',
+    'Curb',
+    'Drain',
+    'Road marking',
+  ]);
+  const hardscapes = plan.operations
+    .filter(({ type, metadata, material_id }) => (
+      type === 'node.create'
+      && metadata?.role === 'site'
+      && hardscapeMaterials.has(materialNames.get(material_id))
+    ))
+    .map(({ name, transform, content }) => ({
+      name,
+      minX: transform.translation.x - content.width / 2,
+      maxX: transform.translation.x + content.width / 2,
+      minZ: transform.translation.z - content.depth / 2,
+      maxZ: transform.translation.z + content.depth / 2,
+    }));
+  const trees = plan.operations.filter(({ type, name }) => (
+    type === 'instance.create' && name.startsWith('绿化 / ')
+  ));
+  const obstructing = trees
+    .filter(({ transform }) => hardscapes.some(({ minX, maxX, minZ, maxZ }) => (
+      transform.translation.x > minX
+      && transform.translation.x < maxX
+      && transform.translation.z > minZ
+      && transform.translation.z < maxZ
+    )))
+    .map(({ name }) => name);
+
+  assert.deepEqual(obstructing, []);
+});
+
+test('only pipe routes occupy road surfaces', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  assert.deepEqual(validateSiteRoadClearance(plan), { ok: true, issues: [] });
+
+  const tree = plan.operations.find(({ type, name }) => (
+    type === 'instance.create' && name.startsWith('绿化 / ')
+  ));
+  assert.ok(tree);
+  tree.transform.translation.x = 125;
+  const result = validateSiteRoadClearance(plan);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some(({ code }) => code === 'ROAD_OBSTRUCTION'));
 });
 
 test('parallel treatment trains are related without being exact copies', () => {
@@ -822,6 +981,18 @@ test('above-ground pipe supports are two-column assemblies', () => {
   assert.ok([...groups.values()].every((count) => count === 3));
 });
 
+test('pipe supports sit on the routed pipe instead of open lawn', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  assert.deepEqual(validatePipeAccessoryAlignment(plan), { ok: true, issues: [] });
+});
+
+test('buried pipes do not leave unexplained surface covers on the lawn', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  assert.equal(plan.operations.some(({ type, metadata }) => (
+    type === 'node.create' && metadata?.role === 'pipe-cover'
+  )), false);
+});
+
 test('site contains no generic decorative control-box equipment', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   assert.equal(plan.operations.some(({ metadata }) => metadata?.kind === 'control-box'), false);
@@ -835,6 +1006,19 @@ test('pipe racks contain supports only, never decorative disconnected pipes', ()
     .find(({ name }) => name === 'Pipe rack');
   assert.ok(rack);
   assert.equal(rack.parts.some(({ id }) => id.includes('-pipe-')), false);
+});
+
+test('odour control carries roof stacks without a disconnected decorative duct', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const odourControl = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition)
+    .find(({ name }) => name === 'Odour control');
+  const ids = new Set(odourControl.parts.map(({ id }) => id));
+
+  assert.ok(ids.has('odr-stack-w'));
+  assert.ok(ids.has('odr-stack-e'));
+  assert.equal(ids.has('odr-duct'), false);
 });
 
 test('every pipe rack carries a real above-ground process line', () => {

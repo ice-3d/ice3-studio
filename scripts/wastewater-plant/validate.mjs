@@ -6,6 +6,337 @@ export const WWTP_STATS_LIMITS = Object.freeze({
   maxInstances: 500,
 });
 
+const EXPRESSION_SCOPE = Object.freeze({
+  abs: Math.abs,
+  ceil: Math.ceil,
+  cos: Math.cos,
+  floor: Math.floor,
+  max: Math.max,
+  min: Math.min,
+  pow: Math.pow,
+  round: Math.round,
+  sin: Math.sin,
+  sqrt: Math.sqrt,
+  tau: Math.PI * 2,
+});
+
+function resolveNumber(value, scope) {
+  if (typeof value === 'number') return value;
+  if (typeof value?.value === 'number') return value.value;
+  if (typeof value?.expr !== 'string') return 0;
+  const values = { ...EXPRESSION_SCOPE, ...scope };
+  const names = Object.keys(values);
+  return Function(...names, `"use strict"; return (${value.expr});`)(
+    ...names.map((name) => values[name]),
+  );
+}
+
+function rotateByQuaternion([x, y, z], [qx, qy, qz, qw]) {
+  const ix = qw * x + qy * z - qz * y;
+  const iy = qw * y + qz * x - qx * z;
+  const iz = qw * z + qx * y - qy * x;
+  const iw = -qx * x - qy * y - qz * z;
+  return [
+    ix * qw + iw * -qx + iy * -qz - iz * -qy,
+    iy * qw + iw * -qy + iz * -qx - ix * -qz,
+    iz * qw + iw * -qz + ix * -qy - iy * -qx,
+  ];
+}
+
+function multiplyQuaternions([ax, ay, az, aw], [bx, by, bz, bw]) {
+  return [
+    aw * bx + ax * bw + ay * bz - az * by,
+    aw * by - ax * bz + ay * bw + az * bx,
+    aw * bz + ax * by - ay * bx + az * bw,
+    aw * bw - ax * bx - ay * by - az * bz,
+  ];
+}
+
+function boundsFromPoints(points) {
+  if (points.length === 0) return null;
+  return {
+    minX: Math.min(...points.map(([x]) => x)),
+    maxX: Math.max(...points.map(([x]) => x)),
+    minY: Math.min(...points.map(([, y]) => y)),
+    maxY: Math.max(...points.map(([, , y]) => y)),
+    minZ: Math.min(...points.map(([, , z]) => z)),
+    maxZ: Math.max(...points.map(([, , z]) => z)),
+  };
+}
+
+function primitivePoints(content, scope) {
+  const points = [];
+  if (content.kind === 'box') {
+    const width = resolveNumber(content.width, scope);
+    const height = resolveNumber(content.height, scope);
+    const depth = resolveNumber(content.depth, scope);
+    for (const x of [-width / 2, width / 2]) {
+      for (const y of [-height / 2, height / 2]) {
+        for (const z of [-depth / 2, depth / 2]) points.push([x, y, z]);
+      }
+    }
+  } else if (content.kind === 'cylinder') {
+    const radius = resolveNumber(content.radius, scope);
+    const height = resolveNumber(content.height, scope);
+    for (const x of [-radius, radius]) {
+      for (const y of [-height / 2, height / 2]) {
+        for (const z of [-radius, radius]) points.push([x, y, z]);
+      }
+    }
+  } else if (content.kind === 'sphere') {
+    const radius = resolveNumber(content.radius, scope);
+    for (const x of [-radius, radius]) {
+      for (const y of [-radius, radius]) {
+        for (const z of [-radius, radius]) points.push([x, y, z]);
+      }
+    }
+  } else if (Array.isArray(content.positions ?? content.mesh?.positions)) {
+    points.push(...(content.positions ?? content.mesh.positions));
+  }
+  return points;
+}
+
+function transformedPrimitiveBounds(content, transform, scope) {
+  const points = primitivePoints(content, scope);
+  if (points.length === 0) return null;
+  const rotation = transform?.rotation ?? [0, 0, 0, 1];
+  const translation = transform?.translation ?? { x: 0, y: 0, z: 0 };
+  const center = [
+    resolveNumber(translation.x, scope),
+    resolveNumber(translation.y, scope),
+    resolveNumber(translation.z, scope),
+  ];
+  return boundsFromPoints(points.map((point) => {
+    const rotated = rotateByQuaternion(point, rotation);
+    return [
+      center[0] + rotated[0],
+      center[1] + rotated[1],
+      center[2] + rotated[2],
+    ];
+  }));
+}
+
+function componentInstanceBounds(operation, definition) {
+  const parameters = Object.fromEntries(
+    definition.parameters.map(({ name, default: value }) => [name, value]),
+  );
+  Object.assign(parameters, operation.instance.parameters);
+  const instanceRotation = operation.transform.rotation ?? [0, 0, 0, 1];
+  const instanceTranslation = operation.transform.translation;
+  const points = [];
+  for (const part of definition.parts) {
+    if (!part.content) continue;
+    const count = part.repeat ?? 1;
+    for (let index = 0; index < count; index += 1) {
+      const scope = { ...parameters, count, i: index };
+      const localPoints = primitivePoints(part.content, scope);
+      const localTransform = part.transform ?? {};
+      const localRotation = localTransform.rotation ?? [0, 0, 0, 1];
+      const localTranslation = localTransform.translation ?? { x: 0, y: 0, z: 0 };
+      const translated = [
+        resolveNumber(localTranslation.x, scope),
+        resolveNumber(localTranslation.y, scope),
+        resolveNumber(localTranslation.z, scope),
+      ];
+      const rotatedTranslation = rotateByQuaternion(translated, instanceRotation);
+      for (const point of localPoints) {
+        const rotated = rotateByQuaternion(
+          point,
+          multiplyQuaternions(instanceRotation, localRotation),
+        );
+        points.push([
+          instanceTranslation.x + rotatedTranslation[0] + rotated[0],
+          instanceTranslation.y + rotatedTranslation[1] + rotated[1],
+          instanceTranslation.z + rotatedTranslation[2] + rotated[2],
+        ]);
+      }
+    }
+  }
+  return boundsFromPoints(points);
+}
+
+function intersectsRoad(bounds, road, clearance) {
+  return bounds.maxX > road.minX - clearance
+    && bounds.minX < road.maxX + clearance
+    && bounds.maxZ > road.minZ - clearance
+    && bounds.minZ < road.maxZ + clearance;
+}
+
+export function validateSiteRoadClearance(plan, clearance = 0.5) {
+  const issues = [];
+  const roads = plan.operations
+    .filter(({ type, metadata }) => type === 'node.create' && metadata?.roadClass)
+    .map((operation) => ({
+      name: operation.name,
+      minX: operation.transform.translation.x - operation.content.width / 2,
+      maxX: operation.transform.translation.x + operation.content.width / 2,
+      minZ: operation.transform.translation.z - operation.content.depth / 2,
+      maxZ: operation.transform.translation.z + operation.content.depth / 2,
+    }));
+  const definitions = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'component.define')
+      .map(({ definition }) => [definition.id, definition]),
+  );
+  for (const operation of plan.operations) {
+    if (operation.type === 'instance.create') {
+      const definition = definitions.get(operation.instance.definitionId);
+      const bounds = definition && componentInstanceBounds(operation, definition);
+      for (const road of roads) {
+        if (bounds && intersectsRoad(bounds, road, clearance)) {
+          issues.push({
+            code: 'ROAD_OBSTRUCTION',
+            message: `${operation.name} overlaps ${road.name}`,
+          });
+        }
+      }
+      continue;
+    }
+    if (operation.type !== 'node.create') continue;
+    if (operation.metadata?.role === 'site') continue;
+    if (operation.content?.type !== 'primitive') continue;
+    const bounds = transformedPrimitiveBounds(
+      operation.content,
+      operation.transform,
+      {},
+    );
+    for (const road of roads) {
+      if (bounds && intersectsRoad(bounds, road, clearance)) {
+        issues.push({
+          code: 'ROAD_OBSTRUCTION',
+          message: `${operation.name} overlaps ${road.name}`,
+        });
+      }
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
+function distanceToHorizontalRoute(point, route) {
+  let distance = Infinity;
+  for (let index = 1; index < route.length; index += 1) {
+    const from = route[index - 1];
+    const to = route[index];
+    const dx = to.x - from.x;
+    const dz = to.z - from.z;
+    const denominator = dx * dx + dz * dz;
+    if (denominator <= Number.EPSILON) continue;
+    const ratio = Math.max(0, Math.min(1, (
+      (point.x - from.x) * dx + (point.z - from.z) * dz
+    ) / denominator));
+    distance = Math.min(distance, Math.hypot(
+      point.x - (from.x + ratio * dx),
+      point.z - (from.z + ratio * dz),
+    ));
+  }
+  return distance;
+}
+
+function coarsePipeRoute(connection, from, to) {
+  const policy = connection.routePolicy;
+  const elevated = policy.kind === 'buried'
+    ? -policy.depth
+    : policy.kind === 'rack'
+      ? policy.elevation
+      : policy.kind === 'orthogonal'
+        ? Math.max(from.position.y, to.position.y) + 0.5
+        : null;
+  let startStub = {
+    x: from.position.x + from.direction.x * 0.9,
+    y: from.position.y + from.direction.y * 0.9,
+    z: from.position.z + from.direction.z * 0.9,
+  };
+  let endStub = {
+    x: to.position.x - to.direction.x * 0.9,
+    y: to.position.y - to.direction.y * 0.9,
+    z: to.position.z - to.direction.z * 0.9,
+  };
+  if (elevated !== null) {
+    if ((startStub.y - from.position.y) * (elevated - from.position.y) < 0) {
+      startStub = from.position;
+    }
+    if ((endStub.y - to.position.y) * (elevated - to.position.y) < 0) {
+      endStub = to.position;
+    }
+  }
+  return elevated === null
+    ? [from.position, to.position]
+    : [
+      from.position,
+      startStub,
+      { x: startStub.x, y: elevated, z: startStub.z },
+      { x: endStub.x, y: elevated, z: startStub.z },
+      { x: endStub.x, y: elevated, z: endStub.z },
+      { x: endStub.x, y: endStub.y, z: endStub.z },
+      to.position,
+    ];
+}
+
+export function validatePipeAccessoryAlignment(plan, tolerance = 1) {
+  const issues = [];
+  const definitions = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'component.define')
+      .map(({ definition }) => [definition.id, definition]),
+  );
+  const instances = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'instance.create')
+      .map((operation) => [operation.node_id, operation]),
+  );
+  const accessories = new Map();
+  for (const operation of plan.operations) {
+    if (operation.type !== 'node.create') continue;
+    if (operation.metadata?.role !== 'pipe-support' || operation.metadata.supportPart !== 'beam') {
+      continue;
+    }
+    const lineId = operation.metadata.lineId;
+    accessories.set(lineId, operation);
+  }
+  const resolvePort = (reference) => {
+    const node = instances.get(reference.nodeId);
+    const definition = node && definitions.get(node.instance.definitionId);
+    const port = definition?.ports.find(({ name }) => name === reference.port);
+    if (!node || !port) return null;
+    const rotation = node.transform.rotation;
+    const position = rotateByQuaternion(
+      [port.position.x, port.position.y, port.position.z],
+      rotation,
+    );
+    const direction = rotateByQuaternion(
+      [port.direction.x, port.direction.y, port.direction.z],
+      rotation,
+    );
+    return {
+      position: {
+        x: node.transform.translation.x + position[0],
+        y: node.transform.translation.y + position[1],
+        z: node.transform.translation.z + position[2],
+      },
+      direction: { x: direction[0], y: direction[1], z: direction[2] },
+    };
+  };
+  for (const operation of plan.operations) {
+    if (operation.type !== 'connection.create') continue;
+    const from = resolvePort(operation.connection.from);
+    const to = resolvePort(operation.connection.to);
+    const accessory = accessories.get(operation.connection.metadata.lineId);
+    if (!from || !to || !accessory) continue;
+    const route = coarsePipeRoute(operation.connection, from, to);
+    const distance = distanceToHorizontalRoute(
+      accessory.transform.translation,
+      route,
+    );
+    if (!Number.isFinite(distance) || distance > tolerance) {
+      issues.push({
+        code: 'PIPE_ACCESSORY_OFF_ROUTE',
+        message: `${accessory.name} is ${distance.toFixed(2)} m off ${operation.name}`,
+      });
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
 export function validateProcessGraph(plan, requirements) {
   const tagByNode = new Map();
   for (const operation of plan.operations) {
@@ -222,6 +553,9 @@ export function validateWastewaterPlan(plan) {
       });
     }
   }
+
+  issues.push(...validateSiteRoadClearance(plan).issues);
+  issues.push(...validatePipeAccessoryAlignment(plan).issues);
 
   return { ok: issues.length === 0, issues };
 }
