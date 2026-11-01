@@ -309,4 +309,4 @@ scripts/wastewater-plant/
 - `ICE3-STUDIO-SPEC-005` — [Large-Scene Authoring](2026-10-30-large-scene-authoring-design.md)
 - `ICE3-STUDIO-SPEC-011` — [Large Reference Asset Editing](2026-10-31-large-reference-assets-design.md)
 - `ICE3-STUDIO-ARC-001` — [Studio Architecture](../architecture.md)
-- `ICE3-STUDIO-REF-CAP-001` — [Studio Capabilities](../reference/capabilities.md)
+- `ICE3-STUDIO-REF-001` — [Studio Capabilities](../reference/capabilities.md)

@@ -501,7 +501,7 @@ Expected:
 
 Add the final functional color mapping and routing behavior to
 `projects/README.md`. Mark PLAN-017 Implemented after all gates pass. Keep SPEC-013
-Proposed until the collision/support half of Stage 2 is delivered.
+Approved until path collision and support-spacing validation complete the remaining Stage 2 work.
 
 - [x] **Step 5: Run full verification**
 

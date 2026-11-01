@@ -1,8 +1,10 @@
 # 0001: Document and Operation History Are the Source of Truth
 
-> Document ID: ICE3-STUDIO-ADR-0001
+> Document ID: ICE3-STUDIO-ADR-001
 >
 > Status: Implemented
+>
+> Owner: ICE3 Studio maintainers
 >
 > Date: 2026-10-30
 

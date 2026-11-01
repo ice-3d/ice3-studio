@@ -1,12 +1,12 @@
 # Studio Web Workbench UI Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Use checkbox (`- [ ]`) syntax for tracking.
-
 > Document ID: ICE3-STUDIO-PLAN-003
 >
 > Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the minimal Viewer with a generic AI-native Workbench that displays committed
 and candidate models, stages form edits, shows Agent activity, and supports digest-bound approval

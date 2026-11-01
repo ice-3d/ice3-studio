@@ -1,6 +1,10 @@
 # Large-Scene Authoring Foundation Implementation Plan
 
+> Document ID: ICE3-STUDIO-PLAN-006
+>
 > Status: Implemented
+>
+> Owner: ICE3 Studio maintainers
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan
 > task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -2135,10 +2139,9 @@ Update `docs/reference/diagnostics.md` with `ICE3_STUDIO_COMPONENT_INVALID`,
 
 Update `docs/architecture.md` to add the `large_scene` Core module and shared-mesh cache boundary.
 
-Keep `ICE3-STUDIO-SPEC-005` at `Proposed` because GPU evaluation, the large fixture, and Runtime
-streaming are not complete. Add an `Implementation Status` section stating that M1 is implemented
-by this plan and that M2–M4 remain pending. Mark this plan's matching index entry `Implemented`;
-do not mark the overall spec complete.
+This plan originally kept `ICE3-STUDIO-SPEC-005` at `Proposed` because GPU evaluation, the large
+fixture and Runtime streaming were not complete. Later plans delivered M2–M4; the spec and this
+plan are now marked `Implemented`, with native GPU execution remaining experimental and default-off.
 
 - [ ] **Step 3: Run the complete repository gate**
 

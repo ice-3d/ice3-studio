@@ -1,6 +1,6 @@
 # Diagnostics Reference
 
-> Document ID: ICE3-STUDIO-REF-DIAG-001
+> Document ID: ICE3-STUDIO-REF-004
 >
 > Status: Implemented
 >

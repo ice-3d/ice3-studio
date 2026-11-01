@@ -1,12 +1,12 @@
 # ICE3 Studio Toolchain Sidecar Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 > Document ID: ICE3-STUDIO-PLAN-005
 >
 > Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace Studio's one-shot preview command convention with a pinned, versioned,
 long-lived Toolchain sidecar while keeping `studio-core` independent.

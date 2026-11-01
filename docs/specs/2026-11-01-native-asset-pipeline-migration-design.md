@@ -6,6 +6,9 @@
 >
 > Owner: ICE3 Studio maintainers
 
+> **Phase 状态：** Phase 1 已实现。后续 Source Importer 阶段仍未实现，因此整份迁移设计
+> 继续保持 `Approved`。
+
 ## 1. 目标
 
 把当前 Toolchain 的全部产品能力迁入 Studio，使 Studio 成为唯一的 Asset import、
@@ -160,6 +163,8 @@ publication；`studio-pipeline` 负责 tile/LOD 计算。输出不包含完整 s
 ## 8. 迁移阶段
 
 ### Phase 1：Native GLB 与 Tileset pipeline
+
+**状态：Implemented（2026-11-01）。**
 
 - 新建 `studio-assets` 与 `studio-pipeline`。
 - 迁移 glTF/GLB source reading、Prepared Profile、validation、partition、LOD、

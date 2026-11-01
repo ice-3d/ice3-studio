@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-008
 >
-> Status: Experimental
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 

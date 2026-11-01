@@ -1,5 +1,11 @@
 # Agent-Friendly Modeling API Implementation Plan
 
+> Document ID: ICE3-STUDIO-PLAN-012
+>
+> Status: Implemented
+>
+> Owner: ICE3 Studio maintainers
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
 > checkbox (`- [ ]`) syntax for tracking.
