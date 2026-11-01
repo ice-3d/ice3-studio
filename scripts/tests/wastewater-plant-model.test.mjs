@@ -198,9 +198,12 @@ test('every visible process line has endpoint fittings and metadata', () => {
     type === 'node.create' && String(metadata?.role ?? '').startsWith('pipe-')
   ));
   const labels = accessories.filter(({ metadata }) => metadata.role === 'pipe-label');
+  const flanges = accessories.filter(({ metadata }) => metadata.role === 'pipe-flange');
   assert.ok(connections.length >= 31);
   assert.ok(accessories.length >= connections.length * 2);
-  assert.ok(labels.length >= 5);
+  assert.equal(labels.length, 0);
+  assert.ok(flanges.length >= connections.length * 2);
+  assert.ok(flanges.every(({ content }) => content.kind === 'cylinder'));
   assert.ok(connections.every(({ connection }) => connection.metadata.lineId));
   assert.ok(connections.every(({ connection }) => (
     ['forward', 'reverse'].includes(connection.metadata.flow)
@@ -339,4 +342,11 @@ test('process skids are wired into the treatment train', () => {
   ]) {
     assert.ok(connectionNames.includes(expected), expected);
   }
+});
+
+test('process pipe diameters stay within the engineered line size', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connection = plan.operations.find(({ name }) => name === 'PS-101 → 提升泵组');
+  assert.ok(connection);
+  assert.ok(connection.connection.diameter <= 1.25);
 });

@@ -1,9 +1,11 @@
+import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   ICEPerspectiveCamera,
   type ICEGeometryBounds,
 } from 'ice3';
 import {
+  adaptiveCameraClipPlanes,
   frameBoundsForViewport,
   SCENE_CAMERA_FAR,
   SCENE_CAMERA_NEAR,
@@ -59,4 +61,12 @@ test('frames a wide plant without cropping in a portrait viewport', () => {
 
 test('frames a wide plant without cropping in a landscape viewport', () => {
   assertBoundsInsideViewport(largePlantBounds, 1.65);
+});
+
+test('adapts camera clip planes as zoom distance changes', () => {
+  const overview = adaptiveCameraClipPlanes(600, 1000);
+  const close = adaptiveCameraClipPlanes(20, 1000);
+  assert.ok(overview.far / overview.near < 5000);
+  assert.ok(close.near < overview.near);
+  assert.ok(close.far < overview.far);
 });

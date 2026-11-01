@@ -219,6 +219,18 @@ function createBuilder() {
     };
   };
 
+  const cylinderAlignment = (direction) => {
+    const length = Math.hypot(direction.x, direction.y, direction.z);
+    if (length <= Number.EPSILON) return [0, 0, 0, 1];
+    const x = direction.x / length;
+    const y = direction.y / length;
+    const z = direction.z / length;
+    if (y > 0.999999) return [0, 0, 0, 1];
+    if (y < -0.999999) return [1, 0, 0, 0];
+    const lengthQ = Math.hypot(z, 0, -x, 1 + y);
+    return [z / lengthQ, 0, -x / lengthQ, (1 + y) / lengthQ];
+  };
+
   // 管道按介质分色，和真实厂区一样用颜色编码工艺流向。
   const PIPE_MATERIAL = {
     'raw-water': 'pipe-raw',
@@ -252,13 +264,22 @@ function createBuilder() {
     'air': { kind: 'rack', elevation: 3.6 },
   };
 
-  const addPipeAccessory = (name, content, position, materialKey, metadata) => {
+  const addPipeAccessory = (
+    name,
+    content,
+    position,
+    materialKey,
+    metadata,
+    rotation = [0, 0, 0, 1],
+  ) => {
+    const transform = nodeTransform(position.x, position.y, position.z);
+    transform.rotation = rotation;
     state.ops.push({
       type: 'node.create',
       node_id: id('node'),
       parent_id: null,
       name,
-      transform: nodeTransform(position.x, position.y, position.z),
+      transform,
       content: { type: 'primitive', ...content },
       material_id: state.materials.get(materialKey),
       metadata,
@@ -303,8 +324,7 @@ function createBuilder() {
         from: { kind: 'instance', nodeId: from, port: fromPort },
         to: { kind: 'instance', nodeId: to, port: toPort },
         medium,
-        // 真实厂区的主管比图面上的细线粗得多，这里统一放大一档。
-        diameter: diameter * 1.8,
+        diameter: diameter * 1.15,
         routePolicy: ROUTE_POLICY[medium] ?? { kind: 'orthogonal' },
         relationId,
         metadata: {
@@ -319,25 +339,28 @@ function createBuilder() {
     if (options.fittings !== false) {
       addPipeAccessory(
         `${name} 起点法兰`,
-        box(diameter * 2.1, 0.18, diameter * 2.1),
+        cylinder(diameter * 0.92, 0.16, 20),
         fromEndpoint.position,
         'steel',
         { role: 'pipe-flange', lineId, stage: fromEndpoint.metadata.stage },
+        cylinderAlignment(fromEndpoint.direction),
       );
       addPipeAccessory(
         `${name} 终点法兰`,
-        box(diameter * 2.1, 0.18, diameter * 2.1),
+        cylinder(diameter * 0.92, 0.16, 20),
         toEndpoint.position,
         'steel',
         { role: 'pipe-flange', lineId, stage: toEndpoint.metadata.stage },
+        cylinderAlignment(toEndpoint.direction),
       );
       if (medium === 'air' || /泵|提升|回流/.test(name)) {
         addPipeAccessory(
           `${name} 隔离阀`,
-          box(diameter * 1.5, diameter * 1.25, diameter * 1.5),
+          cylinder(diameter * 0.62, diameter * 1.0, 18),
           fromEndpoint.position,
           'steel',
           { role: 'pipe-valve', lineId, stage: fromEndpoint.metadata.stage },
+          cylinderAlignment(fromEndpoint.direction),
         );
       }
     }
@@ -364,15 +387,6 @@ function createBuilder() {
           { role: 'pipe-support', lineId, stage: fromEndpoint.metadata.stage },
         );
       }
-    }
-    if (state.lineSequence <= 5) {
-      addPipeAccessory(
-        `${lineId} 管线标牌`,
-        box(2.3, 0.32, 0.08),
-        vec(midpoint.x, Math.max(fromEndpoint.position.y, 2.8), midpoint.z),
-        'sign-panel',
-        { role: 'pipe-label', lineId, stage: fromEndpoint.metadata.stage },
-      );
     }
   };
 

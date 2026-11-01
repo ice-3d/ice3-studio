@@ -46,29 +46,29 @@ function buildPlan(projectId) {
   // 池壁是浅米灰的清水混凝土，不是纯白；水面偏青；屋面蓝灰。
   b.material('concrete', 'Reinforced concrete', srgb('#efebe4'));
   b.material('water', 'Process water', srgb('#6195a1'));
-  b.material('steel', 'Galvanised steel', srgb('#c0c3c6'));
-  b.material('walkway', 'Grating walkway', srgb('#afb4b8'));
+  b.material('steel', 'Galvanised steel', srgb('#9aa5aa'));
+  b.material('walkway', 'Grating walkway', srgb('#8e989c'));
   b.material('air', 'Air header', srgb('#95c0db'));
   // 绿化与围栏。必须定义在组件声明之前，否则 define 时取不到材质。
   b.material('trunk', 'Tree trunk', srgb('#907b69'));
-  b.material('foliage', 'Foliage', srgb('#80a675'));
+  b.material('foliage', 'Foliage', srgb('#748f63'));
   b.material('paving', 'Paving', srgb('#ceccc8'));
   b.material('media', 'Filter media', srgb('#958f86'));
   b.material('lamp', 'UV lamp', srgb('#ced3ef'));
   b.material('facade', 'Facade panel', srgb('#e7e6e1'));
   b.material('roof', 'Metal roof', srgb('#9ba8b6'));
-  b.material('lawn', 'Lawn', srgb('#9aab86'));
+  b.material('lawn', 'Lawn', srgb('#94a97c'));
   b.material('asphalt', 'Asphalt road', srgb('#86898e'));
   b.material('glass', 'Glazing', srgb('#afc0c9', 0.55));
   b.material('sludge', 'Sludge', srgb('#90816f'));
   // 管道按介质分色：原水灰、工艺水黄褐、清水绿、污泥深褐、空气蓝。
   // 这些材质同时给「连接管线」和「管廊主管」用，必须在任何 define 之前声明：
   // 组件在 define 时就把材质 id 写进 overrides，声明晚了取到的就是 undefined。
-  b.material('pipe-raw', 'Pipe / raw water', srgb('#c0c3c6'));
-  b.material('pipe-process', 'Pipe / process water', srgb('#d3bb8c'));
-  b.material('pipe-clean', 'Pipe / clean water', srgb('#90c3a1'));
-  b.material('pipe-sludge', 'Pipe / sludge', srgb('#a1866f'));
-  b.material('pipe-air', 'Pipe / air', srgb('#8cb7e2'));
+  b.material('pipe-raw', 'Pipe / raw water', srgb('#aab3b7'));
+  b.material('pipe-process', 'Pipe / process water', srgb('#b7aa8b'));
+  b.material('pipe-clean', 'Pipe / clean water', srgb('#7f9f96'));
+  b.material('pipe-sludge', 'Pipe / sludge', srgb('#876f5d'));
+  b.material('pipe-air', 'Pipe / air', srgb('#7696ad'));
   // 道路标线、接触阴影、绿篱、铭牌石板。
   b.material('marking', 'Road marking', srgb('#f0f0ee'));
   b.material('shadow', 'Contact shadow', srgb('#0e1113', 0.3));
@@ -77,7 +77,7 @@ function buildPlan(projectId) {
   b.material('concrete-new', 'New concrete', srgb('#ddd5c7'));
   b.material('concrete-old', 'Weathered concrete', srgb('#aaa398'));
   b.material('concrete-wet', 'Wet concrete', srgb('#77776f'));
-  b.material('steel-dark', 'Dark steel', srgb('#454a4e'));
+  b.material('steel-dark', 'Dark steel', srgb('#62717a'));
   b.material('stainless', 'Stainless steel', srgb('#aeb7ba'));
   b.material('roof-light', 'Light metal roof', srgb('#c7ced1'));
   b.material('water-anoxic', 'Anoxic water', srgb('#29434c'));

@@ -17,6 +17,7 @@ import {
 import type { StudioReferenceAsset } from '../api/StudioClient';
 import type { StudioReferenceBinding } from '../session/SessionStore';
 import {
+  adaptiveCameraClipPlanes,
   frameBoundsForViewport,
   SCENE_CAMERA_FAR,
   SCENE_CAMERA_NEAR,
@@ -77,6 +78,7 @@ export class SceneAdapter {
         this.referenceBindings,
       ));
     });
+    engine.on('BEFORE_RENDER', () => this.updateClipPlanes());
     this.engine = engine;
     this.loader = new ICEAssetLoader(engine);
     this.packetLoader = new ICEPreviewPacketLoader({
@@ -299,6 +301,7 @@ export class SceneAdapter {
       width / Math.max(1, height),
     ));
     this.camera.setTarget(framing.target).setPosition(framing.position);
+    this.updateClipPlanes();
     const matrix = this.camera.getViewProjectionMatrix(width / Math.max(1, height));
     let minX = Infinity;
     let maxX = -Infinity;
@@ -336,6 +339,24 @@ export class SceneAdapter {
       'data-projected-bounds',
       JSON.stringify({ minX, maxX, minY, maxY, minZ, maxZ }),
     );
+  }
+
+  private updateClipPlanes(): void {
+    if (!this.camera || !this.lastBounds) return;
+    const eye = this.camera.getPosition();
+    const target = this.camera.getTarget();
+    const distance = Math.hypot(
+      eye.x - target.x,
+      eye.y - target.y,
+      eye.z - target.z,
+    );
+    const diagonal = Math.hypot(
+      this.lastBounds.max[0] - this.lastBounds.min[0],
+      this.lastBounds.max[1] - this.lastBounds.min[1],
+      this.lastBounds.max[2] - this.lastBounds.min[2],
+    );
+    const clip = adaptiveCameraClipPlanes(distance, diagonal);
+    this.camera.setClipPlanes(clip.near, clip.far);
   }
 }
 

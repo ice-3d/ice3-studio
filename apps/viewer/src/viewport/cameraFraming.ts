@@ -11,6 +11,18 @@ type Vector3Tuple = [number, number, number];
 export const SCENE_CAMERA_NEAR = 0.5;
 export const SCENE_CAMERA_FAR = 10_000;
 
+export function adaptiveCameraClipPlanes(
+  distance: number,
+  sceneDiagonal: number,
+): { readonly near: number; readonly far: number } {
+  const safeDistance = Math.max(0.2, Number.isFinite(distance) ? distance : 0.2);
+  const safeDiagonal = Math.max(10, Number.isFinite(sceneDiagonal) ? sceneDiagonal : 10);
+  return {
+    near: Math.min(2, Math.max(0.1, safeDistance * 0.005)),
+    far: Math.max(500, safeDistance * 8, safeDiagonal * 0.75),
+  };
+}
+
 export type CameraFraming = {
   readonly target: Vector3Tuple;
   readonly position: Vector3Tuple;
