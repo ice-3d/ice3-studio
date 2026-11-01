@@ -13,6 +13,7 @@ import {
 import {
   WWTP_STATS_LIMITS,
   assertProjectStats,
+  validateConnectionPorts,
   validateProcessGraph,
   validateProjectStats,
   validateWastewaterPlan,
@@ -244,6 +245,77 @@ test('asset exposes complete sludge, RAS, split, gas and cake topology', () => {
     type === 'relation.create' &&
     relation.relationType === 'material-handling'
   )));
+});
+
+test('every fluid medium has explicit material and one-purpose ports', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connections = plan.operations.filter(({ type }) => (
+    type === 'connection.create'
+  ));
+  const media = new Set(connections.map(({ connection }) => connection.medium));
+  for (const medium of [
+    'primary-sludge',
+    'waste-sludge',
+    'return-sludge',
+    'thickened-sludge',
+    'digested-sludge',
+    'biogas',
+    'chemical',
+    'final-effluent',
+  ]) {
+    assert.ok(media.has(medium), medium);
+  }
+  const materialNames = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ material_id, name }) => [material_id, name]),
+  );
+  for (const operation of connections) {
+    assert.ok(
+      materialNames.has(operation.material_id),
+      operation.connection.metadata?.service,
+    );
+  }
+  const expectedMaterials = {
+    'primary-sludge': 'Pipe / primary sludge',
+    'return-sludge': 'Pipe / return sludge',
+    'waste-sludge': 'Pipe / sludge',
+    'thickened-sludge': 'Pipe / sludge',
+    'digested-sludge': 'Pipe / sludge',
+    biogas: 'Pipe / biogas',
+    chemical: 'Pipe / chemical',
+    'final-effluent': 'Pipe / clean water',
+  };
+  for (const [medium, expected] of Object.entries(expectedMaterials)) {
+    const operation = connections.find(({ connection }) => (
+      connection.medium === medium
+    ));
+    assert.ok(operation, medium);
+    assert.equal(materialNames.get(operation.material_id), expected, medium);
+  }
+  const result = validateConnectionPorts(plan);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.issues, []);
+});
+
+test('port validation rejects reuse of a normal process port', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connection = structuredClone(
+    plan.operations.find(({ type }) => type === 'connection.create'),
+  );
+  plan.operations.push(connection);
+  const result = validateConnectionPorts(plan);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some(({ code }) => code === 'PORT_REUSED'));
+});
+
+test('port validation rejects a pipe diameter that does not match its nozzle', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connection = plan.operations.find(({ type }) => type === 'connection.create');
+  connection.connection.diameter = 20;
+  const result = validateConnectionPorts(plan);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some(({ code }) => code === 'PIPE_DIAMETER_MISMATCH'));
 });
 
 test('major equipment has identity-bearing silhouettes and connecting ports', () => {

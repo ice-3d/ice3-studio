@@ -47,6 +47,7 @@ import {
   sludgeCollectionWell,
 } from './process-nodes.mjs';
 import {
+  validateConnectionPorts,
   validateProcessGraph,
   validateWastewaterPlan,
 } from './validate.mjs';
@@ -112,7 +113,11 @@ function buildPlan(projectId) {
   b.material('pipe-process', 'Pipe / process water', srgb('#b7aa8b'));
   b.material('pipe-clean', 'Pipe / clean water', srgb('#7f9f96'));
   b.material('pipe-sludge', 'Pipe / sludge', srgb('#876f5d'));
+  b.material('pipe-primary-sludge', 'Pipe / primary sludge', srgb('#8b806b'));
+  b.material('pipe-return-sludge', 'Pipe / return sludge', srgb('#74655a'));
   b.material('pipe-air', 'Pipe / air', srgb('#7696ad'));
+  b.material('pipe-biogas', 'Pipe / biogas', srgb('#9caf9a'));
+  b.material('pipe-chemical', 'Pipe / chemical', srgb('#9b8fae'));
   // 道路标线、接触阴影、绿篱、铭牌石板。
   b.material('marking', 'Road marking', srgb('#f0f0ee'));
   b.material('shadow', 'Contact shadow', srgb('#0e1113', 0.3));
@@ -250,9 +255,9 @@ function buildPlan(projectId) {
   ]);
   b.define('grit-distribution', 'Grit distribution box',
     distributionBox(b, 'gdb', { length: 6, width: 5 }), [
-      b.port('inlet', 'gdb-wall-w', -3, 2.5, 0, vec(1, 0, 0), 'degritted-water', 0.9),
-      b.port('outlet-a', 'gdb-wall-e', 3, 2.5, -1.2, vec(1, 0, 0), 'degritted-water', 0.9),
-      b.port('outlet-b', 'gdb-wall-e', 3, 2.5, 1.2, vec(1, 0, 0), 'degritted-water', 0.9),
+      b.port('inlet', 'gdb-wall-w', -3, 2.5, 0, vec(1, 0, 0), 'degritted-water', 1.0),
+      b.port('outlet-a', 'gdb-wall-e', 3, 2.5, -1.2, vec(1, 0, 0), 'degritted-water', 1.0),
+      b.port('outlet-b', 'gdb-wall-e', 3, 2.5, 1.2, vec(1, 0, 0), 'degritted-water', 1.0),
     ]);
   b.define('clarifier-distribution', 'Clarifier distribution box',
     distributionBox(b, 'cdb', {}), [
@@ -749,6 +754,12 @@ function buildPlan(projectId) {
   const processValidation = validateProcessGraph(plan, requiredProcessGraph);
   if (!processValidation.ok) {
     throw new Error(processValidation.issues
+      .map(({ code, message }) => `${code}: ${message}`)
+      .join('; '));
+  }
+  const portValidation = validateConnectionPorts(plan);
+  if (!portValidation.ok) {
+    throw new Error(portValidation.issues
       .map(({ code, message }) => `${code}: ${message}`)
       .join('; '));
   }

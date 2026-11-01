@@ -102,13 +102,24 @@ function createBuilder() {
     role,
   });
 
-  const port = (name, partId, x, y, z, direction, medium, diameter) => ({
+  const port = (
+    name,
+    partId,
+    x,
+    y,
+    z,
+    direction,
+    medium,
+    diameter,
+    metadata,
+  ) => ({
     name,
     partId,
     position: vec(x, y, z),
     direction,
     medium,
     diameter,
+    ...(metadata ? { metadata } : {}),
   });
 
   const define = (key, name, parts, ports, parameters = []) => {
@@ -245,6 +256,10 @@ function createBuilder() {
     'waste-sludge': 'pipe-sludge',
     'thickened-sludge': 'pipe-sludge',
     'digested-sludge': 'pipe-sludge',
+    'primary-sludge': 'pipe-primary-sludge',
+    'return-sludge': 'pipe-return-sludge',
+    biogas: 'pipe-biogas',
+    chemical: 'pipe-chemical',
     'air': 'pipe-air',
   };
 

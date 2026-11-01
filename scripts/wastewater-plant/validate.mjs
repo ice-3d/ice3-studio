@@ -61,6 +61,75 @@ export function validateProcessGraph(plan, requirements) {
   return { ok: issues.length === 0, issues };
 }
 
+export function validateConnectionPorts(plan) {
+  const issues = [];
+  const usage = new Map();
+  const definitions = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'component.define')
+      .map(({ definition }) => [definition.id, definition]),
+  );
+  const definitionByNode = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'instance.create')
+      .map((operation) => [
+        operation.node_id,
+        operation.instance.definitionId,
+      ]),
+  );
+  for (const operation of plan.operations) {
+    if (operation.type !== 'connection.create') continue;
+    for (const endpoint of [operation.connection.from, operation.connection.to]) {
+      const key = `${endpoint.nodeId}/${endpoint.port}`;
+      usage.set(key, (usage.get(key) ?? 0) + 1);
+    }
+  }
+  const headerPorts = new Set(
+    [...definitions.values()]
+      .flatMap((definition) => (
+        definition.ports.map(({ name, metadata }) => (
+          metadata?.allowMultiple
+            ? `${definition.id}/${name}`
+            : null
+        ))
+      ))
+      .filter(Boolean),
+  );
+  for (const [key, count] of usage) {
+    const separator = key.indexOf('/');
+    const nodeId = key.slice(0, separator);
+    const portName = key.slice(separator + 1);
+    const definitionId = definitionByNode.get(nodeId);
+    const portKey = `${definitionId}/${portName}`;
+    if (count > 1 && !headerPorts.has(portKey)) {
+      issues.push({
+        code: 'PORT_REUSED',
+        message: `${key} is used by ${count} connections`,
+      });
+    }
+  }
+  for (const operation of plan.operations) {
+    if (operation.type !== 'connection.create') continue;
+    const connection = operation.connection;
+    for (const endpoint of [connection.from, connection.to]) {
+      const definitionId = definitionByNode.get(endpoint.nodeId);
+      const port = definitions.get(definitionId)?.ports
+        .find(({ name }) => name === endpoint.port);
+      if (!port) continue;
+      const ratio = connection.diameter / port.diameter;
+      if (ratio < 0.8 || ratio > 1.2) {
+        issues.push({
+          code: 'PIPE_DIAMETER_MISMATCH',
+          message: `${operation.name}: ${endpoint.nodeId}/${endpoint.port} ` +
+            `diameter ${connection.diameter} ` +
+            `does not match port diameter ${port.diameter}`,
+        });
+      }
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
 export function validateWastewaterPlan(plan) {
   const issues = [];
   const definitions = new Map();
