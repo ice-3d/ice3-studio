@@ -592,9 +592,19 @@ fn build_router(state: AppState, viewer_dir: Option<PathBuf>) -> Router {
         router
             .nest_service("/assets", ServeDir::new(viewer_dir.join("assets")))
             .fallback_service(ServeFile::new(viewer_dir.join("index.html")))
+            // 本地开发时查看器会频繁重建，缓存住旧产物会让改动看起来没生效。
+            .layer(axum::middleware::map_response(no_store_cache))
     } else {
         router
     }
+}
+
+async fn no_store_cache(mut response: axum::response::Response) -> axum::response::Response {
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store"),
+    );
+    response
 }
 
 async fn health() -> Json<serde_json::Value> {

@@ -33,7 +33,10 @@ export function frameBoundsForViewport(
     (bounds.min[1] + bounds.max[1]) / 2,
     (bounds.min[2] + bounds.max[2]) / 2,
   ];
-  const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : 1;
+  // 视口高度为 0 或布局未完成时宽高比会极端，直接用它会让相机贴到脸上。
+  const safeAspect = Number.isFinite(aspect) && aspect > 0
+    ? Math.min(4, Math.max(0.3, aspect))
+    : 1;
   const tanVertical = Math.tan((fovDegrees * Math.PI) / 360);
   const tanHorizontal = tanVertical * safeAspect;
 

@@ -221,6 +221,8 @@ export class SceneAdapter {
   private async showGlb(url: string): Promise<void> {
     if (!this.engine || !this.loader || !this.camera) throw new Error('scene is not mounted');
     const handle = await this.loader.load(`${url}?v=${Date.now()}`);
+    // 必须先取景再建轨道控制器：控制器构造时记录相机状态，之后每帧写回，
+    // 放在取景之后会把取景结果覆盖掉。
     this.frameBounds(handle.bounds);
     this.orbit?.dispose();
     this.handle?.dispose();
