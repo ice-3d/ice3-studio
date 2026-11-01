@@ -66,6 +66,7 @@ pub fn export_glb_from_scene(
                 "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" },
                 "extras": {
                     "ice3": {
+                        "id": material.id.as_str(),
                         "edges": edge_color.is_some(),
                         "edgeColor": edge_color,
                         "shading": "directional"
@@ -107,7 +108,7 @@ pub fn export_glb_from_scene(
         let primitive = primitive_by_key
             .get(&mesh_key)
             .ok_or(ExportError::InvalidHierarchy)?;
-        meshes.push(mesh_json(&mesh_key, primitive, material));
+        meshes.push(mesh_json(&mesh_key, variant, primitive, material));
         mesh_variants.insert((mesh_key, material), variant);
     }
 
@@ -163,10 +164,21 @@ pub fn export_glb_from_scene(
         .enumerate()
         .filter_map(|(index, node)| node.parent_id.is_none().then_some(index))
         .collect::<Vec<_>>();
+    let (scene_min, scene_max) = scene_bounds(evaluated);
     let mut gltf = json!({
         "asset": {
             "version": "2.0",
-            "generator": "ICE3 Studio"
+            "generator": "ICE3 Studio",
+            // 标明这是 Studio 直接产出的可运行时加载资产。Viewer 只接受带此标记的 GLB，
+            // 因此内核自己导出的文件不需要再经过外部预处理步骤。
+            "extras": {
+                "ice3": {
+                    "profile": "ice3-prepared",
+                    "profileVersion": "1.0",
+                    "assetId": document.project_id,
+                    "bounds": { "min": scene_min, "max": scene_max }
+                }
+            }
         },
         "scene": 0,
         "scenes": [{ "nodes": roots }],
@@ -260,7 +272,93 @@ fn export_geometry(
     }
 }
 
-fn mesh_json(key: &str, primitive: &ExportedPrimitive, material: Option<usize>) -> Value {
+/// 场景在世界空间的包围盒：把每个网格的局部包围盒用累乘的父链变换展开后合并。
+fn scene_bounds(evaluated: &EvaluatedScene) -> ([f32; 3], [f32; 3]) {
+    use std::collections::BTreeMap;
+
+    let mut world: BTreeMap<String, Mat4> = BTreeMap::new();
+    // 迭代解析，允许节点顺序任意；没有进展说明父链断裂，停止。
+    for _ in 0..evaluated.nodes.len().max(1) {
+        let mut progressed = false;
+        for node in &evaluated.nodes {
+            if world.contains_key(&node.id) {
+                continue;
+            }
+            let local = Mat4::from_cols_array(&node_matrix(node));
+            match node.parent_id.as_deref() {
+                None => {
+                    world.insert(node.id.clone(), local);
+                    progressed = true;
+                }
+                Some(parent) if world.contains_key(parent) => {
+                    let inherited = world[parent];
+                    world.insert(node.id.clone(), inherited * local);
+                    progressed = true;
+                }
+                Some(_) => {}
+            }
+        }
+        if !progressed {
+            break;
+        }
+    }
+
+    let mut min = [f32::INFINITY; 3];
+    let mut max = [f32::NEG_INFINITY; 3];
+    let mut found = false;
+    for node in evaluated.nodes.iter() {
+        let (Some(mesh_key), Some(matrix)) = (&node.mesh_key, world.get(&node.id)) else {
+            continue;
+        };
+        let Some(mesh) = evaluated.meshes.get(mesh_key) else {
+            continue;
+        };
+        let bounds = mesh.bounds;
+        for corner in 0..8 {
+            let point = Vec3::new(
+                if corner & 1 == 0 {
+                    bounds.min.x
+                } else {
+                    bounds.max.x
+                },
+                if corner & 2 == 0 {
+                    bounds.min.y
+                } else {
+                    bounds.max.y
+                },
+                if corner & 4 == 0 {
+                    bounds.min.z
+                } else {
+                    bounds.max.z
+                },
+            );
+            let world_point = matrix.transform_point3(point);
+            min = [
+                min[0].min(world_point.x),
+                min[1].min(world_point.y),
+                min[2].min(world_point.z),
+            ];
+            max = [
+                max[0].max(world_point.x),
+                max[1].max(world_point.y),
+                max[2].max(world_point.z),
+            ];
+            found = true;
+        }
+    }
+    if found {
+        (min, max)
+    } else {
+        ([0.0; 3], [0.0; 3])
+    }
+}
+
+fn mesh_json(
+    key: &str,
+    variant: usize,
+    primitive: &ExportedPrimitive,
+    material: Option<usize>,
+) -> Value {
     let mut value = json!({
         "attributes": {
             "POSITION": primitive.position_accessor,
@@ -272,8 +370,10 @@ fn mesh_json(key: &str, primitive: &ExportedPrimitive, material: Option<usize>) 
     if let Some(material) = material {
         value["material"] = json!(material);
     }
+    // 同一几何会因材质不同产生多个变体，形如 ID 必须带变体号才能保持唯一。
     json!({
         "name": key,
+        "extras": { "ice3": { "id": format!("{key}#{variant}") } },
         "primitives": [value]
     })
 }
