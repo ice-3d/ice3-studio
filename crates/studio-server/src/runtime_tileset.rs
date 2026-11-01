@@ -67,12 +67,22 @@ impl BindingManifest {
             if node.mesh_key.is_none() {
                 continue;
             }
-            let tag = node
+            let raw_tag = node
                 .metadata
-                .get("equipmentTag")
+                .get("tag")
+                .or_else(|| node.metadata.get("equipmentTag"))
                 .filter(|value| !value.trim().is_empty())
                 .cloned();
-            let selection_id = tag.clone().unwrap_or_else(|| node.owner_id.clone());
+            let tag = raw_tag.clone();
+            let selection_id = raw_tag
+                .map(|tag| {
+                    if tag.starts_with("plant/equipment/") {
+                        tag
+                    } else {
+                        format!("plant/equipment/{tag}")
+                    }
+                })
+                .unwrap_or_else(|| node.owner_id.clone());
             let display_name = node
                 .metadata
                 .get("displayName")

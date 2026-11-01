@@ -41,7 +41,7 @@ pub(crate) fn build_artifact(
     let tileset = TilesetDocument::from_plan(asset_id, &plan, &files)?;
     let triangle_count = files
         .iter()
-        .map(|file| part_triangle_count(file))
+        .map(part_triangle_count)
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .sum();
@@ -227,9 +227,9 @@ impl PartWriter {
         source_mesh_index: usize,
     ) -> Result<(Value, u64), PipelineError> {
         if geometry.positions.is_empty()
-            || geometry.positions.len() % 3 != 0
+            || !geometry.positions.len().is_multiple_of(3)
             || geometry.indices.is_empty()
-            || geometry.indices.len() % 3 != 0
+            || !geometry.indices.len().is_multiple_of(3)
         {
             return Err(PipelineError::Tileset(
                 "LOD geometry buffers are invalid".into(),
@@ -548,7 +548,7 @@ impl PartWriter {
     }
 
     fn align(&mut self) {
-        while self.binary.len() % 4 != 0 {
+        while !self.binary.len().is_multiple_of(4) {
             self.binary.push(0);
         }
     }
@@ -632,9 +632,9 @@ impl PartWriter {
     }
 }
 
-fn source_nodes(
-    source: &SourceGlb,
-) -> Result<BTreeMap<String, (usize, Map<String, Value>)>, PipelineError> {
+type SourceNodeMap = BTreeMap<String, (usize, Map<String, Value>)>;
+
+fn source_nodes(source: &SourceGlb) -> Result<SourceNodeMap, PipelineError> {
     let nodes = source
         .json
         .get("nodes")
@@ -687,7 +687,7 @@ fn primitive_triangles(
             .ok_or_else(|| PipelineError::Tileset("position count is missing".into()))?
     };
     Ok(match mode {
-        4 if count % 3 == 0 => count / 3,
+        4 if count.is_multiple_of(3) => count / 3,
         5 => count.saturating_sub(2),
         6 if count >= 3 => count - 2,
         _ => 0,
@@ -703,11 +703,11 @@ fn bounds_json(bounds: Bounds) -> Value {
 
 fn pack_glb(json: &[u8], binary: &[u8]) -> Result<Vec<u8>, PipelineError> {
     let mut json_chunk = json.to_vec();
-    while json_chunk.len() % 4 != 0 {
+    while !json_chunk.len().is_multiple_of(4) {
         json_chunk.push(b' ');
     }
     let mut binary_chunk = binary.to_vec();
-    while binary_chunk.len() % 4 != 0 {
+    while !binary_chunk.len().is_multiple_of(4) {
         binary_chunk.push(0);
     }
     let total = 12usize

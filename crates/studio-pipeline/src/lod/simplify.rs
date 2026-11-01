@@ -66,7 +66,7 @@ pub fn simplify_geometry(
         Some(&mut relative_error),
     );
     if simplified.is_empty()
-        || simplified.len() % 3 != 0
+        || !simplified.len().is_multiple_of(3)
         || simplified
             .iter()
             .any(|index| *index as usize >= welded.positions.len() / 3)
@@ -93,10 +93,10 @@ pub fn simplify_geometry(
 
 fn valid_geometry(positions: &[f32], indices: &[u32]) -> bool {
     if positions.is_empty()
-        || positions.len() % 3 != 0
+        || !positions.len().is_multiple_of(3)
         || positions.iter().any(|value| !value.is_finite())
         || indices.is_empty()
-        || indices.len() % 3 != 0
+        || !indices.len().is_multiple_of(3)
     {
         return false;
     }

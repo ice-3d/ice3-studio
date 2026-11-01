@@ -162,11 +162,11 @@ fn repair_orphaned_draco_accessors(bytes: &[u8]) -> AssetResult<Vec<u8>> {
 
 fn pack_glb(json: &[u8], binary: &[u8]) -> Vec<u8> {
     let mut json_chunk = json.to_vec();
-    while json_chunk.len() % 4 != 0 {
+    while !json_chunk.len().is_multiple_of(4) {
         json_chunk.push(b' ');
     }
     let mut binary_chunk = binary.to_vec();
-    while binary_chunk.len() % 4 != 0 {
+    while !binary_chunk.len().is_multiple_of(4) {
         binary_chunk.push(0);
     }
     let total = 12 + 8 + json_chunk.len() + 8 + binary_chunk.len();
@@ -256,7 +256,7 @@ fn parse_glb(bytes: &[u8]) -> AssetResult<(Vec<u8>, Vec<u8>)> {
             .ok_or_else(|| invalid("GLB chunk header is truncated"))?;
         let length = u32::from_le_bytes(header[0..4].try_into().expect("four bytes")) as usize;
         let kind = u32::from_le_bytes(header[4..8].try_into().expect("four bytes"));
-        if length % 4 != 0 {
+        if !length.is_multiple_of(4) {
             return Err(invalid("GLB chunk length is not aligned"));
         }
         let end = offset

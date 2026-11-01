@@ -96,8 +96,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .parent()
                     .ok_or("project path must have a parent directory")?;
                 let workspace = WorkspacePath::new(workspace_root, project_id)?;
-                let store = ProjectStore::open(workspace)?;
-                let document = store.load_current()?;
+                let store = ProjectStore::open_read_only(workspace)?;
+                let document = store.load_current_read_only()?;
                 let project_dir = store.project_dir().to_path_buf();
                 drop(store);
                 let result =

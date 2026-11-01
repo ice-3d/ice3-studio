@@ -204,7 +204,7 @@ fn analyze_mesh(
                 .ok_or_else(|| PartitionError::Invalid("position count is missing".into()))?,
         };
         let triangles = match mode {
-            4 if element_count % 3 == 0 => element_count / 3,
+            4 if element_count.is_multiple_of(3) => element_count / 3,
             4 => {
                 return Err(PartitionError::Invalid(
                     "triangle index count is not divisible by three".into(),
@@ -385,7 +385,7 @@ fn accessor_bounds(source: &SourceGlb, index: usize) -> Result<Bounds, Partition
     }
     let mut min = Vec3::splat(f32::INFINITY);
     let mut max = Vec3::splat(f32::NEG_INFINITY);
-    for point in values.chunks_exact(3) {
+    for point in values.as_chunks::<3>().0 {
         min = min.min(Vec3::new(point[0], point[1], point[2]));
         max = max.max(Vec3::new(point[0], point[1], point[2]));
     }

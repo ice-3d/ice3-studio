@@ -89,7 +89,7 @@ pub fn create_coarse_chunks(
         if unit.bytes > maximum_bytes {
             if !current.is_empty() {
                 chunks.push(CoarseChunk {
-                    unit_ids: current.drain(..).collect(),
+                    unit_ids: std::mem::take(&mut current),
                     bytes,
                     oversized: false,
                 });
@@ -104,7 +104,7 @@ pub fn create_coarse_chunks(
         }
         if !current.is_empty() && bytes + unit.bytes > maximum_bytes {
             chunks.push(CoarseChunk {
-                unit_ids: current.drain(..).collect(),
+                unit_ids: std::mem::take(&mut current),
                 bytes,
                 oversized: false,
             });

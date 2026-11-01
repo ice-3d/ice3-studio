@@ -115,8 +115,24 @@ impl ProjectStore {
         Ok(store)
     }
 
+    /// Opens committed project state for concurrent reads without acquiring the
+    /// writer lock. Mutating operations remain unavailable on the returned store.
+    pub fn open_read_only(path: WorkspacePath) -> Result<Self, ProjectError> {
+        if !path.project.join("project.json").is_file() {
+            return Err(ProjectError::Missing);
+        }
+        let store = Self { path, lock: None };
+        store.validate_history()?;
+        Ok(store)
+    }
+
     pub fn load_current(&self) -> Result<Document, ProjectError> {
         self.ensure_open()?;
+        let metadata = self.read_metadata()?;
+        self.read_revision_with_digest(metadata.current_revision, &metadata.snapshot_digest)
+    }
+
+    pub fn load_current_read_only(&self) -> Result<Document, ProjectError> {
         let metadata = self.read_metadata()?;
         self.read_revision_with_digest(metadata.current_revision, &metadata.snapshot_digest)
     }

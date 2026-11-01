@@ -17,7 +17,7 @@ pub fn scene_glb(meshes: Value, nodes: Value, triangle_count: usize) -> Vec<u8> 
     for index in 0..index_count {
         binary.extend_from_slice(&((index % 3) as u16).to_le_bytes());
     }
-    while binary.len() % 4 != 0 {
+    while !binary.len().is_multiple_of(4) {
         binary.push(0);
     }
     let position_bytes = 36;
@@ -91,7 +91,7 @@ fn node_roots(nodes: &Value) -> Vec<usize> {
 
 fn pack_glb(json: &[u8], binary: &[u8]) -> Vec<u8> {
     let mut json_chunk = json.to_vec();
-    while json_chunk.len() % 4 != 0 {
+    while !json_chunk.len().is_multiple_of(4) {
         json_chunk.push(b' ');
     }
     let total = 12 + 8 + json_chunk.len() + 8 + binary.len();

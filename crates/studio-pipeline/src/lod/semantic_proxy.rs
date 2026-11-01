@@ -27,10 +27,10 @@ pub fn create_semantic_proxy(
         return Ok(None);
     }
     if samples.vertices.is_empty()
-        || samples.vertices.len() % 3 != 0
+        || !samples.vertices.len().is_multiple_of(3)
         || samples.vertices.iter().any(|value| !value.is_finite())
         || samples.indices.len() < 3
-        || samples.indices.len() % 3 != 0
+        || !samples.indices.len().is_multiple_of(3)
     {
         return Err(crate::PipelineError::Tileset(
             "semantic proxy samples are invalid".into(),
@@ -38,7 +38,7 @@ pub fn create_semantic_proxy(
     }
     let mut min = [f32::INFINITY; 3];
     let mut max = [f32::NEG_INFINITY; 3];
-    for point in samples.vertices.chunks_exact(3) {
+    for point in samples.vertices.as_chunks::<3>().0 {
         for axis in 0..3 {
             min[axis] = min[axis].min(point[axis]);
             max[axis] = max[axis].max(point[axis]);

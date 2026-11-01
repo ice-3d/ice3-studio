@@ -137,9 +137,9 @@ fn decode_geometry(bytes: &[u8]) -> Result<WorkspaceGeometry, crate::PipelineErr
     let index_bytes = u32::from_le_bytes(bytes[4..8].try_into().expect("four bytes")) as usize;
     let color_bytes = u32::from_le_bytes(bytes[8..12].try_into().expect("four bytes")) as usize;
     if 12 + position_bytes + index_bytes + color_bytes != bytes.len()
-        || position_bytes % 4 != 0
-        || index_bytes % 4 != 0
-        || color_bytes % 4 != 0
+        || !position_bytes.is_multiple_of(4)
+        || !index_bytes.is_multiple_of(4)
+        || !color_bytes.is_multiple_of(4)
     {
         return Err(crate::PipelineError::Tileset(
             "spilled geometry has an invalid layout".into(),

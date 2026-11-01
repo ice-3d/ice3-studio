@@ -21,11 +21,11 @@ pub fn packed_fixture(name: &str, binary: &[u8]) -> (TempDir, PathBuf) {
 
 pub fn pack_glb(json: &[u8], binary: &[u8]) -> Vec<u8> {
     let mut json_chunk = json.to_vec();
-    while json_chunk.len() % 4 != 0 {
+    while !json_chunk.len().is_multiple_of(4) {
         json_chunk.push(b' ');
     }
     let mut binary_chunk = binary.to_vec();
-    while binary_chunk.len() % 4 != 0 {
+    while !binary_chunk.len().is_multiple_of(4) {
         binary_chunk.push(0);
     }
     let total = 12 + 8 + json_chunk.len() + 8 + binary_chunk.len();
@@ -52,7 +52,7 @@ pub fn minimal_binary() -> Vec<u8> {
     for value in indices {
         binary.extend_from_slice(&value.to_le_bytes());
     }
-    while binary.len() % 4 != 0 {
+    while !binary.len().is_multiple_of(4) {
         binary.push(0);
     }
     binary
