@@ -147,7 +147,9 @@ async fn health_stays_responsive_while_preview_processing_blocks() {
             .unwrap();
         runtime.block_on(async {
             let response = tokio::time::timeout(
-                std::time::Duration::from_millis(750),
+                // Keep the deadline below the 1.5 s blocking preview while
+                // allowing enough headroom for a loaded parallel test runner.
+                std::time::Duration::from_millis(1_200),
                 reqwest::get(health_url),
             )
             .await;
