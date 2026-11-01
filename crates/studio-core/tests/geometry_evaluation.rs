@@ -29,6 +29,34 @@ fn sweeps_a_polyline_into_connected_rings() {
 }
 
 #[test]
+fn swept_pipe_frames_do_not_twist_at_bends() {
+    let points = [
+        [0.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0],
+        [2.8, 0.4, 0.0],
+        [3.0, 1.0, 0.0],
+        [3.0, 3.0, 0.0],
+    ];
+    let mesh = evaluate_node_content(&NodeContent::Sweep {
+        points: points.into(),
+        radius: 0.2,
+        radial_segments: 16,
+    })
+    .unwrap();
+    for ring in 0..points.len() - 1 {
+        for segment in 0..16 {
+            let a = mesh.vertices[ring * 16 + segment].normal;
+            let b = mesh.vertices[(ring + 1) * 16 + segment].normal;
+            let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+            assert!(
+                dot > 0.65,
+                "frame flipped at ring {ring}, segment {segment}"
+            );
+        }
+    }
+}
+
+#[test]
 fn rejects_zero_sized_and_non_finite_primitives() {
     assert!(
         evaluate_node_content(&NodeContent::Primitive(Primitive::Cylinder {
