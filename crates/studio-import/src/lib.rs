@@ -1,6 +1,7 @@
 //! Native source import registry and format-neutral source scene.
 
 mod gltf;
+pub mod obj;
 mod registry;
 mod source;
 
