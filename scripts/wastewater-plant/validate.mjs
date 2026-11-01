@@ -136,3 +136,11 @@ export function validateProjectStats(stats, limits) {
   );
   return { ok: issues.length === 0, issues };
 }
+
+export function assertProjectStats(stats, limits) {
+  const result = validateProjectStats(stats, limits);
+  if (!result.ok) {
+    throw new Error(result.issues.map(({ code, message }) => `${code}: ${message}`).join('; '));
+  }
+  return result;
+}

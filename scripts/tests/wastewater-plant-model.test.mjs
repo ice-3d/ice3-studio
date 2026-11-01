@@ -12,6 +12,7 @@ import {
 } from '../../scripts/wastewater-plant/model-kit.mjs';
 import {
   WWTP_STATS_LIMITS,
+  assertProjectStats,
   validateProjectStats,
   validateWastewaterPlan,
 } from '../../scripts/wastewater-plant/validate.mjs';
@@ -241,4 +242,13 @@ test('every component role resolves to a material', () => {
   assert.ok(Object.values(instance.instance.overrides).every(({ materialId }) => (
     typeof materialId === 'string' && materialId.length > 0
   )));
+});
+
+test('generation budget throws before publication when final stats exceed limits', () => {
+  assert.throws(() => assertProjectStats({
+    effectiveTriangles: 600000,
+    uniqueTriangles: 90000,
+    expandedNodes: 12000,
+    instances: 300,
+  }, WWTP_STATS_LIMITS), /TRIANGLE_BUDGET_EXCEEDED/);
 });

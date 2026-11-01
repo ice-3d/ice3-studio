@@ -47,6 +47,11 @@ const steps = [
     args: ['scripts/run-ai-fixture.mjs', '--fixture', 'fixtures/wastewater-mini'],
   },
   {
+    label: 'Wastewater plant asset contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/wastewater-plant-model.test.mjs'],
+  },
+  {
     label: 'Large industrial fixture contract',
     command: 'node',
     args: [

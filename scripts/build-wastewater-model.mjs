@@ -6,6 +6,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { buildPlan } from './wastewater-plant/site-plan.mjs';
+import {
+  assertProjectStats,
+  WWTP_STATS_LIMITS,
+} from './wastewater-plant/validate.mjs';
 
 function waitForServer(server) {
   return new Promise((resolvePromise, reject) => {
@@ -78,6 +82,12 @@ async function main() {
       operations: plan.operations,
     });
     const stats = await rpc('evaluation.stats');
+    assertProjectStats({
+      effectiveTriangles: stats.effectiveTriangles,
+      uniqueTriangles: stats.uniqueTriangles,
+      expandedNodes: stats.expandedNodes,
+      instances: plan.operations.filter(({ type }) => type === 'instance.create').length,
+    }, WWTP_STATS_LIMITS);
     const exported = await rpc('export.sourceGlb');
     console.log(JSON.stringify({
       url: `http://${address}/?token=${token}`,
