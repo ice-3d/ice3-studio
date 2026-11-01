@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/studio-assets",
     "crates/studio-core",
     "crates/studio-project",
     "crates/studio-server",
@@ -37,3 +38,6 @@ rand = "0.9"
 tokio-tungstenite = "0.29"
 tower-http = { version = "0.6", features = ["fs"] }
 tokio-util = { version = "0.7", features = ["io"] }
+gltf = { version = "1.4.1", default-features = false, features = ["utils", "names", "extras"] }
+base64 = "0.22"
+percent-encoding = "2"
