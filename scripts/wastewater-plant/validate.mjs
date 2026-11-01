@@ -6,6 +6,61 @@ export const WWTP_STATS_LIMITS = Object.freeze({
   maxInstances: 500,
 });
 
+export function validateProcessGraph(plan, requirements) {
+  const tagByNode = new Map();
+  for (const operation of plan.operations) {
+    if (operation.type !== 'instance.create') continue;
+    const tag = operation.metadata?.tag;
+    if (typeof tag === 'string') tagByNode.set(operation.node_id, tag);
+  }
+  const edges = plan.operations
+    .filter(({ type }) => type === 'connection.create')
+    .map(({ connection, name }) => ({
+      from: connection.from.nodeId,
+      to: connection.to.nodeId,
+      medium: connection.medium,
+      name,
+    }));
+  const outgoing = new Map();
+  for (const edge of edges) {
+    const group = outgoing.get(edge.from) ?? [];
+    group.push(edge);
+    outgoing.set(edge.from, group);
+  }
+
+  const issues = [];
+  for (const requirement of requirements) {
+    const starts = [...tagByNode]
+      .filter(([, tag]) => requirement.fromTags.includes(tag))
+      .map(([nodeId]) => nodeId);
+    const reached = new Set(starts);
+    const queue = [...starts];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      for (const edge of outgoing.get(current) ?? []) {
+        if (!requirement.media.includes(edge.medium)) continue;
+        if (reached.has(edge.to)) continue;
+        reached.add(edge.to);
+        queue.push(edge.to);
+      }
+    }
+    const targets = [...tagByNode]
+      .filter(([nodeId, tag]) => (
+        requirement.toTags.includes(tag) && reached.has(nodeId)
+      ))
+      .map(([, tag]) => tag);
+    const missing = requirement.toTags.filter((tag) => !targets.includes(tag));
+    if (missing.length > 0) {
+      issues.push({
+        code: requirement.code,
+        message: `${requirement.fromTags.join(',')} cannot reach ` +
+          `${missing.join(',')} via ${requirement.media.join(',')}`,
+      });
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
 export function validateWastewaterPlan(plan) {
   const issues = [];
   const definitions = new Map();

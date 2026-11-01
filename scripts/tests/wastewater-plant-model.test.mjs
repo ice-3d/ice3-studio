@@ -13,6 +13,7 @@ import {
 import {
   WWTP_STATS_LIMITS,
   assertProjectStats,
+  validateProcessGraph,
   validateProjectStats,
   validateWastewaterPlan,
 } from '../../scripts/wastewater-plant/validate.mjs';
@@ -42,6 +43,49 @@ test('validation rejects an unknown connection port', () => {
   const result = validateWastewaterPlan(plan);
   assert.equal(result.ok, false);
   assert.ok(result.issues.some(({ code }) => code === 'UNKNOWN_PORT'));
+});
+
+function processFixture() {
+  return {
+    operations: [
+      {
+        type: 'instance.create',
+        node_id: 'node-a',
+        metadata: { tag: 'A' },
+      },
+      {
+        type: 'instance.create',
+        node_id: 'node-b',
+        metadata: { tag: 'B' },
+      },
+      {
+        type: 'connection.create',
+        name: 'A → B',
+        connection: {
+          from: { nodeId: 'node-a', port: 'outlet' },
+          to: { nodeId: 'node-b', port: 'inlet' },
+          medium: 'return-sludge',
+          metadata: { lineId: 'L-001' },
+        },
+      },
+    ],
+  };
+}
+
+test('process graph validation requires reachable media paths', () => {
+  const plan = processFixture();
+  const requirement = {
+    code: 'MISSING_RAS',
+    fromTags: ['A'],
+    toTags: ['B'],
+    media: ['return-sludge'],
+  };
+  assert.equal(validateProcessGraph(plan, [requirement]).ok, true);
+  plan.operations[2].connection.medium = 'waste-sludge';
+  const result = validateProcessGraph(plan, [requirement]);
+  assert.equal(result.ok, false);
+  assert.equal(result.issues[0].code, 'MISSING_RAS');
+  assert.match(result.issues[0].message, /A.*B/);
 });
 
 test('project budget accepts the target band and rejects overflow', () => {
