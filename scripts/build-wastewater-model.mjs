@@ -157,7 +157,89 @@ function createBuilder() {
     });
   };
 
-  return { state, material, part, port, define, instance, connect, box, cylinder, rotateY };
+  // 场地：一块很薄的板，略低于池底，不参与工艺连接。
+  const ground = (minX, maxX, minZ, maxZ, materialKey) => {
+    const nodeId = id('node');
+    state.ops.push({
+      type: 'node.create',
+      node_id: nodeId,
+      parent_id: null,
+      name: '场地',
+      transform: nodeTransform((minX + maxX) / 2, -0.06, (minZ + maxZ) / 2),
+      content: {
+        type: 'primitive',
+        kind: 'box',
+        width: maxX - minX,
+        height: 0.12,
+        depth: maxZ - minZ,
+      },
+      material_id: state.materials.get(materialKey),
+      metadata: { role: 'site' },
+    });
+  };
+
+  // 架空栈桥：两点之间的走道板 + 两侧栏杆，用于连接相邻构筑物。
+  const walkway = (name, from, to, { y = 5.2, width = 1.4, materialKey = 'walkway' } = {}) => {
+    const dx = to[0] - from[0];
+    const dz = to[1] - from[1];
+    const length = Math.hypot(dx, dz);
+    const angle = Math.atan2(dz, dx);
+    const nodeId = id('node');
+    // 绕 Y 轴旋转，使长边对齐两点连线。
+    const rotation = [0, Math.sin(-angle / 2), 0, Math.cos(-angle / 2)];
+    state.ops.push({
+      type: 'node.create',
+      node_id: nodeId,
+      parent_id: null,
+      name,
+      transform: {
+        translation: vec((from[0] + to[0]) / 2, y, (from[1] + to[1]) / 2),
+        rotation,
+        scale: vec(1, 1, 1),
+      },
+      content: {
+        type: 'primitive',
+        kind: 'box',
+        width: length,
+        height: 0.16,
+        depth: width,
+      },
+      material_id: state.materials.get(materialKey),
+      metadata: { role: 'walkway' },
+    });
+    // 两侧栏杆：沿栈桥法线方向各偏移半个桥宽。
+    const normalX = -Math.sin(angle);
+    const normalZ = Math.cos(angle);
+    for (const side of [-1, 1]) {
+      const railId = id('node');
+      state.ops.push({
+        type: 'node.create',
+        node_id: railId,
+        parent_id: null,
+        name: `${name} 栏杆`,
+        transform: {
+          translation: vec(
+            (from[0] + to[0]) / 2 + normalX * side * (width / 2),
+            y + 0.9,
+            (from[1] + to[1]) / 2 + normalZ * side * (width / 2),
+          ),
+          rotation,
+          scale: vec(1, 1, 1),
+        },
+        content: {
+          type: 'primitive',
+          kind: 'box',
+          width: length,
+          height: 0.07,
+          depth: 0.07,
+        },
+        material_id: state.materials.get('steel'),
+        metadata: { role: 'railing' },
+      });
+    }
+  };
+
+  return { state, material, part, port, define, instance, connect, ground, walkway, box, cylinder, rotateY };
 }
 
 // 圆形池：底板 + 环形池壁 + 水面 + 中心进水筒 + 周边出水堰 + 刮泥桥 + 栏杆 + 爬梯
@@ -357,7 +439,7 @@ function pumpHouse(b, prefix, { length = 22, width = 13, height = 8 }) {
   parts.push(b.part(`${prefix}-wall-s`, b.box(length, height, 0.5), 0, 0.6 + height / 2, width / 2, 'concrete'));
   parts.push(b.part(`${prefix}-wall-w`, b.box(0.5, height, width), -length / 2, 0.6 + height / 2, 0, 'concrete'));
   parts.push(b.part(`${prefix}-wall-e`, b.box(0.5, height, width), length / 2, 0.6 + height / 2, 0, 'concrete'));
-  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.4, 0.5, width + 1.4), 0, 0.6 + height + 0.25, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.4, 0.5, width + 1.4), 0, 0.6 + height + 0.25, 0, 'roof'));
 
   // 门洞与通风百叶
   parts.push(b.part(`${prefix}-door`, b.box(3.2, 4, 0.12), -length / 4, 0.6 + 2, width / 2 + 0.3, 'steel'));
@@ -508,7 +590,7 @@ function facilityBuilding(b, prefix, { length = 26, width = 14, floors = 3, floo
   const height = floors * floorHeight;
   parts.push(b.part(`${prefix}-slab`, b.box(length + 1, 0.6, width + 1), 0, 0.3, 0, 'concrete'));
   parts.push(b.part(`${prefix}-shell`, b.box(length, height, width), 0, 0.6 + height / 2, 0, 'facade'));
-  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, 'roof'));
 
   // 每层窗带
   for (let floor = 0; floor < floors; floor += 1) {
@@ -644,7 +726,7 @@ function dewateringHouse(b, prefix, { length = 26, width = 15, height = 8 }) {
   const parts = [];
   parts.push(b.part(`${prefix}-slab`, b.box(length + 1, 0.6, width + 1), 0, 0.3, 0, 'concrete'));
   parts.push(b.part(`${prefix}-shell`, b.box(length, height, width), 0, 0.6 + height / 2, 0, 'facade'));
-  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, 'concrete'));
+  parts.push(b.part(`${prefix}-roof`, b.box(length + 1.2, 0.45, width + 1.2), 0, 0.6 + height + 0.22, 0, 'roof'));
   parts.push(b.part(`${prefix}-entrance`, b.box(4, 3.2, 0.14), -length / 4, 2.2, width / 2 + 0.08, 'glass'));
   for (let floor = 0; floor < 2; floor += 1) {
     parts.push(b.part(
@@ -671,14 +753,17 @@ function dewateringHouse(b, prefix, { length = 26, width = 15, height = 8 }) {
 
 function buildPlan(projectId) {
   const b = createBuilder();
-  b.material('concrete', 'Reinforced concrete', [0.62, 0.63, 0.61, 1]);
-  b.material('water', 'Process water', [0.16, 0.36, 0.44, 0.92]);
+  // 配色取自真实厂区照片：池壁浅米色、水面深蓝绿、屋面蓝灰。
+  b.material('concrete', 'Reinforced concrete', [0.78, 0.75, 0.67, 1]);
+  b.material('water', 'Process water', [0.09, 0.28, 0.34, 0.94]);
   b.material('steel', 'Galvanised steel', [0.55, 0.58, 0.6, 1]);
   b.material('walkway', 'Grating walkway', [0.42, 0.45, 0.47, 1]);
   b.material('air', 'Air header', [0.3, 0.52, 0.7, 1]);
   b.material('media', 'Filter media', [0.3, 0.28, 0.24, 1]);
   b.material('lamp', 'UV lamp', [0.62, 0.66, 0.86, 1]);
-  b.material('facade', 'Facade panel', [0.72, 0.71, 0.68, 1]);
+  b.material('facade', 'Facade panel', [0.8, 0.79, 0.75, 1]);
+  b.material('roof', 'Metal roof', [0.3, 0.38, 0.47, 1]);
+  b.material('lawn', 'Lawn', [0.29, 0.42, 0.21, 1]);
   b.material('glass', 'Glazing', [0.42, 0.52, 0.58, 0.55]);
   b.material('sludge', 'Sludge', [0.28, 0.22, 0.16, 1]);
 
@@ -746,6 +831,9 @@ function buildPlan(projectId) {
   b.define('chemical-house', 'Chemical dosing', facilityBuilding(b, 'ch', { length: 20, width: 12, floors: 2, floorHeight: 3.8 }), []);
   b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), []);
 
+  // 场地先铺，构筑物叠在上面。范围覆盖整条生产线与污泥区。
+  b.ground(-150, 440, -110, 130, 'lawn');
+
   // 总平面：两条并联系列共用进水段与深度处理，沿 x 轴自西向东。
   b.instance('screening-channel', 'gr-1', 'GR-101 进水格栅渠', -135, 0, 0, { stage: 'intake', tag: 'GR-101' });
   b.instance('pump-house', 'ps-1', 'PS-101 提升泵房', -105, 0, 0, { stage: 'intake', tag: 'PS-101' });
@@ -808,6 +896,17 @@ function buildPlan(projectId) {
     }
   }
   b.connect('fl-1', 'outlet', 'uv-1', 'inlet', 'FL-101 → UV-101 滤后水', 'filtered-water', 0.8);
+
+  // 跨池栈桥：连接同系列相邻构筑物，兼作检修通道。
+  for (const train of trains) {
+    const { key, series, z } = train;
+    b.walkway(`ST-${series}01 初沉至生化栈桥`, [-11, z], [-19, z], { y: 5.0 });
+    b.walkway(`ST-${series}02 生化一至二栈桥`, [66, z], [71, z], { y: 5.6 });
+    b.walkway(`ST-${series}03 生化二至三栈桥`, [113, z], [118, z], { y: 5.6 });
+    b.walkway(`ST-${series}04 生化至二沉栈桥`, [160, z], [178, z], { y: 4.6 });
+    b.walkway(`ST-${series}05 二沉间栈桥`, [212, z], [223, z], { y: 4.4 });
+    b.walkway(`ST-${series}06 二沉间栈桥`, [257, z], [268, z], { y: 4.4 });
+  }
 
   // 污泥线：剩余污泥 → 浓缩 → 消化 → 脱水
   b.connect('sc-a1', 'sludge', 'th-1', 'inlet', 'SC-101 → TH-101 剩余污泥', 'waste-sludge', 0.35);
