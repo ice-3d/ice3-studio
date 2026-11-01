@@ -804,7 +804,7 @@ function buildPlan(projectId) {
   const b = createBuilder();
   // 配色取自真实厂区照片：池壁浅米色、水面深蓝绿、屋面蓝灰。
   b.material('concrete', 'Reinforced concrete', [0.78, 0.75, 0.67, 1]);
-  b.material('water', 'Process water', [0.09, 0.28, 0.34, 0.94]);
+  b.material('water', 'Process water', [0.14, 0.34, 0.42, 0.94]);
   b.material('steel', 'Galvanised steel', [0.55, 0.58, 0.6, 1]);
   b.material('walkway', 'Grating walkway', [0.42, 0.45, 0.47, 1]);
   b.material('air', 'Air header', [0.3, 0.52, 0.7, 1]);

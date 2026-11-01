@@ -20,6 +20,7 @@ import {
   frameBoundsForViewport,
   SCENE_CAMERA_FAR,
   SCENE_CAMERA_NEAR,
+  type CameraFraming,
 } from './cameraFraming';
 
 export interface ScenePreviewSource {
@@ -292,11 +293,11 @@ export class SceneAdapter {
     this.lastBounds = bounds;
     const width = this.viewportElement?.clientWidth ?? 1;
     const height = this.viewportElement?.clientHeight ?? 1;
-    const framing = frameBoundsForViewport(
+    const framing = applyViewOverride(frameBoundsForViewport(
       bounds,
       this.camera.fov,
       width / Math.max(1, height),
-    );
+    ));
     this.camera.setTarget(framing.target).setPosition(framing.position);
     const matrix = this.camera.getViewProjectionMatrix(width / Math.max(1, height));
     let minX = Infinity;
@@ -609,4 +610,28 @@ function fallbackGlbUrl(url: string): string | null {
   const candidate = /^\/preview-packets\/candidates\/([a-fA-F0-9]{64})(?:\?|$)/.exec(url);
   if (candidate) return `/previews/candidates/${candidate[1]}`;
   return url.startsWith('/previews/') ? url.split('?')[0]! : null;
+}
+
+
+/**
+ * 允许用 `?view=方位角,仰角,距离` 指定相机，便于固定视角截图与分享。
+ * 角度为度、距离为米，都相对场景中心；缺省或非法时沿用自动取景。
+ */
+export function applyViewOverride(framing: CameraFraming): CameraFraming {
+  const view = new URLSearchParams(window.location.search).get('view');
+  if (!view) return framing;
+  const parts = view.split(',').map((value) => Number.parseFloat(value));
+  if (parts.length !== 3 || !parts.every(Number.isFinite)) return framing;
+  const [azimuthDegrees = 0, elevationDegrees = 0, distance = 0] = parts;
+  if (distance <= 0) return framing;
+  const azimuth = (azimuthDegrees * Math.PI) / 180;
+  const elevation = (elevationDegrees * Math.PI) / 180;
+  return {
+    target: framing.target,
+    position: [
+      framing.target[0] + distance * Math.cos(elevation) * Math.cos(azimuth),
+      framing.target[1] + distance * Math.sin(elevation),
+      framing.target[2] + distance * Math.cos(elevation) * Math.sin(azimuth),
+    ],
+  };
 }
