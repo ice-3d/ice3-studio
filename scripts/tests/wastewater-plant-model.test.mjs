@@ -104,6 +104,7 @@ test('circular clarifier exposes credible civil and mechanical detail', () => {
   for (const expected of [
     'sc-wall', 'sc-water', 'sc-inlet-well', 'sc-weir', 'sc-coping',
     'sc-deck', 'sc-rail', 'sc-ladder', 'sc-bridge-top', 'sc-drive',
+    'sc-drive-gearbox', 'sc-drive-motor',
     'sc-waterline', 'sc-scum-band', 'sc-inlet-sleeve', 'sc-outlet-sleeve',
   ]) {
     assert.ok(ids.has(expected), expected);
@@ -376,4 +377,27 @@ test('above-ground pipe supports are two-column assemblies', () => {
 test('site contains no generic decorative control-box equipment', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   assert.equal(plan.operations.some(({ metadata }) => metadata?.kind === 'control-box'), false);
+});
+
+test('pipe racks contain supports only, never decorative disconnected pipes', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const rack = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition)
+    .find(({ name }) => name === 'Pipe rack');
+  assert.ok(rack);
+  assert.equal(rack.parts.some(({ id }) => id.includes('-pipe-')), false);
+});
+
+test('pump skid headers connect to every pump body', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const pump = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition)
+    .find(({ name }) => name === 'Lift pump skid');
+  const ids = new Set(pump.parts.map(({ id }) => id));
+  for (let index = 1; index <= 3; index += 1) {
+    assert.ok(ids.has(`lps-suction-branch-${index}`));
+    assert.ok(ids.has(`lps-discharge-branch-${index}`));
+  }
 });

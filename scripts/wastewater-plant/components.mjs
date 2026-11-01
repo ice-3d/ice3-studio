@@ -155,8 +155,15 @@ function circularBasin(
       },
       role: 'steel-dark',
     }));
-  parts.push(b.part(`${prefix}-drive`, b.cylinder(1.1, 1.0, 24),
-    0, { expr: '0.5 + depth + 1.25' }, 0, 'steel-dark'));
+  parts.push(
+    b.part(`${prefix}-drive`, b.cylinder(0.55, 0.5, 20),
+      0, { expr: '0.5 + depth + 1.25' }, 0, 'steel'),
+    b.part(`${prefix}-drive-gearbox`, b.box(0.9, 0.32, 0.55),
+      0.55, { expr: '0.5 + depth + 1.42' }, 0, 'steel-dark'),
+    b.part(`${prefix}-drive-motor`, b.cylinder(0.28, 0.8, 16),
+      1.15, { expr: '0.5 + depth + 1.42' }, 0, 'stainless',
+      { rotation: LIE_ALONG_X }),
+  );
   parts.push(b.part(`${prefix}-bridge-rail-a`, b.box({ expr: bridgeLength }, 0.08, 0.08),
     { expr: bridgeX }, { expr: '0.5 + depth + 1.55' }, -0.76, 'steel-dark'));
   parts.push(b.part(`${prefix}-bridge-rail-b`, b.box({ expr: bridgeLength }, 0.08, 0.08),
@@ -849,7 +856,7 @@ function signWall(b, prefix) {
 
 // 综合管廊：立柱 + 两层横梁 + 一根走道 + 五根按介质分色的主管。
 // 主管高度用表达式挂在 height 参数上，改层高时管子跟着走。
-function pipeRack(b, prefix, { bays = 38, pipes = true } = {}) {
+function pipeRack(b, prefix, { bays = 38 } = {}) {
   const parts = [];
   parts.push(b.repeatPart(`${prefix}-col`, bays + 1, b.box(0.32, { expr: 'height' }, 0.32), {
     transform: {
@@ -889,20 +896,6 @@ function pipeRack(b, prefix, { bays = 38, pipes = true } = {}) {
   // 检修走道与栏杆，挂在北侧。
   parts.push(b.part(`${prefix}-deck`, b.box({ expr: 'length' }, 0.08, 1.0), 0, { expr: 'height - 0.34' }, 2.75, 'walkway'));
   parts.push(b.part(`${prefix}-deck-rail`, b.box({ expr: 'length' }, 0.06, 0.06), 0, { expr: 'height + 0.66' }, 3.2, 'steel'));
-  if (pipes) {
-    // 管道：圆柱默认沿 Y，绕 Z 转 -90° 躺平到 X 方向。
-    const rack = [
-      ['raw', 0.30, 'pipe-raw', 'height + 0.18', -1.05],
-      ['process', 0.26, 'pipe-process', 'height + 0.16', -0.1],
-      ['air', 0.22, 'pipe-air', 'height + 0.15', 0.8],
-      ['clean', 0.24, 'pipe-clean', 'height * 0.6 + 0.36', -0.55],
-      ['sludge', 0.20, 'pipe-sludge', 'height * 0.6 + 0.34', 0.62],
-    ];
-    for (const [key, radius, role, y, z] of rack) {
-      parts.push(b.part(`${prefix}-pipe-${key}`, b.cylinder(radius, { expr: 'length' }, 12),
-        0, { expr: y }, z, role, { rotation: LIE_ALONG_X }));
-    }
-  }
   return parts;
 }
 
@@ -951,6 +944,12 @@ function pumpSkid(b, prefix, { length = 16, width = 8, count = 3 }) {
   for (let index = 0; index < count; index += 1) {
     const x = -length / 2 + (index + 0.5) * (length / count);
     parts.push(
+      b.part(`${prefix}-suction-branch-${index + 1}`, b.cylinder(0.2, 2.5, 14),
+        x, 1.15, -1.95, 'pipe-raw',
+        { rotation: [Math.SQRT1_2, 0, 0, Math.SQRT1_2] }),
+      b.part(`${prefix}-discharge-branch-${index + 1}`, b.cylinder(0.16, 3.9, 14),
+        x, 1.55, 1.25, 'pipe-process',
+        { rotation: [Math.SQRT1_2, 0, 0, Math.SQRT1_2] }),
       b.part(`${prefix}-pump-body-${index + 1}`, b.cylinder(0.62, 1.55, 20),
         x, 1.15, -0.7, 'stainless', { rotation: LIE_ALONG_X }),
       b.part(`${prefix}-pump-motor-${index + 1}`, b.cylinder(0.48, 1.25, 18),
