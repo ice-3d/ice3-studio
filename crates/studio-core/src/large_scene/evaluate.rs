@@ -814,7 +814,7 @@ fn resolve_scalar(
 ) -> Result<f32, LargeSceneError> {
     match binding {
         ScalarBinding::Literal(value) => Ok(*value),
-        ScalarBinding::Parameter(name) => match parameters.get(name) {
+        ScalarBinding::Parameter { param: name } => match parameters.get(name) {
             Some(ParameterValue::Number(value)) => Ok(*value),
             _ => Err(ParameterError::WrongType(name.clone()).into()),
         },
@@ -827,7 +827,7 @@ fn resolve_vector3(
 ) -> Result<Vec3, LargeSceneError> {
     match binding {
         Vector3Binding::Literal(value) => Ok(*value),
-        Vector3Binding::Parameter(name) => match parameters.get(name) {
+        Vector3Binding::Parameter { param: name } => match parameters.get(name) {
             Some(ParameterValue::Vector3(value)) => Ok(*value),
             _ => Err(ParameterError::WrongType(name.clone()).into()),
         },
@@ -840,7 +840,7 @@ fn resolve_material_binding(
 ) -> Result<String, LargeSceneError> {
     match binding {
         MaterialBinding::Literal(value) => Ok(value.clone()),
-        MaterialBinding::Parameter(name) => match parameters.get(name) {
+        MaterialBinding::Parameter { param: name } => match parameters.get(name) {
             Some(ParameterValue::Enumeration(value)) => Ok(value.clone()),
             _ => Err(ParameterError::WrongType(name.clone()).into()),
         },

@@ -5,7 +5,8 @@ const identity = () => ({
 });
 
 const vec = (x, y, z) => ({ x, y, z });
-const literal = (value) => ({ kind: 'literal', value });
+// 工程格式里字面量就是裸值；引用组件参数时才写 { param: 'name' }。
+const literal = (value) => value;
 
 function transform(x = 0, y = 0, z = 0, options = {}) {
   return {

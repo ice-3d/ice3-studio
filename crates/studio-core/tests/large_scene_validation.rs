@@ -30,7 +30,9 @@ fn definition(id: &str) -> ComponentDefinition {
             parent_id: None,
             transform: PartTransform::default(),
             content: PartContent::Box {
-                width: ScalarBinding::Parameter("width".into()),
+                width: ScalarBinding::Parameter {
+                    param: "width".into(),
+                },
                 height: ScalarBinding::Literal(1.0),
                 depth: ScalarBinding::Literal(1.0),
             },

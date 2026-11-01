@@ -3,4 +3,8 @@ import type { MaterialBinding } from "./MaterialBinding";
 import type { PartContent } from "./PartContent";
 import type { PartTransform } from "./PartTransform";
 
-export type ComponentPart = { id: string, parent_id: string | null, transform: PartTransform, content: PartContent, material_role: MaterialBinding | null, metadata: { [key in string]?: string }, visible: boolean, };
+export type ComponentPart = { id: string, 
+/**
+ * 默认值不落盘：工程文件里只出现真正携带信息的字段。
+ */
+parent_id: string | null, transform: PartTransform, content: PartContent, material_role: MaterialBinding | null, metadata: { [key in string]?: string }, visible: boolean, };

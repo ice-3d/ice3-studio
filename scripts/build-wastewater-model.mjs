@@ -11,15 +11,16 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const TAU = Math.PI * 2;
-const lit = (value) => ({ kind: 'literal', value });
+// 工程格式里字面量就是裸值，只有引用组件参数时才写 { param: 'name' }。
+const lit = (value) => value;
 const vec = (x, y, z) => ({ x, y, z });
 
 function partTransform(x = 0, y = 0, z = 0, options = {}) {
-  return {
-    translation: lit(vec(x, y, z)),
-    rotation: options.rotation ?? [0, 0, 0, 1],
-    scale: lit(vec(1, 1, 1)),
-  };
+  // 只写出与默认值不同的分量：默认平移为零、旋转为单位四元数、缩放为一。
+  const value = {};
+  if (x !== 0 || y !== 0 || z !== 0) value.translation = vec(x, y, z);
+  if (options.rotation) value.rotation = options.rotation;
+  return value;
 }
 
 function nodeTransform(x = 0, y = 0, z = 0) {
@@ -31,11 +32,11 @@ function nodeTransform(x = 0, y = 0, z = 0) {
 }
 
 const rotateY = (angle) => [0, Math.sin(angle / 2), 0, Math.cos(angle / 2)];
-const box = (w, h, d) => ({ kind: 'box', width: lit(w), height: lit(h), depth: lit(d) });
+const box = (w, h, d) => ({ kind: 'box', width: w, height: h, depth: d });
 const cylinder = (r, h, segments = 40) => ({
   kind: 'cylinder',
-  radius: lit(r),
-  height: lit(h),
+  radius: r,
+  height: h,
   segments,
 });
 
@@ -60,12 +61,10 @@ function createBuilder() {
 
   const part = (partId, content, x, y, z, role, options = {}) => ({
     id: partId,
-    parentId: options.parentId ?? null,
+    parentId: options.parentId,
     transform: partTransform(x, y, z, options),
     content,
-    materialRole: null,
-    metadata: options.metadata ?? {},
-    visible: options.visible ?? true,
+    metadata: options.metadata,
     role,
   });
 

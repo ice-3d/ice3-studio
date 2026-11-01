@@ -289,6 +289,14 @@ async fn create_change_set_with_operations(
         }),
     )
     .await;
+    assert!(
+        created.get("error").is_none(),
+        "changeset.create failed: {created}"
+    );
+    assert!(
+        added.get("error").is_none(),
+        "addOperations failed: {added}"
+    );
     serde_json::json!({
         "id": added["result"]["id"],
         "version": added["result"]["version"]
@@ -317,7 +325,7 @@ async fn seed_parameterized_scene(server: &TestServer) {
                                     "minimum": 1,
                                     "maximum": 10
                                 },
-                                "default": { "kind": "number", "value": 2 },
+                                "default": 2,
                                 "unit": "m"
                             },
                             {
@@ -327,29 +335,19 @@ async fn seed_parameterized_scene(server: &TestServer) {
                                     "minimum": 1,
                                     "maximum": 10
                                 },
-                                "default": { "kind": "number", "value": 1 },
+                                "default": 1,
                                 "unit": null
                             }
                         ],
                         "parts": [{
                             "id": "body",
                             "parentId": null,
-                            "transform": {
-                                "translation": {
-                                    "kind": "literal",
-                                    "value": { "x": 0, "y": 0, "z": 0 }
-                                },
-                                "rotation": [0, 0, 0, 1],
-                                "scale": {
-                                    "kind": "literal",
-                                    "value": { "x": 1, "y": 1, "z": 1 }
-                                }
-                            },
+                            "transform": {},
                             "content": {
                                 "kind": "box",
-                                "width": { "kind": "parameter", "value": "width" },
-                                "height": { "kind": "literal", "value": 1 },
-                                "depth": { "kind": "literal", "value": 1 }
+                                "width": { "param": "width" },
+                                "height": 1,
+                                "depth": 1
                             },
                             "materialRole": null,
                             "metadata": {},
@@ -392,8 +390,8 @@ fn instance_node(node_id: &str, x: i32) -> serde_json::Value {
         "instance": {
             "definitionId": "component-000001",
             "parameters": {
-                "width": { "kind": "number", "value": 2 },
-                "unused": { "kind": "number", "value": 1 }
+                "width": 2,
+                "unused": 1
             },
             "overrides": {},
             "metadata": {}
@@ -420,7 +418,7 @@ fn instance_patch_parameter(node_id: &str, name: &str, value: f32) -> serde_json
         "type": "instance.patch",
         "nodeId": node_id,
         "setParameters": {
-            name: { "kind": "number", "value": value }
+            name: value
         }
     })
 }
@@ -441,7 +439,7 @@ fn out_of_range_parameter() -> serde_json::Value {
         "type": "instance.patch",
         "nodeId": "node-000001",
         "setParameters": {
-            "unused": { "kind": "number", "value": 100 }
+            "unused": 100
         }
     })
 }

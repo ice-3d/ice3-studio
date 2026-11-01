@@ -59,15 +59,15 @@ async fn apply_instance_and_set(server: &studio_server::TestServer) {
             "id": "body",
             "parentId": null,
             "transform": {
-                "translation": { "kind": "literal", "value": { "x": 0, "y": 0, "z": 0 } },
+                "translation": { "x": 0, "y": 0, "z": 0 },
                 "rotation": [0, 0, 0, 1],
-                "scale": { "kind": "literal", "value": { "x": 1, "y": 1, "z": 1 } }
+                "scale": { "x": 1, "y": 1, "z": 1 }
             },
             "content": {
                 "kind": "box",
-                "width": { "kind": "literal", "value": 1 },
-                "height": { "kind": "literal", "value": 1 },
-                "depth": { "kind": "literal", "value": 1 }
+                "width": 1,
+                "height": 1,
+                "depth": 1
             },
             "materialRole": null,
             "metadata": {},
@@ -148,15 +148,15 @@ async fn apply_two_shared_instances(server: &studio_server::TestServer) {
             "id": "body",
             "parentId": null,
             "transform": {
-                "translation": { "kind": "literal", "value": { "x": 0, "y": 0, "z": 0 } },
+                "translation": { "x": 0, "y": 0, "z": 0 },
                 "rotation": [0, 0, 0, 1],
-                "scale": { "kind": "literal", "value": { "x": 1, "y": 1, "z": 1 } }
+                "scale": { "x": 1, "y": 1, "z": 1 }
             },
             "content": {
                 "kind": "box",
-                "width": { "kind": "literal", "value": 1 },
-                "height": { "kind": "literal", "value": 1 },
-                "depth": { "kind": "literal", "value": 1 }
+                "width": 1,
+                "height": 1,
+                "depth": 1
             },
             "materialRole": null,
             "metadata": {},

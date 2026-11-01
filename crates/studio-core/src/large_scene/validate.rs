@@ -900,7 +900,7 @@ impl BindingName for ScalarBinding {
     fn parameter_name(&self) -> Option<&str> {
         match self {
             ScalarBinding::Literal(_) => None,
-            ScalarBinding::Parameter(name) => Some(name),
+            ScalarBinding::Parameter { param: name } => Some(name),
         }
     }
 }
@@ -909,7 +909,7 @@ impl BindingName for Vector3Binding {
     fn parameter_name(&self) -> Option<&str> {
         match self {
             Vector3Binding::Literal(_) => None,
-            Vector3Binding::Parameter(name) => Some(name),
+            Vector3Binding::Parameter { param: name } => Some(name),
         }
     }
 }
@@ -918,7 +918,7 @@ impl BindingName for MaterialBinding {
     fn parameter_name(&self) -> Option<&str> {
         match self {
             MaterialBinding::Literal(_) => None,
-            MaterialBinding::Parameter(name) => Some(name),
+            MaterialBinding::Parameter { param: name } => Some(name),
         }
     }
 }

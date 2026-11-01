@@ -49,8 +49,9 @@ pub enum ParameterType {
     },
 }
 
+/// 参数取值。字面量直接写值，只有引用参数时才需要包装对象。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+#[serde(untagged)]
 #[ts(export)]
 pub enum ParameterValue {
     Number(f32),
@@ -59,38 +60,117 @@ pub enum ParameterValue {
     Enumeration(String),
 }
 
+/// 部件字段：字面量就是普通数字，引用参数写 `{ "param": "name" }`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(untagged)]
+#[ts(export)]
+pub enum ScalarBinding {
+    Literal(f32),
+    Parameter { param: String },
+}
+
+/// 向量字段：字面量写 `{ "x": 1, "y": 2, "z": 3 }`，引用参数写 `{ "param": "name" }`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(untagged)]
+#[ts(export)]
+pub enum Vector3Binding {
+    Literal(Vec3),
+    Parameter { param: String },
+}
+
+impl Vector3Binding {
+    fn is_zero(&self) -> bool {
+        matches!(self, Self::Literal(value) if value.x == 0.0 && value.y == 0.0 && value.z == 0.0)
+    }
+
+    fn is_one(&self) -> bool {
+        matches!(self, Self::Literal(value) if value.x == 1.0 && value.y == 1.0 && value.z == 1.0)
+    }
+}
+
+/// 材质引用：字面量就是材质 id，引用参数写 `{ "param": "name" }`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(untagged)]
+#[ts(export)]
+pub enum MaterialBinding {
+    Literal(String),
+    Parameter { param: String },
+}
+
+fn unit_rotation() -> [f32; 4] {
+    [0.0, 0.0, 0.0, 1.0]
+}
+
+fn is_unit_rotation(rotation: &[f32; 4]) -> bool {
+    *rotation == unit_rotation()
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ComponentPart {
     pub id: String,
+    /// 默认值不落盘：工程文件里只出现真正携带信息的字段。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
+    #[serde(default, skip_serializing_if = "PartTransform::is_identity")]
     pub transform: PartTransform,
     pub content: PartContent,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material_role: Option<MaterialBinding>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub metadata: BTreeMap<String, String>,
+    #[serde(default = "default_visible", skip_serializing_if = "is_true")]
     pub visible: bool,
+}
+
+fn default_visible() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct PartTransform {
+    #[serde(
+        default = "zero_vector",
+        skip_serializing_if = "Vector3Binding::is_zero"
+    )]
     pub translation: Vector3Binding,
+    #[serde(default = "unit_rotation", skip_serializing_if = "is_unit_rotation")]
     pub rotation: [f32; 4],
+    #[serde(default = "one_vector", skip_serializing_if = "Vector3Binding::is_one")]
     pub scale: Vector3Binding,
+}
+
+fn zero_vector() -> Vector3Binding {
+    Vector3Binding::Literal(Vec3::default())
+}
+
+fn one_vector() -> Vector3Binding {
+    Vector3Binding::Literal(Vec3 {
+        x: 1.0,
+        y: 1.0,
+        z: 1.0,
+    })
+}
+
+impl PartTransform {
+    fn is_identity(&self) -> bool {
+        self.translation.is_zero() && is_unit_rotation(&self.rotation) && self.scale.is_one()
+    }
 }
 
 impl Default for PartTransform {
     fn default() -> Self {
         Self {
-            translation: Vector3Binding::Literal(Vec3::default()),
-            rotation: [0.0, 0.0, 0.0, 1.0],
-            scale: Vector3Binding::Literal(Vec3 {
-                x: 1.0,
-                y: 1.0,
-                z: 1.0,
-            }),
+            translation: zero_vector(),
+            rotation: unit_rotation(),
+            scale: one_vector(),
         }
     }
 }
@@ -135,30 +215,6 @@ pub enum PartContent {
         definition_id: ComponentId,
         parameters: BTreeMap<String, ParameterValue>,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-#[ts(export)]
-pub enum ScalarBinding {
-    Literal(f32),
-    Parameter(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-#[ts(export)]
-pub enum Vector3Binding {
-    Literal(Vec3),
-    Parameter(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
-#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
-#[ts(export)]
-pub enum MaterialBinding {
-    Literal(String),
-    Parameter(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]

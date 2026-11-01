@@ -59,7 +59,7 @@ async fn agent_inspects_proposes_and_waits_for_human_approval() {
                     "type": "instance.patch",
                     "nodeId": "node-000001",
                     "setParameters": {
-                        "capacity": { "kind": "number", "value": 6.0 }
+                        "capacity": 6.0
                     },
                     "setMetadata": { "agentReviewed": "true" },
                     "clearMaterial": false
@@ -132,7 +132,7 @@ async fn agent_inspects_proposes_and_waits_for_human_approval() {
         .unwrap();
     assert_eq!(node["transform"]["translation"]["x"], 3.0);
     assert_eq!(node["metadata"]["agentReviewed"], "true");
-    assert_eq!(node["content"]["parameters"]["capacity"]["value"], 6.0);
+    assert_eq!(node["content"]["parameters"]["capacity"], 6.0);
     assert_eq!(
         node["content"]["overrides"]["body"]["metadata"]["finish"],
         "paint"
@@ -172,28 +172,18 @@ async fn seed_instance(server: &TestServer) {
                                 "minimum": 0,
                                 "maximum": 10
                             },
-                            "default": { "kind": "number", "value": 4.0 },
+                            "default": 4.0,
                             "unit": "m3/h"
                         }],
                         "parts": [{
                             "id": "body",
                             "parentId": null,
-                            "transform": {
-                                "translation": {
-                                    "kind": "literal",
-                                    "value": { "x": 0, "y": 0, "z": 0 }
-                                },
-                                "rotation": [0, 0, 0, 1],
-                                "scale": {
-                                    "kind": "literal",
-                                    "value": { "x": 1, "y": 1, "z": 1 }
-                                }
-                            },
+                            "transform": {},
                             "content": {
                                 "kind": "box",
-                                "width": { "kind": "literal", "value": 1 },
-                                "height": { "kind": "literal", "value": 1 },
-                                "depth": { "kind": "literal", "value": 1 }
+                                "width": 1,
+                                "height": 1,
+                                "depth": 1
                             },
                             "materialRole": null,
                             "metadata": {},
@@ -216,7 +206,7 @@ async fn seed_instance(server: &TestServer) {
                     "instance": {
                         "definitionId": "component-000001",
                         "parameters": {
-                            "capacity": { "kind": "number", "value": 4.0 }
+                            "capacity": 4.0
                         },
                         "overrides": {
                             "body": {

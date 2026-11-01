@@ -361,6 +361,7 @@
               "type": "object"
             },
             "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
                 "null"
@@ -375,10 +376,7 @@
           },
           "required": [
             "id",
-            "transform",
-            "content",
-            "metadata",
-            "visible"
+            "content"
           ],
           "type": "object"
         },
@@ -710,40 +708,23 @@
           "type": "object"
         },
         "MaterialBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "NodeContent": {
           "oneOf": [
@@ -1959,79 +1940,28 @@
           ]
         },
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "PartContent": {
           "oneOf": [
@@ -2276,11 +2206,6 @@
               "$ref": "#/$defs/Vector3Binding"
             }
           },
-          "required": [
-            "translation",
-            "rotation",
-            "scale"
-          ],
           "type": "object"
         },
         "Primitive": {
@@ -2501,41 +2426,24 @@
           ]
         },
         "ScalarBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "Transform": {
           "properties": {
@@ -2614,40 +2522,23 @@
           "type": "object"
         },
         "Vector3Binding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3784,6 +3675,7 @@
               "type": "object"
             },
             "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
                 "null"
@@ -3798,10 +3690,7 @@
           },
           "required": [
             "id",
-            "transform",
-            "content",
-            "metadata",
-            "visible"
+            "content"
           ],
           "type": "object"
         },
@@ -4315,40 +4204,23 @@
           "type": "object"
         },
         "MaterialBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "NodeContent": {
           "oneOf": [
@@ -5564,79 +5436,28 @@
           ]
         },
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "PartContent": {
           "oneOf": [
@@ -5881,11 +5702,6 @@
               "$ref": "#/$defs/Vector3Binding"
             }
           },
-          "required": [
-            "translation",
-            "rotation",
-            "scale"
-          ],
           "type": "object"
         },
         "Primitive": {
@@ -6106,41 +5922,24 @@
           ]
         },
         "ScalarBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "Transform": {
           "properties": {
@@ -6219,40 +6018,23 @@
           "type": "object"
         },
         "Vector3Binding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6528,6 +6310,7 @@
               "type": "object"
             },
             "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
                 "null"
@@ -6542,10 +6325,7 @@
           },
           "required": [
             "id",
-            "transform",
-            "content",
-            "metadata",
-            "visible"
+            "content"
           ],
           "type": "object"
         },
@@ -6877,40 +6657,23 @@
           "type": "object"
         },
         "MaterialBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "NodeContent": {
           "oneOf": [
@@ -8126,79 +7889,28 @@
           ]
         },
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "PartContent": {
           "oneOf": [
@@ -8443,11 +8155,6 @@
               "$ref": "#/$defs/Vector3Binding"
             }
           },
-          "required": [
-            "translation",
-            "rotation",
-            "scale"
-          ],
           "type": "object"
         },
         "Primitive": {
@@ -8668,41 +8375,24 @@
           ]
         },
         "ScalarBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "Transform": {
           "properties": {
@@ -8781,40 +8471,23 @@
           "type": "object"
         },
         "Vector3Binding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -9047,6 +8720,7 @@
               "type": "object"
             },
             "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
                 "null"
@@ -9061,10 +8735,7 @@
           },
           "required": [
             "id",
-            "transform",
-            "content",
-            "metadata",
-            "visible"
+            "content"
           ],
           "type": "object"
         },
@@ -9396,40 +9067,23 @@
           "type": "object"
         },
         "MaterialBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "NodeContent": {
           "oneOf": [
@@ -10645,79 +10299,28 @@
           ]
         },
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "PartContent": {
           "oneOf": [
@@ -10962,11 +10565,6 @@
               "$ref": "#/$defs/Vector3Binding"
             }
           },
-          "required": [
-            "translation",
-            "rotation",
-            "scale"
-          ],
           "type": "object"
         },
         "Primitive": {
@@ -11187,41 +10785,24 @@
           ]
         },
         "ScalarBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "Transform": {
           "properties": {
@@ -11300,40 +10881,23 @@
           "type": "object"
         },
         "Vector3Binding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -11559,6 +11123,7 @@
               "type": "object"
             },
             "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
                 "null"
@@ -11573,10 +11138,7 @@
           },
           "required": [
             "id",
-            "transform",
-            "content",
-            "metadata",
-            "visible"
+            "content"
           ],
           "type": "object"
         },
@@ -12137,40 +11699,23 @@
           "type": "object"
         },
         "MaterialBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "NodeContent": {
           "oneOf": [
@@ -12468,79 +12013,28 @@
           ]
         },
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "PartContent": {
           "oneOf": [
@@ -12785,11 +12279,6 @@
               "$ref": "#/$defs/Vector3Binding"
             }
           },
-          "required": [
-            "translation",
-            "rotation",
-            "scale"
-          ],
           "type": "object"
         },
         "Primitive": {
@@ -13010,41 +12499,24 @@
           ]
         },
         "ScalarBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "Scene": {
           "properties": {
@@ -13183,40 +12655,23 @@
           "type": "object"
         },
         "Vector3Binding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -13655,6 +13110,7 @@
               "type": "object"
             },
             "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
                 "null"
@@ -13669,10 +13125,7 @@
           },
           "required": [
             "id",
-            "transform",
-            "content",
-            "metadata",
-            "visible"
+            "content"
           ],
           "type": "object"
         },
@@ -14004,40 +13457,23 @@
           "type": "object"
         },
         "MaterialBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "NodeContent": {
           "oneOf": [
@@ -15253,79 +14689,28 @@
           ]
         },
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "PartContent": {
           "oneOf": [
@@ -15570,11 +14955,6 @@
               "$ref": "#/$defs/Vector3Binding"
             }
           },
-          "required": [
-            "translation",
-            "rotation",
-            "scale"
-          ],
           "type": "object"
         },
         "Primitive": {
@@ -15795,41 +15175,24 @@
           ]
         },
         "ScalarBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "Transform": {
           "properties": {
@@ -15908,40 +15271,23 @@
           "type": "object"
         },
         "Vector3Binding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -16034,79 +15380,28 @@
     "ComponentPatch": {
       "$defs": {
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "Vec3": {
           "properties": {
@@ -16585,6 +15880,7 @@
               "type": "object"
             },
             "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
                 "null"
@@ -16599,10 +15895,7 @@
           },
           "required": [
             "id",
-            "transform",
-            "content",
-            "metadata",
-            "visible"
+            "content"
           ],
           "type": "object"
         },
@@ -17094,40 +16387,23 @@
           "type": "object"
         },
         "MaterialBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "NodeContent": {
           "oneOf": [
@@ -17425,79 +16701,28 @@
           ]
         },
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "PartContent": {
           "oneOf": [
@@ -17742,11 +16967,6 @@
               "$ref": "#/$defs/Vector3Binding"
             }
           },
-          "required": [
-            "translation",
-            "rotation",
-            "scale"
-          ],
           "type": "object"
         },
         "Primitive": {
@@ -17967,41 +17187,24 @@
           ]
         },
         "ScalarBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "Scene": {
           "properties": {
@@ -18140,40 +17343,23 @@
           "type": "object"
         },
         "Vector3Binding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -18480,79 +17666,28 @@
     "InstancePatch": {
       "$defs": {
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "Transform": {
           "properties": {
@@ -18994,6 +18129,7 @@
               "type": "object"
             },
             "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
                 "null"
@@ -19008,10 +18144,7 @@
           },
           "required": [
             "id",
-            "transform",
-            "content",
-            "metadata",
-            "visible"
+            "content"
           ],
           "type": "object"
         },
@@ -19343,40 +18476,23 @@
           "type": "object"
         },
         "MaterialBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "NodeContent": {
           "oneOf": [
@@ -19674,79 +18790,28 @@
           ]
         },
         "ParameterValue": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "number",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "vector3",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "color",
-                  "type": "string"
-                },
-                "value": {
-                  "items": {
-                    "format": "float",
-                    "type": "number"
-                  },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
-                }
+              "items": {
+                "format": "float",
+                "type": "number"
               },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             },
             {
-              "properties": {
-                "kind": {
-                  "const": "enumeration",
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "type": "string"
             }
-          ]
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
         "PartContent": {
           "oneOf": [
@@ -19991,11 +19056,6 @@
               "$ref": "#/$defs/Vector3Binding"
             }
           },
-          "required": [
-            "translation",
-            "rotation",
-            "scale"
-          ],
           "type": "object"
         },
         "Primitive": {
@@ -20216,41 +19276,24 @@
           ]
         },
         "ScalarBinding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "format": "float",
-                  "type": "number"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "format": "float",
+              "type": "number"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "Transform": {
           "properties": {
@@ -20329,40 +19372,23 @@
           "type": "object"
         },
         "Vector3Binding": {
-          "oneOf": [
+          "anyOf": [
             {
-              "properties": {
-                "kind": {
-                  "const": "literal",
-                  "type": "string"
-                },
-                "value": {
-                  "$ref": "#/$defs/Vec3"
-                }
-              },
-              "required": [
-                "kind",
-                "value"
-              ],
-              "type": "object"
+              "$ref": "#/$defs/Vec3"
             },
             {
               "properties": {
-                "kind": {
-                  "const": "parameter",
-                  "type": "string"
-                },
-                "value": {
+                "param": {
                   "type": "string"
                 }
               },
               "required": [
-                "kind",
-                "value"
+                "param"
               ],
               "type": "object"
             }
-          ]
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
