@@ -1146,12 +1146,16 @@ function buildPlan(projectId) {
   b.define('chemical-house', 'Chemical dosing', facilityBuilding(b, 'ch', { length: 20, width: 12, floors: 2, floorHeight: 3.8 }), []);
   b.define('control-building', 'Control building', facilityBuilding(b, 'cb', { length: 30, width: 16, floors: 3, floorHeight: 3.8 }), []);
 
-  // 场地先铺，构筑物叠在上面。范围覆盖整条生产线与污泥区。
-  b.ground('场地（草坪）', -150, 440, -110, 130, 'lawn', -0.08);
-  // 主干道：沿生产线南北两侧各一条，外加通往污泥区的支路。
-  b.ground('道路（北）', -150, 470, -72, -62, 'asphalt', -0.03);
-  b.ground('道路（南）', -150, 470, 40, 50, 'asphalt', -0.03);
-  b.ground('道路（污泥区支路）', 240, 250, 40, 130, 'asphalt', -0.03);
+  // 场地：按功能分区铺草坪，四周留出环形主干道。
+  b.ground('场地（草坪）', -10, 610, -185, 185, 'lawn', -0.08);
+  // 环形主干道：南北两条沿厂界，东西两端各一条。
+  b.ground('道路（北）', -10, 620, -180, -168, 'asphalt', -0.03);
+  b.ground('道路（南）', -10, 620, 168, 180, 'asphalt', -0.03);
+  b.ground('道路（西）', -10, 2, -185, 185, 'asphalt', -0.03);
+  b.ground('道路（东）', 600, 612, -185, 185, 'asphalt', -0.03);
+  // 横向支路：分隔预处理 / 生化 / 二沉三个区块。
+  b.ground('道路（支路一）', 120, 130, -160, 160, 'asphalt', -0.03);
+  b.ground('道路（支路二）', 355, 365, -160, 160, 'asphalt', -0.03);
   // 道路标线：两侧各一条白线。
   b.material('marking', 'Road marking', [0.86, 0.86, 0.84, 1]);
   // 接触阴影：贴在构筑物脚下的深色薄片，替代真正的阴影贴图。
@@ -1162,53 +1166,77 @@ function buildPlan(projectId) {
   b.material('pipe-clean', 'Pipe / clean water', [0.28, 0.55, 0.36, 1]);
   b.material('pipe-sludge', 'Pipe / sludge', [0.36, 0.24, 0.16, 1]);
   b.material('pipe-air', 'Pipe / air', [0.26, 0.48, 0.76, 1]);
-  for (const edgeZ of [-71.4, -62.6, 40.6, 49.4]) {
-    b.ground(`标线 z=${edgeZ}`, -150, 470, edgeZ - 0.15, edgeZ + 0.15, 'marking', -0.018);
+  for (const edgeZ of [-179, -169, 169, 179]) {
+    b.ground(`标线 z=${edgeZ}`, -10, 610, edgeZ - 0.15, edgeZ + 0.15, 'marking', -0.018);
   }
 
-  // 总平面：两条并联系列共用进水段与深度处理，沿 x 轴自西向东。
-  b.instance('screening-channel', 'gr-1', 'GR-101 进水格栅渠', -135, 0, 0, { stage: 'intake', tag: 'GR-101' });
-  b.instance('pump-house', 'ps-1', 'PS-101 提升泵房', -105, 0, 0, { stage: 'intake', tag: 'PS-101' });
-  b.instance('grit-chamber', 'gc-1', 'GC-101 曝气沉砂池', -70, 0, 0, { stage: 'intake', tag: 'GC-101' });
+  // 总平面：按功能分区，成组紧凑布置。
+  //
+  // 对照真实厂区航拍：预处理在西端，初沉/生化/二沉沿流向自西向东成组排列，
+  // 两条并联系列南北相对，污泥区独立在北侧，办公与辅助靠南侧入口，
+  // 各区块之间用环形主干道与绿化带分隔。
+  //
+  // 预处理区（x 30–100）
+  b.instance('screening-channel', 'gr-1', 'GR-101 进水格栅渠', 30, 0, 0, { stage: 'intake', tag: 'GR-101' });
+  b.instance('pump-house', 'ps-1', 'PS-101 提升泵房', 62, 0, 0, { stage: 'intake', tag: 'PS-101' });
+  b.instance('grit-chamber', 'gc-1', 'GC-101 曝气沉砂池', 95, 0, 0, { stage: 'intake', tag: 'GC-101' });
 
   const trains = [
-    { key: 'a', series: '1', z: 20 },
-    { key: 'b', series: '2', z: -20 },
+    { key: 'a', series: '1', z: 40 },
+    { key: 'b', series: '2', z: -40 },
   ];
+
+  // 初沉区（x 150）：两座并排，横向间距 80 米（一个池径加通道）
   for (const train of trains) {
     const { key, series, z } = train;
-    b.instance('primary-clarifier', `pc-${key}`, `PC-${series}01 初沉池`, 0, 0, z, {
+    b.instance('primary-clarifier', `pc-${key}`, `PC-${series}01 初沉池`, 150, 0, z, {
       stage: 'primary', tag: `PC-${series}01`, train: `Train${series}`,
     }, { radius: 13, depth: 4.2, wall: 0.45 });
-    b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 45, 0, z, {
+
+    // 生化区（x 215–340）：三段推流廊道首尾相接，段间留 13 米管廊
+    b.instance('aeration-feed', `ae-${key}1`, `AE-${series}01 曝气池（厌氧段）`, 215, 0, z, {
       stage: 'biological', tag: `AE-${series}01`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
-    b.instance('aeration-mixed', `ae-${key}2`, `AE-${series}02 曝气池（缺氧段）`, 92, 0, z, {
+    b.instance('aeration-mixed', `ae-${key}2`, `AE-${series}02 曝气池（缺氧段）`, 270, 0, z, {
       stage: 'biological', tag: `AE-${series}02`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
-    b.instance('aeration-mixed', `ae-${key}3`, `AE-${series}03 曝气池（好氧段）`, 139, 0, z, {
+    b.instance('aeration-mixed', `ae-${key}3`, `AE-${series}03 曝气池（好氧段）`, 325, 0, z, {
       stage: 'biological', tag: `AE-${series}03`, train: `Train${series}`,
     }, { length: 42, width: 20, depth: 6, wall: 0.45 });
+
+    // 二沉区（x 380–470）：三座一排，间距 45 米（直径 30 加通道）
     for (let index = 1; index <= 3; index += 1) {
       b.instance('secondary-clarifier', `sc-${key}${index}`,
-        `SC-${series}0${index} 二沉池`, 190 + (index - 1) * 45, 0, z, {
+        `SC-${series}0${index} 二沉池`, 375 + (index - 1) * 45, 0, z, {
           stage: 'secondary', tag: `SC-${series}0${index}`, train: `Train${series}`,
         }, { radius: 15, depth: 4.6, wall: 0.45 });
     }
   }
 
-  b.instance('filter-cell', 'fl-1', 'FL-101 滤池', 350, 0, 0, { stage: 'tertiary', tag: 'FL-101' }, { length: 32, width: 26, depth: 3.6 });
-  b.instance('disinfection-channel', 'uv-1', 'UV-101 紫外消毒渠', 395, 0, 0, { stage: 'tertiary', tag: 'UV-101' }, { length: 26, width: 5.5, depth: 3 });
-  b.instance('thickener', 'th-1', 'TH-101 污泥浓缩池', 250, 0, 62, { stage: 'sludge', tag: 'TH-101' }, { radius: 8, depth: 4.4 });
-  b.instance('thickener', 'th-2', 'TH-102 污泥浓缩池', 288, 0, 62, { stage: 'sludge', tag: 'TH-102' }, { radius: 8, depth: 4.4 });
-  b.instance('digester', 'dg-1', 'DG-101 消化池', 340, 0, 62, { stage: 'sludge', tag: 'DG-101' }, { radius: 11, height: 17 });
-  b.instance('digester', 'dg-2', 'DG-102 消化池', 340, 0, 102, { stage: 'sludge', tag: 'DG-102' }, { radius: 11, height: 17 });
-  b.instance('gas-holder', 'gh-1', 'GH-101 沼气柜', 380, 0, 118, { stage: 'sludge', tag: 'GH-101' });
-  b.instance('dewatering-house', 'dw-1', 'DW-101 脱水机房', 405, 0, 78, { stage: 'sludge', tag: 'DW-101' });
-  b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', -135, 0, -62, { stage: 'auxiliary', tag: 'CTRL-101' });
-  b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 92, 0, -62, { stage: 'auxiliary', tag: 'BLW-101' });
-  b.instance('chemical-house', 'ch-1', 'CHEM-101 加药间', 350, 0, -55, { stage: 'auxiliary', tag: 'CHEM-101' });
+  // 深度处理区（东端）
+  b.instance('filter-cell', 'fl-1', 'FL-101 滤池', 520, 0, 0, { stage: 'tertiary', tag: 'FL-101' },
+    { length: 32, width: 26, depth: 3.6 });
+  b.instance('disinfection-channel', 'uv-1', 'UV-101 紫外消毒渠', 560, 0, 0, { stage: 'tertiary', tag: 'UV-101' },
+    { length: 26, width: 5.5, depth: 3 });
 
+  // 污泥区（北侧独立成角，与生产区隔一条绿化带）
+  b.instance('thickener', 'th-1', 'TH-101 污泥浓缩池', 230, 0, -145, { stage: 'sludge', tag: 'TH-101' },
+    { radius: 8, depth: 4.4 });
+  b.instance('thickener', 'th-2', 'TH-102 污泥浓缩池', 262, 0, -145, { stage: 'sludge', tag: 'TH-102' },
+    { radius: 8, depth: 4.4 });
+  b.instance('digester', 'dg-1', 'DG-101 消化池', 320, 0, -145, { stage: 'sludge', tag: 'DG-101' },
+    { radius: 11, height: 17 });
+  b.instance('digester', 'dg-2', 'DG-102 消化池', 320, 0, -105, { stage: 'sludge', tag: 'DG-102' },
+    { radius: 11, height: 17 });
+  b.instance('gas-holder', 'gh-1', 'GH-101 沼气柜', 372, 0, -125, { stage: 'sludge', tag: 'GH-101' });
+  b.instance('dewatering-house', 'dw-1', 'DW-101 脱水机房', 430, 0, -145, { stage: 'sludge', tag: 'DW-101' });
+
+  // 辅助区（南侧靠入口）
+  b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', 55, 0, 150, { stage: 'auxiliary', tag: 'CTRL-101' });
+  b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 270, 0, 150, { stage: 'auxiliary', tag: 'BLW-101' });
+  b.instance('chemical-house', 'ch-1', 'CHEM-101 加药间', 440, 0, 150, { stage: 'auxiliary', tag: 'CHEM-101' });
+
+  // 水系连接
   b.connect('gr-1', 'outlet', 'ps-1', 'inlet', 'GR-101 → PS-101 原水', 'screened-water', 1.0);
   b.connect('ps-1', 'outlet', 'gc-1', 'inlet', 'PS-101 → GC-101 提升水', 'lifted-water', 1.0);
   for (const train of trains) {
@@ -1230,61 +1258,14 @@ function buildPlan(projectId) {
   }
   b.connect('fl-1', 'outlet', 'uv-1', 'inlet', 'FL-101 → UV-101 滤后水', 'filtered-water', 0.8);
 
-  // 跨池栈桥：连接同系列相邻构筑物，兼作检修通道。
-  for (const train of trains) {
-    const { key, series, z } = train;
-    b.walkway(`ST-${series}01 初沉至生化栈桥`, [-11, z], [-19, z], { y: 5.0 });
-    b.walkway(`ST-${series}02 生化一至二栈桥`, [66, z], [71, z], { y: 5.6 });
-    b.walkway(`ST-${series}03 生化二至三栈桥`, [113, z], [118, z], { y: 5.6 });
-    b.walkway(`ST-${series}04 生化至二沉栈桥`, [160, z], [178, z], { y: 4.6 });
-    b.walkway(`ST-${series}05 二沉间栈桥`, [212, z], [223, z], { y: 4.4 });
-    b.walkway(`ST-${series}06 二沉间栈桥`, [257, z], [268, z], { y: 4.4 });
-  }
-
-  // 接触阴影：按构筑物占地铺一层，位置略偏右下（光从左上来）。
-  for (const train of trains) {
-    const { series, z } = train;
-    b.shadowPatch(`SH-PC${series}`, 0.9, z + 0.8, 29, 29, true);
-    for (let index = 1; index <= 3; index += 1) {
-      b.shadowPatch(`SH-AE${series}0${index}`, 45 + (index - 1) * 47 + 0.9, z + 0.8, 45, 23);
-      b.shadowPatch(`SH-SC${series}0${index}`, 190 + (index - 1) * 45 + 0.9, z + 0.8, 33, 33, true);
-    }
-  }
-  b.shadowPatch('SH-GR', -135, 0, 23, 9);
-  b.shadowPatch('SH-PS', -105, 0, 25, 16);
-  b.shadowPatch('SH-GC', -70, 0, 29, 14);
-  b.shadowPatch('SH-FL', 350, 0, 36, 30);
-  b.shadowPatch('SH-UV', 395, 0, 29, 9);
-  b.shadowPatch('SH-TH1', 250, 62, 19, 19, true);
-  b.shadowPatch('SH-TH2', 288, 62, 19, 19, true);
-  b.shadowPatch('SH-DG1', 340, 62, 26, 26, true);
-  b.shadowPatch('SH-DG2', 340, 102, 26, 26, true);
-  b.shadowPatch('SH-DW', 405, 78, 29, 18);
-  b.shadowPatch('SH-GH', 380, 118, 20, 20, true);
-  b.shadowPatch('SH-CB', -135, -62, 33, 19);
-  b.shadowPatch('SH-BLW', 92, -62, 29, 17);
-  b.shadowPatch('SH-CH', 350, -55, 23, 15);
-
-  // 池边设备：控制箱与立式泵，让池与池之间不再空旷。
-  const equipment = (name, x, z) => {
-    b.equipment('control-box', name, x, 0, z, { tag: name.split(' ')[0] });
-  };
-  for (const train of trains) {
-    for (let index = 1; index <= 3; index += 1) {
-      equipment(`EQ-SC${train.series}0${index} 控制箱`, 190 + (index - 1) * 45 + 16, train.z - 18);
-    }
-    equipment(`EQ-AE${train.series} 控制箱`, 92, train.z - 16);
-  }
-  equipment('EQ-FL 控制箱', 350, -18);
-  equipment('EQ-GC 控制箱', -70, -14);
-
-  // 污泥线：剩余污泥 → 浓缩 → 消化 → 脱水
+  // 污泥线
   b.connect('sc-a1', 'sludge', 'th-1', 'inlet', 'SC-101 → TH-101 剩余污泥', 'waste-sludge', 0.35);
   b.connect('sc-b1', 'sludge', 'th-2', 'inlet', 'SC-201 → TH-102 剩余污泥', 'waste-sludge', 0.35);
   b.connect('th-1', 'outlet', 'dg-1', 'inlet', 'TH-101 → DG-101 浓缩污泥', 'thickened-sludge', 0.3);
   b.connect('th-2', 'outlet', 'dg-2', 'inlet', 'TH-102 → DG-102 浓缩污泥', 'thickened-sludge', 0.3);
   b.connect('dg-1', 'outlet', 'dw-1', 'inlet-a', 'DG-101 → DW-101 消化污泥', 'digested-sludge', 0.3);
   b.connect('dg-2', 'outlet', 'dw-1', 'inlet-b', 'DG-102 → DW-101 消化污泥', 'digested-sludge', 0.3);
+
 
   return {
     projectId,
