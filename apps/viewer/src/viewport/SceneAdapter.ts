@@ -37,6 +37,11 @@ type ReferenceSelectionBinding = {
   selectionId: string;
 };
 
+type EntitySelectionOptions = {
+  referenceScene: boolean;
+  referenceBindings?: readonly ReferenceSelectionBinding[];
+};
+
 export class SceneAdapter {
   private engine: ICE3 | null = null;
   private loader: ICEAssetLoader | null = null;
@@ -51,6 +56,8 @@ export class SceneAdapter {
   private tilesetHandle: ICETilesetHandle | null = null;
   private referenceBindings: StudioReferenceBinding[] = [];
   private referenceExposure = 1;
+  private referenceScene = false;
+  private renderableSelectionIds: string[] = [];
   private selectionIds: string[] = [];
   private lastBounds: ICEGeometryBounds | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -75,9 +82,12 @@ export class SceneAdapter {
     });
     engine.setCamera(camera).start();
     engine.on<{ selection: readonly string[] }>('SELECTION_CHANGE', (event) => {
-      this.onSelection?.(mapReferenceSelections(
+      this.onSelection?.(normalizeEntitySelections(
         event.param?.selection ?? [],
-        this.referenceBindings,
+        {
+          referenceScene: this.referenceScene,
+          referenceBindings: this.referenceBindings,
+        },
       ));
     });
     engine.on('BEFORE_RENDER', () => this.updateClipPlanes());
@@ -103,13 +113,13 @@ export class SceneAdapter {
   select(nodeIds: readonly string[]): void {
     this.selectionIds = [...nodeIds];
     if (!this.engine) return;
-    const bindingByNode = new Map(
-      this.referenceBindings
-        .filter((binding) => binding.nodeId)
-        .map((binding) => [binding.nodeId!, binding.selectionId]),
-    );
-    const importedSelection = nodeIds.map(
-      (nodeId) => bindingByNode.get(nodeId) ?? nodeId,
+    const importedSelection = expandEntitySelections(
+      nodeIds,
+      this.renderableSelectionIds,
+      {
+        referenceScene: this.referenceScene,
+        referenceBindings: this.referenceBindings,
+      },
     );
     const currentSelection = this.engine.getSelection();
     if (
@@ -127,6 +137,8 @@ export class SceneAdapter {
     bindings: readonly StudioReferenceBinding[],
   ): Promise<void> {
     if (!this.engine || !this.camera) throw new Error('scene is not mounted');
+    this.referenceScene = true;
+    this.renderableSelectionIds = [];
     this.referenceBindings = [...bindings];
     // 曝光由资产声明，Viewer 只按数值执行，不做任何内容判断。
     this.referenceExposure = asset.descriptor.displayExposure ?? 1;
@@ -223,9 +235,13 @@ export class SceneAdapter {
     await this.showGlb(glbUrl);
   }
 
-  private async showGlb(url: string): Promise<void> {
+  private async showGlb(url: string, referenceScene = false): Promise<void> {
     if (!this.engine || !this.loader || !this.camera) throw new Error('scene is not mounted');
     const handle = await this.loader.load(`${url}?v=${Date.now()}`);
+    this.referenceScene = referenceScene;
+    this.renderableSelectionIds = referenceScene
+      ? []
+      : collectSelectionIds(handle.scene);
     // 必须先取景再建轨道控制器：控制器构造时记录相机状态，之后每帧写回，
     // 放在取景之后会把取景结果覆盖掉。
     this.frameBounds(handle.bounds);
@@ -245,7 +261,7 @@ export class SceneAdapter {
   }
 
   private async showPreparedReference(url: string): Promise<void> {
-    await this.showGlb(url);
+    await this.showGlb(url, true);
     if (!this.engine || !this.handle) return;
     applyReferenceOverrides(
       this.handle.scene,
@@ -260,6 +276,8 @@ export class SceneAdapter {
 
   private publishPacketScene(scene: ICEScene): void {
     if (!this.engine || !this.camera) throw new Error('scene is not mounted');
+    this.referenceScene = false;
+    this.renderableSelectionIds = collectSelectionIds(scene);
     const items = collectSceneItems(scene, { visibleOnly: true });
     const bounds = items.length > 0
       ? items.reduce<ICEGeometryBounds>((current, item) => ({
@@ -362,6 +380,42 @@ export class SceneAdapter {
   }
 }
 
+export function normalizeEntitySelections(
+  selectionIds: readonly string[],
+  options: EntitySelectionOptions,
+): string[] {
+  if (options.referenceScene) {
+    return mapReferenceSelections(selectionIds, options.referenceBindings ?? []);
+  }
+  return [...new Set(selectionIds.map(previewOwnerId))];
+}
+
+export function expandEntitySelections(
+  entityIds: readonly string[],
+  renderableSelectionIds: readonly string[],
+  options: EntitySelectionOptions,
+): string[] {
+  if (options.referenceScene) {
+    const selectionByNode = new Map(
+      (options.referenceBindings ?? [])
+        .filter((binding) => binding.nodeId)
+        .map((binding) => [binding.nodeId!, binding.selectionId]),
+    );
+    return [...new Set(entityIds.map(
+      (nodeId) => selectionByNode.get(nodeId) ?? nodeId,
+    ))];
+  }
+  const selectedEntities = new Set(entityIds);
+  const expanded = renderableSelectionIds.filter(
+    (selectionId) => selectedEntities.has(previewOwnerId(selectionId)),
+  );
+  const renderedEntities = new Set(expanded.map(previewOwnerId));
+  for (const entityId of entityIds) {
+    if (!renderedEntities.has(entityId)) expanded.push(entityId);
+  }
+  return [...new Set(expanded)];
+}
+
 export function mapReferenceSelection(
   selectionId: string,
   bindings: readonly ReferenceSelectionBinding[],
@@ -376,6 +430,17 @@ function mapReferenceSelections(
   return [...new Set(selectionIds.map((selectionId) => (
     mapReferenceSelection(selectionId, bindings)
   )))];
+}
+
+function previewOwnerId(selectionId: string): string {
+  const separator = selectionId.indexOf('/');
+  return separator < 0 ? selectionId : selectionId.slice(0, separator);
+}
+
+function collectSelectionIds(scene: ICEScene): string[] {
+  return collectSceneItems(scene)
+    .filter((item) => item.typeId.endsWith(':Mesh'))
+    .map((item) => item.selectionId);
 }
 
 type ImportedNode = {
