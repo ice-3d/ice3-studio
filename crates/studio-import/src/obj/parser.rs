@@ -83,6 +83,7 @@ struct Parser {
     normals: Vec<[f32; 3]>,
     texture_coordinate_count: usize,
     nodes: Vec<NodeDraft>,
+    root_index: Option<usize>,
     current_object: Option<usize>,
     current_node: Option<usize>,
     current_material: Option<String>,
@@ -100,6 +101,7 @@ fn parse_obj(
         normals: Vec::new(),
         texture_coordinate_count: 0,
         nodes: Vec::new(),
+        root_index: None,
         current_object: None,
         current_node: None,
         current_material: None,
@@ -145,6 +147,7 @@ fn parse_obj(
                 parser.texture_coordinate_count += 1;
             }
             "o" => {
+                let root = parser.ensure_root();
                 let name = fields.collect::<Vec<_>>().join(" ");
                 let name = if name.is_empty() {
                     format!("OBJ Object {}", parser.nodes.len())
@@ -154,6 +157,7 @@ fn parse_obj(
                 let index = parser.nodes.len();
                 parser.nodes.push(NodeDraft {
                     name,
+                    parent: Some(root),
                     ..NodeDraft::default()
                 });
                 parser.current_object = Some(index);
@@ -272,6 +276,10 @@ fn parse_obj(
     let materials = material_names
         .iter()
         .filter_map(|name| materials_by_name.remove(name))
+        .map(|mut material| {
+            material.base_color = material.base_color.map(linear_to_srgb);
+            material
+        })
         .collect::<Vec<_>>();
     let mut output_nodes = Vec::new();
     let mut output_meshes = Vec::new();
@@ -367,8 +375,8 @@ fn parse_obj(
 }
 
 impl Parser {
-    fn ensure_object(&mut self) -> usize {
-        if let Some(index) = self.current_object {
+    fn ensure_root(&mut self) -> usize {
+        if let Some(index) = self.root_index {
             return index;
         }
         let index = self.nodes.len();
@@ -376,9 +384,18 @@ impl Parser {
             name: "OBJ Root".into(),
             ..NodeDraft::default()
         });
-        self.current_object = Some(index);
-        self.current_node = Some(index);
+        self.root_index = Some(index);
         index
+    }
+
+    fn ensure_object(&mut self) -> usize {
+        if let Some(index) = self.current_object {
+            return index;
+        }
+        let root = self.ensure_root();
+        self.current_object = Some(root);
+        self.current_node = Some(root);
+        root
     }
 
     fn ensure_current_node(&mut self) -> usize {
@@ -478,4 +495,13 @@ fn identity() -> [f32; 16] {
     [
         1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
     ]
+}
+
+fn linear_to_srgb(value: f32) -> f32 {
+    let value = value.clamp(0.0, 1.0);
+    if value <= 0.003_130_8 {
+        value * 12.92
+    } else {
+        1.055 * value.powf(1.0 / 2.4) - 0.055
+    }
 }

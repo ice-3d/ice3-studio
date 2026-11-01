@@ -366,9 +366,9 @@ fn output_materials(materials: &[CanonicalMaterial], asset_id: &str) -> AssetRes
                 "name": material.name,
                 "pbrMetallicRoughness": {
                     "baseColorFactor": [
-                        srgb_to_linear(material.base_color[0]),
-                        srgb_to_linear(material.base_color[1]),
-                        srgb_to_linear(material.base_color[2]),
+                        material.base_color[0],
+                        material.base_color[1],
+                        material.base_color[2],
                         material.opacity
                     ],
                     "metallicFactor": 0.0,
@@ -613,14 +613,6 @@ fn max_depth(roots: &[usize], children: &[Vec<usize>]) -> usize {
         .map(|root| visit(*root, children))
         .max()
         .unwrap_or(0)
-}
-
-fn srgb_to_linear(value: f32) -> f32 {
-    if value <= 0.04045 {
-        value / 12.92
-    } else {
-        ((value + 0.055) / 1.055).powf(2.4)
-    }
 }
 
 fn pack_glb(json: &[u8], binary: &[u8]) -> Vec<u8> {

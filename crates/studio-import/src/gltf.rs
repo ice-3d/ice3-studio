@@ -250,9 +250,9 @@ fn import_material(
             .map(str::to_owned)
             .unwrap_or_else(|| format!("material-{index}")),
         base_color: [
-            linear_to_srgb(*color.first().unwrap_or(&1.0)),
-            linear_to_srgb(*color.get(1).unwrap_or(&1.0)),
-            linear_to_srgb(*color.get(2).unwrap_or(&1.0)),
+            *color.first().unwrap_or(&1.0),
+            *color.get(1).unwrap_or(&1.0),
+            *color.get(2).unwrap_or(&1.0),
         ],
         opacity: color.get(3).copied().unwrap_or(1.0).clamp(0.0, 1.0),
         extras,
@@ -632,14 +632,5 @@ fn warning(code: &str, message: &str) -> ImportWarning {
         code: code.into(),
         message: message.into(),
         path: None,
-    }
-}
-
-fn linear_to_srgb(value: f32) -> f32 {
-    let value = value.clamp(0.0, 1.0);
-    if value <= 0.003_130_8 {
-        value * 12.92
-    } else {
-        1.055 * value.powf(1.0 / 2.4) - 0.055
     }
 }

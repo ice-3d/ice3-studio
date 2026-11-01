@@ -17,6 +17,7 @@ fn imports_all_obj_face_forms_and_triangulates_polygons() {
         scene.nodes[0].extras["ice3"]["selectionId"],
         "faces/obj/node/0"
     );
+    assert_eq!(scene.nodes[0].name, "OBJ Root");
 }
 
 #[test]
@@ -37,7 +38,8 @@ fn shifts_large_world_coordinates_to_the_source_origin() {
     assert!(bounds.min[0].abs() < 1e-5);
     assert!(bounds.min[2].abs() < 1e-5);
     assert!(bounds.max[0].is_finite());
-    let origin = scene.nodes[0].extras["ice3"]["obj"]["sourceOrigin"]
+    let mesh_node = scene.nodes.iter().find(|node| node.mesh.is_some()).unwrap();
+    let origin = mesh_node.extras["ice3"]["obj"]["sourceOrigin"]
         .as_array()
         .unwrap();
     assert!((origin[0].as_f64().unwrap() - 1_000_010.8).abs() < 0.1);
