@@ -1,6 +1,7 @@
 //! Asset readers and validation for Studio's native asset pipeline.
 
 mod accessor;
+pub mod canonical;
 mod glb;
 mod prepared;
 
