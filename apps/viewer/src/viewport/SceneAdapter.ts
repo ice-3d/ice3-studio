@@ -30,7 +30,7 @@ export interface ScenePreviewSource {
   readonly packetUrl?: string | null;
 }
 
-export const SCENE_BACKGROUND_COLOR = '#8ecdf1';
+export const SCENE_BACKGROUND_COLOR = '#14181c';
 
 type ReferenceSelectionBinding = {
   nodeId: string | null;

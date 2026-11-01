@@ -8,8 +8,8 @@ import {
   SCENE_BACKGROUND_COLOR,
 } from '../src/viewport/SceneAdapter';
 
-test('uses a bright daylight scene background', () => {
-  assert.equal(SCENE_BACKGROUND_COLOR, '#8ecdf1');
+test('keeps the dark workbench background while lighting the scene', () => {
+  assert.equal(SCENE_BACKGROUND_COLOR, '#14181c');
 });
 
 test('loads reference metadata without requesting document geometry', async () => {
