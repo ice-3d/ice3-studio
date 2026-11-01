@@ -19,6 +19,7 @@ pub enum ExpressionError {
     DivisionByZero,
     UnbalancedParenthesis,
     NotFinite,
+    UnknownFunction(String),
 }
 
 impl std::fmt::Display for ExpressionError {
@@ -30,6 +31,7 @@ impl std::fmt::Display for ExpressionError {
             Self::DivisionByZero => write!(formatter, "division by zero"),
             Self::UnbalancedParenthesis => write!(formatter, "unbalanced parenthesis"),
             Self::NotFinite => write!(formatter, "result is not finite"),
+            Self::UnknownFunction(name) => write!(formatter, "unknown function '{name}'"),
         }
     }
 }
@@ -169,10 +171,57 @@ impl Parser<'_> {
             self.position += 1;
         }
         let name: String = self.chars[start..self.position].iter().collect();
+        self.skip_whitespace();
+        if self.peek() == Some('(') {
+            return self.parse_call(&name);
+        }
+        // 常量优先，其次才是实例参数。
+        match name.as_str() {
+            "pi" => return Ok(std::f32::consts::PI),
+            "tau" => return Ok(std::f32::consts::TAU),
+            _ => {}
+        }
         self.variables
             .get(&name)
             .copied()
             .ok_or(ExpressionError::UnknownVariable(name))
+    }
+
+    /// 单参数与双参数函数，覆盖构件布局所需的数学。
+    fn parse_call(&mut self, name: &str) -> Result<f32, ExpressionError> {
+        self.position += 1; // 跳过 '('
+        let first = self.parse_expression()?;
+        self.skip_whitespace();
+        let second = if self.peek() == Some(',') {
+            self.position += 1;
+            let value = self.parse_expression()?;
+            self.skip_whitespace();
+            Some(value)
+        } else {
+            None
+        };
+        if self.peek() != Some(')') {
+            return Err(ExpressionError::UnbalancedParenthesis);
+        }
+        self.position += 1;
+        let result = match (name, second) {
+            ("sin", None) => first.sin(),
+            ("cos", None) => first.cos(),
+            ("tan", None) => first.tan(),
+            ("sqrt", None) => first.sqrt(),
+            ("abs", None) => first.abs(),
+            ("floor", None) => first.floor(),
+            ("ceil", None) => first.ceil(),
+            ("round", None) => first.round(),
+            ("min", Some(other)) => first.min(other),
+            ("max", Some(other)) => first.max(other),
+            ("pow", Some(other)) => first.powf(other),
+            _ => return Err(ExpressionError::UnknownFunction(name.to_string())),
+        };
+        if !result.is_finite() {
+            return Err(ExpressionError::NotFinite);
+        }
+        Ok(result)
     }
 
     fn peek(&self) -> Option<char> {
@@ -225,6 +274,24 @@ mod tests {
             evaluate("1 / 0", &BTreeMap::new()).unwrap_err(),
             ExpressionError::DivisionByZero
         );
+    }
+
+    #[test]
+    fn evaluates_functions_and_constants() {
+        let context = vars(&[("i", 0.0), ("count", 48.0)]);
+        assert!((evaluate("cos(i * tau / count)", &context).unwrap() - 1.0).abs() < 1e-5);
+        assert!((evaluate("sin(pi / 2)", &context).unwrap() - 1.0).abs() < 1e-5);
+        assert_eq!(evaluate("max(3, 7)", &BTreeMap::new()).unwrap(), 7.0);
+        assert_eq!(evaluate("sqrt(16)", &BTreeMap::new()).unwrap(), 4.0);
+        assert_eq!(evaluate("abs(-2.5)", &BTreeMap::new()).unwrap(), 2.5);
+    }
+
+    #[test]
+    fn rejects_unknown_function() {
+        assert!(matches!(
+            evaluate("nope(1)", &BTreeMap::new()).unwrap_err(),
+            ExpressionError::UnknownFunction(_)
+        ));
     }
 
     #[test]

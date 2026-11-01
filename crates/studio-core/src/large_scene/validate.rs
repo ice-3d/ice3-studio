@@ -915,6 +915,7 @@ impl BindingName for Vector3Binding {
         match self {
             Vector3Binding::Literal(_) => None,
             Vector3Binding::Parameter { param: name } => Some(name),
+            Vector3Binding::Components { .. } => None,
         }
     }
 }

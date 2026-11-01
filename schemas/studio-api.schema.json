@@ -367,6 +367,15 @@
                 "null"
               ]
             },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "transform": {
               "$ref": "#/$defs/PartTransform"
             },
@@ -2204,6 +2213,17 @@
             },
             "translation": {
               "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
             }
           },
           "type": "object"
@@ -2546,6 +2566,26 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
               ],
               "type": "object"
             }
@@ -3693,6 +3733,15 @@
                 "null"
               ]
             },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "transform": {
               "$ref": "#/$defs/PartTransform"
             },
@@ -5712,6 +5761,17 @@
             },
             "translation": {
               "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
             }
           },
           "type": "object"
@@ -6054,6 +6114,26 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
               ],
               "type": "object"
             }
@@ -6340,6 +6420,15 @@
                 "null"
               ]
             },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "transform": {
               "$ref": "#/$defs/PartTransform"
             },
@@ -8177,6 +8266,17 @@
             },
             "translation": {
               "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
             }
           },
           "type": "object"
@@ -8519,6 +8619,26 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
               ],
               "type": "object"
             }
@@ -8762,6 +8882,15 @@
                 "null"
               ]
             },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "transform": {
               "$ref": "#/$defs/PartTransform"
             },
@@ -10599,6 +10728,17 @@
             },
             "translation": {
               "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
             }
           },
           "type": "object"
@@ -10943,6 +11083,26 @@
                 "param"
               ],
               "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
+              ],
+              "type": "object"
             }
           ],
           "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
@@ -11174,6 +11334,15 @@
               "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
                 "null"
               ]
             },
@@ -12325,6 +12494,17 @@
             },
             "translation": {
               "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
             }
           },
           "type": "object"
@@ -12727,6 +12907,26 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
               ],
               "type": "object"
             }
@@ -13173,6 +13373,15 @@
               "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
                 "null"
               ]
             },
@@ -15013,6 +15222,17 @@
             },
             "translation": {
               "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
             }
           },
           "type": "object"
@@ -15355,6 +15575,26 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
               ],
               "type": "object"
             }
@@ -15955,6 +16195,15 @@
               "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
                 "null"
               ]
             },
@@ -17037,6 +17286,17 @@
             },
             "translation": {
               "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
             }
           },
           "type": "object"
@@ -17439,6 +17699,26 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
               ],
               "type": "object"
             }
@@ -18216,6 +18496,15 @@
               "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
               "type": [
                 "string",
+                "null"
+              ]
+            },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
                 "null"
               ]
             },
@@ -19138,6 +19427,17 @@
             },
             "translation": {
               "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
             }
           },
           "type": "object"
@@ -19480,6 +19780,26 @@
               },
               "required": [
                 "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
               ],
               "type": "object"
             }

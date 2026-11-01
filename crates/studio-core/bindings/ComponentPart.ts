@@ -7,4 +7,8 @@ export type ComponentPart = { id: string,
 /**
  * 默认值不落盘：工程文件里只出现真正携带信息的字段。
  */
-parent_id: string | null, transform: PartTransform, content: PartContent, material_role: MaterialBinding | null, metadata: { [key in string]?: string }, visible: boolean, };
+parent_id: string | null, transform: PartTransform, content: PartContent, 
+/**
+ * 重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。
+ */
+repeat: number | null, material_role: MaterialBinding | null, metadata: { [key in string]?: string }, visible: boolean, };

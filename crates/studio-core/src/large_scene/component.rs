@@ -81,7 +81,15 @@ pub enum ScalarBinding {
 #[ts(export)]
 pub enum Vector3Binding {
     Literal(Vec3),
-    Parameter { param: String },
+    Parameter {
+        param: String,
+    },
+    /// 逐分量给出，用于按索引算出的环形/线性布局。
+    Components {
+        x: ScalarBinding,
+        y: ScalarBinding,
+        z: ScalarBinding,
+    },
 }
 
 impl Vector3Binding {
@@ -126,6 +134,9 @@ pub struct ComponentPart {
     #[serde(default, skip_serializing_if = "PartTransform::is_identity")]
     pub transform: PartTransform,
     pub content: PartContent,
+    /// 重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repeat: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material_role: Option<MaterialBinding>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -149,6 +160,9 @@ pub struct PartTransform {
     pub translation: Vector3Binding,
     #[serde(default = "unit_rotation", skip_serializing_if = "is_unit_rotation")]
     pub rotation: [f32; 4],
+    /// 绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub yaw: Option<ScalarBinding>,
     #[serde(default = "one_vector", skip_serializing_if = "Vector3Binding::is_one")]
     pub scale: Vector3Binding,
 }
@@ -167,7 +181,10 @@ fn one_vector() -> Vector3Binding {
 
 impl PartTransform {
     fn is_identity(&self) -> bool {
-        self.translation.is_zero() && is_unit_rotation(&self.rotation) && self.scale.is_one()
+        self.translation.is_zero()
+            && is_unit_rotation(&self.rotation)
+            && self.yaw.is_none()
+            && self.scale.is_one()
     }
 }
 
@@ -176,6 +193,7 @@ impl Default for PartTransform {
         Self {
             translation: zero_vector(),
             rotation: unit_rotation(),
+            yaw: None,
             scale: one_vector(),
         }
     }

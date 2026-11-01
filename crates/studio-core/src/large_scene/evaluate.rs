@@ -550,14 +550,31 @@ fn expand_definition_parts(
     if !path.insert(definition.id.clone()) {
         return Err(LargeSceneError::InvalidComponentReference);
     }
-    for part in &definition.parts {
-        let part_id = format!("{id_prefix}/{}", part.id);
+    // 先展开 repeat：一个定义里的部件可以按索引重复成多个实例几何。
+    let expanded: Vec<(&crate::large_scene::component::ComponentPart, u32, u32)> = definition
+        .parts
+        .iter()
+        .flat_map(|part| {
+            let count = part.repeat.unwrap_or(1).max(1);
+            (0..count).map(move |index| (part, index, count))
+        })
+        .collect();
+    for (part, index, count) in expanded {
+        let part_id = if count > 1 {
+            format!("{id_prefix}/{}-{}", part.id, index + 1)
+        } else {
+            format!("{id_prefix}/{}", part.id)
+        };
         let parent_id = part
             .parent_id
             .as_ref()
             .map(|parent| format!("{id_prefix}/{parent}"))
             .or_else(|| definition_parent.clone().or_else(|| source_parent.clone()));
         let mut part_parameters = parameters.clone();
+        if count > 1 {
+            part_parameters.insert("i".into(), ParameterValue::Number(index as f32));
+            part_parameters.insert("count".into(), ParameterValue::Number(count as f32));
+        }
         if let Some(override_value) = instance.overrides.get(&part.id) {
             for (name, value) in &override_value.parameters {
                 part_parameters.insert(name.clone(), value.clone());
@@ -842,6 +859,11 @@ fn resolve_vector3(
             Some(ParameterValue::Vector3(value)) => Ok(*value),
             _ => Err(ParameterError::WrongType(name.clone()).into()),
         },
+        Vector3Binding::Components { x, y, z } => Ok(Vec3 {
+            x: resolve_scalar(x, parameters)?,
+            y: resolve_scalar(y, parameters)?,
+            z: resolve_scalar(z, parameters)?,
+        }),
     }
 }
 
@@ -862,9 +884,18 @@ fn resolve_part_transform(
     transform: &PartTransform,
     parameters: &BTreeMap<String, ParameterValue>,
 ) -> Result<Transform, LargeSceneError> {
+    // yaw 给出绕 Y 轴的偏航角（度），比手写四元数更适合环形布置。
+    let rotation = match &transform.yaw {
+        Some(binding) => {
+            let degrees = resolve_scalar(binding, parameters)?;
+            let half = degrees.to_radians() / 2.0;
+            [0.0, half.sin(), 0.0, half.cos()]
+        }
+        None => transform.rotation,
+    };
     Ok(Transform {
         translation: resolve_vector3(&transform.translation, parameters)?,
-        rotation: transform.rotation,
+        rotation,
         scale: resolve_vector3(&transform.scale, parameters)?,
     })
 }
