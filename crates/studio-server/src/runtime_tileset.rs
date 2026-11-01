@@ -351,7 +351,9 @@ fn publish_directory(
         let _ = std::fs::rename(backup, output);
         return Err(error.into());
     }
-    std::fs::remove_dir_all(backup)?;
+    // The new bundle is already live. A backup cleanup failure must not turn a
+    // successful atomic swap into a reported export failure.
+    let _ = std::fs::remove_dir_all(backup);
     Ok(())
 }
 
