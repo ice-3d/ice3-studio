@@ -512,16 +512,16 @@ function buildPlan(projectId) {
   // 辅助区（南侧靠入口）
   b.instance('control-building', 'cb-1', 'CTRL-101 中控楼', 55, 0, 150, { stage: 'auxiliary', tag: 'CTRL-101' });
   // 鼓风机房必须贴着曝气池：风管走一百多米压损和造价都不现实。
-  // 加药间同样就近设在深度处理区旁边，而不是全塞在南侧辅助区。
+  // 加药间同样就近设在深度处理区旁边，并与二沉池池体留出净空。
   b.instance('blower-house', 'bl-1', 'BLW-101 鼓风机房', 300, 0, 76, { stage: 'auxiliary', tag: 'BLW-101' });
-  b.instance('chemical-house', 'ch-1', 'CHEM-101 加药间', 470, 0, 46, { stage: 'auxiliary', tag: 'CHEM-101' });
+  b.instance('chemical-house', 'ch-1', 'CHEM-101 加药间', 500, 0, 46, { stage: 'auxiliary', tag: 'CHEM-101' });
   b.instance('lift-pump-skid', 'lps-1', 'PS-101 提升泵组', 62, 0, 10,
     { stage: 'intake', tag: 'PS-101-P', role: 'equipment' });
   b.instance('blower-skid', 'bls-1', 'BLW-101 鼓风机 1', 284, 0, 68,
     { stage: 'auxiliary', tag: 'BLW-101-A', role: 'equipment' });
   b.instance('blower-skid', 'bls-2', 'BLW-101 鼓风机 2', 314, 0, 68,
     { stage: 'auxiliary', tag: 'BLW-101-B', role: 'equipment' });
-  b.instance('chemical-dosing-skid', 'cds-1', 'CHEM-101 加药装置', 470, 0, 30,
+  b.instance('chemical-dosing-skid', 'cds-1', 'CHEM-101 加药装置', 500, 0, 30,
     { stage: 'auxiliary', tag: 'CHEM-101-D', role: 'equipment' });
   b.instance('sludge-heat-exchanger', 'she-1', 'HEX-101 污泥换热器', 290, 0, -145,
     { stage: 'sludge', tag: 'HEX-101', role: 'equipment' });

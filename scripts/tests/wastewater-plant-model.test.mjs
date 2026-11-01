@@ -433,6 +433,42 @@ test('clearance validation rejects overlapping process footprints', () => {
   assert.ok(result.issues.some(({ code }) => code === 'CLEARANCE_VIOLATION'));
 });
 
+test('chemical handling stays outside circular clarifier footprints', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const clarifiers = plan.operations.filter(({ type, name }) => (
+    type === 'instance.create' && /^SC-\d+ 二沉池$/.test(name)
+  ));
+  const assets = [
+    { name: 'CHEM-101 加药间', halfLength: 10, halfWidth: 6 },
+    { name: 'CHEM-101 加药装置', halfLength: 5, halfWidth: 2.75 },
+  ];
+
+  for (const asset of assets) {
+    const operation = plan.operations.find(({ type, name }) => (
+      type === 'instance.create' && name === asset.name
+    ));
+    assert.ok(operation, asset.name);
+    for (const clarifier of clarifiers) {
+      const dx = Math.max(
+        Math.abs(operation.transform.translation.x - clarifier.transform.translation.x)
+          - asset.halfLength,
+        0,
+      );
+      const dz = Math.max(
+        Math.abs(operation.transform.translation.z - clarifier.transform.translation.z)
+          - asset.halfWidth,
+        0,
+      );
+      const gap = Math.hypot(dx, dz) -
+        Number(clarifier.instance.parameters.radius);
+      assert.ok(
+        gap >= 3,
+        `${asset.name} enters ${clarifier.name} footprint by ${(-gap).toFixed(1)} m`,
+      );
+    }
+  }
+});
+
 test('every visible process line has endpoint fittings and metadata', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const connections = plan.operations.filter(({ type }) => type === 'connection.create');
