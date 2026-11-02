@@ -198,6 +198,8 @@ conformance entry 已删除。
 
 ### Phase 4：STEP 与 IFC
 
+详细设计见 `ICE3-STUDIO-SPEC-017` — [Studio 原生 STEP 与 IFC Source Import](2026-11-02-native-step-ifc-import-design.md)。
+
 - 接入 native CAD/IFC geometry engine。
 - 对齐层级、颜色、单位、Selection identity、Pset/Qto/System metadata。
 - 删除 WASM adapter 和对应 Sidecar operation 依赖。
