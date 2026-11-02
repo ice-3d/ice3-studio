@@ -249,7 +249,13 @@ fn sphere_mesh(radius: f32, segments: u32, rings: u32) -> Result<EvaluatedMesh, 
         for segment in 0..segments {
             let a = ring * stride + segment;
             let b = a + stride;
-            indices.extend([a, b, a + 1, a + 1, b, b + 1]);
+            if ring == 0 {
+                indices.extend([a, b, b + 1]);
+            } else if ring == rings - 1 {
+                indices.extend([a, b, a + 1]);
+            } else {
+                indices.extend([a, b, a + 1, a + 1, b, b + 1]);
+            }
         }
     }
     Ok(EvaluatedMesh {
