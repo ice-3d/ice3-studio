@@ -6,8 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **阶段状态：** Phase 1 至 Phase 4 与 Phase 5A JT Source Import 已实现。
-> Phase 5B Sidecar 退场、Studio standalone 验证和 Phase 5C repository 归档准备仍待完成。
+> **阶段状态：** Phase 1 至 Phase 4、Phase 5A JT Source Import 与 Phase 5B
+> Sidecar 退场/Studio standalone 已实现。Phase 5C repository 源码清理与归档准备仍待完成。
 
 **目标：** 将 JT 的受控 converter bridge 和全部相关调用迁入 Studio `studio-import`，
 随后删除 Studio 中的 Toolchain Sidecar、客户端、预览 fallback、配置、状态 UI 和构建
@@ -409,6 +409,8 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 **退出条件：** Studio JT 正向、负向、确定性、资源上限和 parity 全部通过。
 
 ### Phase 5B：Studio 切换为唯一生产路径
+
+**状态：Implemented（2026-11-02）。**
 
 - CLI、测试和 parity 改用 Studio JT adapter。
 - 删除 Toolchain JT adapter、CLI import 分支和 release JT 验证。

@@ -162,10 +162,10 @@ cargo run -p studio-cli -- export tileset \
 
 `agent-console-v1` 使用 60,000 triangles/part、64 MiB/part、0.5 LOD ratio、adaptive
 allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk 和 static render batch。
-命令不调用 Node、外部 DCC 或 Toolchain Sidecar。CLI 可以在 Studio Server 持有 writer
+命令不调用 Node、外部 DCC 或资产守护进程。CLI 可以在 Studio Server 持有 writer
 lock 时读取 committed revision，但不会修改工程。
 
-Parity 双跑：
+迁移期 legacy parity 对照：
 
 ```bash
 node scripts/compare-asset-pipelines.mjs

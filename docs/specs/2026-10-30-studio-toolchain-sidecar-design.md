@@ -2,9 +2,12 @@
 
 > Document ID: ICE3-STUDIO-SPEC-004
 >
-> Status: Implemented
+> Status: Historical
 >
 > Owner: ICE3 Studio maintainers
+
+> **历史说明：** Sidecar 已由 Studio 原生 preview 和 asset pipeline 取代。
+> 本文仅记录退役前的设计，不得作为当前部署或接口依据。
 
 ## 1. Summary
 

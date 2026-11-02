@@ -43,13 +43,8 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_CONSTRAINT_FAILED` | A relationship or spatial constraint is violated |
 | `ICE3_STUDIO_BUDGET_EXCEEDED` | A configured project budget is exceeded |
 | `ICE3_STUDIO_EXPORT_FAILED` | Source GLB export failed |
-| `ICE3_STUDIO_RUNTIME_PREVIEW_FAILED` | Studio Runtime preview export failed |
+| `ICE3_STUDIO_RUNTIME_PREVIEW_FAILED` | Studio native Runtime preview export or atomic publication failed |
 | `ICE3_STUDIO_PERSISTENCE_FAILED` | Atomic project persistence failed |
-| `ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE` | The managed Toolchain sidecar is not configured or cannot start |
-| `ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE` | The sidecar contract major does not match Studio |
-| `ICE3_STUDIO_TOOLCHAIN_TIMEOUT` | A Toolchain operation exceeded its host timeout |
-| `ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID` | Sidecar stdout violated the JSON-RPC contract or the process crashed |
-| `ICE3_STUDIO_TOOLCHAIN_JOB_FAILED` | Toolchain rejected or failed an asset job |
 | `ICE3_STUDIO_COMPONENT_INVALID` | A component definition, part graph, binding, or reference is invalid |
 | `ICE3_STUDIO_PARAMETER_INVALID` | A component parameter or override is missing, mistyped, or out of range |
 | `ICE3_STUDIO_INSTANCE_INVALID` | A component instance or part override is invalid |
@@ -98,6 +93,11 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_IMPORT_IFC_DUPLICATE_GLOBAL_ID` | IFC GlobalId 重复，Selection 使用 Express ID 消歧 |
 | `ICE3_STUDIO_IMPORT_IFC_UNSUPPORTED_RESOURCE` | IFC camera、light、skeleton、volume 或 texture 被跳过 |
 | `ICE3_STUDIO_IMPORT_IFC_METADATA_TRUNCATED` | IFC metadata 超出深度或数组上限而被省略 |
+| `ICE3_STUDIO_IMPORT_JT_CONVERTER_UNAVAILABLE` | `ICE3_JT_CONVERTER` 未配置、不是可执行 regular file |
+| `ICE3_STUDIO_IMPORT_JT_CONVERT_FAILED` | JT converter 启动失败、非零退出或进程清理失败 |
+| `ICE3_STUDIO_IMPORT_JT_EXPORT_INVALID` | Converter 输出不是合法的 regular-file GLB |
+| `ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` | JT 层级、transform、bounds 或 metadata 映射无效 |
+| `ICE3_STUDIO_IMPORT_JT_TIMEOUT` | JT converter/worker 超过配置期限并被终止 |
 | `ICE3_STUDIO_IMPORT_JT_CONVERTER_UNAVAILABLE` | JT converter 未配置、不是 regular file 或不可执行 |
 | `ICE3_STUDIO_IMPORT_JT_TIMEOUT` | JT converter 或 JT worker 超过硬 timeout |
 | `ICE3_STUDIO_IMPORT_JT_CONVERT_FAILED` | JT converter 启动/退出或进程组清理失败 |

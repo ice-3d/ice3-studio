@@ -32,8 +32,8 @@
 - 公开 API 是产品边界；Web Viewer 只通过公开 API 展示和审查。
 - Document 和 operation history 是真源，evaluated Geometry 是派生结果。
 - Studio Core 不依赖 Toolchain、Engine、Viewer 或外部模型 SDK。
-- Studio Server 只能通过 `studio-toolchain-client` 和版本化本地 Sidecar 使用 Toolchain；
-  不得把 Node.js 或 Toolchain 私有源码引入建模 Kernel。
+- Studio Server 不启动 Node Asset runtime、Toolchain Sidecar 或其它资产守护进程；
+  Runtime preview、preparation、partition、LOD 和 Tileset 都由 Studio 原生 crate 完成。
 - 标准 GLB 是互操作输出；Runtime GLB、LOD 和分区由 Studio 原生 crate 负责。
 - glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT Source Import 由 `studio-import`
   负责。FBX/USD/STEP/IFC/JT 必须在

@@ -230,6 +230,7 @@ Toolchain version 会生成相同内容。
 ## 10. 关联文档
 
 - `ICE3-STUDIO-ARC-001` — [Studio 架构](../architecture.md)
-- `ICE3-STUDIO-REF-005` — [Toolchain Sidecar](../reference/toolchain-sidecar.md)
+- `ICE3-STUDIO-REF-005` — Toolchain Sidecar reference 已在 Phase 5B 退役，
+  只保留 Git history。
 - `ICE3-STUDIO-SPEC-014` — [Agent 主导工作台](2026-11-01-agent-led-workbench-design.md)
 - `ICE3-DOC-CTR-002` — [Toolchain Sidecar Contract v1](https://github.com/ice-3d/ice3-doc/blob/main/docs/contracts/toolchain-sidecar-contract-v1.md)

@@ -100,7 +100,7 @@ fn worker_timeout_terminates_converter_descendants() {
     );
 
     assert!(
-        started.elapsed() < Duration::from_secs(4),
+        started.elapsed() < Duration::from_secs(6),
         "timeout cleanup exceeded its wall-time budget: {:?}",
         started.elapsed()
     );

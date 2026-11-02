@@ -29,7 +29,7 @@ Studio Server（仅 loopback）
         |     partition、LOD、coarse、Tileset、render batch
         |
         +---- studio-import
-        |     glTF/GLB、OBJ/MTL、FBX、USD、SourceScene、adapter registry
+        |     glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC、JT、SourceScene
         |
         +---- studio-project
         |     revision、锁、ChangeSet、缓存
@@ -37,15 +37,12 @@ Studio Server（仅 loopback）
         +---- studio-gpu
         |     实验性 wgpu 几何求值
         |
-        +---- studio-toolchain-client
-        |     固定版本本地 Sidecar
-        |
         +---- revision 事件 ----> Web Viewer
 ```
 
 Studio Core 不依赖 Viewer、Engine、Toolchain、Node.js 或模型供应商 SDK。Node.js 只用于
-Viewer 构建和迁移期 parity。Runtime Asset 主路径由 `studio-assets`、`studio-pipeline`
-和 `studio-server::runtime_tileset` 完成；Toolchain Sidecar 不再是新导出的依赖。
+Viewer 构建和历史 parity 脚本。Runtime preview、Asset preparation、partition、LOD 和
+Tileset 全部由 Studio 原生 crate 完成，不启动 Node Asset runtime 或 Toolchain Sidecar。
 
 ## 组件
 
@@ -89,6 +86,8 @@ base directory 内解析外部资源。Draco primitive 在读取阶段物化为�
   层级、occurrence 矩阵、shared Mesh、逐面颜色、Selection 和单位归一。
 - `ifc`：`.ifc`，原生 IFC4X3 parser/geometry pipeline 在隔离 worker 中保留空间层级、
   产品、Pset/Qto/System、shared instance、颜色、Selection、单位和 bounded metadata。
+- `jt`：`.jt`，Studio isolated worker 调用 host-owned converter，验证标准 GLB 后保留
+  层级、共享实例、材质、JT metadata、Selection 和 shared source origin。
 
 adapter 不写 Tileset；`studio-assets::canonical` 把 `SourceScene` 写成 Prepared GLB。
 重要安全边界：外部资源只能读取源文件目录内文件。FBX/USD/STEP/IFC/JT worker 使用硬 timeout、
@@ -111,17 +110,24 @@ CPU 是权威求值路径；Native GPU 和 resident geometry 保持实验性、�
 ### `studio-server`
 
 拥有 loopback HTTP/WebSocket 边界、认证、参数校验、单事务串行、持久化和 revision 事件。
-阻塞文件系统与 Toolchain 工作使用 Tokio blocking worker，避免阻塞 health 和事件流。
+阻塞文件系统与 native preview 工作使用 Tokio blocking worker，避免阻塞 health 和事件流。
 Compute service 负责 GPU 内存、并发、优先级、取消、健康检查和 CPU fallback。
 
-### Toolchain Sidecar 客户端
+### Native preview
 
-拥有固定 Sidecar 进程、capability handshake、NDJSON 请求复用、timeout、stderr 上限、
-崩溃后一次重启重试和 workspace-relative path 校验。Sidecar 只能准备派生 Asset，不能
-修改 Document、ChangeSet、审批状态或 revision。
+`PreviewAdapter` 直接消费 Studio Core 求值得到的 GLB：
 
-新 `import` 和 `export tileset` 都不经过该客户端。Toolchain 不再承载 Source Import
-生产路径；Sidecar/client/UI 仅作为 Phase 5B 前的迁移兼容表面保留。
+```text
+Studio Server
+└── PreviewAdapter
+    └── Studio Core evaluated GLB
+        └── cache/preview/<revision>.glb
+```
+
+committed preview 使用原子发布并返回文件 SHA-256。candidate source 位于
+`cache/candidates/<digest>-source.glb`，candidate preview 位于
+`cache/preview/candidates/<digest>.glb`；缓存响应重新读取实际字节计算 digest。
+不存在外部优化器 fallback、Sidecar 探测或 capability 协商。
 
 ### `studio-cli`
 
@@ -197,7 +203,8 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 - ChangeSet commit 需要审批 Cookie，并与 candidate digest 绑定。
 - 项目和 Resource 限制在配置的 workspace。
 - Operation 不能提交路径、URL、shell command、脚本或任意表达式。
-- Sidecar executable 只来自 host-owned pinned manifest，不能由 API 请求选择。
+- JT converter 只来自 host-owned `ICE3_JT_CONVERTER`；API 请求不能选择 executable、
+  参数、环境变量或 shell fragment。
 - Diagnostic 不包含凭据或 workspace 外路径。
 
 这套边界是单用户本地工具的安全模型，不是多租户 remote deployment 模型。
@@ -218,7 +225,8 @@ Runtime LOD、空间 partition 和 GLB Runtime Asset 发布已由 Studio 原生 
 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT Source Import 已迁入 Studio。
 `studio-import` 的 JT adapter 在 isolated worker 中调用 host-owned converter，验证
 标准 GLB，并在 `f64` 共享原点转换后生成 `SourceScene`。Toolchain 不再拥有 Source
-Import 生产 adapter 或外部 DCC bridge；Sidecar/client/UI 退役由 Phase 5B 完成。
+Import 生产 adapter 或外部 DCC bridge。Sidecar/client/UI 已退役；Toolchain repository
+的最终源码清理与归档准备仍属于 Phase 5C。
 
 ## 关联文档
 

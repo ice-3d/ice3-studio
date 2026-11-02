@@ -198,11 +198,10 @@ Studio Server ── 认证、单事务串行、持久化、revision 事件
       │
       ├── studio-core      Document、几何、事务、校验、GLB 导出（无 IO）
       ├── studio-assets    glTF/GLB 读取、Prepared Profile、accessor 与来源摘要
-      ├── studio-import    glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与统一 SourceScene
+      ├── studio-import    glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC、JT 与统一 SourceScene
       ├── studio-pipeline  partition、LOD、coarse chunk、Tileset 与 render batch
       ├── studio-project   路径、写锁、原子快照、变更集、几何缓存
-      ├── studio-gpu       wgpu 几何内核、residency（实验）
-      └── studio-toolchain-client → 迁移期兼容与 parity
+      └── studio-gpu       wgpu 几何内核、residency（实验）
       │
       └── revision 事件 ──→ Web Viewer（薄客户端）
 ```
@@ -244,7 +243,7 @@ Studio 不内置模型、Prompt、网关或 Agent 策略；自然语言理解留
 | 100 Operations ChangeSet 求值 | 15.31 ms |
 | `wastewater-mini` 求值 | 37.51 ms |
 | source GLB 导出 | 1.04 ms |
-| Toolchain Runtime preview | 10.21 ms |
+| Native Runtime preview | 7.06 ms |
 | ChangeSet candidate preview | 17.11 ms |
 
 **大场景增量是主要收益来源**：CPU 增量场景缓存默认开启，transform-only revision 从
@@ -270,7 +269,8 @@ session。功能已交付，但性能门禁未过，默认关闭。
 
 Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC、
 JT Source Import 已由 Studio 原生实现。Toolchain 不再承载 Source Import 生产路径；
-Sidecar/client/UI 的最终退役仍由 Phase 5B 完成。
+Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview 始终由
+Studio 原生生成。Toolchain repository 的最终源码清理与归档准备仍由 Phase 5C 完成。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。
@@ -283,7 +283,6 @@ Sidecar/client/UI 的最终退役仍由 Phase 5B 完成。
 - [API Reference](docs/reference/api.md)
 - [Diagnostics](docs/reference/diagnostics.md)
 - [ChangeSet 审阅](docs/reference/change-sets.md)
-- [Toolchain Sidecar](docs/reference/toolchain-sidecar.md)
 - [原生 Asset Pipeline 迁移设计](docs/specs/2026-11-01-native-asset-pipeline-migration-design.md)
 - [Agent 主导的工作台设计](docs/specs/2026-11-01-agent-led-workbench-design.md)
 
