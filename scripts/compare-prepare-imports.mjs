@@ -94,6 +94,12 @@ async function captureBaseline() {
           edges: true,
         },
       },
+      normalizationRules: {
+        selectionIdFallback: 'ice3.id',
+        reason:
+          'Legacy Toolchain build omits node selectionId extras; its stable '
+          + 'ice3.id identifies the source business node.',
+      },
       ...cases,
       budget: cases.default.budget,
     };
@@ -156,6 +162,12 @@ async function captureCase(archiveRoot, temporary, name, extraArguments) {
     selectionIds: document.json.nodes
       ?.map((node) => node.extras?.ice3?.selectionId)
       .filter(Boolean),
+    nodeBusinessIds: document.json.nodes
+      ?.map((node) => node.extras?.ice3?.id)
+      .filter(Boolean),
+    nodeNames: document.json.nodes
+      ?.map((node) => node.name)
+      .filter((name) => typeof name === 'string' && name.length > 0),
     bounds: profile.bounds,
   };
 }
@@ -184,6 +196,21 @@ function assertBaseline(baseline) {
   }
   if (baseline.default.edgeWidthPx !== 3) {
     throw new Error('edge width baseline changed');
+  }
+  if (baseline.normalizationRules?.selectionIdFallback !== 'ice3.id') {
+    throw new Error('selection fallback baseline changed');
+  }
+  if (
+    JSON.stringify(baseline.default.nodeBusinessIds)
+    !== JSON.stringify(['prepare-cube/node/0'])
+  ) {
+    throw new Error('default business node identity baseline changed');
+  }
+  if (
+    JSON.stringify(baseline.default.nodeNames)
+    !== JSON.stringify(['prepared-cube'])
+  ) {
+    throw new Error('default node-name baseline changed');
   }
   if (baseline.skipEdges.stats?.edgeSegmentCount !== 0) {
     throw new Error('skip-edges baseline changed');
@@ -220,6 +247,7 @@ async function sourceIdentity() {
 function assertSyntheticArchive(archiveRoot) {
   const fixtureRoot = resolve(archiveRoot, 'tests/fixtures');
   const result = spawnSync('rg', [
+    '-a',
     '-n',
     '(customer|confidential|客户|/Users/)',
     fixtureRoot,

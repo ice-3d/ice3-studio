@@ -16,6 +16,23 @@ test('prepare baseline pins edges, metrics and budget', async () => {
   assert.equal(baseline.default.stats.materialCount, 5);
   assert.equal(baseline.default.edgeRole, 'edges');
   assert.equal(baseline.default.edgeWidthPx, 3);
+  assert.deepEqual(baseline.default.edgeColor, [
+    0.9019607843137255,
+    0.9490196078431372,
+    1,
+    1,
+  ]);
+  assert.deepEqual(baseline.default.bounds, {
+    min: [-1, -1, -1],
+    max: [1, 1, 1],
+  });
+  assert.match(baseline.default.outputDigest, /^[a-f0-9]{64}$/);
+  assert.equal(baseline.default.report.kind, 'ice3-asset-report');
+  assert.equal(baseline.default.report.schemaVersion, '1.0');
+  assert.deepEqual(baseline.default.nodeBusinessIds, ['prepare-cube/node/0']);
+  assert.deepEqual(baseline.default.nodeNames, ['prepared-cube']);
+  assert.deepEqual(baseline.default.selectionIds, []);
+  assert.equal(baseline.normalizationRules.selectionIdFallback, 'ice3.id');
   assert.equal(baseline.skipEdges.stats.edgeSegmentCount, 0);
   assert.equal(baseline.crease90.stats.edgeSegmentCount, 12);
   assert.equal(baseline.budget.profile, 'interactive-desktop-v1');

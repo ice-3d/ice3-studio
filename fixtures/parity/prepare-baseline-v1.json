@@ -25,6 +25,10 @@
       "edges": true
     }
   },
+  "normalizationRules": {
+    "selectionIdFallback": "ice3.id",
+    "reason": "Legacy Toolchain build omits node selectionId extras; its stable ice3.id identifies the source business node."
+  },
   "default": {
     "outputDigest": "1b649a743490c0c68009ad259262678b4cfb2a7f4b8f269c2ff8aded1ab872e0",
     "edgesPrepared": true,
@@ -122,6 +126,12 @@
     ],
     "edgeMaterialName": "steel edges",
     "selectionIds": [],
+    "nodeBusinessIds": [
+      "prepare-cube/node/0"
+    ],
+    "nodeNames": [
+      "prepared-cube"
+    ],
     "bounds": {
       "min": [
         -1,
@@ -223,6 +233,12 @@
       }
     },
     "selectionIds": [],
+    "nodeBusinessIds": [
+      "prepare-cube/node/0"
+    ],
+    "nodeNames": [
+      "prepared-cube"
+    ],
     "bounds": {
       "min": [
         -1,
@@ -333,6 +349,12 @@
     ],
     "edgeMaterialName": "steel edges",
     "selectionIds": [],
+    "nodeBusinessIds": [
+      "prepare-cube/node/0"
+    ],
+    "nodeNames": [
+      "prepared-cube"
+    ],
     "bounds": {
       "min": [
         -1,
