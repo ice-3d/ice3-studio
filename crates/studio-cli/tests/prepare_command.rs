@@ -16,6 +16,15 @@ fn cli(args: &[&str]) -> Output {
         .unwrap()
 }
 
+fn cli_with_env(args: &[&str], environment: &[(&str, &Path)]) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_studio-cli"));
+    command.args(args);
+    for (name, value) in environment {
+        command.env(name, value);
+    }
+    command.output().unwrap()
+}
+
 fn cli_json(args: &[&str]) -> Value {
     let output = cli(args);
     assert!(
@@ -404,6 +413,117 @@ fn invalid_crease_and_budget_are_stable_asset_diagnostics() {
     assert!(!invalid.status.success());
     assert!(String::from_utf8_lossy(&invalid.stderr).contains("ICE3_STUDIO_ASSET_INVALID_BUDGET"));
     assert!(!output.exists());
+}
+
+#[cfg(feature = "jt")]
+#[test]
+fn invalid_build_and_inspect_options_are_rejected_before_the_jt_converter_starts() {
+    let root = tempfile::tempdir().unwrap();
+    let output = root.path().join("jt.glb");
+    let marker = root.path().join("converter-started");
+    let invalid_budget = root.path().join("invalid.json");
+    std::fs::write(
+        &invalid_budget,
+        br#"{"id":"bad","limits":[{"id":"triangleCount","label":"Triangles","softLimit":-1,"hardLimit":2}]}"#,
+    )
+    .unwrap();
+    let converter = fixture("jt/start-marker-converter.sh");
+
+    let result = cli_with_env(
+        &[
+            "build",
+            fixture("jt/synthetic-contract.jt").to_str().unwrap(),
+            "--output",
+            output.to_str().unwrap(),
+            "--asset-id",
+            "jt-prevalidated",
+            "--budget",
+            invalid_budget.to_str().unwrap(),
+        ],
+        &[
+            ("ICE3_JT_CONVERTER", converter.as_path()),
+            ("ICE3_JT_START_MARKER", marker.as_path()),
+        ],
+    );
+
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("ICE3_STUDIO_ASSET_INVALID_BUDGET"));
+    assert!(
+        !marker.exists(),
+        "converter must not start before option validation"
+    );
+    assert!(!output.exists());
+
+    let inspect = cli_with_env(
+        &[
+            "inspect",
+            fixture("jt/synthetic-contract.jt").to_str().unwrap(),
+            "--budget",
+            invalid_budget.to_str().unwrap(),
+        ],
+        &[
+            ("ICE3_JT_CONVERTER", converter.as_path()),
+            ("ICE3_JT_START_MARKER", marker.as_path()),
+        ],
+    );
+
+    assert!(!inspect.status.success());
+    assert!(String::from_utf8_lossy(&inspect.stderr).contains("ICE3_STUDIO_ASSET_INVALID_BUDGET"));
+    assert!(
+        !marker.exists(),
+        "converter must not start before inspect option validation"
+    );
+}
+
+#[test]
+fn prepared_inspect_rejects_source_preparation_options() {
+    let root = tempfile::tempdir().unwrap();
+    let output = root.path().join("cube.glb");
+    cli_json(&[
+        "build",
+        fixture("gltf/prepare-cube.gltf").to_str().unwrap(),
+        "--output",
+        output.to_str().unwrap(),
+        "--asset-id",
+        "cube",
+        "--json",
+    ]);
+
+    for extra in [
+        vec!["--skip-edges"],
+        vec!["--crease-angle", "45"],
+        vec!["--budget", "unrestricted"],
+    ] {
+        let mut args = vec!["inspect", output.to_str().unwrap(), "--json"];
+        args.extend(extra);
+        let result = cli(&args);
+        assert!(!result.status.success());
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains("ICE3_STUDIO_ASSET_INVALID_OPTIONS")
+        );
+    }
+}
+
+#[test]
+fn build_and_inspect_support_a_non_gltf_adapter() {
+    let root = tempfile::tempdir().unwrap();
+    let output = root.path().join("plant.glb");
+    let source = fixture("obj/synthetic-plant.obj");
+    let build = cli_json(&[
+        "build",
+        source.to_str().unwrap(),
+        "--output",
+        output.to_str().unwrap(),
+        "--asset-id",
+        "obj-build",
+        "--json",
+    ]);
+    let inspect = cli_json(&["inspect", source.to_str().unwrap(), "--json"]);
+    assert!(build["metrics"]["triangleCount"].as_u64().unwrap() > 0);
+    assert_eq!(
+        build["metrics"]["triangleCount"],
+        inspect["metrics"]["triangleCount"]
+    );
 }
 
 #[cfg(unix)]

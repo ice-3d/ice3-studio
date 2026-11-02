@@ -81,8 +81,8 @@ enum Command {
             value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
         )]
         adapter: String,
-        #[arg(long, default_value_t = 30.0)]
-        crease_angle: f32,
+        #[arg(long)]
+        crease_angle: Option<f32>,
         #[arg(long)]
         skip_edges: bool,
         #[arg(long)]

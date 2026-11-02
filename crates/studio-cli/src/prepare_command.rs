@@ -7,7 +7,8 @@ use serde::Serialize;
 use serde_json::Value;
 use studio_assets::{
     AssetBuildReport, AssetError, BudgetProfile, BudgetResult, BudgetStatus, PreparationMetadata,
-    PrepareOptions, PrepareWarning, prepare_canonical, read_glb, validate_prepared_profile,
+    PrepareOptions, PrepareWarning, prepare_canonical, read_glb, validate_crease_angle,
+    validate_prepared_profile,
 };
 use studio_import::{ImportWarning, NativeImportLimits, to_canonical};
 use tempfile::NamedTempFile;
@@ -33,7 +34,7 @@ pub struct PrepareCommandOptions {
 pub struct InspectOptions {
     pub source: PathBuf,
     pub adapter: String,
-    pub crease_angle_degrees: f32,
+    pub crease_angle_degrees: Option<f32>,
     pub skip_edges: bool,
     pub budget: Option<String>,
     pub limits: NativeImportLimits,
@@ -54,8 +55,16 @@ pub enum PrepareCommandError {
     Asset(AssetError),
     InvalidOptions(String),
     OutputExists,
-    WarningAsError { code: String, message: String },
+    WarningAsError {
+        code: String,
+        message: String,
+    },
     ReportWriteFailed(String),
+    RollbackFailed {
+        primary: Box<PrepareCommandError>,
+        details: Vec<String>,
+    },
+    CleanupFailed(Vec<String>),
     Io(std::io::Error),
 }
 
@@ -68,6 +77,8 @@ impl PrepareCommandError {
             Self::OutputExists => "ICE3_STUDIO_ASSET_OUTPUT_EXISTS",
             Self::WarningAsError { code, .. } => code,
             Self::ReportWriteFailed(_) => "ICE3_STUDIO_ASSET_REPORT_WRITE_FAILED",
+            Self::RollbackFailed { primary, .. } => primary.code(),
+            Self::CleanupFailed(_) => "ICE3_STUDIO_ASSET_IO",
             Self::Io(_) => "ICE3_STUDIO_ASSET_IO",
         }
     }
@@ -84,6 +95,20 @@ impl fmt::Display for PrepareCommandError {
             }
             Self::OutputExists => formatter.write_str("output or report already exists"),
             Self::WarningAsError { message, .. } => formatter.write_str(message),
+            Self::RollbackFailed { primary, details } => {
+                write!(
+                    formatter,
+                    "{primary}; publication rollback also failed: {}",
+                    details.join("; ")
+                )
+            }
+            Self::CleanupFailed(details) => {
+                write!(
+                    formatter,
+                    "publication succeeded but backup cleanup failed: {}",
+                    details.join("; ")
+                )
+            }
             Self::Io(error) => write!(formatter, "{error}"),
         }
     }
@@ -94,6 +119,7 @@ impl std::error::Error for PrepareCommandError {
         match self {
             Self::Import(error) => Some(error),
             Self::Asset(error) => Some(error),
+            Self::RollbackFailed { primary, .. } => Some(primary.as_ref()),
             Self::Io(error) => Some(error),
             _ => None,
         }
@@ -121,6 +147,8 @@ impl From<std::io::Error> for PrepareCommandError {
 pub fn run_build(
     options: PrepareCommandOptions,
 ) -> Result<PrepareCommandOutput, PrepareCommandError> {
+    validate_crease_angle(options.crease_angle_degrees)?;
+    let budget = resolve_budget(options.budget.as_deref())?;
     let imported = import_source_scene(
         &options.source,
         &options.asset_id,
@@ -128,7 +156,6 @@ pub fn run_build(
         options.limits,
     )?;
     let source_digest = digest_label(&imported.source_digest);
-    let budget = resolve_budget(options.budget.as_deref())?;
     let artifact = prepare_canonical(
         &to_canonical(&imported.scene),
         PrepareOptions {
@@ -184,6 +211,7 @@ pub fn run_inspect(options: InspectOptions) -> Result<AssetBuildReport, PrepareC
     match read_glb(&options.source) {
         Ok(parsed) => match validate_prepared_profile(&parsed) {
             Ok(profile) => {
+                reject_prepared_inspect_options(&options)?;
                 let profile_extras = &parsed.json["asset"]["extras"]["ice3"];
                 let source_digest = profile_extras["sourceDigest"]
                     .as_str()
@@ -216,6 +244,9 @@ pub fn run_inspect(options: InspectOptions) -> Result<AssetBuildReport, PrepareC
 
 fn inspect_source(options: InspectOptions) -> Result<AssetBuildReport, PrepareCommandError> {
     let asset_id = default_asset_id(&options.source)?;
+    let crease_angle_degrees = options.crease_angle_degrees.unwrap_or(30.0);
+    validate_crease_angle(crease_angle_degrees)?;
+    let budget = resolve_budget(options.budget.as_deref())?;
     let imported =
         import_source_scene(&options.source, &asset_id, &options.adapter, options.limits)?;
     let source_digest = digest_label(&imported.source_digest);
@@ -225,9 +256,9 @@ fn inspect_source(options: InspectOptions) -> Result<AssetBuildReport, PrepareCo
             asset_id,
             source_format: imported.scene.source_format.as_str().into(),
             source_digest: source_digest.clone(),
-            crease_angle_degrees: options.crease_angle_degrees,
+            crease_angle_degrees,
             generate_edges: !options.skip_edges,
-            budget: resolve_budget(options.budget.as_deref())?,
+            budget,
         },
     )?;
     let warnings = prepare_warnings(&imported.warnings, &artifact.warnings);
@@ -241,6 +272,17 @@ fn inspect_source(options: InspectOptions) -> Result<AssetBuildReport, PrepareCo
         artifact.budget,
         warnings,
     ))
+}
+
+fn reject_prepared_inspect_options(options: &InspectOptions) -> Result<(), PrepareCommandError> {
+    if options.crease_angle_degrees.is_some() || options.skip_edges || options.budget.is_some() {
+        return Err(PrepareCommandError::InvalidOptions(
+            "--crease-angle, --skip-edges, and --budget only apply to source inputs; \
+             Prepared GLB inspection uses embedded preparation metadata"
+                .into(),
+        ));
+    }
+    Ok(())
 }
 
 fn artifact_asset_id(scene: &studio_import::SourceScene) -> String {
@@ -417,8 +459,8 @@ fn publish_force(
         match move_to_backup(path) {
             Ok(backup) => backup,
             Err(error) => {
-                restore_backup(output_path, output_backup);
-                return Err(error);
+                let details = restore_backup(output_path, output_backup.as_deref());
+                return Err(with_rollback_details(error, details));
             }
         }
     } else {
@@ -428,26 +470,38 @@ fn publish_force(
     if let Some((path, temporary)) = report_temp
         && let Err(error) = temporary.persist(&path)
     {
-        restore_backup(output_path, output_backup);
-        restore_backup(&path, report_backup);
-        return Err(PrepareCommandError::ReportWriteFailed(
-            error.error.to_string(),
+        let mut details = restore_backup(&path, report_backup.as_deref());
+        details.extend(restore_backup(output_path, output_backup.as_deref()));
+        return Err(with_rollback_details(
+            PrepareCommandError::ReportWriteFailed(error.error.to_string()),
+            details,
         ));
     }
 
     if let Err(error) = output_temp.persist(output_path) {
         if let Some(path) = report_path.as_deref() {
-            let _ = std::fs::remove_file(path);
-            restore_backup(output_path, output_backup);
-            restore_backup(path, report_backup);
+            let mut details = remove_published_path(path);
+            details.extend(restore_backup(output_path, output_backup.as_deref()));
+            details.extend(restore_backup(path, report_backup.as_deref()));
+            return Err(with_rollback_details(
+                PrepareCommandError::Io(error.error),
+                details,
+            ));
         } else {
-            restore_backup(output_path, output_backup);
+            let details = restore_backup(output_path, output_backup.as_deref());
+            return Err(with_rollback_details(
+                PrepareCommandError::Io(error.error),
+                details,
+            ));
         }
-        return Err(PrepareCommandError::Io(error.error));
     }
 
-    remove_backup(report_backup);
-    remove_backup(output_backup);
+    let mut cleanup = Vec::new();
+    cleanup.extend(remove_backup(report_backup.as_deref()));
+    cleanup.extend(remove_backup(output_backup.as_deref()));
+    if !cleanup.is_empty() {
+        return Err(PrepareCommandError::CleanupFailed(cleanup));
+    }
     Ok(())
 }
 
@@ -476,16 +530,62 @@ fn unique_backup_path(path: &Path) -> PathBuf {
     parent.join(format!(".{name}.{}.{nonce}.backup", std::process::id()))
 }
 
-fn restore_backup(path: &Path, backup: Option<PathBuf>) {
-    let _ = std::fs::remove_file(path);
-    if let Some(backup) = backup {
-        let _ = std::fs::rename(backup, path);
+fn restore_backup(path: &Path, backup: Option<&Path>) -> Vec<String> {
+    let mut details = remove_published_path(path);
+    if let Some(backup) = backup
+        && let Err(error) = std::fs::rename(backup, path)
+    {
+        details.push(format!(
+            "cannot restore backup {} to {}: {error}",
+            backup.display(),
+            path.display()
+        ));
+    }
+    details
+}
+
+fn remove_published_path(path: &Path) -> Vec<String> {
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => match std::fs::remove_file(path) {
+            Ok(()) => Vec::new(),
+            Err(error) => vec![format!(
+                "cannot remove published path {}: {error}",
+                path.display()
+            )],
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => vec![format!(
+            "cannot inspect published path {}: {error}",
+            path.display()
+        )],
     }
 }
 
-fn remove_backup(backup: Option<PathBuf>) {
-    if let Some(backup) = backup {
-        let _ = std::fs::remove_file(backup);
+fn remove_backup(backup: Option<&Path>) -> Vec<String> {
+    let Some(backup) = backup else {
+        return Vec::new();
+    };
+    match std::fs::remove_file(backup) {
+        Ok(()) => Vec::new(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => vec![format!(
+            "cannot remove publication backup {}: {error}",
+            backup.display()
+        )],
+    }
+}
+
+fn with_rollback_details(
+    primary: PrepareCommandError,
+    details: Vec<String>,
+) -> PrepareCommandError {
+    if details.is_empty() {
+        primary
+    } else {
+        PrepareCommandError::RollbackFailed {
+            primary: Box::new(primary),
+            details,
+        }
     }
 }
 
@@ -522,5 +622,28 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(std::fs::read(output).unwrap(), b"old-output");
         assert_eq!(std::fs::read(report).unwrap(), b"old-report");
+    }
+
+    #[test]
+    fn rollback_failure_preserves_primary_error_and_backup_path() {
+        let root = tempfile::tempdir().unwrap();
+        let output = root.path().join("blocked.glb");
+        let backup = root.path().join("old.glb.backup");
+        std::fs::create_dir(&output).unwrap();
+        std::fs::write(&backup, b"old-output").unwrap();
+
+        let details = restore_backup(&output, Some(&backup));
+        assert!(!details.is_empty());
+        assert!(backup.exists());
+
+        let error = with_rollback_details(
+            PrepareCommandError::Io(std::io::Error::other("primary publish failure")),
+            details,
+        );
+        let message = error.to_string();
+        assert_eq!(error.code(), "ICE3_STUDIO_ASSET_IO");
+        assert!(message.contains("primary publish failure"));
+        assert!(message.contains("publication rollback also failed"));
+        assert!(message.contains(backup.to_str().unwrap()));
     }
 }

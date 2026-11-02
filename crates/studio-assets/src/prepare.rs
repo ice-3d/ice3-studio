@@ -31,12 +31,15 @@ pub fn prepare_canonical(
     scene: &CanonicalScene,
     options: PrepareOptions,
 ) -> Result<PrepareArtifact, AssetError> {
-    if !options.crease_angle_degrees.is_finite()
-        || !(0.0..=180.0).contains(&options.crease_angle_degrees)
-    {
+    validate_crease_angle(options.crease_angle_degrees)?;
+    prepare_canonical_document(scene, options)
+}
+
+pub fn validate_crease_angle(crease_angle_degrees: f32) -> Result<(), AssetError> {
+    if !crease_angle_degrees.is_finite() || !(0.0..=180.0).contains(&crease_angle_degrees) {
         return Err(AssetError::InvalidGeometry(
             "crease angle must be between 0 and 180 degrees".into(),
         ));
     }
-    prepare_canonical_document(scene, options)
+    Ok(())
 }
