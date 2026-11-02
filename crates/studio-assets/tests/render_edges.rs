@@ -85,6 +85,14 @@ fn accepts_empty_triangles_and_rejects_degenerate_triangles() {
             "ICE3_STUDIO_ASSET_INVALID_GEOMETRY"
         );
     }
+
+    let coincident = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+    assert_eq!(
+        generate_edge_indices(&coincident, &[0, 1, 2], 30.0)
+            .unwrap_err()
+            .code(),
+        "ICE3_STUDIO_ASSET_INVALID_GEOMETRY"
+    );
 }
 
 #[test]
