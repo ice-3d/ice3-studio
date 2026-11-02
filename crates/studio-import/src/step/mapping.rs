@@ -31,6 +31,7 @@ struct Projection<'a> {
     asset_id: &'a str,
     nodes: Vec<SourceNode>,
     meshes: Vec<SourceMesh>,
+    mesh_positions: BTreeMap<usize, Vec<Vec<[f64; 3]>>>,
     materials: Vec<SourceMaterial>,
     part_meshes: BTreeMap<MeshVariantKey, usize>,
     node_worlds: BTreeMap<String, DMat4>,
@@ -65,6 +66,7 @@ pub(super) fn project_model(
         asset_id,
         nodes: Vec::new(),
         meshes: Vec::new(),
+        mesh_positions: BTreeMap::new(),
         materials: Vec::new(),
         part_meshes: BTreeMap::new(),
         node_worlds: BTreeMap::new(),
@@ -128,7 +130,8 @@ pub(super) fn project_model(
 
     let source_origin = apply_shared_origin(
         &mut projection.nodes,
-        &projection.meshes,
+        &mut projection.meshes,
+        &mut projection.mesh_positions,
         &projection.node_worlds,
     )?;
     let scene = SourceScene {
@@ -537,6 +540,7 @@ impl Projection<'_> {
             return Ok(None);
         }
         let mut primitives = Vec::new();
+        let mut primitive_positions = Vec::new();
         let mut shape_metadata = Vec::new();
         for shape in &part.shapes {
             if shape.mesh.triangles.is_empty() {
@@ -548,7 +552,7 @@ impl Projection<'_> {
             {
                 let material = self.material_for(colour);
                 primitives.push(SourcePrimitive {
-                    positions: group_positions,
+                    positions: Vec::new(),
                     // The AP242 reader exposes no authored normal buffer. The
                     // canonical writer generates normals from the triangles.
                     normals: None,
@@ -556,6 +560,7 @@ impl Projection<'_> {
                     indices,
                     material: Some(material),
                 });
+                primitive_positions.push(group_positions);
             }
             shape_metadata.push(step_shape_metadata(shape));
         }
@@ -576,6 +581,7 @@ impl Projection<'_> {
             primitives,
             extras: step_mesh_extras(part.representation, shape_metadata),
         });
+        self.mesh_positions.insert(mesh_index, primitive_positions);
         self.part_meshes.insert(key, mesh_index);
         Ok(Some(mesh_index))
     }
@@ -615,7 +621,7 @@ impl Projection<'_> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TriangleGroupKey([u32; 4]);
 
-type CompactTriangleGroup = ([f32; 4], Vec<[f32; 3]>, Vec<u32>);
+type CompactTriangleGroup = ([f32; 4], Vec<[f64; 3]>, Vec<u32>);
 
 impl From<[f32; 4]> for TriangleGroupKey {
     fn from(value: [f32; 4]) -> Self {
@@ -643,7 +649,7 @@ impl TriangleGroupKey {
 
 fn grouped_triangle_positions(
     shape: &Shape,
-    positions: &[[f32; 3]],
+    positions: &[[f64; 3]],
     overrides: &[(u64, TriangleGroupKey)],
 ) -> Result<Vec<CompactTriangleGroup>, ImportError> {
     let mut groups = BTreeMap::<TriangleGroupKey, Vec<u32>>::new();
@@ -785,16 +791,16 @@ fn occurrence_overrides(
     overrides
 }
 
-fn convert_positions(shape: &Shape, unit_scale: f64) -> Result<Vec<[f32; 3]>, ImportError> {
+fn convert_positions(shape: &Shape, unit_scale: f64) -> Result<Vec<[f64; 3]>, ImportError> {
     shape
         .mesh
         .positions
         .iter()
         .map(|point| {
             let converted = [
-                (point[0] * unit_scale) as f32,
-                (point[2] * unit_scale) as f32,
-                (-point[1] * unit_scale) as f32,
+                point[0] * unit_scale,
+                point[2] * unit_scale,
+                -point[1] * unit_scale,
             ];
             if converted.iter().all(|value| value.is_finite()) {
                 Ok(converted)
@@ -809,9 +815,24 @@ fn convert_positions(shape: &Shape, unit_scale: f64) -> Result<Vec<[f32; 3]>, Im
 
 fn apply_shared_origin(
     nodes: &mut [SourceNode],
-    meshes: &[SourceMesh],
+    meshes: &mut [SourceMesh],
+    mesh_positions: &mut BTreeMap<usize, Vec<Vec<[f64; 3]>>>,
     worlds: &BTreeMap<String, DMat4>,
 ) -> Result<[f64; 3], ImportError> {
+    let mesh_anchors = mesh_positions
+        .iter()
+        .map(|(mesh_index, primitives)| {
+            let anchor = primitives
+                .iter()
+                .find_map(|positions| positions.first().copied())
+                .ok_or_else(|| {
+                    ImportError::InvalidSource(format!(
+                        "STEP mesh {mesh_index} contains no positions"
+                    ))
+                })?;
+            Ok::<_, ImportError>((*mesh_index, DVec3::from_array(anchor)))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()?;
     let mut min = DVec3::splat(f64::INFINITY);
     let mut max = DVec3::splat(f64::NEG_INFINITY);
     for node in nodes.iter() {
@@ -822,14 +843,14 @@ fn apply_shared_origin(
             .get(&node.id)
             .copied()
             .ok_or_else(|| ImportError::InvalidSource("STEP node world matrix missing".into()))?;
-        let Some(mesh) = meshes.get(mesh_index) else {
+        let Some(primitives) = mesh_positions.get(&mesh_index) else {
             return Err(ImportError::InvalidSource(
                 "STEP node references a missing mesh".into(),
             ));
         };
-        for primitive in &mesh.primitives {
-            for position in &primitive.positions {
-                let point = world.transform_point3(DVec3::from_array(position.map(f64::from)));
+        for positions in primitives {
+            for position in positions {
+                let point = world.transform_point3(DVec3::from_array(*position));
                 if !point.is_finite() {
                     return Err(ImportError::InvalidSource(
                         "STEP world bounds contain non-finite values".into(),
@@ -845,10 +866,28 @@ fn apply_shared_origin(
     }
 
     let origin = [min.x, 0.0, min.z];
-    let translation = DMat4::from_translation(DVec3::new(-origin[0], 0.0, -origin[2]));
-    let rebased_worlds = worlds
+    let origin_vec = DVec3::from_array(origin);
+    let by_node = nodes
         .iter()
-        .map(|(id, world)| (id.clone(), translation * *world))
+        .map(|node| (node.id.as_str(), node))
+        .collect::<BTreeMap<_, _>>();
+    let adjusted_worlds = worlds
+        .iter()
+        .map(|(id, world)| {
+            let adjusted = by_node
+                .get(id.as_str())
+                .and_then(|node| node.mesh)
+                .and_then(|mesh_index| mesh_anchors.get(&mesh_index))
+                .map_or_else(
+                    || DMat4::from_translation(-origin_vec) * *world,
+                    |anchor| {
+                        DMat4::from_translation(-origin_vec)
+                            * *world
+                            * DMat4::from_translation(*anchor)
+                    },
+                );
+            (id.clone(), adjusted)
+        })
         .collect::<BTreeMap<_, _>>();
     let root_id = nodes
         .iter()
@@ -869,7 +908,7 @@ fn apply_shared_origin(
         let final_world = if node.parent.is_none() || is_identity_root_child {
             DMat4::IDENTITY
         } else {
-            rebased_worlds
+            adjusted_worlds
                 .get(&node.id)
                 .copied()
                 .unwrap_or(DMat4::IDENTITY)
@@ -877,6 +916,37 @@ fn apply_shared_origin(
         let local = parent_world.inverse() * final_world;
         node.matrix = local.to_cols_array().map(|value| value as f32);
         serialized_worlds.insert(node.id.clone(), final_world);
+    }
+
+    for (mesh_index, primitives) in mesh_positions.iter() {
+        let anchor = mesh_anchors[mesh_index];
+        let mesh = meshes.get_mut(*mesh_index).ok_or_else(|| {
+            ImportError::InvalidSource(format!("STEP mesh {mesh_index} is missing"))
+        })?;
+        if mesh.primitives.len() != primitives.len() {
+            return Err(ImportError::InvalidSource(format!(
+                "STEP mesh {mesh_index} primitive count changed during rebasing"
+            )));
+        }
+        for (primitive, positions) in mesh.primitives.iter_mut().zip(primitives) {
+            primitive.positions = positions
+                .iter()
+                .map(|point| {
+                    let rebased = DVec3::from_array(*point) - anchor;
+                    [rebased.x as f32, rebased.y as f32, rebased.z as f32]
+                })
+                .collect();
+            if primitive
+                .positions
+                .iter()
+                .flatten()
+                .any(|value| !value.is_finite())
+            {
+                return Err(ImportError::InvalidSource(
+                    "STEP rebased positions contain non-finite values".into(),
+                ));
+            }
+        }
     }
     Ok(origin)
 }
@@ -1269,6 +1339,42 @@ mod tests {
             "pump B translation: {}",
             occurrence_nodes[1].matrix[12]
         );
+    }
+
+    #[test]
+    fn preserves_adjacent_source_positions_until_after_origin_subtraction() {
+        let large = 16_777_216.0;
+        let mut part = Part {
+            name: Some("Adjacent".into()),
+            product_id: Some("Adjacent".into()),
+            ..Part::default()
+        };
+        part.shapes.push(triangle_shape(
+            1,
+            [large, 0.0, 0.0],
+            [large + 1.0, 0.0, 0.0],
+        ));
+        let model = StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts: vec![part],
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: Vec::new(),
+            warnings: Vec::new(),
+        };
+
+        let scene = project_model(&model, "step-adjacent", NativeImportLimits::default()).unwrap();
+        let positions = &scene.meshes[0].primitives[0].positions;
+        assert!((positions[0][0] - 0.0).abs() < 1e-6);
+        assert!((positions[1][0] - 1.0).abs() < 1e-6);
+        assert_eq!(scene.asset_extras["ice3"]["step"]["sourceOrigin"][0], large);
     }
 
     #[test]

@@ -109,14 +109,15 @@ fn process_geometry_with_budget(
         occurrences: Some(max_nodes),
         ..ResourceLimits::default()
     }));
-    let estimated_geometry_bytes = u64::try_from(bytes.len())
-        .ok()
-        .and_then(|size| size.checked_mul(64))
-        .unwrap_or(u64::MAX);
+    let retained_input_bytes = u64::try_from(bytes.len())
+        .map_err(|_| ImportError::LimitExceeded("IFC input size is not representable".into()))?;
     let result = account.scope(|| {
+        // Retain the source bytes in the live-memory account, but let the native
+        // pipeline charge measured geometry instead of applying a blanket
+        // input-size multiplier to both output and live budgets.
         let _reservation = charge(Cost {
-            output_bytes: estimated_geometry_bytes,
-            live_bytes: estimated_geometry_bytes,
+            output_bytes: 0,
+            live_bytes: retained_input_bytes,
             ..Cost::default()
         })
         .map_err(|_| {
@@ -192,5 +193,27 @@ mod tests {
             Err(error) => error,
         };
         assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+    }
+
+    #[test]
+    fn representative_input_above_eight_mib_passes_pre_meshing_gate() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc");
+        let source = std::fs::read(path).unwrap();
+        let marker = b"\nDATA;";
+        let marker_offset = source
+            .windows(marker.len())
+            .position(|window| window == marker)
+            .expect("fixture DATA section");
+        let padding = vec![b' '; 9 * 1024 * 1024];
+        let mut bytes = Vec::with_capacity(source.len() + padding.len());
+        bytes.extend_from_slice(&source[..marker_offset]);
+        bytes.extend_from_slice(&padding);
+        bytes.extend_from_slice(&source[marker_offset..]);
+        assert!(bytes.len() > 8 * 1024 * 1024);
+
+        let result = process_geometry_with_budget(&bytes, NativeImportLimits::default()).unwrap();
+        assert_eq!(result.metadata.schema_version, "IFC4X3");
+        assert!(!result.meshes.is_empty());
     }
 }
