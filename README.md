@@ -96,7 +96,7 @@ Viewer URL 并持续服务，`Ctrl+C` 停止。
 完整验证与基准：
 
 ```bash
-npm run verify      # 24 道门禁：fmt / clippy / test / prepare parity / schema / fixture / viewer / E2E / audit
+npm run verify      # 26 道门禁：fmt / clippy / test / prepare/partition parity / schema / fixture / viewer / E2E / audit
 npm run benchmark
 npm run benchmark:gpu
 ```
@@ -156,6 +156,10 @@ cargo run -p studio-cli -- build plant.glb \
   --report plant-built.report.json
 
 cargo run -p studio-cli -- inspect plant-built.glb --json
+
+cargo run -p studio-cli -- partition plant.glb \
+  --output /tmp/plant-tileset \
+  --asset-id plant
 ```
 
 Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242
@@ -185,6 +189,13 @@ GLB 与 report 在发布前完成校验；失败不会替换已有文件，`--fo
 都会恢复上一对文件。`inspect` 对 source 或 Prepared GLB 输出同一套 metrics、
 preparation 和 budget 字段。资产准备失败使用 `ICE3_STUDIO_ASSET_*` Diagnostic，
 不调用 Toolchain、Node Asset runtime、Blender 或其它外部 DCC。
+
+`partition` 直接接受任一 Studio source adapter。默认 `maxTriangles=500000`、
+`maxBytes=33554432`、crease `30°`、edges on、LOD off、render batch off；可按需启用
+proportional/adaptive LOD、semantic proxy、static render batch 和 coarse chunk。
+Fine、LOD、coarse 与 render-batch GLB 都从各自的最终几何生成 `mode=1` edges，edge bytes
+计入 `maxBytes` 与 coarse chunk 限制。输出目录默认不可覆盖；`--force` 在发布失败时恢复
+上一份目录。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
@@ -288,8 +299,9 @@ session。功能已交付，但性能门禁未过，默认关闭。
 
 Runtime GLB、Source Import、preview、partition、LOD 和 Tileset 已由 Studio 原生实现。
 Phase 6A 已补齐共享 Asset Prepare、render edges、metrics、budget/report 以及
-`build`/`inspect`；Phase 6B 的 partition/Runtime profile 和 Phase 6C 的 Engine/
-performance 验收仍在后续计划中。Studio 不再消费 Toolchain Source Import 生产路径；
+`build`/`inspect`；Phase 6B 已完成直接 `partition`、fine/LOD/coarse edges、统一
+Runtime profile 和 `edgeSegmentCount`。Phase 6C 的 Engine 兼容与最终性能验收仍在后续
+计划中。Studio 不再消费 Toolchain Source Import 生产路径；
 Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview 始终由
 Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和 release surface
 已完成清理，Studio 不再包含旧 repository 的路径依赖；repository 归档仍需用户单独

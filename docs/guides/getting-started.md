@@ -162,17 +162,50 @@ cargo run -p studio-cli -- export tileset \
 
 `agent-console-v1` 使用 60,000 triangles/part、64 MiB/part、0.5 LOD ratio、adaptive
 allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk 和 static render batch。
+parts 与 coarse GLB 都包含 `mode=1` render edges，`export.json.stats.edgeSegmentCount`
+来自实际编码产物。
 命令不调用 Node、外部 DCC 或资产守护进程。CLI 可以在 Studio Server 持有 writer
 lock 时读取 committed revision，但不会修改工程。
 
-原生 asset pipeline 契约检查：
+直接 partition 任意 Source：
 
 ```bash
-node scripts/compare-asset-pipelines.mjs
+cargo run -p studio-cli -- partition plant.glb \
+  --output /tmp/plant-tileset \
+  --asset-id plant \
+  --max-triangles 500000 \
+  --max-bytes 33554432
+
+cargo run -p studio-cli -- partition plant.ifc \
+  --output /tmp/plant-lod-tileset \
+  --asset-id plant-lod \
+  --lod \
+  --lod-allocation adaptive \
+  --semantic-proxy auto \
+  --render-batch static \
+  --coarse-chunk-max-bytes 4194304
 ```
 
-脚本连续执行两次 Studio 导出，校验 triangle/node/Selection、Tileset bounds、相对 URI
-和字节确定性；机器可读结果写入 `output/asset-pipeline-parity.json`。
+默认 `maxTriangles=500000`、`maxBytes=33554432`、crease `30°`、edges on、LOD off、
+render batch off 和 proportional LOD allocation。`--semantic-proxy auto` 必须与
+`--lod`、adaptive allocation 一起使用。Fine、LOD、coarse、semantic proxy 和 render
+batch 都从最终几何重新生成 edges，edge bytes 计入 part/chunk budget。
+
+输出目录默认 no-clobber；`--force` 通过 sibling staging、backup 和 rename 替换，失败时
+恢复旧目录。source import、Prepare、edge generation、GLB validation 或发布失败都不会
+留下最终 Tileset。
+
+原生 partition parity 门禁：
+
+```bash
+node scripts/compare-partition-imports.mjs
+node --test scripts/tests/partition-contract.test.mjs
+```
+
+脚本连续执行两次 7 组 partition case，覆盖 direct、proportional/adaptive LOD、
+semantic proxy、static render batch、chunked coarse 和 skip-edges，并校验 URI、bounds、
+Selection、triangle/edge 数量、edge role/width/color、byte budget 和文件 digest。结果写入
+`output/partition-parity.json`。
 
 ## 导入 Source Asset
 

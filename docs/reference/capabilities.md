@@ -196,6 +196,17 @@ ice3-studio build SOURCE --output FILE --asset-id ID
 ice3-studio inspect SOURCE [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
                           [--crease-angle DEGREES] [--skip-edges]
                           [--budget interactive-desktop-v1|unrestricted|FILE] [--json]
+ice3-studio partition SOURCE --output <dir> --asset-id ID
+                          [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
+                          [--max-triangles N] [--max-bytes N] [--crease-angle DEGREES]
+                          [--skip-edges] [--budget PROFILE|FILE]
+                          [--render-batch off|static] [--lod]
+                          [--lod-ratio R] [--lod-allocation proportional|adaptive]
+                          [--lod-max-triangles N] [--lod-min-unit-triangles N]
+                          [--lod-curve-samples N] [--lod-max-memory-bytes N]
+                          [--semantic-proxy off|auto]
+                          [--coarse-chunk-max-bytes N]
+                          [--warnings-as-errors] [--force] [--json]
 ice3-studio validate FILE
 ice3-studio export tileset --project <dir> --output <dir>
                          [--profile agent-console-v1] [--force]
@@ -248,7 +259,9 @@ preparation metadata 和 budget，但默认 `edges=false`。已有 source import
 `round(position * 100000)` welding，并输出 boundary + crease edges。每个 edge primitive
 固定为 `mode=1`、`role="edges"`、`widthPx=3`，引用包含 `#e6f2ff` base color 的 edge
 material；material `edgeColor` 可覆盖默认色，`edges=false` 的 material 不生成对应边。
-`--skip-edges` 关闭 line primitive 和 edge segments，但保留已使用的 source materials。
+`--skip-edges` 关闭 line primitive 和 edge segments，但保留已使用的 source materials 与
+对应 edge material slots；reserved slots 顺序为 source、edge materials、`default`、
+`default edges`、`vertex colors`。
 
 `build --budget` 接受 `interactive-desktop-v1`、`unrestricted` 或受控 JSON profile。
 Soft limit 产生 warning，hard limit 失败关闭；`--warnings-as-errors` 在发布前把 warning
@@ -260,10 +273,30 @@ GLB 与 report 使用 sibling temporary files 成对发布。无 `--force` 时�
 backup。`inspect` 不发布文件，对 source 执行同一 Prepare，对 Prepared GLB 直接读取
 embedded profile 的 metrics、preparation 和 budget。
 
+`partition` 接受任意已注册 Studio source adapter，并把同一 PrepareArtifact 交给
+`studio_pipeline::build_with_profile`。默认值：
+
+| 参数 | 默认 |
+|---|---|
+| `maxTriangles` / `maxBytes` | `500000` / `33554432` |
+| edges / crease angle | on / `30°` |
+| LOD / ratio / allocation | off / `0.15` / `proportional` |
+| LOD max triangles / min unit triangles | `250000` / `8` |
+| LOD curve samples / max memory | `8` / `67108864` |
+| semantic proxy / render batch | off / off |
+| coarse chunk max bytes | `maxBytes` |
+
+`semantic-proxy=auto` 必须同时启用 `--lod` 和 adaptive allocation。LOD ratio 必须在
+`(0,1)`，curve samples 必须为 `4..=32`，min unit triangles 不得大于 max triangles。
+Fine、LOD、coarse、semantic proxy 和 render batch writer 均从各自最终几何生成真实
+edges；edge bytes 计入 part/chunk budget。输出先写入同父目录 staging，整个 Tileset
+通过 GLB/profile 校验后才 rename。默认拒绝已有目录；`--force` 失败时恢复旧目录。
+
 Prepare CLI 的稳定失败码：
 `ICE3_STUDIO_ASSET_INVALID_OPTIONS`、`ICE3_STUDIO_ASSET_INVALID_BUDGET`、
 `ICE3_STUDIO_ASSET_BUDGET_WARNING`、`ICE3_STUDIO_ASSET_BUDGET_EXCEEDED`、
 `ICE3_STUDIO_ASSET_OUTPUT_EXISTS`、`ICE3_STUDIO_ASSET_INVALID_GEOMETRY`、
+`ICE3_STUDIO_ASSET_INVALID_PROFILE`、`ICE3_STUDIO_ASSET_TILESET_INVALID`、
 `ICE3_STUDIO_ASSET_REPORT_WRITE_FAILED` 和 `ICE3_STUDIO_ASSET_IO`。
 完整恢复规则见 [Diagnostics](diagnostics.md)。
 
@@ -281,7 +314,9 @@ source GLB 只保留在 `projects/<id>/cache/preview/`，不会复制到发布�
 不可覆盖；`--force` 通过 sibling staging、backup 和 rename 原子替换，失败时恢复上一份
 成功 bundle。`agent-console-v1` 固定使用 60,000 triangles/part、64 MiB/part、LOD ratio
 0.5、adaptive allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk、
-`semanticProxy=off` 和 static render batch。导出只读取 Studio committed revision。
+`semanticProxy=off` 和 static render batch。Parts 和 coarse GLB 都包含真实 edges；
+`export.json.stats.edgeSegmentCount` 来自实际编码产物。导出只读取 Studio committed
+revision。
 
 `bindings.json` 优先按 metadata `tag` 聚合完整设备，`selectionId` 为
 `plant/equipment/<tag>`；无 tag 的独立场景对象使用 source owner ID。`nodeSelectionIds`

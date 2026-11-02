@@ -267,8 +267,9 @@ DIRECTORY/
 ```
 
 `export.json` 记录 `revision`、`profile`、`sourceDigest`、`tilesetDigest`、
-`bindingsDigest`、`bundleDigest`、文件相对路径/长度/digest 和统计。所有 Tileset
-content URI 均相对发布目录。完整 source GLB 只写入项目 `cache/preview/`，不进入 bundle。
+`bindingsDigest`、`bundleDigest`、文件相对路径/长度/digest 和统计，包括
+`edgeSegmentCount`。Parts 与 coarse GLB 都包含真实 render edges。所有 Tileset content
+URI 均相对发布目录。完整 source GLB 只写入项目 `cache/preview/`，不进入 bundle。
 
 `bindings.json` 以 profile `1.0` 发布。带 `metadata.tag` 的节点聚合为
 `plant/equipment/<tag>`；无 tag 时使用 source owner identity。设备内
@@ -277,10 +278,11 @@ content URI 均相对发布目录。完整 source GLB 只写入项目 `cache/pre
 
 发布是失败关闭的：输出已存在时默认返回错误；`--force` 先完成全部 staging 写入，再把
 旧目录 rename 为 backup、staging rename 为目标目录。替换失败会恢复旧目录。
-`scripts/compare-asset-pipelines.mjs` 对连续两次 Studio 导出执行结构、Selection、
-Tileset bounds、相对 URI 和字节确定性检查，不进入 Studio runtime；JT Source Import
-由 Studio isolated worker 调用 host-owned converter 完成，不在 `export tileset`
-的生产调用图中。
+`scripts/compare-partition-imports.mjs` 连续执行 direct partition、LOD、semantic proxy、
+render batch、coarse chunk 和 skip-edges case，检查 URI、bounds、Selection、edge
+统计/material、byte budget 和字节确定性；该脚本不进入 Studio runtime。JT Source
+Import 由 Studio isolated worker 调用 host-owned converter 完成，不在
+`export tileset` 的生产调用图中。
 
 ## Event 与 Revision
 

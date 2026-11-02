@@ -37,7 +37,7 @@
 | `ICE3-STUDIO-SPEC-016` | [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md) | Implemented | Source Import、Asset、Partition、LOD 和 Tileset 已全部迁入 Studio |
 | `ICE3-STUDIO-SPEC-017` | [Studio 原生 STEP 与 IFC Source Import](specs/2026-11-02-native-step-ifc-import-design.md) | Implemented | Phase 4A STEP、Phase 4B IFC、parity 与 Toolchain adapter 退役 |
 | `ICE3-STUDIO-SPEC-018` | [Studio 原生 JT Import 与 Toolchain 最终退役](specs/2026-11-02-native-jt-toolchain-retirement-design.md) | Implemented | JT converter bridge、预览原生化和 Toolchain repository 退役 |
-| `ICE3-STUDIO-SPEC-019` | [Studio Asset Prepare 与 Toolchain 功能等价](specs/2026-11-02-studio-asset-prepare-parity-design.md) | Approved | Phase 6A 已实现；Phase 6B/6C 待完成统一 Runtime profile、partition edges、Engine 验收和性能 |
+| `ICE3-STUDIO-SPEC-019` | [Studio Asset Prepare 与 Toolchain 功能等价](specs/2026-11-02-studio-asset-prepare-parity-design.md) | Approved | Phase 6A/6B 已实现；Phase 6C 待完成 Engine 验收和性能门禁 |
 | `ICE3-STUDIO-PLAN-015` | [工程评审级污水处理厂资产实施计划](plans/2026-11-01-realistic-wastewater-plant-asset.md) | Implemented | 工程化拆分、拓扑校验、细节组件、管线支撑、材质与 Chrome 验收 |
 | `ICE3-STUDIO-PLAN-016` | [污水处理厂工艺拓扑校正实施计划](plans/2026-11-01-wastewater-process-topology-correction.md) | Implemented | P&ID 端口、RAS/初沉污泥/沼气链路、分流节点、泥饼输送和 API 重建验收 |
 | `ICE3-STUDIO-PLAN-017` | [工程管线圆滑路径与功能配色实施计划](plans/2026-11-01-engineered-pipe-routing-color.md) | Implemented | 连续弯头、扫掠防扭转、亮银与功能配色和 Chrome 验收 |
@@ -51,7 +51,7 @@
 | `ICE3-STUDIO-PLAN-025` | [Studio Sidecar 最终退役](plans/2026-11-02-studio-sidecar-retirement.md) | Implemented | Phase 5B 原生 preview、client/status/UI/build 清理和 standalone 验收 |
 | `ICE3-STUDIO-PLAN-026` | [Toolchain Repository 最终退役](plans/2026-11-02-toolchain-repository-retirement.md) | Implemented | Phase 5C JT/Sidecar/release 清理、文档收口和归档候选 |
 | `ICE3-STUDIO-PLAN-027` | [Studio Asset Prepare Core](plans/2026-11-02-studio-prepare-core.md) | Implemented | Phase 6A 共享 Prepare、edges、budget/report、build、inspect 和 native parity |
-| `ICE3-STUDIO-PLAN-028` | [Studio Partition 与 Runtime Tileset 功能等价](plans/2026-11-02-studio-partition-runtime-parity.md) | Approved | Phase 6B 统一 AssetProfile、partition edges 和 Runtime Tileset |
+| `ICE3-STUDIO-PLAN-028` | [Studio Partition 与 Runtime Tileset 功能等价](plans/2026-11-02-studio-partition-runtime-parity.md) | Implemented | Phase 6B 统一 AssetProfile、direct partition、runtime edges 和 parity 门禁 |
 | `ICE3-STUDIO-PLAN-029` | [Studio Prepare Engine 集成与最终验收](plans/2026-11-02-studio-prepare-engine-finalization.md) | Approved | Phase 6C Engine 消费、性能、文档和最终门禁 |
 | `ICE3-STUDIO-PLAN-014` | [Large Reference Asset Editing 实施计划](plans/2026-10-31-large-reference-assets.md) | Implemented | 引用资产存储、绑定编辑、流式 Viewer 与真实大模型验收 |
 | `ICE3-STUDIO-PLAN-011` | [Revision-Scoped GPU Scene Session 实施计划](plans/2026-10-31-gpu-scene-session.md) | Implemented | CPU 增量场景、GPU residency、preview delta 和量化门禁 |

@@ -6,9 +6,9 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **阶段状态：** Phase 1 至 Phase 5 已完成，Phase 6A 已完成。Phase 6 是迁移后的
+> **阶段状态：** Phase 1 至 Phase 5、Phase 6A 与 Phase 6B 已完成。Phase 6 是迁移后的
 > 产品能力收口，目标是在不恢复 Toolchain、Node Asset Runtime、外部 DCC 或 Blender
-> 的前提下，让 Studio 具备原 Toolchain 的完整资产准备能力。Phase 6B/6C 仍为 Approved，
+> 的前提下，让 Studio 具备原 Toolchain 的完整资产准备能力。Phase 6C 仍为 Approved，
 > 因此 Spec 019 总体尚未标记 Implemented。
 
 **目标：** 在 Studio 内建立唯一、共享的 Asset Prepare pipeline，覆盖确定性 render
@@ -583,14 +583,23 @@ Phase 6A 已由 Plan 027 交付。`node scripts/compare-prepare-imports.mjs` 连
 Studio GLB，验证字节确定性，并比较 Toolchain baseline 的 stats、bounds、业务节点身份、
 Selection fallback、edge role/width/color、budget 和 report 语义。
 
-### Phase 6B：Pipeline 与 Runtime Tileset
+### Phase 6B：Pipeline 与 Runtime Tileset（Implemented）
 
 - 扩展 AssetProfile。
 - fine/LOD/coarse 生成真实 edges、metrics 和 budget。
 - 增加直接 `partition`。
 - `export tileset` 改用统一 profiles。
 
-### Phase 6C：文档、性能与最终验收
+Phase 6B 已由 Plan 028 交付。`ice3-studio partition` 可接受全部七种 Source Import
+adapter，完整暴露 LOD、semantic proxy、render batch、coarse chunk 和 budget 选项。
+Fine、LOD、coarse、semantic proxy 与 render batch writer 均从最终几何生成 edges；
+edge bytes 计入 part/chunk budget。Runtime Tileset 与 direct partition 共享
+`AssetProfile`，`ExportedStats` 和 Tileset extras 包含 `edgeSegmentCount`。
+`node scripts/compare-partition-imports.mjs` 连续执行 direct、LOD、semantic proxy、
+batching、coarse chunk 和 skip-edges case，并校验确定性、URI、bounds、Selection、
+edge material、统计和 byte budget。
+
+### Phase 6C：文档、性能与最终验收（Pending）
 
 - Engine 兼容测试。
 - large-industrial 性能和资源基线。

@@ -77,6 +77,17 @@ const steps = [
     env: { ICE3_STUDIO_BIN: studioCli },
   },
   {
+    label: 'Partition native parity',
+    command: 'node',
+    args: ['scripts/compare-partition-imports.mjs'],
+    env: { ICE3_STUDIO_BIN: studioCli },
+  },
+  {
+    label: 'Partition parity report contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/partition-contract.test.mjs'],
+  },
+  {
     label: 'Studio standalone',
     command: 'node',
     args: ['scripts/verify-studio-standalone.mjs'],
