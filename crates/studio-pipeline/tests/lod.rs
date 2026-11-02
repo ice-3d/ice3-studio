@@ -2,6 +2,11 @@ mod common;
 
 use common::{fixture_source, mesh, mesh_with_material, node};
 use serde_json::json;
+use studio_assets::canonical::{
+    CanonicalMaterial, CanonicalMesh, CanonicalNode, CanonicalPrimitive, CanonicalScene,
+    PreparedGlbOptions, write_prepared_glb,
+};
+use studio_assets::{AccessorData, read_accessor, read_glb_bytes};
 use studio_pipeline::lod::{
     CoarseChunkUnit, FitSamples, SemanticProxyMode, Simplifier, SimplifyOptions,
     allocate_adaptive_targets, allocate_lod_targets, create_coarse_chunks, create_semantic_proxy,
@@ -95,6 +100,76 @@ fn static_batching_reduces_draws_without_changing_selection() {
 }
 
 #[test]
+fn static_batching_preserves_vertex_colors() {
+    let scene = CanonicalScene {
+        asset_id: "colored-batch".into(),
+        source_format: "gltf".into(),
+        nodes: vec![CanonicalNode {
+            id: "colored-node".into(),
+            name: "Colored node".into(),
+            parent: None,
+            matrix: identity(),
+            mesh: Some(0),
+            material: None,
+            extras: json!({"ice3": {"id": "colored-node"}}),
+        }],
+        meshes: vec![CanonicalMesh {
+            id: "colored-mesh".into(),
+            primitives: vec![CanonicalPrimitive {
+                positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+                normals: Some(vec![[0.0, 0.0, 1.0]; 3]),
+                colors: Some(vec![[1.0, 0.25, 0.0]; 3]),
+                indices: vec![0, 1, 2],
+                material: Some(0),
+            }],
+            extras: json!({"ice3": {"id": "colored-mesh"}}),
+        }],
+        materials: vec![CanonicalMaterial {
+            id: "orange".into(),
+            name: "Orange".into(),
+            base_color: [1.0, 0.25, 0.0],
+            opacity: 1.0,
+            extras: json!({"ice3": {"id": "orange"}}),
+        }],
+        asset_extras: json!({}),
+    };
+    let bytes = write_prepared_glb(
+        &scene,
+        &PreparedGlbOptions {
+            asset_id: "colored-batch".into(),
+            source_format: "gltf".into(),
+            source_digest: "source".into(),
+        },
+    )
+    .unwrap();
+    let source = read_glb_bytes(&bytes, &std::env::temp_dir()).unwrap();
+    let artifact =
+        build_with_profile(&source, "colored-batch", &AssetProfile::agent_console_v1()).unwrap();
+    let part = artifact
+        .files
+        .iter()
+        .find(|file| file.relative_path.starts_with("parts/"))
+        .unwrap();
+    let parsed = read_glb_bytes(&part.bytes, &std::env::temp_dir()).unwrap();
+    let batch = parsed.json["meshes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|mesh| mesh["primitives"].as_array().unwrap())
+        .find(|primitive| primitive["attributes"]["_ICE3_SEMANTIC_INDEX"].is_number())
+        .unwrap();
+    let color_accessor = batch["attributes"]["COLOR_0"].as_u64().unwrap() as usize;
+
+    assert_eq!(
+        read_accessor(&parsed, color_accessor).unwrap(),
+        AccessorData::F32 {
+            values: vec![1.0, 0.25, 0.0, 1.0, 0.25, 0.0, 1.0, 0.25, 0.0],
+            components: 3,
+        }
+    );
+}
+
+#[test]
 fn coarse_files_fall_back_when_a_unit_cannot_be_simplified() {
     let source = fixture_source(
         json!([mesh("mesh-a"), mesh("mesh-b")]),
@@ -177,6 +252,12 @@ fn adaptive_allocation_uses_more_of_the_device_budget() {
             .sum::<u64>()
             <= 120_000
     );
+}
+
+fn identity() -> [f32; 16] {
+    [
+        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+    ]
 }
 
 fn grid(size: usize) -> (Vec<f32>, Vec<u32>) {

@@ -119,7 +119,8 @@ unit；LOD 保留稳定 selection identity，简化失败时保留原几何。
 coarse、semantic proxy 和 render batch writer 都从各自最终 positions/indices 调用共享
 edge generator，不复制 source edge accessor。Edge bytes 参与 part 和 chunk byte budget，
 line primitive 不增加 triangle count；每个 part GLB 与 Tileset aggregate 都记录真实
-`edgeSegmentCount` 和 `edgeBytes`。
+`edgeSegmentCount` 和 `edgeBytes`。Static render batch 会烘焙 node transform，同时保留
+`COLOR_0` 和 semantic selection 映射，避免 batching 改变资产外观或可选择性。
 
 ### `studio-gpu`
 

@@ -443,6 +443,8 @@ pub(crate) fn build_batched_leaf(
 struct BatchDraft {
     positions: Vec<f32>,
     normals: Vec<f32>,
+    colors: Vec<f32>,
+    has_colors: bool,
     indices: Vec<u32>,
     semantic_indices: Vec<u32>,
     material: Option<usize>,
@@ -505,6 +507,26 @@ fn append_batch_geometry(
             },
             None => vec![0.0; positions.len()],
         };
+        let colors = match primitive
+            .get("attributes")
+            .and_then(Value::as_object)
+            .and_then(|attributes| attributes.get("COLOR_0"))
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+        {
+            Some(index) => match read_accessor(source, index)? {
+                AccessorData::F32 {
+                    values,
+                    components: 3,
+                } if values.len() == positions.len() => Some(values),
+                _ => {
+                    return Err(PipelineError::Tileset(
+                        "batch COLOR_0 must be VEC3 float".into(),
+                    ));
+                }
+            },
+            None => None,
+        };
         let indices = match primitive
             .get("indices")
             .and_then(Value::as_u64)
@@ -531,6 +553,8 @@ fn append_batch_geometry(
         let batch = batches.entry(key).or_insert_with(|| BatchDraft {
             positions: Vec::new(),
             normals: Vec::new(),
+            colors: Vec::new(),
+            has_colors: false,
             indices: Vec::new(),
             semantic_indices: Vec::new(),
             material,
@@ -562,6 +586,17 @@ fn append_batch_geometry(
             batch.bounds_max[0] = batch.bounds_max[0].max(transformed.x);
             batch.bounds_max[1] = batch.bounds_max[1].max(transformed.y);
             batch.bounds_max[2] = batch.bounds_max[2].max(transformed.z);
+        }
+        if let Some(colors) = colors {
+            if !batch.has_colors {
+                batch.colors.resize(vertex_offset as usize * 3, 1.0);
+                batch.has_colors = true;
+            }
+            batch.colors.extend(colors);
+        } else if batch.has_colors {
+            batch
+                .colors
+                .resize(batch.colors.len() + positions.len(), 1.0);
         }
         batch
             .indices
@@ -760,6 +795,28 @@ impl PartWriter {
             "count": batch.normals.len() / 3,
             "type": "VEC3"
         }));
+        let color_accessor = if batch.has_colors {
+            self.align();
+            let color_view = self.buffer_views.len();
+            let color_bytes = bytemuck::cast_slice(&batch.colors);
+            self.buffer_views.push(json!({
+                "buffer": 0,
+                "byteOffset": self.binary.len(),
+                "byteLength": color_bytes.len(),
+                "target": 34962
+            }));
+            self.binary.extend_from_slice(color_bytes);
+            let accessor = self.accessors.len();
+            self.accessors.push(json!({
+                "bufferView": color_view,
+                "componentType": 5126,
+                "count": batch.colors.len() / 3,
+                "type": "VEC3"
+            }));
+            Some(accessor)
+        } else {
+            None
+        };
         self.align();
         let semantic_view = self.buffer_views.len();
         let semantic_bytes = bytemuck::cast_slice(&batch.semantic_indices);
@@ -809,6 +866,9 @@ impl PartWriter {
         });
         if let Some(material) = output_material {
             primitive["material"] = Value::from(material);
+        }
+        if let Some(color_accessor) = color_accessor {
+            primitive["attributes"]["COLOR_0"] = Value::from(color_accessor);
         }
         let (edge_source_material, queue_edges) =
             self.record_edge_material(source_materials, material_map, batch.material, asset_id)?;

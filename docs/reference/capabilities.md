@@ -292,7 +292,8 @@ Fine、LOD、coarse、semantic proxy 和 render batch writer 均从各自最终�
 edges；edge bytes 计入 part/chunk budget。输出先写入同父目录 staging，整个 Tileset
 通过 GLB/profile 校验后才 rename。默认拒绝已有目录；`--force` 失败时恢复旧目录。
 `--output` 必须指向可命名的目录，不能使用文件系统根目录或当前目录 `.`，避免 `--force`
-替换 workspace/root。
+替换 workspace/root。Static render batch 烘焙 node transform 时保留 `COLOR_0`，并继续
+通过 `_ICE3_SEMANTIC_INDEX` 映射原 Selection，不改变 fine geometry 的外观或业务身份。
 
 ### Engine 消费
 
