@@ -784,7 +784,7 @@ git commit -m "feat(studio-cli): build and inspect prepared assets"
 - edge primitive/material/profile 契约；
 - budget/report 与原子发布；
 - `ICE3_STUDIO_ASSET_*` Diagnostic；
-- Phase 6A Implemented，Phase 6 总体仍 Approved；
+- Phase 6A Implemented；后续 Phase 6B/6C 已由 Plan-028/029 完成；
 - no Blender / no Toolchain。
 
 - [x] **Step 4: 运行门禁**

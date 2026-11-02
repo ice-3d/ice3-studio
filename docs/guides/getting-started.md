@@ -207,6 +207,29 @@ semantic proxy、static render batch、chunked coarse 和 skip-edges，并校验
 Selection、triangle/edge 数量、edge role/width/color、byte budget 和文件 digest。结果写入
 `output/partition-parity.json`。
 
+Engine 与 Agent Console 消费验证：
+
+```bash
+npm --prefix ../ice3-engine run build
+node scripts/verify-prepare-engine.mjs
+node --test scripts/tests/prepare-engine-contract.test.mjs
+```
+
+脚本调用 Engine 的实际 `readPreparedGLB` 和 `readTileset`，恢复 Studio line edges、
+edge color、Preparation metadata、Selection 和 Tileset part hierarchy。Engine 只读取
+Prepared bytes，不链接 Studio Prepare 实现。
+
+Prepare 性能基线：
+
+```bash
+npm run benchmark:prepare
+node --test scripts/tests/prepare-performance.test.mjs
+```
+
+Large-industrial 五个 case 使用 warmup 1 次、采样 5 次，检查 p95、512 MiB peak RSS、
+output bytes、triangle/edge/batch/coarse counts 和 digest 稳定性。同参数的 legacy
+时间只在一次性捕获时使用；日常门禁不启动 Toolchain。
+
 ## 导入 Source Asset
 
 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT 由 Studio 原生导入：
@@ -314,7 +337,7 @@ Soft limit 默认只产生 warning；hard limit 或 `--warnings-as-errors` 在�
 warnings。GLB/report 成对发布，默认拒绝已有目标；`--force` 替换失败时恢复上一份文件。
 `inspect` 对 source 执行同一 Prepare，对 Prepared GLB 直接读取内嵌字段。
 
-Phase 6A 对应的原生 parity 门禁可单独运行：
+Phase 6A/6B 对应的原生 parity 门禁可单独运行：
 
 ```bash
 node scripts/compare-prepare-imports.mjs

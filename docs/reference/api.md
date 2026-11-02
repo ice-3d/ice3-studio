@@ -284,6 +284,11 @@ render batch、coarse chunk 和 skip-edges case，检查 URI、bounds、Selectio
 Import 由 Studio isolated worker 调用 host-owned converter 完成，不在
 `export tileset` 的生产调用图中。
 
+Engine/Agent Console 的消费契约由 `scripts/verify-prepare-engine.mjs` 单独验证：
+`readPreparedGLB` 恢复 edges 和 Selection，`readTileset` 解析 relative content URI，
+并逐 part 验证 Prepared profile。Engine 不通过 API 请求 Studio 重算几何，也不链接
+Studio Rust crate。
+
 ## Event 与 Revision
 
 认证 WebSocket 按顺序发送 ChangeSet 和 revision event，例如：

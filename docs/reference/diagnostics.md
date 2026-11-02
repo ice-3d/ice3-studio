@@ -148,6 +148,8 @@ Diagnostic code 仍是主要机器契约。
   workspace/root。
 - `ICE3_STUDIO_ASSET_TILESET_INVALID` 表示 Tileset/part/coarse/profile 契约不完整，
   应修正参数、profile 或输出实现；不要发布部分目录。
+- Prepare performance gate 的 peak RSS 超过 512 MiB 时失败；应减少 static batch
+  选区、降低 partition 上限或优化中间内存，不能删除该门禁或静默放宽。
 - explicit GPU-only 失败返回稳定 GPU Diagnostic；automatic 模式会把可执行工作退回 CPU，
   并保持当前 revision 不变。
 - GPU device 丢失或失败后不再进入调度，直到进程重启或 host 显式重新初始化；CPU/GPU

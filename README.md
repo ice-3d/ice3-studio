@@ -77,7 +77,7 @@ Agent Gateway 离线时界面如实显示离线状态，不阻塞对象搜索、
 | 场景 | 规模 | 用于 |
 |---|---|---|
 | 污水处理厂工程 | 681 个源节点、166 个实例、63 条连接、355,900 有效三角形 | 默认开发、近景审查与 Studio 建模能力验证 |
-| 程序化大型工业 fixture | 208 个主对象、560 条操作、6 条工艺线、938,964 有效三角形、99 条连接 | 通用大场景契约测试与性能门禁 |
+| 程序化大型工业 fixture | 208 个主对象、560 条操作、6 条工艺线、937,428 有效三角形、99 条连接 | 通用大场景契约测试与性能门禁 |
 | `wastewater-mini` | 11 个源节点 | 启动、API 和端到端契约测试 |
 
 Studio 启动时扫描 `projects/*/project.json`，默认打开修改时间最新的工程；时间相同时
@@ -96,8 +96,9 @@ Viewer URL 并持续服务，`Ctrl+C` 停止。
 完整验证与基准：
 
 ```bash
-npm run verify      # 26 道门禁：fmt / clippy / test / prepare/partition parity / schema / fixture / viewer / E2E / audit
+npm run verify      # 30 道门禁：fmt / clippy / test / Engine+prepare parity / schema / fixture / viewer / E2E / audit
 npm run benchmark
+npm run benchmark:prepare
 npm run benchmark:gpu
 ```
 
@@ -196,6 +197,20 @@ proportional/adaptive LOD、semantic proxy、static render batch 和 coarse chun
 Fine、LOD、coarse 与 render-batch GLB 都从各自的最终几何生成 `mode=1` edges，edge bytes
 计入 `maxBytes` 与 coarse chunk 限制。输出目录默认不可覆盖；`--force` 在发布失败时恢复
 上一份目录。
+
+Engine 消费与资源门禁：
+
+```bash
+node scripts/verify-prepare-engine.mjs
+node --test scripts/tests/prepare-engine-contract.test.mjs
+npm run benchmark:prepare
+node --test scripts/tests/prepare-performance.test.mjs
+```
+
+Engine 的实际 `readPreparedGLB` 恢复 Studio `mode=1` edges、edge color 和 Selection；
+`readTileset` 加载 direct partition Tileset 的每个 part。Large-industrial benchmark
+连续采样 edge-on/off、direct partition、adaptive proxy 和 static batching，记录
+p50/p95、peak RSS、bytes、triangle/edge/partition/batch/coarse 统计与 digest。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
@@ -300,8 +315,11 @@ session。功能已交付，但性能门禁未过，默认关闭。
 Runtime GLB、Source Import、preview、partition、LOD 和 Tileset 已由 Studio 原生实现。
 Phase 6A 已补齐共享 Asset Prepare、render edges、metrics、budget/report 以及
 `build`/`inspect`；Phase 6B 已完成直接 `partition`、fine/LOD/coarse edges、统一
-Runtime profile 和 `edgeSegmentCount`。Phase 6C 的 Engine 兼容与最终性能验收仍在后续
-计划中。Studio 不再消费 Toolchain Source Import 生产路径；
+Runtime profile 和 `edgeSegmentCount`。Phase 6C 已完成真实 Engine 消费、large-fixture
+性能/资源基线、文档与全量验收。Studio 已完整接管通用 Source Import、Asset Prepare、
+partition、LOD、Tileset 和 Agent 交付链；生产路径不依赖 Toolchain、Node Asset
+Runtime 或 Blender。JT 仍只使用部署方提供的 host-owned `ICE3_JT_CONVERTER` 受控例外。
+Studio 不再消费 Toolchain Source Import 生产路径；
 Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview 始终由
 Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和 release surface
 已完成清理，Studio 不再包含旧 repository 的路径依赖；repository 归档仍需用户单独

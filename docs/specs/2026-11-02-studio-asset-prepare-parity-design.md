@@ -2,14 +2,14 @@
 
 > Document ID: ICE3-STUDIO-SPEC-019
 >
-> Status: Approved
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
-> **阶段状态：** Phase 1 至 Phase 5、Phase 6A 与 Phase 6B 已完成。Phase 6 是迁移后的
+> **阶段状态：** Phase 1 至 Phase 5、Phase 6A、Phase 6B 与 Phase 6C 已完成。Phase 6 是迁移后的
 > 产品能力收口，目标是在不恢复 Toolchain、Node Asset Runtime、外部 DCC 或 Blender
-> 的前提下，让 Studio 具备原 Toolchain 的完整资产准备能力。Phase 6C 仍为 Approved，
-> 因此 Spec 019 总体尚未标记 Implemented。
+> 的前提下，让 Studio 具备原 Toolchain 的完整资产准备能力。Spec 019 已完成并通过
+> Phase 6 exit gates。
 
 **目标：** 在 Studio 内建立唯一、共享的 Asset Prepare pipeline，覆盖确定性 render
 edges、crease angle、Prepared metrics、built-in/custom budget、版本化 report、
@@ -599,13 +599,24 @@ edge bytes 计入 part/chunk budget。Runtime Tileset 与 direct partition 共�
 batching、coarse chunk 和 skip-edges case，并校验确定性、URI、bounds、Selection、
 edge material、统计和 byte budget。
 
-### Phase 6C：文档、性能与最终验收（Pending）
+### Phase 6C：文档、性能与最终验收（Implemented）
 
 - Engine 兼容测试。
 - large-industrial 性能和资源基线。
 - CLI/API/诊断文档同步。
 - 最终 full verify、Chrome E2E 和 Studio standalone。
 - 明确记录“Studio 已完成 Toolchain 产品能力替代，且不依赖 Blender”。
+
+Phase 6C 已由 Plan 029 交付。Engine 的 `readPreparedGLB` 从 Studio build 恢复 12 个
+edge segments、`#e6f2ff` edge color、Preparation metadata 和 Selection；
+`readTileset` 加载 direct partition Tileset 的每个 part。`benchmark:prepare` 对
+large-industrial fixture 的 build、skip-edges、direct partition、adaptive proxy 和
+static batching 执行 warmup + 5 samples；所有 p95 低于本地归档 legacy artifact 的
+两倍，peak RSS 低于 512 MiB，输出 digest 稳定。
+
+Studio 已完整接管通用 Source Import、Asset Prepare、partition、LOD、Tileset 和
+Agent 交付链；生产路径不依赖 Toolchain、Node Asset Runtime 或 Blender。JT 的唯一例外
+是部署方提供的 host-owned `ICE3_JT_CONVERTER`。
 
 ## 16. 风险与控制
 

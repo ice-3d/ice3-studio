@@ -294,6 +294,34 @@ edges；edge bytes 计入 part/chunk budget。输出先写入同父目录 stagin
 `--output` 必须指向可命名的目录，不能使用文件系统根目录或当前目录 `.`，避免 `--force`
 替换 workspace/root。
 
+### Engine 消费
+
+Engine `@ice3/assets` 直接读取 Studio 产物，不链接 Studio Prepare 实现：
+
+- `verifyPreparedGLBIntegrity` 校验 `contentDigest` 覆盖的 BIN chunk；
+- `readPreparedGLB` 恢复 triangle/edge geometry、edge material color、Preparation
+  metadata、stats 和 node Selection；
+- `readTileset` 解析 3D Tiles 1.1 hierarchy、relative GLB URI 和 bounds，再逐 part 调用
+  `readPreparedGLB`。
+
+`node scripts/verify-prepare-engine.mjs` 对 Studio `build` 和 direct partition 执行真实
+Engine reader contract，结果写入 `output/prepare-engine-contract.json`。
+
+### Prepare 性能基线
+
+`npm run benchmark:prepare` 对 large-industrial fixture 的五个 case 执行 warmup 1 次 +
+测量 5 次：
+
+- `build` 的 edges 开启与关闭；
+- 直接 partition；
+- 自适应 LOD 与 semantic proxy；
+- 静态 render batch。
+
+基线记录 p50/p95、peak RSS、output bytes、triangle/edge/partition/batch/coarse count 和
+确定性 digest，写入 `fixtures/parity/prepare-performance-v1.json`；运行报告写入
+`output/prepare-performance.json`。Peak RSS 上限为 512 MiB，p95 上限为同参数本地归档
+legacy artifact 的 2 倍。验证门禁只读取 checked-in baseline，不运行旧 Toolchain。
+
 Prepare CLI 的稳定失败码：
 `ICE3_STUDIO_ASSET_INVALID_OPTIONS`、`ICE3_STUDIO_ASSET_INVALID_BUDGET`、
 `ICE3_STUDIO_ASSET_BUDGET_WARNING`、`ICE3_STUDIO_ASSET_BUDGET_EXCEEDED`、
