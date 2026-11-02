@@ -1,3 +1,5 @@
+#![cfg(feature = "ifc")]
+
 use std::path::PathBuf;
 
 use studio_import::{NativeImportLimits, extract_ifc_metadata};

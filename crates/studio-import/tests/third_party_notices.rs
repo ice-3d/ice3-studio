@@ -6,6 +6,10 @@ fn declares_the_native_source_import_licenses() {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../THIRD_PARTY_NOTICES.md"),
     )
     .unwrap();
+    let mpl = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../third-party-licenses/MPL-2.0.txt"),
+    )
+    .unwrap();
 
     for required in [
         "fbx-rs",
@@ -21,9 +25,14 @@ fn declares_the_native_source_import_licenses() {
         "TOMORROW OPEN SOURCE TECHNOLOGY LICENSE 1.0",
         "Section 6 (\"Trademarks\")",
         "You must give any other recipients of the Work or",
+        "ifc-lite-core",
+        "ifc-lite-processing",
+        "Mozilla Public License Version 2.0",
     ] {
         assert!(notices.contains(required), "missing notice: {required}");
     }
+    assert!(mpl.contains("Mozilla Public License Version 2.0"));
+    assert!(mpl.contains("3.2. Distribution of Executable Form"));
 
     assert!(
         !notices.lines().any(|line| line.ends_with(' ')),

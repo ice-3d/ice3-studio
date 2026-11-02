@@ -2,11 +2,11 @@
 
 > Document ID: ICE3-STUDIO-SPEC-017
 >
-> Status: Approved
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
-> **Phase 状态：** Phase 4A STEP 已实现（2026-11-02）。Phase 4B IFC 尚未实现。
+> **Phase 状态：** Phase 4A STEP 与 Phase 4B IFC 均已实现（2026-11-02）。
 
 **目标：** 在 Studio 内原生支持 STEP AP242 与 IFC4X3 Source Import，替换 Toolchain 的
 WASM adapter，同时保留层级、实例、颜色、单位、Selection identity、Pset/Qto/System
@@ -17,7 +17,7 @@ metadata、资源预算、确定性输出和原子发布语义。
 ## 1. 背景
 
 Phase 1 至 Phase 3 已把 glTF/GLB、OBJ/MTL、FBX 和 USD 的 Source Import 迁入
-Studio。Phase 4A 后，Toolchain 只保留 IFC 和 JT 的迁移兼容能力。
+Studio。Phase 4A 完成时，Toolchain 只保留 IFC 和 JT 的迁移兼容能力。
 
 STEP 与 IFC 不能直接复用文本 parser 方案：
 
@@ -263,6 +263,10 @@ triangle budgets；tessellation tolerance 固定为 relative `0.001`。
 
 ## 8. Phase 4B：IFC 设计
 
+**状态：Implemented（2026-11-02）。** Studio 原生读取 IFC4X3，解析在 isolated worker
+中运行；Toolchain IFC adapter、runtime dependency 和 conformance entry 已退役，
+synthetic fixtures 保留为 parity corpus。
+
 ### 8.1 两阶段读取
 
 同一份源字节在 worker 中读取两次，但只读一次磁盘：
@@ -421,7 +425,7 @@ Phase 4A：
 1. 固化 STEP baseline。
 2. 实现 native STEP adapter、worker/CLI 接入和 parity。
 3. 删除 Toolchain STEP adapter、依赖和 conformance entry。
-4. Toolchain 保留 IFC、JT。
+4. Toolchain 在 Phase 4A 后保留 IFC、JT，等待 Phase 4B 退役 IFC。
 
 Phase 4B：
 

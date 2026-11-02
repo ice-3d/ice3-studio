@@ -177,7 +177,7 @@ ice3-studio schema --output <dir> [--check]
 ice3-studio pack --project <dir> --output <file.ice3>
 ice3-studio unpack <file.ice3> --into <dir>
 ice3-studio import SOURCE --output FILE --asset-id ID
-                        [--adapter auto|gltf|obj|fbx|usd|step]
+                        [--adapter auto|gltf|obj|fbx|usd|step|ifc]
                         [--warnings-as-errors] [--force]
 ice3-studio validate FILE
 ice3-studio export tileset --project <dir> --output <dir>
@@ -196,18 +196,21 @@ ice3-studio serve --workspace <dir> --project <id>
 | `--write-mode` | `review-required` | 或 `autonomous` |
 | `--native-gpu` | `cpu` | 启动期策略，不能被 API 请求覆盖 |
 
-`import` 支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary 和 STEP AP242。
+`import` 支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242 和
+IFC4X3。
 adapter 生成
 统一 `SourceScene`，canonical writer 生成 `ice3-prepared` GLB。OBJ/MTL、glTF 和 USD
-外部资源被限制在源文件同目录；OBJ 假定米制并发出 warning。FBX/USD/STEP 通过 Studio
+外部资源被限制在源文件同目录；OBJ 假定米制并发出 warning。FBX/USD/STEP/IFC 通过 Studio
 自带 worker 解析，不需要外部 DCC。worker 默认限制 1,000,000 nodes、20,000,000 triangles、
 512 MiB estimated decoded memory 和 120 秒硬 timeout；response 与 stderr 上限分别为
 512 MiB 和 1 MiB。内存预算在主要 geometry/metadata 分配前预检，并在 worker response
-解码后重新记账；该值不是进程 RSS 的字节级硬上限。FBX/USD/STEP 是默认启用的 Cargo
+解码后重新记账；该值不是进程 RSS 的字节级硬上限。FBX/USD/STEP/IFC 是默认启用的 Cargo
 features，可分别关闭。超时、崩溃、协议污染和越界资源
 失败关闭。USD composition 额外限制深度 32、总 layer 数 1,024，并拒绝绝对路径、URI、
 `..` 与 symlink escape。STEP 只接受 AP242，保留 assembly/product 层级、共享实例、
 面颜色、Selection 和 metadata，并使用共享 source origin。
+IFC 只接受 IFC4X3 和可解析的唯一长度单位，保留空间层级、GlobalId Selection、
+Pset/Qto/System、共享实例、材质和 shared source origin。
 
 `--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
 替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。
