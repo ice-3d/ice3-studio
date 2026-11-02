@@ -716,18 +716,18 @@ fn override_colour(
     face: Option<u64>,
     overrides: &[(u64, TriangleGroupKey)],
 ) -> Option<TriangleGroupKey> {
-    overrides
-        .iter()
-        .find(|(item, _)| *item == shape.item)
-        .map(|(_, colour)| *colour)
-        .or_else(|| {
-            face.and_then(|face| {
-                overrides
-                    .iter()
-                    .find(|(item, _)| *item == face)
-                    .map(|(_, colour)| *colour)
-            })
-        })
+    face.and_then(|face| {
+        overrides
+            .iter()
+            .find(|(item, _)| *item == face)
+            .map(|(_, colour)| *colour)
+    })
+    .or_else(|| {
+        overrides
+            .iter()
+            .find(|(item, _)| *item == shape.item)
+            .map(|(_, colour)| *colour)
+    })
 }
 
 fn path_matches(style_path: &[u64], path: &[OccurrencePath]) -> bool {
@@ -1356,6 +1356,105 @@ mod tests {
             colours
                 .iter()
                 .any(|colour| colour_close(*colour, [0.0, 1.0, 0.0]))
+        );
+    }
+
+    #[test]
+    fn face_override_wins_over_shape_override_for_the_same_occurrence() {
+        let mut child = Part {
+            name: Some("Pump".into()),
+            product_id: Some("Pump".into()),
+            ..Part::default()
+        };
+        child.shapes.push(Shape {
+            item: 5,
+            name: Some("Styled pump".into()),
+            mesh: TriMesh {
+                positions: vec![
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [2.0, 0.0, 0.0],
+                    [3.0, 0.0, 0.0],
+                    [2.0, 1.0, 0.0],
+                ],
+                triangles: vec![[0, 1, 2], [3, 4, 5]],
+            },
+            colour: Some([0.2, 0.4, 0.6, 1.0]),
+            triangle_colours: Vec::new(),
+            triangle_faces: vec![105, 106],
+            layers: Vec::new(),
+        });
+        let mut root = Part {
+            name: Some("Root".into()),
+            product_id: Some("Root".into()),
+            children: vec![Occurrence {
+                part: 1,
+                id: Some(10),
+                name: Some("Pump A".into()),
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            ..Part::default()
+        };
+        root.product_id = Some("Root".into());
+        let model = StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts: vec![root, child],
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: vec![
+                OccurrenceColour {
+                    path: vec![10],
+                    item: 5,
+                    colour: [1.0, 0.0, 0.0, 1.0],
+                },
+                OccurrenceColour {
+                    path: vec![10],
+                    item: 105,
+                    colour: [0.0, 1.0, 0.0, 1.0],
+                },
+            ],
+            warnings: Vec::new(),
+        };
+
+        let scene = project_model(
+            &model,
+            "step-override-precedence",
+            NativeImportLimits::default(),
+        )
+        .unwrap();
+        assert_eq!(scene.meshes.len(), 1);
+        assert_eq!(scene.meshes[0].primitives.len(), 2);
+        let colours = scene.meshes[0]
+            .primitives
+            .iter()
+            .map(|primitive| {
+                let material = primitive.material.unwrap();
+                scene.materials[material].base_color
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            colours
+                .iter()
+                .any(|colour| colour_close(*colour, [1.0, 0.0, 0.0]))
+        );
+        assert!(
+            colours
+                .iter()
+                .any(|colour| colour_close(*colour, [0.0, 1.0, 0.0]))
+        );
+        assert!(
+            !colours
+                .iter()
+                .any(|colour| colour_close(*colour, [0.2, 0.4, 0.6]))
         );
     }
 
