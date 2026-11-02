@@ -10,8 +10,10 @@ use crate::PipelineError;
 use crate::profile::{AssetProfile, RenderBatchMode};
 use studio_assets::{AccessorData, SourceGlb, read_accessor};
 
-use crate::partition::build::build_batched_leaf;
-use crate::partition::build::{GeometryOverride, build_leaf_with_overrides};
+use crate::partition::build::{
+    EdgeOptions, GeometryOverride, build_artifact_with_profile, build_batched_leaf,
+    build_leaf_with_overrides,
+};
 use crate::partition::{PartitionLeaf, PartitionPlan, PartitionPlanNode, PartitionUnit};
 
 #[derive(Debug, Clone)]
@@ -32,6 +34,8 @@ pub struct PartitionFile {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PartitionStats {
     pub triangle_count: u64,
+    pub edge_segment_count: u64,
+    pub edge_bytes: u64,
     pub source_triangle_count: u64,
     pub node_count: u64,
     pub partition_count: usize,
@@ -144,16 +148,9 @@ pub fn build_with_profile(
     profile: &AssetProfile,
 ) -> Result<PartitionArtifact, PipelineError> {
     profile.validate()?;
-    let mut artifact = crate::build_artifact(
-        source,
-        &BuildOptions {
-            asset_id: asset_id.into(),
-            max_triangles: profile.max_triangles,
-            max_bytes: profile.max_bytes,
-        },
-    )?;
+    let mut artifact = build_artifact_with_profile(source, asset_id, profile)?;
     let render_batch_count = if profile.render_batch == RenderBatchMode::Static {
-        rebuild_with_static_batches(source, asset_id, &mut artifact)?
+        rebuild_with_static_batches(source, asset_id, &mut artifact, profile)?
     } else {
         0
     };
@@ -179,17 +176,52 @@ pub fn build_with_profile(
     );
     artifact.stats.render_batch_count = render_batch_count;
     artifact.stats.coarse_count = coarse_paths.values().map(Vec::len).sum();
+    refresh_artifact_stats(&mut artifact)?;
     Ok(artifact)
+}
+
+fn refresh_artifact_stats(artifact: &mut PartitionArtifact) -> Result<(), PipelineError> {
+    let metrics = artifact
+        .files
+        .iter()
+        .map(crate::partition::build::part_edge_metrics)
+        .collect::<Result<Vec<_>, _>>()?;
+    artifact.stats.edge_segment_count = metrics.iter().map(|(segments, _)| segments).sum();
+    artifact.stats.edge_bytes = metrics.iter().map(|(_, bytes)| bytes).sum();
+    artifact.stats.max_part_bytes = artifact
+        .files
+        .iter()
+        .map(|file| file.byte_length as u64)
+        .max()
+        .unwrap_or(0);
+    artifact.tileset.asset.extras["ice3"]["stats"] = json!({
+        "triangleCount": artifact.stats.triangle_count,
+        "edgeSegmentCount": artifact.stats.edge_segment_count,
+        "edgeBytes": artifact.stats.edge_bytes,
+        "partitionCount": artifact.stats.partition_count,
+        "renderBatchCount": artifact.stats.render_batch_count,
+        "coarseCount": artifact.stats.coarse_count,
+        "maxPartBytes": artifact.stats.max_part_bytes
+    });
+    Ok(())
 }
 
 fn rebuild_with_static_batches(
     source: &SourceGlb,
     asset_id: &str,
     artifact: &mut PartitionArtifact,
+    profile: &AssetProfile,
 ) -> Result<usize, PipelineError> {
     let mut render_batch_count = 0;
     for (index, leaf) in artifact.plan.leaves.iter().enumerate() {
-        let (built, batches) = build_batched_leaf(source, asset_id, leaf)?;
+        let (built, batches) =
+            build_batched_leaf(source, asset_id, leaf, EdgeOptions::from_profile(profile))?;
+        if built.bytes.len() > profile.max_bytes {
+            return Err(crate::PipelineError::Tileset(format!(
+                "partition {} exceeds maxBytes",
+                leaf.id
+            )));
+        }
         render_batch_count += batches;
         let file = artifact
             .files
@@ -289,6 +321,7 @@ fn build_coarse_files(
         &format!("{asset_id}:lod:{partition_id}"),
         &leaf,
         &overrides,
+        EdgeOptions::from_profile(profile),
     )?;
     if built.bytes.len() <= profile.coarse_chunk_max_bytes || units.len() == 1 {
         if built.bytes.len() > profile.coarse_chunk_max_bytes {
