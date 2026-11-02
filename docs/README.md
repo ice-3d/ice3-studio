@@ -50,6 +50,12 @@
 | `ICE3-STUDIO-PLAN-024` | [Studio 原生 JT Source Import](plans/2026-11-02-native-jt-import.md) | Implemented | Phase 5A converter bridge、GLB canonicalization、worker 隔离和 JT parity |
 | `ICE3-STUDIO-PLAN-025` | [Studio Sidecar 最终退役](plans/2026-11-02-studio-sidecar-retirement.md) | Implemented | Phase 5B 原生 preview、client/status/UI/build 清理和 standalone 验收 |
 | `ICE3-STUDIO-PLAN-026` | [Toolchain Repository 最终退役](plans/2026-11-02-toolchain-repository-retirement.md) | Implemented | Phase 5C JT/Sidecar/release 清理、文档收口和归档候选 |
+| `ICE3-STUDIO-PLAN-027` | [Studio Asset Prepare Core](plans/2026-11-02-studio-prepare-core.md) | Proposed | Phase 6A 共享 Prepare、edges、budget/report、build 和 inspect |
+| `ICE3-STUDIO-PLAN-028` | [Studio Partition 与 Runtime Tileset 功能等价](plans/2026-11-02-studio-partition-runtime-parity.md) | Proposed | Phase 6B 统一 AssetProfile、partition edges 和 Runtime Tileset |
+| `ICE3-STUDIO-PLAN-029` | [Studio Prepare Engine 集成与最终验收](plans/2026-11-02-studio-prepare-engine-finalization.md) | Proposed | Phase 6C Engine 消费、性能、文档和最终门禁 |
+| `ICE3-STUDIO-PLAN-027` | [Studio Asset Prepare Core](plans/2026-11-02-studio-prepare-core.md) | Proposed | Phase 6A 共享 Prepare、edges、budget/report、build 和 inspect |
+| `ICE3-STUDIO-PLAN-028` | [Studio Partition 与 Runtime Tileset 功能等价](plans/2026-11-02-studio-partition-runtime-parity.md) | Proposed | Phase 6B 统一 AssetProfile、partition edges 和 Runtime Tileset |
+| `ICE3-STUDIO-PLAN-029` | [Studio Prepare Engine 集成与最终验收](plans/2026-11-02-studio-prepare-engine-finalization.md) | Proposed | Phase 6C Engine 消费、性能、文档和最终门禁 |
 | `ICE3-STUDIO-PLAN-014` | [Large Reference Asset Editing 实施计划](plans/2026-10-31-large-reference-assets.md) | Implemented | 引用资产存储、绑定编辑、流式 Viewer 与真实大模型验收 |
 | `ICE3-STUDIO-PLAN-011` | [Revision-Scoped GPU Scene Session 实施计划](plans/2026-10-31-gpu-scene-session.md) | Implemented | CPU 增量场景、GPU residency、preview delta 和量化门禁 |
 | `ICE3-STUDIO-PLAN-012` | [Agent-Friendly Modeling API 实施计划](plans/2026-10-31-agent-friendly-modeling-api.md) | Implemented | Agent manifest、上下文查询、派生场景发现和稀疏 patch 的 TDD 交付步骤 |
