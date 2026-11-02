@@ -3,6 +3,7 @@
 mod accessor;
 pub mod budget;
 pub mod canonical;
+mod edges;
 mod glb;
 mod metrics;
 mod prepared;
@@ -13,6 +14,7 @@ pub use budget::{
     BudgetCheck, BudgetLimit, BudgetMetric, BudgetProfile, BudgetResult, BudgetStatus,
     evaluate_budget,
 };
+pub use edges::{edge_color_from_material, generate_edge_indices, material_suppresses_edges};
 pub use glb::{AssetError, AssetResult, SourceGlb, read_bounded_uri, read_glb, read_glb_bytes};
 pub use metrics::AssetMetrics;
 pub use prepared::{PreparedBounds, PreparedProfile, validate_prepared_profile};
