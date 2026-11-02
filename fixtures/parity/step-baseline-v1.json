@@ -25,6 +25,8 @@
       "nodeCount": 6,
       "maxNodeDepth": 3,
       "meshCount": 2,
+      "meshNodeCount": 2,
+      "sharedMeshNodeCount": 0,
       "primitiveCount": 18,
       "triangleCount": 188,
       "vertexCount": 690,
@@ -87,6 +89,6 @@
     "warningCodes": []
   },
   "normalizationRules": [
-    "Tessellation triangles may differ while bounds, area and business identity remain equivalent."
+    "Tessellation triangles may differ while normalized bounds, area and business identity remain equivalent."
   ]
 }

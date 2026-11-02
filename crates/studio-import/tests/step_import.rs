@@ -1,6 +1,6 @@
 #![cfg(feature = "step")]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use glam::{Mat4, Vec3};
 use studio_import::{SourceFormat, StepImporter};
@@ -92,10 +92,59 @@ fn omits_absent_step_metadata_fields() {
     assert!(!metadata.contains_key("layers"));
 }
 
+#[test]
+fn parsed_repeated_occurrences_share_one_mesh() {
+    let root = tempfile::tempdir().unwrap();
+    let source = repeated_occurrence_fixture(root.path());
+    let scene = StepImporter::new()
+        .import_file(&source, "step-instances")
+        .unwrap();
+    let mesh_nodes = scene
+        .nodes
+        .iter()
+        .filter(|node| node.mesh.is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(mesh_nodes.len(), 3);
+    let instance_nodes = mesh_nodes
+        .iter()
+        .filter(|node| node.extras["ice3"]["step"].get("instanceGroup").is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(instance_nodes.len(), 2);
+    assert_eq!(instance_nodes[0].mesh, instance_nodes[1].mesh);
+    assert_eq!(
+        instance_nodes[0].extras["ice3"]["step"]["instanceGroup"],
+        instance_nodes[1].extras["ice3"]["step"]["instanceGroup"]
+    );
+    assert_ne!(instance_nodes[0].id, instance_nodes[1].id);
+}
+
 fn fixture(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../ice3-toolchain/tests/fixtures")
         .join(relative)
+}
+
+fn repeated_occurrence_fixture(root: &Path) -> PathBuf {
+    let source = std::fs::read_to_string(fixture("step/synthetic-skid.step")).unwrap();
+    let occurrence = "\
+#300 = CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#301,#303);
+#301 = ( REPRESENTATION_RELATIONSHIP('','',#36,#10)
+REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#302)
+SHAPE_REPRESENTATION_RELATIONSHIP() );
+#302 = ITEM_DEFINED_TRANSFORMATION('','',#11,#15);
+#303 = PRODUCT_DEFINITION_SHAPE('Placement','Placement of an item',#304);
+#304 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('3','PrimaryTank Repeat','',#5,#31,$);
+";
+    let fixture = root.join("instanced.step");
+    std::fs::write(
+        &fixture,
+        source.replace(
+            "ENDSEC;\nEND-ISO-10303-21;",
+            &format!("{occurrence}ENDSEC;\nEND-ISO-10303-21;"),
+        ),
+    )
+    .unwrap();
+    fixture
 }
 
 fn close(left: [f32; 3], right: [f32; 3]) -> bool {

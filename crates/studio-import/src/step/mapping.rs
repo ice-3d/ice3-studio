@@ -101,6 +101,7 @@ pub(super) fn project_model(
         }
     }
     projection.append_pending_mesh_nodes()?;
+    projection.annotate_shared_instances();
 
     if projection.nodes.len() > limits.max_nodes {
         return Err(ImportError::LimitExceeded(format!(
@@ -270,6 +271,35 @@ impl Projection<'_> {
             });
         }
         Ok(())
+    }
+
+    fn annotate_shared_instances(&mut self) {
+        let mut mesh_counts = BTreeMap::<usize, usize>::new();
+        for node in &self.nodes {
+            if let Some(mesh) = node.mesh {
+                *mesh_counts.entry(mesh).or_default() += 1;
+            }
+        }
+        let instance_prefix = format!("{}/step/instance", self.asset_id);
+        for node in &mut self.nodes {
+            let Some(mesh) = node.mesh else {
+                continue;
+            };
+            if mesh_counts.get(&mesh).copied().unwrap_or(0) <= 1 {
+                continue;
+            }
+            let Some(step) = node
+                .extras
+                .pointer_mut("/ice3/step")
+                .and_then(Value::as_object_mut)
+            else {
+                continue;
+            };
+            step.insert(
+                "instanceGroup".into(),
+                json!(format!("{instance_prefix}/{mesh}")),
+            );
+        }
     }
 
     fn ensure_part_mesh(&mut self, part_index: usize) -> Result<Option<usize>, ImportError> {
@@ -677,6 +707,14 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(pump_nodes.len(), 2);
         assert_eq!(pump_nodes[0].mesh, pump_nodes[1].mesh);
+        assert_eq!(
+            pump_nodes[0].extras["ice3"]["step"]["instanceGroup"],
+            pump_nodes[1].extras["ice3"]["step"]["instanceGroup"]
+        );
+        assert_eq!(
+            pump_nodes[0].extras["ice3"]["step"]["instanceGroup"],
+            "step-instances/step/instance/0"
+        );
         assert_eq!(scene.meshes.len(), 1);
         assert!(
             pump_nodes[0].extras["ice3"]["step"]

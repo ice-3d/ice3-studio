@@ -23,10 +23,23 @@ const baselinePath = join(
   studioRoot,
   'fixtures/parity/step-baseline-v1.json',
 );
+const instancedBaselinePath = join(
+  studioRoot,
+  'fixtures/parity/step-instanced-baseline-v1.json',
+);
 const reportPath = join(studioRoot, 'output/step-import-parity.json');
 const nativeCli = join(studioRoot, 'target/debug/studio-cli');
 const assetId = 'parity-step';
+const instancedAssetId = 'parity-step-instances';
 const mode = process.argv[2] ?? '--compare';
+const repeatedOccurrence = `#300 = CONTEXT_DEPENDENT_SHAPE_REPRESENTATION(#301,#303);
+#301 = ( REPRESENTATION_RELATIONSHIP('','',#36,#10)
+REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION(#302)
+SHAPE_REPRESENTATION_RELATIONSHIP() );
+#302 = ITEM_DEFINED_TRANSFORMATION('','',#11,#15);
+#303 = PRODUCT_DEFINITION_SHAPE('Placement','Placement of an item',#304);
+#304 = NEXT_ASSEMBLY_USAGE_OCCURRENCE('3','PrimaryTank Repeat','',#5,#31,$);
+`;
 
 if (!['--compare', '--capture'].includes(mode)) {
   console.error('usage: node scripts/compare-step-imports.mjs [--compare|--capture]');
@@ -83,6 +96,8 @@ async function captureBaseline() {
           nodeCount: summary.nodeCount,
           maxNodeDepth: report.metrics.maxNodeDepth,
           meshCount: summary.meshCount,
+          meshNodeCount: summary.meshNodeCount,
+          sharedMeshNodeCount: summary.sharedMeshNodeCount,
           primitiveCount: report.metrics.primitiveCount,
           triangleCount: summary.triangleCount,
           vertexCount: summary.vertexCount,
@@ -115,6 +130,76 @@ async function captureBaseline() {
       stats: baseline.legacy.stats,
       surfaceArea: baseline.legacy.surfaceArea,
     }, null, 2));
+
+    const instancedFixturePath = join(temporaryRoot, 'instanced.step');
+    const instancedOutputPath = join(temporaryRoot, 'instanced.glb');
+    const instancedReportFile = join(temporaryRoot, 'instanced.report.json');
+    await writeInstancedFixture(instancedFixturePath);
+    const instancedCommand = spawnSync('node', [
+      '--import', 'tsx', 'packages/cli/src/main.ts', 'import',
+      instancedFixturePath,
+      '--output', instancedOutputPath,
+      '--report', instancedReportFile,
+      '--asset-id', instancedAssetId,
+      '--adapter', 'step',
+      '--json',
+    ], {
+      cwd: toolchainRoot,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (instancedCommand.status !== 0) {
+      throw new Error(
+        `Toolchain STEP instance baseline failed:\n${instancedCommand.stderr}\n${instancedCommand.stdout}`,
+      );
+    }
+    const [instancedSource, instancedReportBytes, instancedOutput] =
+      await Promise.all([
+        readFile(instancedFixturePath),
+        readFile(instancedReportFile),
+        readFile(instancedOutputPath),
+      ]);
+    const instancedReport = JSON.parse(instancedReportBytes.toString('utf8'));
+    const instancedSummary = summarizeGlb(parseGlb(instancedOutput));
+    const instancedBaseline = {
+      kind: 'ice3-step-import-instance-baseline',
+      schemaVersion: '1.0',
+      generator: 'append one PrimaryTank usage occurrence to synthetic-skid.step',
+      assetId: instancedAssetId,
+      sourceDigest: sha256(instancedSource),
+      legacy: {
+        tool: instancedReport.tool,
+        adapter: instancedReport.adapter,
+        stats: {
+          nodeCount: instancedSummary.nodeCount,
+          meshCount: instancedSummary.meshCount,
+          meshNodeCount: instancedSummary.meshNodeCount,
+          sharedMeshNodeCount: instancedSummary.sharedMeshNodeCount,
+          triangleCount: instancedSummary.triangleCount,
+          vertexCount: instancedSummary.vertexCount,
+          instanceNodeCount: instancedSummary.instanceNodeCount,
+          semanticMaterialCount: instancedSummary.materials.length,
+        },
+        nodeNames: instancedSummary.nodeNames,
+        selectionIds: instancedSummary.selectionIds,
+        bounds: instancedSummary.bounds,
+        materials: instancedSummary.materials,
+        warningCodes: warningCodes(instancedReport.adapter.warnings),
+      },
+      normalizationRules: [
+        'The legacy bridge duplicates repeated part geometry into separate meshes; native STEP must reuse the source mesh and report at least two shared-instance nodes.',
+      ],
+    };
+    assertInstancedBaseline(instancedBaseline);
+    await writeFile(
+      instancedBaselinePath,
+      `${JSON.stringify(instancedBaseline, null, 2)}\n`,
+    );
+    console.log(JSON.stringify({
+      status: 'captured',
+      baseline: relative(studioRoot, instancedBaselinePath),
+      stats: instancedBaseline.legacy.stats,
+    }, null, 2));
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
@@ -124,6 +209,7 @@ async function compareNative() {
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-step-parity-'));
   try {
     ensureNativeCli();
+    assertBoundsComparatorRejectsTranslation();
     const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
     const outputPath = join(temporaryRoot, 'native-step.glb');
     const command = runNativeImport({
@@ -166,6 +252,11 @@ async function compareNative() {
         native: native.meshCount,
         equal: legacy.stats.meshCount === native.meshCount,
       },
+      meshNodeCount: {
+        baseline: legacy.stats.meshNodeCount,
+        native: native.meshNodeCount,
+        equal: legacy.stats.meshNodeCount === native.meshNodeCount,
+      },
       instanceNodeCount: {
         baseline: legacy.stats.instanceNodeCount,
         native: native.instanceNodeCount,
@@ -183,8 +274,19 @@ async function compareNative() {
       },
       normalizedBounds: {
         baseline: normalizeBounds(legacy.bounds),
-        native: normalizeBounds(native.bounds),
-        equal: normalizedBoundsClose(legacy.bounds, native.bounds),
+        native: {
+          sourceOrigin: native.sourceOrigin,
+          min: native.bounds.min,
+          max: native.bounds.max,
+        },
+        equal: normalizedBoundsClose(
+          normalizeBounds(legacy.bounds),
+          {
+            sourceOrigin: native.sourceOrigin,
+            min: native.bounds.min,
+            max: native.bounds.max,
+          },
+        ),
       },
       surfaceArea: {
         baseline: legacy.surfaceArea,
@@ -208,6 +310,8 @@ async function compareNative() {
     const failures = Object.entries(comparisons)
       .filter(([, value]) => value.equal !== true)
       .map(([key]) => key);
+    const instanceCorpus = await compareInstanceCorpus(temporaryRoot);
+    failures.push(...instanceCorpus.failures.map((failure) => `instanceCorpus.${failure}`));
     const report = {
       kind: 'ice3-step-import-parity',
       schemaVersion: '1.0',
@@ -217,6 +321,7 @@ async function compareNative() {
       sourceDigest: comparisons.sourceDigest.native,
       byteDigest: sha256(nativeBytes),
       comparisons,
+      instanceCorpus,
       allowedDifferences: [
         {
           key: 'triangleCount',
@@ -246,9 +351,36 @@ function assertBaseline(value) {
   if (value.kind !== 'ice3-step-import-baseline') throw new Error('baseline kind');
   if (value.legacy.stats.nodeCount !== 6) throw new Error('node baseline');
   if (value.legacy.stats.meshCount !== 2) throw new Error('mesh baseline');
+  if (value.legacy.stats.meshNodeCount !== 2) throw new Error('mesh node baseline');
   if (value.legacy.stats.triangleCount !== 188) throw new Error('triangle baseline');
   if (value.legacy.selectionIds.length !== 6) throw new Error('selection baseline');
   if (!(value.legacy.surfaceArea > 0)) throw new Error('surface area baseline');
+}
+
+function assertInstancedBaseline(value) {
+  if (value.kind !== 'ice3-step-import-instance-baseline') {
+    throw new Error('instance baseline kind');
+  }
+  if (value.legacy.stats.nodeCount !== 8) throw new Error('instance node baseline');
+  if (value.legacy.stats.meshNodeCount !== 3) throw new Error('instance mesh node baseline');
+  if (value.legacy.stats.instanceNodeCount !== 0) {
+    throw new Error('legacy instance metadata baseline');
+  }
+}
+
+function assertBoundsComparatorRejectsTranslation() {
+  const baseline = normalizeBounds({
+    min: [0, 0, -1],
+    max: [2, 1, 1],
+  });
+  const translated = {
+    sourceOrigin: [1, 0, -1],
+    min: [1, 0, 0],
+    max: [3, 1, 2],
+  };
+  if (normalizedBoundsClose(baseline, translated)) {
+    throw new Error('bounds comparator accepted a translated model');
+  }
 }
 
 function ensureNativeCli() {
@@ -291,6 +423,128 @@ function runNativeImport({
     throw new Error(`native STEP import failed:\n${result.stderr}\n${result.stdout}`);
   }
   return JSON.parse(result.stdout);
+}
+
+async function compareInstanceCorpus(temporaryRoot) {
+  const root = join(temporaryRoot, 'instance-corpus');
+  await mkdir(root, { recursive: true });
+  const instancedFixturePath = join(root, 'instanced.step');
+  const outputPath = join(root, 'instanced.glb');
+  await writeInstancedFixture(instancedFixturePath);
+  const baseline = JSON.parse(await readFile(instancedBaselinePath, 'utf8'));
+  const command = runNativeImport({
+    fixture: instancedFixturePath,
+    output: outputPath,
+    adapter: 'step',
+    assetId: instancedAssetId,
+  });
+  const [sourceBytes, nativeBytes] = await Promise.all([
+    readFile(instancedFixturePath),
+    readFile(outputPath),
+  ]);
+  const native = summarizeGlb(parseGlb(nativeBytes));
+  const legacy = baseline.legacy;
+  const normalizedLegacyBounds = normalizeBounds(legacy.bounds);
+  const normalizedNativeBounds = {
+    sourceOrigin: native.sourceOrigin,
+    min: native.bounds.min,
+    max: native.bounds.max,
+  };
+  const triangleRatio = native.triangleCount / legacy.stats.triangleCount;
+  const comparisons = {
+    sourceDigest: {
+      baseline: baseline.sourceDigest,
+      native: sha256(sourceBytes),
+      equal: baseline.sourceDigest === sha256(sourceBytes),
+    },
+    nodeCount: {
+      baseline: legacy.stats.nodeCount,
+      native: native.nodeCount,
+      equal: legacy.stats.nodeCount === native.nodeCount,
+    },
+    meshNodeCount: {
+      baseline: legacy.stats.meshNodeCount,
+      native: native.meshNodeCount,
+      equal: legacy.stats.meshNodeCount === native.meshNodeCount,
+    },
+    businessNames: {
+      baseline: normalizeRepeatedNames(legacy.nodeNames),
+      native: normalizeRepeatedNames(native.nodeNames),
+      equal: JSON.stringify(normalizeRepeatedNames(legacy.nodeNames))
+        === JSON.stringify(normalizeRepeatedNames(native.nodeNames)),
+    },
+    selectionIds: {
+      baseline: legacy.selectionIds,
+      native: native.selectionIds,
+      equal: selectionIdsEquivalent(
+        legacy.selectionIds,
+        native.selectionIds,
+        instancedAssetId,
+      ),
+    },
+    sharedMeshInstances: {
+      baseline: legacy.stats.sharedMeshNodeCount,
+      native: native.sharedMeshNodeCount,
+      equal: native.sharedMeshNodeCount >= 2,
+    },
+    instanceGroups: {
+      baseline: legacy.stats.instanceNodeCount,
+      native: native.instanceNodeCount,
+      equal: native.instanceNodeCount >= 2,
+    },
+    materials: {
+      baseline: legacy.materials,
+      native: native.materials,
+      equal: materialsClose(legacy.materials, native.materials),
+    },
+    normalizedBounds: {
+      baseline: normalizedLegacyBounds,
+      native: normalizedNativeBounds,
+      equal: normalizedBoundsClose(
+        normalizedLegacyBounds,
+        normalizedNativeBounds,
+      ),
+    },
+    triangleCount: {
+      baseline: legacy.stats.triangleCount,
+      native: native.triangleCount,
+      ratio: triangleRatio,
+      equal: triangleRatio >= 0.75 && triangleRatio <= 1.33,
+    },
+    warningCodes: {
+      baseline: legacy.warningCodes,
+      native: warningCodes(command.warnings),
+      equal: JSON.stringify(legacy.warningCodes)
+        === JSON.stringify(warningCodes(command.warnings)),
+    },
+  };
+  const failures = Object.entries(comparisons)
+    .filter(([, value]) => value.equal !== true)
+    .map(([key]) => key);
+  return {
+    status: failures.length === 0 ? 'pass' : 'fail',
+    fixture: 'generated:synthetic-skid+repeated-tank-occurrence',
+    sourceDigest: comparisons.sourceDigest.native,
+    byteDigest: sha256(nativeBytes),
+    comparisons,
+    failures,
+  };
+}
+
+function normalizeRepeatedNames(names) {
+  return names
+    .map((name) => name.replace(/\[\d+\]$/u, ''))
+    .sort((left, right) => left.localeCompare(right, 'en'));
+}
+
+async function writeInstancedFixture(path) {
+  const source = await readFile(fixturePath, 'utf8');
+  const marker = 'ENDSEC;\nEND-ISO-10303-21;';
+  if (!source.includes(marker)) throw new Error('STEP fixture terminator is missing');
+  await writeFile(
+    path,
+    source.replace(marker, `${repeatedOccurrence}${marker}`),
+  );
 }
 
 async function runNegativeCorpus(temporaryRoot) {
@@ -384,18 +638,36 @@ async function expectFailure(root, name, options) {
 }
 
 function normalizeBounds(bounds) {
+  const sourceOrigin = [bounds.min[0], 0, bounds.min[2]];
   return {
-    min: [0, 0, 0],
-    max: bounds.max.map((value, axis) => value - bounds.min[axis]),
+    sourceOrigin,
+    min: [0, bounds.min[1], 0],
+    max: [
+      bounds.max[0] - sourceOrigin[0],
+      bounds.max[1],
+      bounds.max[2] - sourceOrigin[2],
+    ],
   };
 }
 
 function normalizedBoundsClose(left, right) {
+  if (!Array.isArray(left.sourceOrigin) || !Array.isArray(right.sourceOrigin)) {
+    return false;
+  }
   return [0, 1, 2].every((axis) => {
-    const leftExtent = left.max[axis] - left.min[axis];
-    const rightExtent = right.max[axis] - right.min[axis];
-    const tolerance = Math.max(0.0001, Math.abs(leftExtent) * 0.00001);
-    return Math.abs(leftExtent - rightExtent) <= tolerance;
+    if (
+      !Number.isFinite(left.sourceOrigin[axis])
+      || !Number.isFinite(right.sourceOrigin[axis])
+    ) {
+      return false;
+    }
+    const extent = Math.abs(left.max[axis] - left.min[axis]);
+    const tolerance = Math.max(0.0001, extent * 0.00001);
+    return (
+      Math.abs(left.sourceOrigin[axis] - right.sourceOrigin[axis]) <= tolerance
+      && Math.abs(left.min[axis] - right.min[axis]) <= tolerance
+      && Math.abs(left.max[axis] - right.max[axis]) <= tolerance
+    );
   });
 }
 
@@ -499,23 +771,42 @@ function summarizeGlb(glb) {
     .map((node) => node.extras?.ice3?.id)
     .filter(Boolean)
     .sort();
+  const meshNodes = nodes.filter((node) => Number.isInteger(node.mesh));
+  const meshReferenceCounts = new Map();
+  for (const node of meshNodes) {
+    meshReferenceCounts.set(
+      node.mesh,
+      (meshReferenceCounts.get(node.mesh) ?? 0) + 1,
+    );
+  }
   const instanceNodeCount = nodes.filter(
-    (node) => node.extras?.ice3?.instanceGroup !== undefined,
+    (node) => node.extras?.ice3?.step?.instanceGroup !== undefined,
   ).length;
   const bounds = glb.json.asset?.extras?.ice3?.bounds;
   if (!bounds) throw new Error('Prepared GLB bounds are missing');
+  const sourceOrigin = (
+    glb.json.asset?.extras?.ice3?.step?.sourceOrigin
+    ?? glb.json.asset?.extras?.ice3?.ice3?.step?.sourceOrigin
+  );
   return {
     nodeCount: nodes.length,
     meshCount: meshes.length,
     triangleCount,
     vertexCount: [...positionAccessors]
       .reduce((total, index) => total + glb.json.accessors[index].count, 0),
+    meshNodeCount: meshNodes.length,
+    sharedMeshNodeCount: meshNodes.filter(
+      (node) => meshReferenceCounts.get(node.mesh) > 1,
+    ).length,
     instanceNodeCount,
     edgeSegmentCount,
     surfaceArea,
     nodeNames,
     selectionIds,
     bounds,
+    sourceOrigin: Array.isArray(sourceOrigin) && sourceOrigin.length === 3
+      ? sourceOrigin
+      : null,
     materials,
   };
 }

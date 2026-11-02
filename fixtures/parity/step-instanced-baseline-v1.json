@@ -1,0 +1,91 @@
+{
+  "kind": "ice3-step-import-instance-baseline",
+  "schemaVersion": "1.0",
+  "generator": "append one PrimaryTank usage occurrence to synthetic-skid.step",
+  "assetId": "parity-step-instances",
+  "sourceDigest": "a68f05b6b6a44ee16e1f8ca811aa1d01ce01d8f8e8bdd4a33596c8c77f952660",
+  "legacy": {
+    "tool": {
+      "name": "ice3-toolchain",
+      "version": "0.2.0"
+    },
+    "adapter": {
+      "id": "step",
+      "sourceFormat": "step-ap242",
+      "capabilities": {
+        "hierarchy": true,
+        "vertexColors": false,
+        "materialColors": true,
+        "instances": false,
+        "semanticMetadata": false
+      },
+      "warnings": []
+    },
+    "stats": {
+      "nodeCount": 8,
+      "meshCount": 3,
+      "meshNodeCount": 3,
+      "sharedMeshNodeCount": 0,
+      "triangleCount": 200,
+      "vertexCount": 834,
+      "instanceNodeCount": 0,
+      "semanticMaterialCount": 2
+    },
+    "nodeNames": [
+      "step/node/0",
+      "SyntheticSkid",
+      "PrimaryTank",
+      "TransferPump",
+      "PrimaryTank[1]",
+      "PrimaryTank[2]",
+      "TransferPump[1]",
+      "PrimaryTank[3]"
+    ],
+    "selectionIds": [
+      "parity-step-instances/node/0",
+      "parity-step-instances/node/1",
+      "parity-step-instances/node/2",
+      "parity-step-instances/node/3",
+      "parity-step-instances/node/4",
+      "parity-step-instances/node/5",
+      "parity-step-instances/node/6",
+      "parity-step-instances/node/7"
+    ],
+    "bounds": {
+      "min": [
+        0,
+        0,
+        -0.699999988079071
+      ],
+      "max": [
+        2.009999990463257,
+        0.8999999761581421,
+        0.2598416209220886
+      ]
+    },
+    "materials": [
+      {
+        "name": "step/material/0",
+        "baseColorFactor": [
+          0.1599999991998655,
+          0.48000000468553666,
+          0.7200000033238447,
+          1
+        ]
+      },
+      {
+        "name": "step/material/1",
+        "baseColorFactor": [
+          0.9200000123974647,
+          0.5600000132598122,
+          0.12000000139546163,
+          1
+        ]
+      }
+    ],
+    "warningCodes": []
+  },
+  "normalizationRules": [
+    "The legacy bridge duplicates repeated part geometry into separate meshes; native STEP must reuse the source mesh and report at least two shared-instance nodes."
+  ]
+}
