@@ -25,5 +25,6 @@ tokio.workspace = true
 studio-assets = { path = "../studio-assets" }
 studio-core = { path = "../studio-core" }
 studio-import = { path = "../studio-import", default-features = false }
+studio-pipeline = { path = "../studio-pipeline" }
 studio-project = { path = "../studio-project" }
 studio-server = { path = "../studio-server" }

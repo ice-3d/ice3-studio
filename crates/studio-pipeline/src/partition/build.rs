@@ -1069,7 +1069,7 @@ impl PartWriter {
                 "name": "default",
                 "extras": {
                     "ice3": {
-                        "id": format!("{asset_id}/material/default")
+                            "id": format!("{asset_id}/material/__reserved__/default")
                     }
                 }
             }));
@@ -1081,7 +1081,7 @@ impl PartWriter {
                 "name": "default edges",
                 "extras": {
                     "ice3": {
-                        "id": format!("{asset_id}/material/default/edges")
+                            "id": format!("{asset_id}/material/__reserved__/default/edges")
                     }
                 }
             }));
@@ -1093,7 +1093,7 @@ impl PartWriter {
                 "name": "vertex colors",
                 "extras": {
                     "ice3": {
-                        "id": format!("{asset_id}/material/vertex-colors")
+                            "id": format!("{asset_id}/material/__reserved__/vertex-colors")
                     }
                 }
             }));
@@ -1180,6 +1180,7 @@ impl PartWriter {
             if !matches!(mode, 4..=6) {
                 continue;
             }
+            let source_triangle_count = primitive_triangles(source, &primitive)?;
             let attributes = primitive
                 .get("attributes")
                 .and_then(Value::as_object)
@@ -1230,10 +1231,8 @@ impl PartWriter {
                     "indices".into(),
                     Value::from(self.copy_accessor(source, old)?),
                 );
-                triangles += primitive_triangles(source, &primitive)?;
-            } else {
-                triangles += primitive_triangles(source, &primitive)?;
             }
+            triangles += source_triangle_count;
             let source_material_index = primitive
                 .get("material")
                 .and_then(Value::as_u64)
@@ -1471,7 +1470,16 @@ impl PartWriter {
         }
         self.align();
         let digest = format!("{:x}", Sha256::digest(&self.binary));
+        let final_primitive_count = json["meshes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|mesh| mesh["primitives"].as_array())
+            .map(|primitives| primitives.len() as u64)
+            .sum::<u64>();
         json["asset"]["extras"]["ice3"]["contentDigest"]["value"] = Value::from(digest);
+        json["asset"]["extras"]["ice3"]["stats"]["primitiveCount"] =
+            Value::from(final_primitive_count);
         json["asset"]["extras"]["ice3"]["stats"]["edgeSegmentCount"] =
             Value::from(edge_segment_count);
         json["asset"]["extras"]["ice3"]["stats"]["edgeBytes"] = Value::from(edge_bytes);

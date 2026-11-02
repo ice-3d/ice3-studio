@@ -1,5 +1,5 @@
 use serde_json::{Value, json};
-use studio_assets::read_glb_bytes;
+use studio_assets::{read_glb_bytes, validate_prepared_profile};
 use studio_pipeline::{
     AssetProfile, RenderBatchMode, SemanticProxyMode, build_with_profile, lod::LodAllocationMode,
 };
@@ -16,6 +16,7 @@ fn fine_partition_glb_contains_edge_line_primitives() {
         .unwrap();
     let parsed = read_glb_bytes(&part.bytes, &std::env::temp_dir()).unwrap();
 
+    validate_prepared_profile(&parsed).unwrap();
     assert!(has_edge_primitive(&parsed.json));
     assert!(
         parsed.json["asset"]["extras"]["ice3"]["stats"]["edgeSegmentCount"]
