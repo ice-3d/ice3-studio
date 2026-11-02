@@ -82,6 +82,7 @@ pub(crate) struct BuiltLeaf {
 pub(crate) fn append_edges_to_primitive(
     json: &mut Value,
     binary: &mut Vec<u8>,
+    target_mesh_index: usize,
     positions_accessor: usize,
     positions: &[[f32; 3]],
     indices: &[u32],
@@ -145,7 +146,23 @@ pub(crate) fn append_edges_to_primitive(
     while !binary.len().is_multiple_of(4) {
         binary.push(0);
     }
-    let edge_bytes = bytemuck::cast_slice(&edge_indices);
+    let (edge_bytes, component_type) = if positions.len() <= u16::MAX as usize {
+        (
+            edge_indices
+                .iter()
+                .flat_map(|index| (*index as u16).to_le_bytes())
+                .collect::<Vec<_>>(),
+            5123,
+        )
+    } else {
+        (
+            edge_indices
+                .iter()
+                .flat_map(|index| index.to_le_bytes())
+                .collect::<Vec<_>>(),
+            5125,
+        )
+    };
     let buffer_views = json
         .get_mut("bufferViews")
         .and_then(Value::as_array_mut)
@@ -157,7 +174,7 @@ pub(crate) fn append_edges_to_primitive(
         "byteLength": edge_bytes.len(),
         "target": 34963
     }));
-    binary.extend_from_slice(edge_bytes);
+    binary.extend_from_slice(&edge_bytes);
 
     let accessors = json
         .get_mut("accessors")
@@ -166,7 +183,7 @@ pub(crate) fn append_edges_to_primitive(
     let edge_accessor = accessors.len();
     accessors.push(json!({
         "bufferView": buffer_view_index,
-        "componentType": 5125,
+        "componentType": component_type,
         "count": edge_indices.len(),
         "type": "SCALAR"
     }));
@@ -176,21 +193,8 @@ pub(crate) fn append_edges_to_primitive(
         .and_then(Value::as_array_mut)
         .ok_or_else(|| PipelineError::Tileset("part meshes are missing".into()))?;
     let target_mesh = meshes
-        .iter_mut()
-        .rev()
-        .find(|mesh| {
-            mesh.get("primitives")
-                .and_then(Value::as_array)
-                .is_some_and(|primitives| {
-                    primitives.iter().any(|primitive| {
-                        primitive
-                            .pointer("/attributes/POSITION")
-                            .and_then(Value::as_u64)
-                            == Some(positions_accessor as u64)
-                    })
-                })
-        })
-        .ok_or_else(|| PipelineError::Tileset("edge target primitive is missing".into()))?;
+        .get_mut(target_mesh_index)
+        .ok_or_else(|| PipelineError::Tileset("edge target mesh is missing".into()))?;
     let primitives = target_mesh
         .get_mut("primitives")
         .and_then(Value::as_array_mut)
@@ -1325,4 +1329,272 @@ fn part_triangle_count(file: &PartitionFile) -> Result<u64, PipelineError> {
         }
     }
     Ok(total)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use serde_json::{Value, json};
+
+    use super::append_edges_to_primitive;
+
+    fn edge_fixture(meshes: Value, materials: Option<Value>) -> Value {
+        json!({
+            "materials": materials.unwrap_or_else(|| json!([
+                {
+                    "name": "concrete",
+                    "extras": {"ice3": {}}
+                },
+                {
+                    "name": "concrete edges",
+                    "extras": {"ice3": {"id": "test/materials/concrete/edges"}}
+                }
+            ])),
+            "meshes": meshes,
+            "bufferViews": [],
+            "accessors": [{
+                "componentType": 5126,
+                "count": 3,
+                "type": "VEC3"
+            }]
+        })
+    }
+
+    fn triangle_mesh() -> Value {
+        json!([{
+            "primitives": [{
+                "attributes": {"POSITION": 0}
+            }]
+        }])
+    }
+
+    fn triangle_positions() -> Vec<[f32; 3]> {
+        vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
+    }
+
+    fn edge_accessor(json: &Value) -> &Value {
+        let accessors = json["accessors"].as_array().unwrap();
+        &accessors[accessors.len() - 1]
+    }
+
+    fn edge_bytes<'a>(json: &Value, binary: &'a [u8]) -> &'a [u8] {
+        let accessor = edge_accessor(json);
+        let view_index = accessor["bufferView"].as_u64().unwrap() as usize;
+        let view = &json["bufferViews"][view_index];
+        let offset = view["byteOffset"].as_u64().unwrap() as usize;
+        let length = view["byteLength"].as_u64().unwrap() as usize;
+        &binary[offset..offset + length]
+    }
+
+    fn decoded_u16_edges(json: &Value, binary: &[u8]) -> BTreeSet<(u16, u16)> {
+        edge_bytes(json, binary)
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|pair| {
+                let edge = [
+                    u16::from_le_bytes([pair[0], pair[1]]),
+                    u16::from_le_bytes([pair[2], pair[3]]),
+                ];
+                if edge[0] <= edge[1] {
+                    (edge[0], edge[1])
+                } else {
+                    (edge[1], edge[0])
+                }
+            })
+            .collect()
+    }
+
+    fn decoded_u32_edges(json: &Value, binary: &[u8]) -> BTreeSet<(u32, u32)> {
+        edge_bytes(json, binary)
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .map(|pair| {
+                let edge = [
+                    u32::from_le_bytes(pair[..4].try_into().unwrap()),
+                    u32::from_le_bytes(pair[4..].try_into().unwrap()),
+                ];
+                if edge[0] <= edge[1] {
+                    (edge[0], edge[1])
+                } else {
+                    (edge[1], edge[0])
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn writes_u16_edges_for_small_meshes() {
+        let positions = triangle_positions();
+        let mut json = edge_fixture(triangle_mesh(), None);
+        let mut binary = Vec::new();
+
+        let segments = append_edges_to_primitive(
+            &mut json,
+            &mut binary,
+            0,
+            0,
+            &positions,
+            &[0, 1, 2],
+            0,
+            1,
+            30.0,
+        )
+        .unwrap();
+
+        assert_eq!(segments, 3);
+        assert_eq!(edge_accessor(&json)["componentType"], 5123);
+        assert_eq!(edge_accessor(&json)["count"], 6);
+        assert_eq!(
+            decoded_u16_edges(&json, &binary),
+            BTreeSet::from([(0, 1), (0, 2), (1, 2)])
+        );
+    }
+
+    #[test]
+    fn writes_u32_edges_above_u16_vertex_limit() {
+        let mut positions = vec![[0.0, 0.0, 0.0]; u16::MAX as usize + 1];
+        positions[1] = [1.0, 0.0, 0.0];
+        positions[u16::MAX as usize] = [0.0, 1.0, 0.0];
+        let mut json = edge_fixture(triangle_mesh(), None);
+        let mut binary = Vec::new();
+
+        let segments = append_edges_to_primitive(
+            &mut json,
+            &mut binary,
+            0,
+            0,
+            &positions,
+            &[0, 1, u16::MAX as u32],
+            0,
+            1,
+            30.0,
+        )
+        .unwrap();
+
+        assert_eq!(segments, 3);
+        assert_eq!(edge_accessor(&json)["componentType"], 5125);
+        assert_eq!(edge_accessor(&json)["count"], 6);
+        assert_eq!(
+            decoded_u32_edges(&json, &binary),
+            BTreeSet::from([(0, 1), (0, 65_535), (1, 65_535)])
+        );
+    }
+
+    #[test]
+    fn writes_custom_edge_material_role_width_and_color() {
+        let positions = triangle_positions();
+        let materials = json!([
+            {
+                "name": "steel",
+                "extras": {"ice3": {"edgeColor": "#11223380"}}
+            },
+            {
+                "name": "steel edges",
+                "extras": {"ice3": {"id": "test/materials/steel/edges"}}
+            }
+        ]);
+        let mut json = edge_fixture(triangle_mesh(), Some(materials));
+        let mut binary = Vec::new();
+
+        append_edges_to_primitive(
+            &mut json,
+            &mut binary,
+            0,
+            0,
+            &positions,
+            &[0, 1, 2],
+            0,
+            1,
+            30.0,
+        )
+        .unwrap();
+
+        let edge_primitive = &json["meshes"][0]["primitives"][1];
+        assert_eq!(edge_primitive["material"], 1);
+        assert_eq!(edge_primitive["extras"]["ice3"]["role"], "edges");
+        assert_eq!(edge_primitive["extras"]["ice3"]["widthPx"], 3);
+        let color = json["materials"][1]["pbrMetallicRoughness"]["baseColorFactor"]
+            .as_array()
+            .unwrap();
+        let actual = color
+            .iter()
+            .map(|value| value.as_f64().unwrap())
+            .collect::<Vec<_>>();
+        let expected = [17.0 / 255.0, 34.0 / 255.0, 51.0 / 255.0, 128.0 / 255.0];
+        for (actual, expected) in actual.into_iter().zip(expected) {
+            assert!((actual - expected).abs() < 1e-6);
+        }
+        assert_eq!(json["materials"][1]["alphaMode"], "BLEND");
+    }
+
+    #[test]
+    fn suppressed_material_does_not_write_edges() {
+        let positions = triangle_positions();
+        let materials = json!([
+            {
+                "name": "glass",
+                "extras": {"ice3": {"edges": false}}
+            },
+            {
+                "name": "glass edges",
+                "extras": {"ice3": {"id": "test/materials/glass/edges"}}
+            }
+        ]);
+        let mut json = edge_fixture(triangle_mesh(), Some(materials));
+        let original = json.clone();
+        let mut binary = Vec::new();
+
+        let segments = append_edges_to_primitive(
+            &mut json,
+            &mut binary,
+            0,
+            0,
+            &positions,
+            &[0, 1, 2],
+            0,
+            1,
+            30.0,
+        )
+        .unwrap();
+
+        assert_eq!(segments, 0);
+        assert!(binary.is_empty());
+        assert_eq!(json, original);
+    }
+
+    #[test]
+    fn appends_edges_to_the_explicit_mesh_when_accessor_is_shared() {
+        let positions = triangle_positions();
+        let meshes = json!([
+            {
+                "name": "first",
+                "primitives": [{"attributes": {"POSITION": 0}}]
+            },
+            {
+                "name": "second",
+                "primitives": [{"attributes": {"POSITION": 0}}]
+            }
+        ]);
+        let mut json = edge_fixture(meshes, None);
+        let mut binary = Vec::new();
+
+        append_edges_to_primitive(
+            &mut json,
+            &mut binary,
+            0,
+            0,
+            &positions,
+            &[0, 1, 2],
+            0,
+            1,
+            30.0,
+        )
+        .unwrap();
+
+        assert_eq!(json["meshes"][0]["primitives"].as_array().unwrap().len(), 2);
+        assert_eq!(json["meshes"][1]["primitives"].as_array().unwrap().len(), 1);
+    }
 }
