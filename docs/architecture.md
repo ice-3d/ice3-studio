@@ -85,12 +85,14 @@ base directory 内解析外部资源。Draco primitive 在读取阶段物化为�
   shared Mesh、颜色、实例和有界 custom properties。
 - `usd`：`.usda`、`.usdc`，native stage 在隔离 worker 中保留 prim path、层级、
   instance/prototype、Geometry、颜色和有界 metadata。
+- `step`：`.step`、`.stp`，原生 AP242 reader 在隔离 worker 中保留 product/assembly
+  层级、occurrence 矩阵、shared Mesh、逐面颜色、Selection 和单位归一。
 
 adapter 不写 Tileset；`studio-assets::canonical` 把 `SourceScene` 写成 Prepared GLB。
-重要安全边界：外部资源只能读取源文件目录内文件。FBX/USD worker 使用硬 timeout、进程
-崩溃隔离、response/stderr 上限和 post-decode scene budgets；USD composition 额外限制
-递归深度、layer 数量、绝对路径、URI、`..` 和 symlink escape。任何超时、崩溃、协议污染
-或越界资源都失败关闭。
+重要安全边界：外部资源只能读取源文件目录内文件。FBX/USD/STEP worker 使用硬 timeout、
+进程崩溃隔离、response/stderr 上限和 post-decode scene budgets；USD composition 额外
+限制递归深度、layer 数量、绝对路径、URI、`..` 和 symlink escape。任何超时、崩溃、
+协议污染或越界资源都失败关闭。
 
 ### `studio-pipeline`
 
