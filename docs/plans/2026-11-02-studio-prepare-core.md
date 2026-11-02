@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-027
 >
-> Status: Proposed
+> Status: Draft
 >
 > Owner: ICE3 Studio maintainers
 
@@ -53,16 +53,16 @@ Prepare 实现，但默认关闭 edges；新增 `build` 默认开启 edges。
 
 ### Task 1: 固化 legacy Prepare baseline
 
-**Files：**
+**文件：**
 - Create: `fixtures/source-import/gltf/prepare-cube.gltf`
 - Create: `fixtures/parity/prepare-baseline-v1.json`
 - Create: `scripts/compare-prepare-imports.mjs`
 - Create: `scripts/tests/prepare-baseline.test.mjs`
 
-**Interfaces：**
-- Consumes: archived Toolchain source at `ICE3_TOOLCHAIN_ARCHIVE` only during explicit
+**接口：**
+- 消费：archived Toolchain source at `ICE3_TOOLCHAIN_ARCHIVE` only during explicit
   `--capture`.
-- Produces: immutable Studio baseline for default edges, skip edges, crease variants,
+- 产出：immutable Studio baseline for default edges, skip edges, crease variants,
   metrics, budget and report.
 
 - [ ] **Step 1: 写 baseline 失败测试**
@@ -99,7 +99,7 @@ Run:
 node --test scripts/tests/prepare-baseline.test.mjs
 ```
 
-Expected: FAIL because baseline does not exist.
+预期：FAIL because baseline does not exist.
 
 - [ ] **Step 2: 准备 cube source**
 
@@ -113,7 +113,7 @@ node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('fixtures/sou
 sha256sum fixtures/source-import/gltf/prepare-cube.gltf
 ```
 
-Expected: valid glTF 2.0，包含一个 12-triangle cube。
+预期：valid glTF 2.0，包含一个 12-triangle cube。
 
 - [ ] **Step 3: 实现一次性 capture**
 
@@ -137,7 +137,7 @@ node scripts/compare-prepare-imports.mjs --verify-baseline
 node --test scripts/tests/prepare-baseline.test.mjs
 ```
 
-Expected: baseline 写出；连续 capture 的 normalized digest 相同；测试 PASS。
+预期：baseline 写出；连续 capture 的 normalized digest 相同；测试 PASS。
 
 - [ ] **Step 5: 禁止普通测试访问旧仓库**
 
@@ -146,7 +146,7 @@ rg -n "ice3-toolchain|ice3-tool build" scripts/tests fixtures/parity \
   --glob '!prepare-baseline-v1.json'
 ```
 
-Expected: 无输出。只有 capture 脚本可要求外部 archive env。
+预期：无输出。只有 capture 脚本可要求外部 archive env。
 
 - [ ] **Step 6: 提交**
 
@@ -160,15 +160,15 @@ git commit -m "test(studio): capture legacy asset prepare baseline"
 
 ### Task 2: 建立 AssetMetrics、Budget 与 Report 类型
 
-**Files：**
+**文件：**
 - Create: `crates/studio-assets/src/metrics.rs`
 - Create: `crates/studio-assets/src/budget.rs`
 - Create: `crates/studio-assets/src/report.rs`
 - Modify: `crates/studio-assets/src/lib.rs`
 - Create: `crates/studio-assets/tests/asset_budget.rs`
 
-**Interfaces：**
-- Produces:
+**接口：**
+- 产出：
   - `AssetMetrics`
   - `BudgetProfile`, `BudgetLimit`, `BudgetResult`, `BudgetStatus`
   - `PreparationMetadata`
@@ -265,7 +265,7 @@ fn report_is_versioned_and_deterministic() {
 cargo test -p studio-assets --test asset_budget
 ```
 
-Expected: compile failure because types do not exist.
+预期：编译失败，因为类型尚不存在。
 
 - [ ] **Step 4: 实现类型**
 
@@ -312,7 +312,7 @@ cargo test -p studio-assets --test asset_budget
 cargo clippy -p studio-assets --all-targets -- -D warnings
 ```
 
-Expected: PASS。
+预期：PASS。
 
 - [ ] **Step 6: 提交**
 
@@ -325,13 +325,13 @@ git commit -m "feat(studio-assets): define metrics budget and reports"
 
 ### Task 3: 实现确定性 render edges
 
-**Files：**
+**文件：**
 - Create: `crates/studio-assets/src/edges.rs`
 - Modify: `crates/studio-assets/src/lib.rs`
 - Create: `crates/studio-assets/tests/render_edges.rs`
 
-**Interfaces：**
-- Produces:
+**接口：**
+- 产出：
   - `generate_edge_indices(positions: &[[f32; 3]], indices: &[u32], crease_angle_degrees: f32) -> Result<Vec<u32>, AssetError>`
   - `edge_color_from_material(extras: &serde_json::Value) -> Result<[f32; 4], AssetError>`
   - `material_suppresses_edges(extras: &serde_json::Value) -> bool`
@@ -410,7 +410,7 @@ fn resolves_edge_color_and_material_suppression() {
 cargo test -p studio-assets --test render_edges
 ```
 
-Expected: compile failure because edge API is missing.
+预期：编译失败，因为 edge API 尚不存在。
 
 - [ ] **Step 4: 实现算法**
 
@@ -443,7 +443,7 @@ cargo test -p studio-assets --test render_edges
 cargo clippy -p studio-assets --all-targets -- -D warnings
 ```
 
-Expected: PASS；cube 输出 12 edge segments / 24 indices。
+预期：PASS；cube 输出 12 edge segments / 24 indices。
 
 - [ ] **Step 6: 提交**
 
@@ -456,7 +456,7 @@ git commit -m "feat(studio-assets): generate deterministic render edges"
 
 ### Task 4: 引入 PrepareArtifact 并让 canonical writer 输出真实 edges
 
-**Files：**
+**文件：**
 - Create: `crates/studio-assets/src/prepare.rs`
 - Create: `crates/studio-assets/tests/prepare_artifact.rs`
 - Modify: `crates/studio-assets/src/canonical.rs`
@@ -464,10 +464,10 @@ git commit -m "feat(studio-assets): generate deterministic render edges"
 - Modify: `crates/studio-assets/src/metrics.rs`
 - Modify: `crates/studio-assets/src/prepared.rs`
 
-**Interfaces：**
-- Consumes: Task 2 `AssetMetrics/BudgetProfile/BudgetResult/AssetBuildReport`
-- Consumes: Task 3 edge generator/color/suppression
-- Produces:
+**接口：**
+- 消费：Task 2 `AssetMetrics/BudgetProfile/BudgetResult/AssetBuildReport`
+- 消费：Task 3 edge generator/color/suppression
+- 产出：
   - `PrepareOptions`
   - `PrepareArtifact`
   - `prepare_canonical(scene, options) -> Result<PrepareArtifact, AssetError>`
@@ -534,7 +534,7 @@ fn hard_budget_returns_no_publishable_artifact() {
 cargo test -p studio-assets --test prepare_artifact
 ```
 
-Expected: compile failure because PrepareArtifact is missing.
+预期：编译失败，因为 PrepareArtifact 尚不存在。
 
 - [ ] **Step 4: 重构 canonical writer**
 
@@ -571,7 +571,7 @@ cargo test -p studio-assets
 cargo clippy -p studio-assets --all-targets -- -D warnings
 ```
 
-Expected: 全 PASS；现有 writer determinism 测试保持通过。
+预期：全 PASS；现有 writer determinism 测试保持通过。
 
 - [ ] **Step 7: 提交**
 
@@ -584,7 +584,7 @@ git commit -m "feat(studio-assets): emit prepared artifacts with render edges"
 
 ### Task 5: 让 import 使用共享 Prepare 并增加 build/inspect CLI
 
-**Files：**
+**文件：**
 - Modify: `crates/studio-cli/src/import.rs`
 - Create: `crates/studio-cli/src/prepare_command.rs`
 - Modify: `crates/studio-cli/src/lib.rs`
@@ -592,9 +592,9 @@ git commit -m "feat(studio-assets): emit prepared artifacts with render edges"
 - Modify: `crates/studio-cli/Cargo.toml`
 - Create: `crates/studio-cli/tests/prepare_command.rs`
 
-**Interfaces：**
-- Consumes: `prepare_canonical`, `PrepareOptions`, `AssetBuildReport`
-- Produces:
+**接口：**
+- 消费：`prepare_canonical`, `PrepareOptions`, `AssetBuildReport`
+- 产出：
   - `run_build(PrepareCommandOptions) -> Result<PrepareCommandOutput, PrepareCommandError>`
   - `run_inspect(InspectOptions) -> Result<AssetBuildReport, PrepareCommandError>`
   - CLI commands `build`, `inspect`
@@ -664,7 +664,7 @@ fn inspect_source_and_prepared_use_the_same_fields() {
 cargo test -p studio-cli --test prepare_command
 ```
 
-Expected: Clap rejects `build`/`inspect`.
+预期：Clap rejects `build`/`inspect`.
 
 - [ ] **Step 5: 实现 CLI 和共享 import**
 
@@ -718,7 +718,7 @@ cargo test -p studio-cli
 cargo test -p studio-assets
 ```
 
-Expected: PASS。
+预期：PASS。
 
 - [ ] **Step 8: 提交**
 
@@ -731,7 +731,7 @@ git commit -m "feat(studio-cli): build and inspect prepared assets"
 
 ### Task 6: 完成 Prepare parity 和 Phase 6A 文档
 
-**Files：**
+**文件：**
 - Modify: `scripts/compare-prepare-imports.mjs`
 - Modify: `scripts/tests/prepare-baseline.test.mjs`
 - Modify: `scripts/verify.mjs`
@@ -743,9 +743,9 @@ git commit -m "feat(studio-cli): build and inspect prepared assets"
 - Modify: `docs/specs/2026-11-02-studio-asset-prepare-parity-design.md`
 - Modify: `docs/plans/2026-11-02-studio-prepare-core.md`
 
-**Interfaces：**
-- Consumes: passing build/inspect + baseline
-- Produces: Studio-native parity report and Phase 6A status
+**接口：**
+- 消费：passing build/inspect + baseline
+- 产出：Studio-native parity report and Phase 6A status
 
 - [ ] **Step 1: 实现正常 parity 模式**
 
@@ -797,7 +797,7 @@ node --test scripts/tests/prepare-baseline.test.mjs
 PLAYWRIGHT_CHANNEL=chrome npm run verify
 ```
 
-Expected: 全部 PASS，prepare parity `status=pass`。
+预期：全部 PASS，prepare parity `status=pass`。
 
 - [ ] **Step 5: 提交**
 

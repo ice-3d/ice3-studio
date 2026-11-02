@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-028
 >
-> Status: Proposed
+> Status: Draft
 >
 > Owner: ICE3 Studio maintainers
 
@@ -52,18 +52,18 @@
 
 ### Task 1: 扩展 AssetProfile 并接入共享 edge generator
 
-**Files：**
+**文件：**
 - Create: `crates/studio-pipeline/src/profile.rs`
 - Modify: `crates/studio-pipeline/src/lib.rs`
 - Modify: `crates/studio-pipeline/src/tileset.rs`
 - Modify: `crates/studio-pipeline/Cargo.toml`
 - Create: `crates/studio-pipeline/tests/asset_profile.rs`
 
-**Interfaces：**
-- Consumes: `studio_assets::generate_edge_indices`,
+**接口：**
+- 消费：`studio_assets::generate_edge_indices`,
   `studio_assets::edge_color_from_material`,
   `studio_assets::material_suppresses_edges`
-- Produces:
+- 产出：
   - `AssetProfile` with `crease_angle_degrees` and `generate_edges`
   - `AssetProfile::agent_console_v1()`
   - `AssetProfile::direct_partition(...)`
@@ -102,7 +102,7 @@ fn adaptive_semantic_proxy_is_rejected_for_proportional_allocation() {
 cargo test -p studio-pipeline --test asset_profile
 ```
 
-Expected: compile failure because profile module/fields do not exist.
+预期：编译失败，因为 profile 模块和字段尚不存在。
 
 - [ ] **Step 3: 移动并扩展 profile**
 
@@ -139,12 +139,12 @@ pub(crate) fn append_edges_to_primitive(
 
 校验：
 
-- max triangles/bytes > 0；
-- crease 0..=180；
-- LOD ratio `(0,1)`；
-- min <= max；
-- curve samples 4..=32；
-- semantic-proxy requires LOD + adaptive。
+- `max-triangles` / `max-bytes` 必须大于 0；
+- crease 范围必须为 `0..=180`；
+- LOD ratio 必须在 `(0,1)` 内；
+- min 不得大于 max；
+- curve samples 必须在 `4..=32`；
+- semantic-proxy 需要 LOD + adaptive。
 
 - [ ] **Step 6: 运行 GREEN**
 
@@ -154,7 +154,7 @@ cargo test -p studio-pipeline
 cargo clippy -p studio-pipeline --all-targets -- -D warnings
 ```
 
-Expected: PASS。
+预期：PASS。
 
 - [ ] **Step 7: 提交**
 
@@ -167,14 +167,14 @@ git commit -m "feat(studio-pipeline): unify asset profiles and edge config"
 
 ### Task 2: 在 fine、LOD、coarse part GLB 中生成真实 edges
 
-**Files：**
+**文件：**
 - Modify: `crates/studio-pipeline/src/partition/build.rs`
 - Modify: `crates/studio-pipeline/src/tileset.rs`
 - Create: `crates/studio-pipeline/tests/partition_edges.rs`
 
-**Interfaces：**
-- Consumes: Task 1 `AssetProfile` validation and edge writer
-- Produces: PartitionArtifact part files with line primitives and accurate profile stats
+**接口：**
+- 消费：Task 1 `AssetProfile` validation and edge writer
+- 产出：PartitionArtifact part files with line primitives and accurate profile stats
 
 - [ ] **Step 1: 写 fine partition edge 测试**
 
@@ -233,7 +233,7 @@ fn lod_and_coarse_outputs_generate_edges_from_their_own_geometry() {
 cargo test -p studio-pipeline --test partition_edges
 ```
 
-Expected: line primitive 不存在，edge stats 为 0。
+预期：line primitive 不存在，edge stats 为 0。
 
 - [ ] **Step 5: 更新 all part writers**
 
@@ -266,7 +266,7 @@ cargo test -p studio-pipeline
 cargo clippy -p studio-pipeline --all-targets -- -D warnings
 ```
 
-Expected: PASS。
+预期：PASS。
 
 - [ ] **Step 8: 提交**
 
@@ -279,16 +279,16 @@ git commit -m "feat(studio-pipeline): emit render edges in partition outputs"
 
 ### Task 3: 实现任意 Source 的直接 partition orchestration
 
-**Files：**
+**文件：**
 - Create: `crates/studio-cli/src/partition.rs`
 - Modify: `crates/studio-cli/src/lib.rs`
 - Modify: `crates/studio-cli/src/main.rs`
 - Create: `crates/studio-cli/tests/partition_command.rs`
 
-**Interfaces：**
-- Consumes: Studio import registry, shared Prepare, `AssetProfile`,
+**接口：**
+- 消费：Studio import registry, shared Prepare, `AssetProfile`,
   `studio_pipeline::build_with_profile`
-- Produces:
+- 产出：
   - `PartitionOptions`
   - `partition_source(PartitionOptions) -> Result<PartitionOutput, PartitionError>`
   - `ice3-studio partition ...`
@@ -343,7 +343,7 @@ fn partition_writes_tileset_and_part_glbs() {
 cargo test -p studio-cli --test partition_command
 ```
 
-Expected: `partition` subcommand 不存在。
+预期：`partition` subcommand 不存在。
 
 - [ ] **Step 5: 实现 orchestration**
 
@@ -363,11 +363,11 @@ resolve adapter
 
 - [ ] **Step 6: 实现 no-clobber/force**
 
-- default output exists -> `ICE3_STUDIO_ASSET_OUTPUT_EXISTS`
-- force: create staging and backup names in output parent
-- publish success -> remove backup
-- publish failure -> restore backup
-- no partial output directory remains
+- 默认 output 已存在时返回 `ICE3_STUDIO_ASSET_OUTPUT_EXISTS`；
+- force 模式在 output parent 创建 staging 和 backup；
+- 发布成功时删除 backup；
+- 发布失败时恢复 backup；
+- 不得留下部分 output directory。
 
 - [ ] **Step 7: 运行 GREEN**
 
@@ -376,7 +376,7 @@ cargo test -p studio-cli --test partition_command
 cargo test -p studio-cli
 ```
 
-Expected: PASS。
+预期：PASS。
 
 - [ ] **Step 8: 提交**
 
@@ -389,15 +389,15 @@ git commit -m "feat(studio-cli): partition arbitrary Studio sources"
 
 ### Task 4: 让 export tileset 使用统一 Profile
 
-**Files：**
+**文件：**
 - Modify: `crates/studio-server/src/runtime_tileset.rs`
 - Modify: `crates/studio-server/tests/runtime_tileset.rs`
 - Modify: `crates/studio-cli/src/main.rs`
 - Modify: `crates/studio-server/Cargo.toml`
 
-**Interfaces：**
-- Consumes: `AssetProfile::agent_console_v1()` and shared pipeline edges
-- Produces: Runtime Tileset parts/coarse with edges, accurate stats and digest
+**接口：**
+- 消费：`AssetProfile::agent_console_v1()` and shared pipeline edges
+- 产出：Runtime Tileset parts/coarse with edges, accurate stats and digest
 
 - [ ] **Step 1: 写 runtime edge 测试**
 
@@ -429,7 +429,7 @@ fn runtime_tileset_parts_include_render_edges() {
 cargo test -p studio-server --test runtime_tileset
 ```
 
-Expected: part GLB 没有 line primitives。
+预期：part GLB 没有 line primitives。
 
 - [ ] **Step 4: 更新 RuntimeTilesetExporter**
 
@@ -449,7 +449,7 @@ cargo test -p studio-server --test runtime_tileset
 cargo test -p studio-server
 ```
 
-Expected: PASS；bundle digest 稳定；binding manifest 不变。
+预期：PASS；bundle digest 稳定；binding manifest 不变。
 
 - [ ] **Step 6: 提交**
 
@@ -462,7 +462,7 @@ git commit -m "feat(studio-server): include edges in runtime tilesets"
 
 ### Task 5: CLI/partition parity 与 Phase 6B 文档
 
-**Files：**
+**文件：**
 - Create: `scripts/compare-partition-imports.mjs`
 - Create: `scripts/tests/partition-contract.test.mjs`
 - Modify: `scripts/verify.mjs`
@@ -474,32 +474,32 @@ git commit -m "feat(studio-server): include edges in runtime tilesets"
 - Modify: `docs/specs/2026-11-02-studio-asset-prepare-parity-design.md`
 - Modify: `docs/plans/2026-11-02-studio-partition-runtime-parity.md`
 
-**Interfaces：**
-- Consumes: passing direct partition and Runtime Tileset edge tests
-- Produces: deterministic partition parity report and Phase 6B status
+**接口：**
+- 消费：passing direct partition and Runtime Tileset edge tests
+- 产出：deterministic partition parity report and Phase 6B status
 
 - [ ] **Step 1: 写 parity contract**
 
 `compare-partition-imports.mjs` 至少运行：
 
-- direct GLB no LOD；
-- LOD proportional；
-- LOD adaptive；
+- 直接 GLB，无 LOD；
+- proportional LOD；
+- adaptive LOD；
 - semantic proxy auto；
-- render batch static；
+- static render batch；
 - chunked coarse；
-- edges on/off。
+- edges 开启/关闭。
 
 比较：
 
-- part/coarse hierarchy；
+- part/coarse 层级；
 - URI；
-- bounds；
+- bounds 边界；
 - Selection；
-- triangle/edge counts；
+- triangle/edge 数量；
 - edge role/width/color；
-- byte budget；
-- deterministic file digests。
+- byte budget 限制；
+- 确定性文件 digest。
 
 - [ ] **Step 2: 写 contract test**
 
@@ -543,7 +543,7 @@ node --test scripts/tests/partition-contract.test.mjs
 PLAYWRIGHT_CHANNEL=chrome npm run verify
 ```
 
-Expected: 全部 PASS。
+预期：全部 PASS。
 
 - [ ] **Step 6: 提交**
 
