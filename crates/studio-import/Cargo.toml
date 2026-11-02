@@ -6,9 +6,10 @@ license.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["fbx", "usd", "step", "ifc"]
+default = ["fbx", "usd", "step", "ifc", "jt"]
 fbx = ["dep:fbx-rs"]
 ifc = ["dep:ifc-lite-core", "dep:ifc-lite-geometry", "dep:ifc-lite-processing"]
+jt = []
 step = ["dep:oxideav-step"]
 usd = ["dep:openusd"]
 

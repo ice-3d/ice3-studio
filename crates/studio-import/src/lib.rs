@@ -5,6 +5,8 @@ mod fbx;
 mod gltf;
 #[cfg(feature = "ifc")]
 mod ifc;
+#[cfg(feature = "jt")]
+mod jt;
 mod limits;
 pub mod obj;
 mod registry;
@@ -23,6 +25,8 @@ pub use ifc::{
     IfcImporter, IfcMetadata, IfcNodeMetadata, IfcProductMetadata, IfcPropertySetMetadata,
     IfcQuantitySetMetadata, IfcSystemMetadata, IfcSystemReference, extract_ifc_metadata,
 };
+#[cfg(feature = "jt")]
+pub use jt::JtImporter;
 pub use limits::{NativeImportLimits, WorkerLimits, validate_scene_limits};
 pub use obj::ObjImporter;
 pub use registry::SourceImporterRegistry;

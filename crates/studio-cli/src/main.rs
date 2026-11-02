@@ -34,7 +34,7 @@ enum Command {
         #[arg(
             long,
             default_value = "auto",
-            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc"]
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
         )]
         adapter: String,
         #[arg(long)]
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn restricts_import_adapters_to_the_native_registry() {
-        for adapter in ["auto", "gltf", "obj", "fbx", "usd"] {
+        for adapter in ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"] {
             let cli = Cli::try_parse_from([
                 "ice3-studio",
                 "import",

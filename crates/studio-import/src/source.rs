@@ -13,6 +13,7 @@ pub enum SourceFormat {
     Usd,
     Step,
     Ifc,
+    Jt,
 }
 
 impl SourceFormat {
@@ -24,6 +25,7 @@ impl SourceFormat {
             Self::Usd => "usd",
             Self::Step => "step",
             Self::Ifc => "ifc",
+            Self::Jt => "jt",
         }
     }
 }

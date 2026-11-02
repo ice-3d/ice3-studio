@@ -8,6 +8,8 @@ use studio_assets::{AssetError, read_glb_bytes, validate_prepared_profile};
 use studio_import::FbxImporter;
 #[cfg(feature = "ifc")]
 use studio_import::IfcImporter;
+#[cfg(feature = "jt")]
+use studio_import::JtImporter;
 #[cfg(feature = "step")]
 use studio_import::StepImporter;
 #[cfg(feature = "usd")]
@@ -78,6 +80,8 @@ pub fn source_importer_registry() -> Result<SourceImporterRegistry, ImportError>
     importers.push(Box::new(StepImporter::new()));
     #[cfg(feature = "ifc")]
     importers.push(Box::new(IfcImporter::new()));
+    #[cfg(feature = "jt")]
+    importers.push(Box::new(JtImporter::new()));
     SourceImporterRegistry::try_new(importers)
 }
 

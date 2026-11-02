@@ -5,6 +5,8 @@ use std::process::ExitCode;
 use studio_import::FbxImporter;
 #[cfg(feature = "ifc")]
 use studio_import::IfcImporter;
+#[cfg(feature = "jt")]
+use studio_import::JtImporter;
 #[cfg(feature = "step")]
 use studio_import::StepImporter;
 #[cfg(feature = "usd")]
@@ -43,6 +45,8 @@ fn worker_main(arguments: Vec<PathBuf>) -> Result<(), studio_import::ImportError
     importers.push(Box::new(StepImporter::new()));
     #[cfg(feature = "ifc")]
     importers.push(Box::new(IfcImporter::new()));
+    #[cfg(feature = "jt")]
+    importers.push(Box::new(JtImporter::new()));
     let registry = SourceImporterRegistry::try_new(importers)?;
     execute_worker_request(request_path, &registry)
 }
