@@ -1,7 +1,7 @@
 ISO-10303-21;
 HEADER;
 FILE_DESCRIPTION(('ViewDefinition[DesignTransferView]'),'2;1');
-FILE_NAME('/dev/null','2026-10-29T16:07:30+08:00',(''),(''),'IfcOpenShell 0.8.4','IfcOpenShell 0.8.4','Nobody');
+FILE_NAME('synthetic-conflicting-units.ifc','2026-10-29T16:07:30+08:00',('ICE3'),('ICE3 Studio'),'ICE3 synthetic fixture','ICE3 synthetic fixture','ICE3');
 FILE_SCHEMA(('IFC4X3_ADD2'));
 ENDSEC;
 DATA;
