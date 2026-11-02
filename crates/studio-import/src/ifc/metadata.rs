@@ -8,6 +8,7 @@ use serde_json::Value;
 use crate::{ImportError, ImportWarning, NativeImportLimits};
 
 const MAX_METADATA_ARRAY_LENGTH: usize = 256;
+const ESTIMATED_BYTES_PER_IFC_ENTITY: usize = 2_048;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct IfcMetadata {
@@ -100,15 +101,51 @@ pub fn extract_ifc_metadata(
             message: format!("unsupported IFC schema: {schema}"),
         });
     }
+    let entity_count = preflight_ifc_entities(bytes, limits)?;
     let data = ifc_lite_processing::data_model::extract_data_model(bytes);
-    if data.entities.len() > limits.max_nodes {
+    if data.entities.len() != entity_count {
         return Err(ImportError::LimitExceeded(format!(
-            "IFC has {} entities; limit is {}",
+            "IFC entity count changed during extraction: scanned {}, decoded {}",
+            entity_count,
             data.entities.len(),
-            limits.max_nodes
         )));
     }
     build_metadata(data, schema, asset_id)
+}
+
+fn preflight_ifc_entities(bytes: &[u8], limits: NativeImportLimits) -> Result<usize, ImportError> {
+    let mut scanner = ifc_lite_core::EntityScanner::new(bytes);
+    let mut entity_count = 0_usize;
+    while scanner.next_entity().is_some() {
+        entity_count = entity_count
+            .checked_add(1)
+            .ok_or_else(|| ImportError::LimitExceeded("IFC entity count overflowed".into()))?;
+        if entity_count > limits.max_nodes {
+            return Err(ImportError::LimitExceeded(format!(
+                "IFC has more than {} entities",
+                limits.max_nodes
+            )));
+        }
+    }
+    let estimated_bytes = bytes
+        .len()
+        .checked_add(
+            entity_count
+                .checked_mul(ESTIMATED_BYTES_PER_IFC_ENTITY)
+                .ok_or_else(|| {
+                    ImportError::LimitExceeded("IFC decoded-memory estimate overflowed".into())
+                })?,
+        )
+        .ok_or_else(|| {
+            ImportError::LimitExceeded("IFC decoded-memory estimate overflowed".into())
+        })?;
+    if estimated_bytes > limits.max_memory_bytes {
+        return Err(ImportError::LimitExceeded(format!(
+            "IFC decoded memory is approximately {estimated_bytes} bytes; limit is {}",
+            limits.max_memory_bytes
+        )));
+    }
+    Ok(entity_count)
 }
 
 fn build_metadata(

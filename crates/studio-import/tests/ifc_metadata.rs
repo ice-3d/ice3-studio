@@ -42,6 +42,95 @@ fn extracts_ifc4x3_space_properties_quantities_and_systems() {
 }
 
 #[test]
+fn preserves_spatial_hierarchy_containment_and_orphan_products() {
+    let bytes = std::fs::read(fixture("ifc/synthetic-plant.ifc")).unwrap();
+    let metadata = extract_ifc_metadata(&bytes, "ifc-fixture", NativeImportLimits::default())
+        .expect("IFC4X3 metadata should import");
+    let project = metadata
+        .nodes
+        .values()
+        .find(|node| node.ifc_type == "IFCPROJECT")
+        .unwrap();
+    let site = metadata
+        .nodes
+        .values()
+        .find(|node| node.ifc_type == "IFCSITE")
+        .unwrap();
+    let building = metadata
+        .nodes
+        .values()
+        .find(|node| node.ifc_type == "IFCBUILDING")
+        .unwrap();
+    let storey = metadata
+        .nodes
+        .values()
+        .find(|node| node.ifc_type == "IFCBUILDINGSTOREY")
+        .unwrap();
+
+    assert_eq!(project.name, "Synthetic IFC Plant");
+    assert_eq!(project.parent_id, None);
+    assert_eq!(site.parent_id, Some(project.express_id));
+    assert_eq!(building.parent_id, Some(site.express_id));
+    assert_eq!(storey.parent_id, Some(building.express_id));
+    assert!(project.path.ends_with("Synthetic IFC Plant"));
+    assert!(site.path.ends_with("Synthetic IFC Plant/Synthetic Site"));
+    assert!(
+        building
+            .path
+            .ends_with("Synthetic IFC Plant/Synthetic Site/Treatment Building")
+    );
+    assert!(storey.path.ends_with("Treatment Building/Process Floor"));
+    assert!(project.children.contains(&site.express_id));
+    assert!(site.children.contains(&building.express_id));
+    assert!(building.children.contains(&storey.express_id));
+    assert!(storey.elements.contains(&18));
+    assert!(storey.elements.contains(&19));
+
+    let orphan = extract_ifc_metadata(
+        &std::fs::read(fixture("ifc/orphan-product.ifc")).unwrap(),
+        "orphan",
+        NativeImportLimits::default(),
+    )
+    .unwrap();
+    let orphan_pump = orphan
+        .products
+        .values()
+        .find(|product| product.name == "Orphan Pump")
+        .expect("geometry-only orphan product should be retained");
+    assert_eq!(orphan_pump.ifc_type, "IFCPUMP");
+    assert!(
+        orphan
+            .nodes
+            .values()
+            .all(|node| !node.elements.contains(&orphan_pump.express_id))
+    );
+
+    let semantic_only = extract_ifc_metadata(
+        &std::fs::read(fixture("ifc/semantic-only-product.ifc")).unwrap(),
+        "semantic",
+        NativeImportLimits::default(),
+    )
+    .unwrap();
+    assert!(
+        semantic_only
+            .products
+            .values()
+            .any(|product| product.name == "Primary Pump")
+    );
+}
+
+#[test]
+fn rejects_entity_limit_before_full_metadata_extraction() {
+    let bytes = std::fs::read(fixture("ifc/synthetic-plant.ifc")).unwrap();
+    let limits = NativeImportLimits {
+        max_nodes: 2,
+        ..NativeImportLimits::default()
+    };
+    let error = extract_ifc_metadata(&bytes, "limited", limits).unwrap_err();
+    assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+}
+
+#[test]
 fn keeps_duplicate_and_missing_global_ids_distinct() {
     let duplicate = extract_ifc_metadata(
         &std::fs::read(fixture("ifc/duplicate-global-id.ifc")).unwrap(),
