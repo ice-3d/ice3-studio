@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use studio_cli::schema;
 
 #[test]
@@ -31,4 +32,39 @@ fn writes_deterministic_schema_output() {
     let types = String::from_utf8(first_types).unwrap();
     assert!(types.contains("export type ChangeSetImpactResult"));
     assert!(types.contains("export type IterationImpact"));
+}
+
+#[test]
+fn rejects_retired_toolchain_bindings_in_any_crate() {
+    let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut stale = Vec::new();
+    for entry in std::fs::read_dir(workspace.join("crates")).unwrap() {
+        let crate_dir = entry.unwrap().path();
+        let bindings = crate_dir.join("bindings");
+        if bindings.is_dir() {
+            collect_stale_bindings(&bindings, &mut stale);
+        }
+    }
+
+    assert!(
+        stale.is_empty(),
+        "retired Toolchain bindings remain: {stale:?}"
+    );
+}
+
+fn collect_stale_bindings(directory: &Path, stale: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(directory).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            collect_stale_bindings(&path, stale);
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "ts" || extension == "json")
+            && std::fs::read_to_string(&path)
+                .unwrap()
+                .contains("ICE3_STUDIO_TOOLCHAIN_")
+        {
+            stale.push(path);
+        }
+    }
 }
