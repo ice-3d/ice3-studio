@@ -100,6 +100,20 @@ fn rejects_a_worker_with_the_wrong_protocol_version() {
 }
 
 #[test]
+fn preserves_a_structured_worker_failure_code() {
+    let response = WorkerResponse::V1Failure {
+        code: "ICE3_STUDIO_IMPORT_INVALID_SOURCE".into(),
+        message: "truncated source".into(),
+    };
+    let encoded = bincode::serde::encode_to_vec(&response, bincode::config::standard()).unwrap();
+
+    let error = decode_worker_response(&encoded).unwrap_err();
+
+    assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_INVALID_SOURCE");
+    assert!(error.to_string().contains("truncated source"));
+}
+
+#[test]
 fn rejects_a_worker_response_with_trailing_bytes() {
     let response = WorkerResponse::V1 {
         source_scene: fixture_scene(),

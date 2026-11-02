@@ -33,6 +33,10 @@ pub enum WorkerResponse {
         source_scene: crate::SourceScene,
         warnings: Vec<ImportWarning>,
     },
+    V1Failure {
+        code: String,
+        message: String,
+    },
     V2 {
         source_scene: crate::SourceScene,
         warnings: Vec<ImportWarning>,
@@ -143,52 +147,52 @@ where
             process_limits.stderr_bytes
         )));
     }
-    if !outcome.status.success() {
-        return Err(ImportError::WorkerFailed(format!(
+    let response = read_worker_response(&response_path, process_limits.response_bytes)?;
+    if let Some(response) = response {
+        match decode_worker_response(&response) {
+            Ok(mut scene) => {
+                if !outcome.status.success() {
+                    return Err(ImportError::WorkerFailed(format!(
+                        "worker exited with {}",
+                        outcome.status
+                    )));
+                }
+                validate_scene_limits(&scene, &limits)?;
+                scene.warnings.sort();
+                scene.warnings.dedup();
+                Ok(scene)
+            }
+            Err(error @ ImportError::WorkerReported { .. }) => Err(error),
+            Err(error) if outcome.status.success() => Err(error),
+            Err(_) => Err(ImportError::WorkerFailed(format!(
+                "worker exited with {} without a valid failure response",
+                outcome.status
+            ))),
+        }
+    } else if outcome.status.success() {
+        Err(protocol_invalid("worker did not publish a response".into()))
+    } else {
+        Err(ImportError::WorkerFailed(format!(
             "worker exited with {}",
             outcome.status
-        )));
+        )))
     }
-
-    let response_metadata = std::fs::symlink_metadata(&response_path).map_err(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            protocol_invalid("worker did not publish a response".into())
-        } else {
-            ImportError::Io(error)
-        }
-    })?;
-    if !response_metadata.file_type().is_file() {
-        return Err(protocol_invalid(
-            "worker response is not a regular file".into(),
-        ));
-    }
-    if response_metadata.len() > process_limits.response_bytes as u64 {
-        return Err(ImportError::WorkerOutputTooLarge(format!(
-            "response exceeded {} bytes",
-            process_limits.response_bytes
-        )));
-    }
-
-    let mut response_file = std::fs::File::open(&response_path)?;
-    let mut response = Vec::new();
-    std::io::Read::by_ref(&mut response_file)
-        .take((process_limits.response_bytes as u64).saturating_add(1))
-        .read_to_end(&mut response)?;
-    if response.len() > process_limits.response_bytes {
-        return Err(ImportError::WorkerOutputTooLarge(format!(
-            "response exceeded {} bytes",
-            process_limits.response_bytes
-        )));
-    }
-
-    let mut scene = decode_worker_response(&response)?;
-    validate_scene_limits(&scene, &limits)?;
-    scene.warnings.sort();
-    scene.warnings.dedup();
-    Ok(scene)
 }
 
 pub fn execute_worker_request(
+    request_path: &Path,
+    registry: &SourceImporterRegistry,
+) -> Result<(), ImportError> {
+    match execute_worker_request_inner(request_path, registry) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            write_worker_failure(request_path, &error)?;
+            Err(error)
+        }
+    }
+}
+
+fn execute_worker_request_inner(
     request_path: &Path,
     registry: &SourceImporterRegistry,
 ) -> Result<(), ImportError> {
@@ -249,6 +253,15 @@ pub fn decode_worker_response(bytes: &[u8]) -> Result<crate::SourceScene, Import
             source_scene,
             warnings,
         } => (source_scene, warnings),
+        WorkerResponse::V1Failure { code, message } => {
+            validate_worker_error_code(&code)?;
+            if message.is_empty() || message.len() > 65_536 {
+                return Err(protocol_invalid(
+                    "worker failure message has an invalid length".into(),
+                ));
+            }
+            return Err(ImportError::WorkerReported { code, message });
+        }
         WorkerResponse::V2 { .. } => {
             return Err(protocol_invalid("unsupported response protocol 2".into()));
         }
@@ -257,6 +270,30 @@ pub fn decode_worker_response(bytes: &[u8]) -> Result<crate::SourceScene, Import
     all_warnings.extend(warnings);
     scene.warnings = all_warnings.into_iter().collect();
     Ok(scene)
+}
+
+fn write_worker_failure(request_path: &Path, error: &ImportError) -> Result<(), ImportError> {
+    let response = WorkerResponse::V1Failure {
+        code: error.code().to_owned(),
+        message: error.to_string(),
+    };
+    let bytes = bincode::serde::encode_to_vec(&response, bincode::config::standard())
+        .map_err(|error| protocol_invalid(format!("could not encode failure response: {error}")))?;
+    write_worker_response(request_path, &bytes)
+}
+
+fn validate_worker_error_code(code: &str) -> Result<(), ImportError> {
+    if !code.starts_with("ICE3_STUDIO_IMPORT_")
+        || code.len() > 128
+        || !code
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
+    {
+        return Err(protocol_invalid(
+            "worker failure code is not a stable diagnostic".into(),
+        ));
+    }
+    Ok(())
 }
 
 struct WorkerOutcome {
@@ -319,6 +356,35 @@ fn collect_bounded_stderr(
             return Ok(total);
         }
     }
+}
+
+fn read_worker_response(path: &Path, limit: usize) -> Result<Option<Vec<u8>>, ImportError> {
+    let metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(ImportError::Io(error)),
+    };
+    if !metadata.file_type().is_file() {
+        return Err(protocol_invalid(
+            "worker response is not a regular file".into(),
+        ));
+    }
+    if metadata.len() > limit as u64 {
+        return Err(ImportError::WorkerOutputTooLarge(format!(
+            "response exceeded {limit} bytes"
+        )));
+    }
+    let mut file = std::fs::File::open(path)?;
+    let mut bytes = Vec::new();
+    std::io::Read::by_ref(&mut file)
+        .take((limit as u64).saturating_add(1))
+        .read_to_end(&mut bytes)?;
+    if bytes.len() > limit {
+        return Err(ImportError::WorkerOutputTooLarge(format!(
+            "response exceeded {limit} bytes"
+        )));
+    }
+    Ok(Some(bytes))
 }
 
 fn read_request(path: &Path) -> Result<Vec<u8>, ImportError> {
@@ -510,6 +576,41 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_WORKER_FAILED");
+    }
+
+    #[test]
+    fn preserves_a_reported_source_error_from_a_worker() {
+        let response = WorkerResponse::V1Failure {
+            code: "ICE3_STUDIO_IMPORT_INVALID_SOURCE".into(),
+            message: "truncated source".into(),
+        };
+        let encoded =
+            bincode::serde::encode_to_vec(&response, bincode::config::standard()).unwrap();
+        let expected = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(expected.path(), encoded).unwrap();
+        let expected_path = expected.path().to_path_buf();
+
+        let error = run_isolated_import_with_launcher(
+            &TestImporter,
+            &import_request(),
+            NativeImportLimits::default(),
+            ProcessLimits::default(),
+            move |request_path| {
+                let mut command = Command::new("/bin/sh");
+                command
+                    .env("EXPECTED_RESPONSE", &expected_path)
+                    .arg("-c")
+                    .arg("cp \"$EXPECTED_RESPONSE\" \"${2}.response\"; exit 1")
+                    .arg("studio-import-test-worker")
+                    .arg("--internal-import-worker")
+                    .arg(request_path);
+                Ok(command)
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_INVALID_SOURCE");
+        assert!(error.to_string().contains("truncated source"));
     }
 
     #[test]

@@ -119,6 +119,8 @@ pub enum ImportError {
     WorkerTimeout,
     #[error("source import worker protocol is invalid: {0}")]
     WorkerProtocolInvalid(String),
+    #[error("{message}")]
+    WorkerReported { code: String, message: String },
     #[error("source import worker failed: {0}")]
     WorkerFailed(String),
     #[error("source import worker output exceeded its limit: {0}")]
@@ -128,7 +130,7 @@ pub enum ImportError {
 }
 
 impl ImportError {
-    pub const fn code(&self) -> &'static str {
+    pub fn code(&self) -> &str {
         match self {
             Self::Unsupported(_) => "ICE3_STUDIO_IMPORT_UNSUPPORTED",
             Self::AdapterUnavailable(_) => "ICE3_STUDIO_IMPORT_ADAPTER_UNAVAILABLE",
@@ -139,6 +141,7 @@ impl ImportError {
             Self::LimitExceeded(_) => "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED",
             Self::WorkerTimeout => "ICE3_STUDIO_IMPORT_TIMEOUT",
             Self::WorkerProtocolInvalid(_) => "ICE3_STUDIO_IMPORT_WORKER_PROTOCOL_INVALID",
+            Self::WorkerReported { code, .. } => code,
             Self::WorkerFailed(_) => "ICE3_STUDIO_IMPORT_WORKER_FAILED",
             Self::WorkerOutputTooLarge(_) => "ICE3_STUDIO_IMPORT_WORKER_OUTPUT_TOO_LARGE",
             Self::Io(_) => "ICE3_STUDIO_IMPORT_IO",

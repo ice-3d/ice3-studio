@@ -495,12 +495,23 @@ fn import_stage(
     let mut meshes = Vec::with_capacity(mesh_keys.len());
     let mut mesh_indices = BTreeMap::new();
     let mut triangle_total = 0_u64;
+    let mut mesh_memory_bytes = 0_usize;
     for (mesh_index, key) in mesh_keys.into_iter().enumerate() {
         let prim = first_mesh_for_key.get(&key).ok_or_else(|| {
             ImportError::InvalidSource("USD mesh identity has no source prim".into())
         })?;
         let material = bound_material(prim, &material_by_path)?;
-        let (mesh, triangles) = import_mesh(prim, &key, mesh_index, asset_id, material)?;
+        let remaining_triangles = limits.max_triangles.saturating_sub(triangle_total);
+        let remaining_memory = limits.max_memory_bytes.saturating_sub(mesh_memory_bytes);
+        let (mesh, triangles, estimated_bytes) = import_mesh(
+            prim,
+            &key,
+            mesh_index,
+            asset_id,
+            material,
+            remaining_triangles,
+            remaining_memory,
+        )?;
         triangle_total = triangle_total
             .checked_add(triangles)
             .ok_or_else(|| ImportError::LimitExceeded("USD triangle count overflowed".into()))?;
@@ -510,6 +521,11 @@ fn import_stage(
                 limits.max_triangles
             )));
         }
+        mesh_memory_bytes = mesh_memory_bytes
+            .checked_add(estimated_bytes)
+            .ok_or_else(|| {
+                ImportError::LimitExceeded("USD estimated mesh memory overflowed".into())
+            })?;
         meshes.push(mesh);
         mesh_indices.insert(key, mesh_index);
     }
@@ -533,7 +549,48 @@ fn import_stage(
         .iter()
         .map(|path| path.as_str().to_owned())
         .collect::<BTreeSet<_>>();
-    let mut drafts = Vec::new();
+    let prototype_sets = point_instancers
+        .iter()
+        .map(|instancer| {
+            if instancer.positions.is_empty() {
+                return Ok(Vec::new());
+            }
+            instancer
+                .prototypes
+                .iter()
+                .map(|prototype| collect_prototype_meshes(stage, prototype, &mesh_indices))
+                .collect::<Result<Vec<_>, ImportError>>()
+        })
+        .collect::<Result<Vec<_>, ImportError>>()?;
+    let instance_node_count = point_instancers.iter().zip(&prototype_sets).try_fold(
+        0_usize,
+        |total, (instancer, prototypes)| {
+            total
+                .checked_add(point_instancer_node_count(instancer, prototypes)?)
+                .ok_or_else(|| ImportError::LimitExceeded("USD node count overflowed".into()))
+        },
+    )?;
+    let projected_nodes = node_paths
+        .len()
+        .checked_add(instance_node_count)
+        .ok_or_else(|| ImportError::LimitExceeded("USD node count overflowed".into()))?;
+    if projected_nodes > limits.max_nodes {
+        return Err(ImportError::LimitExceeded(format!(
+            "USD projects {projected_nodes} nodes; limit is {}",
+            limits.max_nodes
+        )));
+    }
+    let projected_node_memory = projected_nodes
+        .checked_mul(1024)
+        .and_then(|bytes| bytes.checked_add(mesh_memory_bytes))
+        .ok_or_else(|| ImportError::LimitExceeded("USD estimated memory overflowed".into()))?;
+    if projected_node_memory > limits.max_memory_bytes {
+        return Err(ImportError::LimitExceeded(format!(
+            "USD projects approximately {projected_node_memory} bytes; limit is {}",
+            limits.max_memory_bytes
+        )));
+    }
+    let mut drafts = Vec::with_capacity(projected_nodes);
     for path in &node_paths {
         let prim = stage
             .prim(path.clone())
@@ -593,14 +650,8 @@ fn import_stage(
         });
     }
 
-    for instancer in &point_instancers {
-        expand_point_instancer(
-            stage,
-            instancer,
-            &mesh_indices,
-            &instance_groups,
-            &mut drafts,
-        )?;
+    for (instancer, prototypes) in point_instancers.iter().zip(&prototype_sets) {
+        expand_point_instancer(instancer, prototypes, &instance_groups, &mut drafts)?;
     }
 
     drafts.sort_by(|left, right| left.key.cmp(&right.key));
@@ -800,7 +851,9 @@ fn import_mesh(
     index: usize,
     asset_id: &str,
     material: Option<usize>,
-) -> Result<(SourceMesh, u64), ImportError> {
+    max_triangles: u64,
+    max_memory_bytes: usize,
+) -> Result<(SourceMesh, u64, usize), ImportError> {
     let points = required_vec3(prim, "points")?;
     let counts = prim
         .attribute("faceVertexCounts")
@@ -824,9 +877,8 @@ fn import_mesh(
                 .map_err(|_| ImportError::InvalidSource("USD face count is negative".into()))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut triangle_corners = Vec::<[usize; 3]>::new();
     let mut corner_count = 0_usize;
-    let mut offset = 0_usize;
+    let mut triangle_count = 0_u64;
     for count in &face_counts {
         let count = *count;
         if count < 3 {
@@ -837,74 +889,104 @@ fn import_mesh(
         corner_count = corner_count
             .checked_add(count)
             .ok_or_else(|| ImportError::LimitExceeded("USD corner count overflowed".into()))?;
-        for triangle in 1..count - 1 {
-            let corners = [offset, offset + triangle, offset + triangle + 1];
-            triangle_corners.push(corners);
-        }
-        offset = offset
-            .checked_add(count)
-            .ok_or_else(|| ImportError::LimitExceeded("USD index offset overflowed".into()))?;
+        triangle_count = triangle_count
+            .checked_add(
+                u64::try_from(count - 2).map_err(|_| {
+                    ImportError::LimitExceeded("USD triangle count overflowed".into())
+                })?,
+            )
+            .ok_or_else(|| ImportError::LimitExceeded("USD triangle count overflowed".into()))?;
     }
-    if offset != indices.len() {
+    if corner_count != indices.len() {
         return Err(ImportError::InvalidSource(
             "USD face counts do not match face vertex indices".into(),
         ));
     }
+    if triangle_count > max_triangles {
+        return Err(ImportError::LimitExceeded(format!(
+            "USD mesh has at least {triangle_count} triangles; remaining limit is {max_triangles}"
+        )));
+    }
+    let output_vertex_count = usize::try_from(triangle_count)
+        .ok()
+        .and_then(|triangles| triangles.checked_mul(3))
+        .ok_or_else(|| ImportError::LimitExceeded("USD output vertex count overflowed".into()))?;
+    let estimated_bytes = estimate_mesh_bytes(
+        points.len(),
+        normals.as_ref().map_or(0, Vec::len),
+        colors.as_ref().map_or(0, Vec::len),
+        indices.len(),
+        face_counts.len(),
+        output_vertex_count,
+    )?;
+    if estimated_bytes > max_memory_bytes {
+        return Err(ImportError::LimitExceeded(format!(
+            "USD mesh projects approximately {estimated_bytes} bytes; remaining limit is {max_memory_bytes}"
+        )));
+    }
 
-    let mut positions = Vec::with_capacity(triangle_corners.len() * 3);
+    let mut positions = Vec::with_capacity(output_vertex_count);
     let mut output_normals = normals
         .as_ref()
-        .map(|_| Vec::with_capacity(positions.capacity()));
+        .map(|_| Vec::with_capacity(output_vertex_count));
     let mut output_colors = colors
         .as_ref()
-        .map(|_| Vec::with_capacity(positions.capacity()));
-    let mut output_indices = Vec::with_capacity(positions.capacity());
-    let mut face_corner_starts = Vec::with_capacity(face_counts.len());
-    let mut cursor = 0;
-    for count in face_counts {
+        .map(|_| Vec::with_capacity(output_vertex_count));
+    let mut output_indices = Vec::with_capacity(output_vertex_count);
+    let mut face_corner_starts = Vec::with_capacity(face_counts.len() + 1);
+    let mut cursor = 0_usize;
+    for count in &face_counts {
         face_corner_starts.push(cursor);
-        cursor += count;
+        cursor = cursor
+            .checked_add(*count)
+            .ok_or_else(|| ImportError::LimitExceeded("USD corner count overflowed".into()))?;
     }
-    for corners in triangle_corners {
-        for corner in corners {
-            let point_index =
-                usize::try_from(*indices.get(corner).ok_or_else(|| {
+    face_corner_starts.push(cursor);
+    for (face_index, count) in face_counts.iter().enumerate() {
+        let start = face_corner_starts[face_index];
+        for triangle in 1..count - 1 {
+            let corners = [start, start + triangle, start + triangle + 1];
+            for corner in corners {
+                let point_index = usize::try_from(*indices.get(corner).ok_or_else(|| {
                     ImportError::InvalidSource("USD face index is missing".into())
                 })?)
                 .map_err(|_| ImportError::InvalidSource("USD face index is negative".into()))?;
-            let point = points.get(point_index).ok_or_else(|| {
-                ImportError::InvalidSource("USD face index points outside the vertex array".into())
-            })?;
-            positions.push(finite_vec3(*point, "position")?);
-            if let (Some(values), Some(output)) = (&normals, &mut output_normals) {
-                let value = interpolated_vec3(
-                    values,
-                    &normal_interpolation,
-                    point_index,
-                    corner,
-                    &face_corner_starts,
-                    points.len(),
-                );
-                if let Some(value) = value {
-                    output.push(finite_vec3(*value, "normal")?);
+                let point = points.get(point_index).ok_or_else(|| {
+                    ImportError::InvalidSource(
+                        "USD face index points outside the vertex array".into(),
+                    )
+                })?;
+                positions.push(finite_vec3(*point, "position")?);
+                if let (Some(values), Some(output)) = (&normals, &mut output_normals) {
+                    let value = interpolated_vec3(
+                        values,
+                        &normal_interpolation,
+                        point_index,
+                        corner,
+                        &face_corner_starts,
+                        points.len(),
+                    );
+                    if let Some(value) = value {
+                        output.push(finite_vec3(*value, "normal")?);
+                    }
                 }
-            }
-            if let (Some(values), Some(output)) = (&colors, &mut output_colors) {
-                let value = interpolated_vec3(
-                    values,
-                    &color_interpolation,
-                    point_index,
-                    corner,
-                    &face_corner_starts,
-                    points.len(),
-                );
-                if let Some(value) = value {
-                    output.push(finite_vec3(*value, "color")?);
+                if let (Some(values), Some(output)) = (&colors, &mut output_colors) {
+                    let value = interpolated_vec3(
+                        values,
+                        &color_interpolation,
+                        point_index,
+                        corner,
+                        &face_corner_starts,
+                        points.len(),
+                    );
+                    if let Some(value) = value {
+                        output.push(finite_vec3(*value, "color")?);
+                    }
                 }
+                output_indices.push(u32::try_from(positions.len() - 1).map_err(|_| {
+                    ImportError::LimitExceeded("USD primitive vertex count overflowed".into())
+                })?);
             }
-            output_indices.push(u32::try_from(positions.len() - 1).map_err(|_| {
-                ImportError::LimitExceeded("USD primitive vertex count overflowed".into())
-            })?);
         }
     }
     if output_normals
@@ -942,7 +1024,43 @@ fn import_mesh(
             }),
         },
         triangles,
+        estimated_bytes,
     ))
+}
+
+fn estimate_mesh_bytes(
+    points: usize,
+    normals: usize,
+    colors: usize,
+    indices: usize,
+    faces: usize,
+    output_vertices: usize,
+) -> Result<usize, ImportError> {
+    let vec3 = std::mem::size_of::<[f32; 3]>();
+    let u32_size = std::mem::size_of::<u32>();
+    let usize_size = std::mem::size_of::<usize>();
+    [
+        points.checked_mul(vec3),
+        normals.checked_mul(vec3),
+        colors.checked_mul(vec3),
+        indices.checked_mul(u32_size),
+        faces.checked_mul(usize_size),
+        output_vertices.checked_mul(
+            vec3.saturating_add(u32_size)
+                .saturating_add(if normals > 0 { vec3 } else { 0 })
+                .saturating_add(if colors > 0 { vec3 } else { 0 }),
+        ),
+    ]
+    .into_iter()
+    .try_fold(0_usize, |total, value| {
+        total
+            .checked_add(value.ok_or_else(|| {
+                ImportError::LimitExceeded("USD estimated mesh memory overflowed".into())
+            })?)
+            .ok_or_else(|| {
+                ImportError::LimitExceeded("USD estimated mesh memory overflowed".into())
+            })
+    })
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1042,7 +1160,7 @@ fn collect_custom_properties(prim: &Prim) -> Result<Map<String, Value>, ImportEr
 }
 
 fn metadata_value(value: &SdfValue, depth: usize) -> Option<Value> {
-    if depth >= MAX_METADATA_DEPTH {
+    if depth >= MAX_METADATA_DEPTH || value_is_oversized_array(value) {
         return None;
     }
     match value {
@@ -1111,7 +1229,6 @@ fn metadata_value(value: &SdfValue, depth: usize) -> Option<Value> {
         SdfValue::Vec3d(value) => finite_vector_json([value.x, value.y, value.z]),
         _ => None,
     }
-    .filter(|_| !value_is_oversized_array(value))
 }
 
 fn finite_vector_json(values: [f64; 3]) -> Option<Value> {
@@ -1368,20 +1485,14 @@ struct PointInstancer {
 }
 
 fn expand_point_instancer(
-    stage: &Stage,
     instancer: &PointInstancer,
-    mesh_indices: &BTreeMap<String, usize>,
+    prototypes: &[Prototype],
     instance_groups: &BTreeMap<String, String>,
     drafts: &mut Vec<NodeDraft>,
 ) -> Result<(), ImportError> {
     if instancer.positions.is_empty() {
         return Ok(());
     }
-    let prototypes = instancer
-        .prototypes
-        .iter()
-        .map(|prototype| collect_prototype_meshes(stage, prototype, mesh_indices))
-        .collect::<Result<Vec<_>, ImportError>>()?;
     if prototypes
         .iter()
         .all(|prototype| prototype.meshes.is_empty())
@@ -1462,6 +1573,46 @@ fn expand_point_instancer(
         }
     }
     Ok(())
+}
+
+fn point_instancer_node_count(
+    instancer: &PointInstancer,
+    prototypes: &[Prototype],
+) -> Result<usize, ImportError> {
+    if instancer.positions.is_empty() {
+        return Ok(0);
+    }
+    if prototypes
+        .iter()
+        .all(|prototype| prototype.meshes.is_empty())
+    {
+        return Err(ImportError::InvalidSource(
+            "USD PointInstancer has no supported prototype mesh".into(),
+        ));
+    }
+    instancer
+        .positions
+        .iter()
+        .enumerate()
+        .try_fold(0_usize, |total, (index, _)| {
+            let proto_index = instancer.proto_indices.get(index).copied().unwrap_or(0);
+            let prototype = usize::try_from(proto_index)
+                .ok()
+                .and_then(|value| prototypes.get(value))
+                .ok_or_else(|| {
+                    ImportError::InvalidSource(
+                        "USD PointInstancer protoIndices points outside prototypes".into(),
+                    )
+                })?;
+            if prototype.meshes.is_empty() {
+                return Err(ImportError::InvalidSource(
+                    "USD PointInstancer prototype has no supported mesh".into(),
+                ));
+            }
+            total
+                .checked_add(prototype.meshes.len())
+                .ok_or_else(|| ImportError::LimitExceeded("USD node count overflowed".into()))
+        })
 }
 
 struct Prototype {

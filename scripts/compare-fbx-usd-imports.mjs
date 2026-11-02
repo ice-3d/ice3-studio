@@ -249,28 +249,37 @@ async function runNegativeCorpus() {
     empty: await expectFailure('empty', {
       fixture: join(fixtureRoot, 'fbx/empty.fbx'),
       adapter: 'fbx',
-      expectedCode: 'ICE3_STUDIO_IMPORT_WORKER_FAILED',
+      expectedCode: 'ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY',
     }),
     truncated: await expectFailure('truncated', {
       fixture: join(fixtureRoot, 'fbx/truncated.fbx'),
       adapter: 'fbx',
-      expectedCode: 'ICE3_STUDIO_IMPORT_WORKER_FAILED',
+      expectedCode: 'ICE3_STUDIO_IMPORT_INVALID_SOURCE',
     }),
     corruptBinary: await expectFailure('corrupt-binary', {
       fixture: corruptPath,
       adapter: 'fbx',
-      expectedCode: 'ICE3_STUDIO_IMPORT_WORKER_FAILED',
+      expectedCode: 'ICE3_STUDIO_IMPORT_INVALID_SOURCE',
     }),
     unsafeUsdReference: await expectFailure('unsafe-usd-reference', {
       fixture: join(usdRoot, 'unsafe.usda'),
       adapter: 'usd',
-      expectedCode: 'ICE3_STUDIO_IMPORT_WORKER_FAILED',
+      expectedCode: 'ICE3_STUDIO_IMPORT_INVALID_SOURCE',
       requiredExistingPath: escapedDependencyPath,
     }),
     deepComposition: await expectFailure('deep-composition', {
       fixture: join(deepRoot, 'layer-0.usda'),
       adapter: 'usd',
-      expectedCode: 'ICE3_STUDIO_IMPORT_WORKER_FAILED',
+      expectedCode: 'ICE3_STUDIO_IMPORT_INVALID_SOURCE',
+    }),
+    limitExceeded: await expectFailure('limit-exceeded', {
+      fixture: join(fixtureRoot, 'usd/synthetic-plant.usda'),
+      adapter: 'usd',
+      expectedCode: 'ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED',
+      environment: {
+        ...process.env,
+        ICE3_STUDIO_IMPORT_MAX_TRIANGLES: '1',
+      },
     }),
     workerTimeout: await expectFailure('worker-timeout', {
       fixture: join(fixtureRoot, 'usd/synthetic-plant.usda'),

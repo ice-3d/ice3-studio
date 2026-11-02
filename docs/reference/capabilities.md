@@ -200,9 +200,12 @@ ice3-studio serve --workspace <dir> --project <id>
 统一 `SourceScene`，canonical writer 生成 `ice3-prepared` GLB。OBJ/MTL、glTF 和 USD
 外部资源被限制在源文件同目录；OBJ 假定米制并发出 warning。FBX/USD 通过 Studio 自带
 worker 解析，不需要外部 DCC。worker 默认限制 1,000,000 nodes、20,000,000 triangles、
-512 MiB decoded memory 和 120 秒硬 timeout；response 与 stderr 上限分别为 512 MiB 和
-1 MiB。超时、崩溃、协议污染和越界资源失败关闭。USD composition 额外限制深度 32、
-总 layer 数 1,024，并拒绝绝对路径、URI、`..` 与 symlink escape。
+512 MiB estimated decoded memory 和 120 秒硬 timeout；response 与 stderr 上限分别为
+512 MiB 和 1 MiB。内存预算在主要 geometry/metadata 分配前预检，并在 worker response
+解码后重新记账；该值不是进程 RSS 的字节级硬上限。FBX/USD 是默认启用的 Cargo
+features，关闭后可构建 glTF/OBJ-only importer 和 CLI。超时、崩溃、协议污染和越界资源
+失败关闭。USD composition 额外限制深度 32、总 layer 数 1,024，并拒绝绝对路径、URI、
+`..` 与 symlink escape。
 
 `--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
 替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。

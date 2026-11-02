@@ -1,14 +1,17 @@
 //! Native source import registry and format-neutral source scene.
 
+#[cfg(feature = "fbx")]
 mod fbx;
 mod gltf;
 mod limits;
 pub mod obj;
 mod registry;
 mod source;
+#[cfg(feature = "usd")]
 mod usd;
 mod worker;
 
+#[cfg(feature = "fbx")]
 pub use fbx::FbxImporter;
 pub use gltf::GltfImporter;
 pub use limits::{NativeImportLimits, WorkerLimits, validate_scene_limits};
@@ -18,6 +21,7 @@ pub use source::{
     ImportError, ImportRequest, ImportWarning, SourceCapabilities, SourceFormat, SourceImporter,
     SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceScene,
 };
+#[cfg(feature = "usd")]
 pub use usd::UsdImporter;
 pub use worker::{
     WORKER_PROTOCOL_VERSION, WorkerRequest, WorkerResponse, decode_worker_response,

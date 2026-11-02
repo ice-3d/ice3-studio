@@ -1,9 +1,13 @@
+#![cfg(all(feature = "fbx", feature = "usd"))]
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use studio_assets::{read_glb, validate_prepared_profile};
 
 const WORKER_TIMEOUT_ENV: &str = "ICE3_STUDIO_IMPORT_WORKER_TIMEOUT_MS";
+#[cfg(debug_assertions)]
+const MAX_TRIANGLES_ENV: &str = "ICE3_STUDIO_IMPORT_MAX_TRIANGLES";
 #[cfg(debug_assertions)]
 const TEST_WORKER_CRASH_ENV: &str = "ICE3_STUDIO_IMPORT_WORKER_CRASH";
 
@@ -78,7 +82,7 @@ fn timeout_does_not_replace_existing_output() {
 }
 
 #[test]
-fn worker_failure_does_not_replace_existing_output() {
+fn invalid_source_does_not_replace_existing_output() {
     let root = tempfile::tempdir().unwrap();
     let output_path = root.path().join("plant.glb");
     std::fs::write(&output_path, "keep").unwrap();
@@ -94,8 +98,44 @@ fn worker_failure_does_not_replace_existing_output() {
     .unwrap();
 
     assert!(!result.status.success());
-    assert!(String::from_utf8_lossy(&result.stderr).contains("ICE3_STUDIO_IMPORT_WORKER_FAILED"));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("ICE3_STUDIO_IMPORT_INVALID_SOURCE"));
     assert_eq!(std::fs::read_to_string(output_path).unwrap(), "keep");
+}
+
+#[test]
+fn source_failure_codes_cross_the_worker_boundary() {
+    for (fixture, expected_code) in [
+        ("fbx/empty.fbx", "ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY"),
+        ("usd/truncated.usda", "ICE3_STUDIO_IMPORT_INVALID_SOURCE"),
+    ] {
+        let result = run_import(fixture, "auto", "failure-code", false);
+        assert!(!result.output.status.success());
+        assert!(
+            String::from_utf8_lossy(&result.output.stderr).contains(expected_code),
+            "{fixture}: {}",
+            String::from_utf8_lossy(&result.output.stderr)
+        );
+    }
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn limit_failure_code_crosses_the_worker_boundary() {
+    let root = tempfile::tempdir().unwrap();
+    let output_path = root.path().join("plant.glb");
+    let result = run_import_at_path(
+        &toolchain_fixture("usd/synthetic-plant.usda"),
+        "usd",
+        "limit-code",
+        &output_path,
+        false,
+    )
+    .env(MAX_TRIANGLES_ENV, "1")
+    .output()
+    .unwrap();
+
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED"));
 }
 
 #[cfg(debug_assertions)]

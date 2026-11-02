@@ -40,7 +40,9 @@ Node.js 24.22.1（仅 Viewer、E2E 和 parity）。
 - adapter 只能产出 `SourceScene`；Prepared GLB 仍由 `studio-assets::canonical` 生成。
 - 外部 references、sublayers、payloads 和资产路径必须限制在源文件目录内。
 - 超时必须硬终止 worker；超时、崩溃、协议污染和越界资源都不得发布输出。
-- 默认限制：1,000,000 nodes、20,000,000 triangles、512 MiB decoded memory、120 秒。
+- 默认限制：1,000,000 nodes、20,000,000 triangles、512 MiB estimated decoded memory、
+  120 秒；内存预算通过分配前预检和 post-decode accounting 执行，不等同于进程 RSS
+  的字节级硬上限。
 - 所有 warning、Diagnostic 和输出必须确定性排序。
 - Git author/committer 为 `damoqiongqiu <damoqiongqiu@126.com>`。
 

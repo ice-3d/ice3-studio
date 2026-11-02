@@ -1,3 +1,5 @@
+#![cfg(feature = "usd")]
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -549,6 +551,59 @@ fn exposes_usd_adapter_contract_and_limits() {
             },
         )
         .unwrap_err();
+    assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+}
+
+#[test]
+fn rejects_point_instancer_node_growth_before_expansion() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("node-budget.usda");
+    std::fs::write(
+        &root,
+        format!(
+            "#usda 1.0\n\
+             def Xform \"World\"\n{{\n\
+                 def PointInstancer \"Pumps\"\n    {{\n\
+                     rel prototypes = </World/Prototypes/Pump>\n\
+                     point3f[] positions = [(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0)]\n\
+                     int[] protoIndices = [0, 0, 0, 0]\n\
+                 }}\n\
+                 def Scope \"Prototypes\"\n    {{\n\
+                     def Mesh \"Pump\"\n        {{\n{}\n        }}\n\
+                 }}\n\
+             }}\n",
+            cube_body()
+        ),
+    )
+    .unwrap();
+
+    let error = UsdImporter::new()
+        .import_file_with_limits(
+            &root,
+            "node-budget",
+            NativeImportLimits {
+                max_nodes: 3,
+                ..NativeImportLimits::default()
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+}
+
+#[test]
+fn rejects_mesh_output_before_exceeding_the_memory_budget() {
+    let error = UsdImporter::new()
+        .import_file_with_limits(
+            &toolchain_fixture("usd/synthetic-plant.usda"),
+            "memory-budget",
+            NativeImportLimits {
+                max_memory_bytes: 64,
+                ..NativeImportLimits::default()
+            },
+        )
+        .unwrap_err();
+
     assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
 }
 

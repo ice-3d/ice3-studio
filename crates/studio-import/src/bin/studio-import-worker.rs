@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use studio_import::{
-    FbxImporter, GltfImporter, ObjImporter, SourceImporterRegistry, UsdImporter,
-    execute_worker_request,
-};
+#[cfg(feature = "fbx")]
+use studio_import::FbxImporter;
+#[cfg(feature = "usd")]
+use studio_import::UsdImporter;
+use studio_import::{GltfImporter, ObjImporter, SourceImporterRegistry, execute_worker_request};
 
 fn main() -> ExitCode {
     match worker_main(std::env::args_os().skip(1).map(PathBuf::from).collect()) {
@@ -27,11 +28,13 @@ fn worker_main(arguments: Vec<PathBuf>) -> Result<(), studio_import::ImportError
             "expected --internal-import-worker".into(),
         ));
     }
-    let registry = SourceImporterRegistry::try_new(vec![
-        Box::new(GltfImporter::new()),
-        Box::new(ObjImporter::new()),
-        Box::new(FbxImporter::new()),
-        Box::new(UsdImporter::new()),
-    ])?;
+    #[allow(unused_mut)]
+    let mut importers: Vec<Box<dyn studio_import::SourceImporter>> =
+        vec![Box::new(GltfImporter::new()), Box::new(ObjImporter::new())];
+    #[cfg(feature = "fbx")]
+    importers.push(Box::new(FbxImporter::new()));
+    #[cfg(feature = "usd")]
+    importers.push(Box::new(UsdImporter::new()));
+    let registry = SourceImporterRegistry::try_new(importers)?;
     execute_worker_request(request_path, &registry)
 }
