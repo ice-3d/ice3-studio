@@ -193,6 +193,9 @@ Edge primitive：
 - 否则使用 `#e6f2ff`；
 - `material.extras.ice3.edges = false` 时该 material 不生成 edge primitive；
 - edge material 必须参与 material count、primitive count 和 encoded byte budget。
+- `--skip-edges` 只移除 line primitive 和 edge segment；为保持 legacy material
+  index parity，实际使用的非 suppression source materials 仍保留对应 edge
+  material。
 - 为保持 legacy parity，始终保留 `default`、`default edges` 和 `vertex colors`
   三个 reserved material；即使当前 source 没有使用。其顺序固定排在 source
   material/edge material 之后。

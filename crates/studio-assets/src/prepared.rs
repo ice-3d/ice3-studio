@@ -2,7 +2,10 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use crate::{AssetError, AssetMetrics, AssetResult, BudgetResult, PreparationMetadata, SourceGlb};
+use crate::{
+    AccessorData, AssetError, AssetMetrics, AssetResult, BudgetResult, PreparationMetadata,
+    SourceGlb, read_accessor,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreparedBounds {
@@ -106,6 +109,11 @@ pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProf
                 .map_err(|error| profile_invalid(&format!("preparation is invalid: {error}")))
         })
         .transpose()?;
+    if metrics.edge_segment_count > 0 && preparation.is_none() {
+        return Err(profile_invalid(
+            "preparation metadata is required when edge primitives exist",
+        ));
+    }
     if let Some(preparation) = &preparation {
         validate_preparation(
             profile.get("preparation"),
@@ -212,7 +220,7 @@ fn metrics_for(source: &SourceGlb) -> AssetResult<AssetMetrics> {
             } else if mode != 4 {
                 return Err(profile_invalid("unsupported primitive mode"));
             }
-            validate_accessor(
+            let position_accessor = validate_accessor(
                 primitive,
                 "POSITION",
                 accessors,
@@ -221,7 +229,21 @@ fn metrics_for(source: &SourceGlb) -> AssetResult<AssetMetrics> {
                 "VEC3",
                 &[5126],
             )?;
-            let count = validate_accessor(
+            let position = read_accessor(source, position_accessor).map_err(|error| {
+                profile_invalid(&format!("POSITION accessor is invalid: {error}"))
+            })?;
+            let position_count = match position {
+                AccessorData::F32 {
+                    values,
+                    components: 3,
+                } => values.len() / 3,
+                _ => {
+                    return Err(profile_invalid(
+                        "POSITION accessor must decode as VEC3 float data",
+                    ));
+                }
+            };
+            let index_accessor = validate_accessor(
                 primitive,
                 "indices",
                 accessors,
@@ -230,6 +252,32 @@ fn metrics_for(source: &SourceGlb) -> AssetResult<AssetMetrics> {
                 "SCALAR",
                 &[5123, 5125],
             )?;
+            let indices = read_accessor(source, index_accessor)
+                .map_err(|error| profile_invalid(&format!("index accessor is invalid: {error}")))?;
+            let decoded_indices = match indices {
+                AccessorData::U16 {
+                    values,
+                    components: 1,
+                } => values.into_iter().map(u32::from).collect::<Vec<_>>(),
+                AccessorData::U32 {
+                    values,
+                    components: 1,
+                } => values,
+                _ => {
+                    return Err(profile_invalid(
+                        "index accessor must decode as SCALAR unsigned data",
+                    ));
+                }
+            };
+            if decoded_indices
+                .iter()
+                .any(|index| *index as usize >= position_count)
+            {
+                return Err(profile_invalid(
+                    "primitive index reaches beyond POSITION data",
+                ));
+            }
+            let count = decoded_indices.len() as u64;
             let material = primitive
                 .get("material")
                 .and_then(Value::as_u64)
@@ -258,12 +306,12 @@ fn metrics_for(source: &SourceGlb) -> AssetResult<AssetMetrics> {
                     .get(material)
                     .ok_or_else(|| profile_invalid("edge material index is out of range"))?;
                 if !material
-                    .get("name")
+                    .pointer("/extras/ice3/id")
                     .and_then(Value::as_str)
-                    .is_some_and(|name| name.ends_with(" edges"))
+                    .is_some_and(|id| id.ends_with("/edges"))
                 {
                     return Err(profile_invalid(
-                        "edge primitive must reference an edge material",
+                        "edge primitive must reference a material with edge identity",
                     ));
                 }
                 edge_segment_count = edge_segment_count
@@ -302,16 +350,18 @@ fn validate_accessor(
     buffer_count: usize,
     expected_type: &str,
     component_types: &[u64],
-) -> AssetResult<u64> {
+) -> AssetResult<usize> {
     let accessor_index = if field == "indices" {
         primitive.get("indices")
     } else {
         primitive.pointer(&format!("/attributes/{field}"))
     };
-    let accessor = accessor_index
+    let accessor_index = accessor_index
         .and_then(Value::as_u64)
         .and_then(|index| usize::try_from(index).ok())
-        .and_then(|index| accessors.get(index))
+        .ok_or_else(|| profile_invalid(&format!("primitive {field} accessor is missing")))?;
+    let accessor = accessors
+        .get(accessor_index)
         .ok_or_else(|| profile_invalid(&format!("primitive {field} accessor is missing")))?;
     if accessor.get("type").and_then(Value::as_str) != Some(expected_type) {
         return Err(profile_invalid(&format!(
@@ -347,7 +397,8 @@ fn validate_accessor(
     accessor
         .get("count")
         .and_then(Value::as_u64)
-        .ok_or_else(|| profile_invalid(&format!("primitive {field} count is missing")))
+        .ok_or_else(|| profile_invalid(&format!("primitive {field} count is missing")))?;
+    Ok(accessor_index)
 }
 
 fn validate_preparation(

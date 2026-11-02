@@ -4,7 +4,8 @@ use studio_assets::canonical::{
     PreparedGlbOptions, write_prepared_glb,
 };
 use studio_assets::{
-    BudgetProfile, BudgetStatus, PrepareOptions, read_glb_bytes, validate_prepared_profile,
+    BudgetProfile, BudgetStatus, PrepareOptions, SourceGlb, read_glb_bytes,
+    validate_prepared_profile,
 };
 
 #[test]
@@ -236,6 +237,87 @@ fn prepared_profile_rejects_inconsistent_preparation_options() {
     );
 }
 
+#[test]
+fn prepared_profile_decodes_accessors_and_rejects_range_errors() {
+    let artifact = prepare_with_edges(true);
+    let mut source = read_glb_bytes(&artifact.bytes, &std::env::temp_dir()).unwrap();
+    let accessor = source.json["meshes"][0]["primitives"][1]["indices"]
+        .as_u64()
+        .unwrap() as usize;
+    source.json["accessors"][accessor]["count"] = json!(1_000_000);
+
+    assert_eq!(
+        validate_prepared_profile(&source).unwrap_err().code(),
+        "ICE3_ASSET_PROFILE_INVALID"
+    );
+}
+
+#[test]
+fn prepared_profile_rejects_out_of_range_decoded_edge_indices() {
+    let artifact = prepare_with_edges(true);
+    let mut source = read_glb_bytes(&artifact.bytes, &std::env::temp_dir()).unwrap();
+    write_first_edge_index(&mut source, u32::MAX);
+
+    assert_eq!(
+        validate_prepared_profile(&source).unwrap_err().code(),
+        "ICE3_ASSET_PROFILE_INVALID"
+    );
+}
+
+#[test]
+fn edge_primitive_requires_preparation_metadata() {
+    let artifact = prepare_with_edges(true);
+    let mut source = read_glb_bytes(&artifact.bytes, &std::env::temp_dir()).unwrap();
+    source.json["asset"]["extras"]["ice3"]
+        .as_object_mut()
+        .unwrap()
+        .remove("preparation");
+
+    assert_eq!(
+        validate_prepared_profile(&source).unwrap_err().code(),
+        "ICE3_ASSET_PROFILE_INVALID"
+    );
+}
+
+#[test]
+fn edge_free_legacy_profile_can_omit_preparation_metadata() {
+    let bytes = write_prepared_glb(
+        &triangle_scene(),
+        &PreparedGlbOptions {
+            asset_id: "asset".into(),
+            source_format: "gltf".into(),
+            source_digest: "source".into(),
+        },
+    )
+    .unwrap();
+    let mut source = read_glb_bytes(&bytes, &std::env::temp_dir()).unwrap();
+    source.json["asset"]["extras"]["ice3"]
+        .as_object_mut()
+        .unwrap()
+        .remove("preparation");
+
+    validate_prepared_profile(&source).unwrap();
+}
+
+#[test]
+fn edge_material_identity_not_display_name_is_validated() {
+    let artifact = prepare_with_edges(true);
+    let mut source = read_glb_bytes(&artifact.bytes, &std::env::temp_dir()).unwrap();
+    let material = source.json["meshes"][0]["primitives"][1]["material"]
+        .as_u64()
+        .unwrap() as usize;
+
+    source.json["materials"][material]["name"] = json!("ordinary material");
+    validate_prepared_profile(&source).unwrap();
+
+    source.json["materials"][material]["name"] = json!("Glass edges");
+    source.json["materials"][material]["extras"]["ice3"]["id"] = json!("asset/material/glass");
+    assert_eq!(
+        validate_prepared_profile(&source).unwrap_err().code(),
+        "ICE3_ASSET_PROFILE_INVALID"
+    );
+}
+
 fn prepare_with_edges(generate_edges: bool) -> studio_assets::PrepareArtifact {
     studio_assets::prepare_canonical(
         &triangle_scene(),
@@ -302,6 +384,36 @@ fn triangle_scene() -> CanonicalScene {
             extras: json!({"ice3": {"id": "glass"}}),
         }],
         asset_extras: json!({"coordinateSystem": {"upAxis": "y"}}),
+    }
+}
+
+fn write_first_edge_index(source: &mut SourceGlb, value: u32) {
+    let accessor_index = source.json["meshes"][0]["primitives"][1]["indices"]
+        .as_u64()
+        .unwrap() as usize;
+    let accessor = source.json["accessors"][accessor_index]
+        .as_object()
+        .unwrap();
+    let view_index = accessor["bufferView"].as_u64().unwrap() as usize;
+    let accessor_offset = accessor
+        .get("byteOffset")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0) as usize;
+    let component_type = accessor["componentType"].as_u64().unwrap();
+    let view = source.json["bufferViews"][view_index].as_object().unwrap();
+    let view_offset = view
+        .get("byteOffset")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0) as usize;
+    let start = view_offset + accessor_offset;
+    match component_type {
+        5123 => {
+            source.buffers[0][start..start + 2].copy_from_slice(&(value as u16).to_le_bytes());
+        }
+        5125 => {
+            source.buffers[0][start..start + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        other => panic!("unexpected edge index component type {other}"),
     }
 }
 

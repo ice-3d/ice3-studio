@@ -502,11 +502,11 @@ fn default_prepare_emits_edges_and_real_metrics() {
 }
 
 #[test]
-fn skip_edges_removes_edge_material_and_reports_zero() {
+fn skip_edges_removes_edge_primitives_but_retains_legacy_materials() {
     let artifact = prepare_with_edges(false);
     assert_eq!(artifact.metrics.edge_segment_count, 0);
     assert!(!artifact.preparation.edges_prepared);
-    assert!(artifact.metrics.material_count < prepare_with_edges(true).metrics.material_count);
+    assert_eq!(artifact.metrics.material_count, 5);
 }
 ```
 
