@@ -19,13 +19,16 @@ const STEP_SHAPE_METADATA_ESTIMATE_BYTES: usize = 1_024;
 const STEP_WARNING_ESTIMATE_BYTES: usize = 512;
 const STEP_SCENE_ESTIMATE_BYTES: usize = size_of::<SourceScene>() + 4_096;
 
+type OccurrencePath = [u64; 2];
+type MeshVariantKey = (usize, Vec<(u64, TriangleGroupKey)>);
+
 struct Projection<'a> {
     model: &'a StepModel,
     asset_id: &'a str,
     nodes: Vec<SourceNode>,
     meshes: Vec<SourceMesh>,
     materials: Vec<SourceMaterial>,
-    part_meshes: BTreeMap<usize, usize>,
+    part_meshes: BTreeMap<MeshVariantKey, usize>,
     node_worlds: BTreeMap<String, DMat4>,
     used_names: BTreeSet<String>,
     warnings: BTreeSet<ImportWarning>,
@@ -91,11 +94,18 @@ pub(super) fn project_model(
         .insert(root_id.clone(), DMat4::IDENTITY);
 
     for occurrence in &model.roots {
-        projection.visit_occurrence(occurrence, Some(&root_id), Some(DMat4::IDENTITY), 0)?;
+        projection.visit_occurrence(occurrence, Some(&root_id), Some(DMat4::IDENTITY), 0, &[])?;
     }
     for part_index in 0..model.parts.len() {
         if !projection.visited_parts.contains(&part_index) {
-            projection.visit_part(part_index, None, Some(&root_id), Some(DMat4::IDENTITY), 0)?;
+            projection.visit_part(
+                part_index,
+                None,
+                Some(&root_id),
+                Some(DMat4::IDENTITY),
+                0,
+                &[],
+            )?;
         }
     }
     projection.append_pending_mesh_nodes()?;
@@ -145,30 +155,23 @@ pub(super) fn project_model(
 }
 
 fn preflight_model(model: &StepModel, limits: NativeImportLimits) -> Result<(), ImportError> {
-    let triangle_count = model.triangle_count();
-    if triangle_count == 0 {
+    if model.triangle_count() == 0 {
         return Err(ImportError::EmptyGeometry);
-    }
-    let triangle_count = u64::try_from(triangle_count)
-        .map_err(|_| ImportError::LimitExceeded("STEP triangle count overflow".into()))?;
-    if triangle_count > limits.max_triangles {
-        return Err(ImportError::LimitExceeded(format!(
-            "STEP has {triangle_count} triangles; limit is {}",
-            limits.max_triangles
-        )));
     }
 
     let mut preflight = StepPreflight::new(limits, model.warnings.len())?;
     preflight.add_nodes(1)?;
     let mut visited_parts = BTreeSet::new();
-    let mut visited_meshes = BTreeSet::new();
+    let mut variant_keys = BTreeSet::new();
     for occurrence in &model.roots {
+        let path = occurrence_path(&[], occurrence);
         preflight.walk_part(
             model,
             occurrence.part,
             0,
+            &path,
             &mut visited_parts,
-            &mut visited_meshes,
+            &mut variant_keys,
         )?;
     }
     for part_index in 0..model.parts.len() {
@@ -177,8 +180,9 @@ fn preflight_model(model: &StepModel, limits: NativeImportLimits) -> Result<(), 
                 model,
                 part_index,
                 0,
+                &[],
                 &mut visited_parts,
-                &mut visited_meshes,
+                &mut variant_keys,
             )?;
         }
     }
@@ -188,7 +192,9 @@ fn preflight_model(model: &StepModel, limits: NativeImportLimits) -> Result<(), 
 struct StepPreflight {
     limits: NativeImportLimits,
     nodes: usize,
+    triangles: u64,
     estimated_bytes: usize,
+    material_keys: BTreeSet<TriangleGroupKey>,
 }
 
 impl StepPreflight {
@@ -203,7 +209,9 @@ impl StepPreflight {
         Ok(Self {
             limits,
             nodes: 0,
+            triangles: 0,
             estimated_bytes,
+            material_keys: BTreeSet::new(),
         })
     }
 
@@ -212,11 +220,12 @@ impl StepPreflight {
         model: &StepModel,
         start_part: usize,
         start_depth: usize,
+        start_path: &[OccurrencePath],
         visited_parts: &mut BTreeSet<usize>,
-        visited_meshes: &mut BTreeSet<usize>,
+        variant_keys: &mut BTreeSet<MeshVariantKey>,
     ) -> Result<(), ImportError> {
-        let mut stack = vec![(start_part, start_depth)];
-        while let Some((part_index, depth)) = stack.pop() {
+        let mut stack = vec![(start_part, start_depth, start_path.to_vec())];
+        while let Some((part_index, depth, path)) = stack.pop() {
             if depth > model.parts.len() {
                 return Err(ImportError::InvalidSource(
                     "STEP occurrence hierarchy is cyclic".into(),
@@ -233,12 +242,14 @@ impl StepPreflight {
             if has_mesh {
                 self.add_nodes(1)?;
             }
-            if visited_meshes.insert(part_index) {
-                self.add_mesh(part)?;
+            let overrides = occurrence_overrides(model, part_index, &path);
+            let key = (part_index, overrides);
+            if variant_keys.insert(key.clone()) {
+                self.add_mesh(part, &key.1)?;
             }
             visited_parts.insert(part_index);
             for child in part.children.iter().rev() {
-                stack.push((child.part, depth + 1));
+                stack.push((child.part, depth + 1, occurrence_path(&path, child)));
             }
         }
         Ok(())
@@ -259,17 +270,30 @@ impl StepPreflight {
         )
     }
 
-    fn add_mesh(&mut self, part: &oxideav_step::Part) -> Result<(), ImportError> {
+    fn add_mesh(
+        &mut self,
+        part: &oxideav_step::Part,
+        overrides: &[(u64, TriangleGroupKey)],
+    ) -> Result<(), ImportError> {
         self.add_bytes(STEP_MESH_ESTIMATE_BYTES)?;
         let mut part_triangles = 0_usize;
         for shape in &part.shapes {
             let triangles = shape.mesh.triangles.len();
+            if triangles == 0 {
+                continue;
+            }
             part_triangles = checked_add(part_triangles, triangles)?;
+            self.add_triangles(triangles)?;
+            let colour_groups = triangle_group_keys_with_overrides(shape, overrides);
             self.add_bytes(
-                triangles
+                colour_groups
+                    .len()
                     .checked_mul(size_of::<SourcePrimitive>() + STEP_PRIMITIVE_ESTIMATE_BYTES)
                     .ok_or_else(|| limit_error("STEP primitive estimate overflowed"))?,
             )?;
+            for colour in colour_groups {
+                self.add_material(colour)?;
+            }
             self.add_bytes(STEP_SHAPE_METADATA_ESTIMATE_BYTES)?;
         }
         let corners = part_triangles
@@ -280,11 +304,30 @@ impl StepPreflight {
                 .checked_mul(size_of::<[f32; 3]>() + size_of::<u32>())
                 .ok_or_else(|| limit_error("STEP geometry estimate overflowed"))?,
         )?;
-        self.add_bytes(
-            part_triangles
-                .checked_mul(size_of::<SourceMaterial>() + STEP_MATERIAL_ESTIMATE_BYTES)
-                .ok_or_else(|| limit_error("STEP material estimate overflowed"))?,
-        )
+        Ok(())
+    }
+
+    fn add_triangles(&mut self, count: usize) -> Result<(), ImportError> {
+        let count =
+            u64::try_from(count).map_err(|_| limit_error("STEP triangle count overflowed"))?;
+        self.triangles = self
+            .triangles
+            .checked_add(count)
+            .ok_or_else(|| limit_error("STEP triangle count overflowed"))?;
+        if self.triangles > self.limits.max_triangles {
+            return Err(limit_error(format!(
+                "STEP projects at least {} triangles; limit is {}",
+                self.triangles, self.limits.max_triangles
+            )));
+        }
+        Ok(())
+    }
+
+    fn add_material(&mut self, colour: TriangleGroupKey) -> Result<(), ImportError> {
+        if self.material_keys.insert(colour) {
+            self.add_bytes(size_of::<SourceMaterial>() + STEP_MATERIAL_ESTIMATE_BYTES)?;
+        }
+        Ok(())
     }
 
     fn add_bytes(&mut self, bytes: usize) -> Result<(), ImportError> {
@@ -315,18 +358,21 @@ impl Projection<'_> {
         parent: Option<&str>,
         parent_world: Option<DMat4>,
         depth: usize,
+        path: &[OccurrencePath],
     ) -> Result<(), ImportError> {
         if depth > self.model.parts.len() {
             return Err(ImportError::InvalidSource(
                 "STEP occurrence hierarchy is cyclic".into(),
             ));
         }
+        let child_path = occurrence_path(path, occurrence);
         self.visit_part(
             occurrence.part,
             Some(occurrence),
             parent,
             parent_world,
             depth,
+            &child_path,
         )
     }
 
@@ -337,6 +383,7 @@ impl Projection<'_> {
         parent: Option<&str>,
         parent_world: Option<DMat4>,
         depth: usize,
+        path: &[OccurrencePath],
     ) -> Result<(), ImportError> {
         let (raw_name, product_id, definition, representation, children, item_ids, layers) = {
             let part = self.model.parts.get(part_index).ok_or_else(|| {
@@ -367,7 +414,7 @@ impl Projection<'_> {
         let name = self.stable_name(&raw_name);
         let ordinal = self.nodes.len();
         let node_id = format!("{}/step/node/{ordinal}", self.asset_id);
-        let mesh = self.ensure_part_mesh(part_index)?;
+        let mesh = self.ensure_part_mesh(part_index, path)?;
         let local_world = occurrence.map_or(DMat4::IDENTITY, |value| {
             converted_transform(value, self.model.length_unit_metres)
         });
@@ -407,7 +454,7 @@ impl Projection<'_> {
             });
         }
         for child in children {
-            self.visit_occurrence(&child, Some(&node_id), Some(world), depth + 1)?;
+            self.visit_occurrence(&child, Some(&node_id), Some(world), depth + 1, path)?;
         }
         Ok(())
     }
@@ -466,8 +513,14 @@ impl Projection<'_> {
         }
     }
 
-    fn ensure_part_mesh(&mut self, part_index: usize) -> Result<Option<usize>, ImportError> {
-        if let Some(mesh) = self.part_meshes.get(&part_index) {
+    fn ensure_part_mesh(
+        &mut self,
+        part_index: usize,
+        path: &[OccurrencePath],
+    ) -> Result<Option<usize>, ImportError> {
+        let overrides = occurrence_overrides(self.model, part_index, path);
+        let key = (part_index, overrides.clone());
+        if let Some(mesh) = self.part_meshes.get(&key) {
             return Ok(Some(*mesh));
         }
         let part = self.model.parts.get(part_index).ok_or_else(|| {
@@ -483,7 +536,8 @@ impl Projection<'_> {
                 continue;
             }
             let positions = convert_positions(shape, self.model.length_unit_metres)?;
-            for (colour, group_positions, indices) in grouped_triangle_positions(shape, &positions)?
+            for (colour, group_positions, indices) in
+                grouped_triangle_positions(shape, &positions, &overrides)?
             {
                 let material = self.material_for(colour);
                 primitives.push(SourcePrimitive {
@@ -502,12 +556,20 @@ impl Projection<'_> {
             return Ok(None);
         }
         let mesh_index = self.meshes.len();
+        let mesh_id = if overrides.is_empty() {
+            format!("{}/step/mesh/{part_index}", self.asset_id)
+        } else {
+            format!(
+                "{}/step/mesh/{part_index}/variant/{mesh_index}",
+                self.asset_id
+            )
+        };
         self.meshes.push(SourceMesh {
-            id: format!("{}/step/mesh/{part_index}", self.asset_id),
+            id: mesh_id,
             primitives,
             extras: step_mesh_extras(part.representation, shape_metadata),
         });
-        self.part_meshes.insert(part_index, mesh_index);
+        self.part_meshes.insert(key, mesh_index);
         Ok(Some(mesh_index))
     }
 
@@ -575,15 +637,21 @@ impl TriangleGroupKey {
 fn grouped_triangle_positions(
     shape: &Shape,
     positions: &[[f32; 3]],
+    overrides: &[(u64, TriangleGroupKey)],
 ) -> Result<Vec<CompactTriangleGroup>, ImportError> {
     let mut groups = BTreeMap::<TriangleGroupKey, Vec<u32>>::new();
     let vertex_count = shape.mesh.positions.len();
     for (triangle_index, triangle) in shape.mesh.triangles.iter().enumerate() {
-        let colour = shape
-            .triangle_colours
-            .get(triangle_index)
-            .copied()
-            .flatten()
+        let face = shape.triangle_faces.get(triangle_index).copied();
+        let colour = override_colour(shape, face, overrides)
+            .map(TriangleGroupKey::rgba)
+            .or_else(|| {
+                shape
+                    .triangle_colours
+                    .get(triangle_index)
+                    .copied()
+                    .flatten()
+            })
             .or(shape.colour)
             .unwrap_or(DEFAULT_COLOR);
         let indices = groups.entry(colour.into()).or_default();
@@ -618,6 +686,96 @@ fn grouped_triangle_positions(
             Ok((colour.rgba(), compact_positions, compact_indices))
         })
         .collect()
+}
+
+fn triangle_group_keys_with_overrides(
+    shape: &Shape,
+    overrides: &[(u64, TriangleGroupKey)],
+) -> BTreeSet<TriangleGroupKey> {
+    let mut colours = BTreeSet::new();
+    for (triangle_index, _) in shape.mesh.triangles.iter().enumerate() {
+        let face = shape.triangle_faces.get(triangle_index).copied();
+        let colour = override_colour(shape, face, overrides)
+            .map(TriangleGroupKey::rgba)
+            .or_else(|| {
+                shape
+                    .triangle_colours
+                    .get(triangle_index)
+                    .copied()
+                    .flatten()
+            })
+            .or(shape.colour)
+            .unwrap_or(DEFAULT_COLOR);
+        colours.insert(colour.into());
+    }
+    colours
+}
+
+fn override_colour(
+    shape: &Shape,
+    face: Option<u64>,
+    overrides: &[(u64, TriangleGroupKey)],
+) -> Option<TriangleGroupKey> {
+    overrides
+        .iter()
+        .find(|(item, _)| *item == shape.item)
+        .map(|(_, colour)| *colour)
+        .or_else(|| {
+            face.and_then(|face| {
+                overrides
+                    .iter()
+                    .find(|(item, _)| *item == face)
+                    .map(|(_, colour)| *colour)
+            })
+        })
+}
+
+fn path_matches(style_path: &[u64], path: &[OccurrencePath]) -> bool {
+    style_path.len() == path.len()
+        && path
+            .iter()
+            .all(|level| style_path.iter().any(|value| level.contains(value)))
+}
+
+fn occurrence_path(path: &[OccurrencePath], occurrence: &Occurrence) -> Vec<OccurrencePath> {
+    if occurrence.placed_by.is_none() && occurrence.id.is_none() {
+        return path.to_vec();
+    }
+    let left = occurrence.placed_by.unwrap_or(u64::MAX);
+    let right = occurrence.id.unwrap_or(left);
+    let mut child_path = path.to_vec();
+    child_path.push([left, right]);
+    child_path
+}
+
+fn occurrence_overrides(
+    model: &StepModel,
+    part_index: usize,
+    path: &[OccurrencePath],
+) -> Vec<(u64, TriangleGroupKey)> {
+    let Some(part) = model.parts.get(part_index) else {
+        return Vec::new();
+    };
+    let mut overrides = model
+        .occurrence_colours
+        .iter()
+        .filter(|override_colour| {
+            path_matches(&override_colour.path, path)
+                && part.shapes.iter().any(|shape| {
+                    shape.item == override_colour.item
+                        || shape.triangle_faces.contains(&override_colour.item)
+                })
+        })
+        .map(|override_colour| {
+            (
+                override_colour.item,
+                TriangleGroupKey::from(override_colour.colour),
+            )
+        })
+        .collect::<Vec<_>>();
+    overrides.sort_unstable();
+    overrides.dedup();
+    overrides
 }
 
 fn convert_positions(shape: &Shape, unit_scale: f64) -> Result<Vec<[f32; 3]>, ImportError> {
@@ -681,14 +839,37 @@ fn apply_shared_origin(
 
     let origin = [min.x, 0.0, min.z];
     let translation = DMat4::from_translation(DVec3::new(-origin[0], 0.0, -origin[2]));
-    for node in nodes.iter_mut().filter(|node| node.parent.is_none()) {
-        let local = worlds
-            .get(&node.id)
+    let rebased_worlds = worlds
+        .iter()
+        .map(|(id, world)| (id.clone(), translation * *world))
+        .collect::<BTreeMap<_, _>>();
+    let root_id = nodes
+        .iter()
+        .find(|node| node.parent.is_none())
+        .map(|node| node.id.clone());
+    let mut serialized_worlds = BTreeMap::<String, DMat4>::new();
+    for node in nodes.iter_mut() {
+        let parent_world = node
+            .parent
+            .as_ref()
+            .and_then(|parent| serialized_worlds.get(parent))
             .copied()
-            .ok_or_else(|| ImportError::InvalidSource("STEP node world matrix missing".into()))?;
-        node.matrix = (translation * local)
-            .to_cols_array()
-            .map(|value| value as f32);
+            .unwrap_or(DMat4::IDENTITY);
+        let is_identity_root_child = node.parent == root_id
+            && worlds
+                .get(&node.id)
+                .is_some_and(|world| world.abs_diff_eq(DMat4::IDENTITY, 1e-12));
+        let final_world = if node.parent.is_none() || is_identity_root_child {
+            DMat4::IDENTITY
+        } else {
+            rebased_worlds
+                .get(&node.id)
+                .copied()
+                .unwrap_or(DMat4::IDENTITY)
+        };
+        let local = parent_world.inverse() * final_world;
+        node.matrix = local.to_cols_array().map(|value| value as f32);
+        serialized_worlds.insert(node.id.clone(), final_world);
     }
     Ok(origin)
 }
@@ -787,7 +968,7 @@ fn step_mesh_extras(representation_id: Option<u64>, shapes: Vec<Value>) -> Value
 
 #[cfg(test)]
 mod tests {
-    use oxideav_step::{ApSchema, Part, Shape, Transform, TriMesh};
+    use oxideav_step::{ApSchema, OccurrenceColour, Part, Shape, Transform, TriMesh};
 
     use super::*;
 
@@ -804,6 +985,12 @@ mod tests {
             triangle_faces: vec![item],
             layers: Vec::new(),
         }
+    }
+
+    fn colour_close(left: [f32; 3], right: [f32; 3]) -> bool {
+        left.iter()
+            .zip(right)
+            .all(|(left, right)| (*left - right).abs() <= 1e-5)
     }
 
     fn amplified_model(child_count: usize) -> StepModel {
@@ -879,6 +1066,40 @@ mod tests {
         let error = preflight_model(&model, limits).unwrap_err();
         assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
         assert!(error.to_string().contains("approximately"));
+    }
+
+    #[test]
+    fn preflight_accepts_many_triangles_with_one_material() {
+        let mut shape = triangle_shape(1, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        shape.mesh.triangles = vec![[0, 1, 2]; 120_000];
+        shape.triangle_faces = vec![1; 120_000];
+        let mut part = Part {
+            name: Some("Dense Part".into()),
+            product_id: Some("Dense Part".into()),
+            ..Part::default()
+        };
+        part.shapes.push(shape);
+        let model = StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts: vec![part],
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: Vec::new(),
+            warnings: Vec::new(),
+        };
+        let limits = NativeImportLimits {
+            max_memory_bytes: 16 * 1024 * 1024,
+            ..NativeImportLimits::default()
+        };
+
+        preflight_model(&model, limits).unwrap();
     }
 
     #[test]
@@ -976,16 +1197,28 @@ mod tests {
             .push(triangle_shape(1, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
         let mut root = Part {
             name: Some("Root".into()),
-            children: vec![Occurrence {
-                part: 1,
-                id: Some(10),
-                name: Some("Offsite Pump".into()),
-                transform: Transform {
-                    cols: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-                    translation: [large_origin, 0.0, 0.0],
+            children: vec![
+                Occurrence {
+                    part: 1,
+                    id: Some(10),
+                    name: Some("Offsite Pump A".into()),
+                    transform: Transform {
+                        cols: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                        translation: [large_origin, 0.0, 0.0],
+                    },
+                    placed_by: None,
                 },
-                placed_by: None,
-            }],
+                Occurrence {
+                    part: 1,
+                    id: Some(11),
+                    name: Some("Offsite Pump B".into()),
+                    transform: Transform {
+                        cols: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                        translation: [large_origin + 1.0, 0.0, 0.0],
+                    },
+                    placed_by: None,
+                },
+            ],
             ..Part::default()
         };
         root.product_id = Some("Root".into());
@@ -1012,6 +1245,186 @@ mod tests {
             .unwrap();
         assert_eq!(origin[0], large_origin);
         assert_eq!(origin[2], 0.0);
+        let mut occurrence_nodes = scene
+            .nodes
+            .iter()
+            .filter(|node| node.parent.is_some() && node.mesh.is_none())
+            .filter(|node| node.name.starts_with("Offsite Pump"))
+            .collect::<Vec<_>>();
+        occurrence_nodes.sort_by(|left, right| left.matrix[12].total_cmp(&right.matrix[12]));
+        assert_eq!(occurrence_nodes.len(), 2);
+        assert!(
+            occurrence_nodes[0].matrix[12].abs() < 1e-5,
+            "pump A translation: {}",
+            occurrence_nodes[0].matrix[12]
+        );
+        assert!(
+            (occurrence_nodes[1].matrix[12] - 1.0).abs() < 1e-5,
+            "pump B translation: {}",
+            occurrence_nodes[1].matrix[12]
+        );
+    }
+
+    #[test]
+    fn applies_occurrence_specific_colours_as_mesh_variants() {
+        let mut child = Part {
+            name: Some("Pump".into()),
+            product_id: Some("Pump".into()),
+            ..Part::default()
+        };
+        child
+            .shapes
+            .push(triangle_shape(1, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+        let mut root = Part {
+            name: Some("Root".into()),
+            product_id: Some("Root".into()),
+            children: vec![
+                Occurrence {
+                    part: 1,
+                    id: Some(10),
+                    name: Some("Pump A".into()),
+                    transform: Transform::IDENTITY,
+                    placed_by: None,
+                },
+                Occurrence {
+                    part: 1,
+                    id: Some(11),
+                    name: Some("Pump B".into()),
+                    transform: Transform::IDENTITY,
+                    placed_by: None,
+                },
+            ],
+            ..Part::default()
+        };
+        root.product_id = Some("Root".into());
+        let model = StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts: vec![root, child],
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: vec![
+                OccurrenceColour {
+                    path: vec![10],
+                    item: 1,
+                    colour: [1.0, 0.0, 0.0, 1.0],
+                },
+                OccurrenceColour {
+                    path: vec![11],
+                    item: 1,
+                    colour: [0.0, 1.0, 0.0, 1.0],
+                },
+            ],
+            warnings: Vec::new(),
+        };
+
+        let scene = project_model(&model, "step-overrides", NativeImportLimits::default()).unwrap();
+        let mesh_nodes = scene
+            .nodes
+            .iter()
+            .filter(|node| node.mesh.is_some())
+            .collect::<Vec<_>>();
+        assert_eq!(mesh_nodes.len(), 2);
+        assert_ne!(mesh_nodes[0].mesh, mesh_nodes[1].mesh);
+        let mesh_ids = scene
+            .meshes
+            .iter()
+            .map(|mesh| mesh.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(mesh_ids.len(), 2);
+        let colours = mesh_nodes
+            .iter()
+            .map(|node| {
+                let mesh = node.mesh.unwrap();
+                let material = scene.meshes[mesh].primitives[0].material.unwrap();
+                scene.materials[material].base_color
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(colours.len(), 2);
+        assert!(
+            colours
+                .iter()
+                .any(|colour| colour_close(*colour, [1.0, 0.0, 0.0]))
+        );
+        assert!(
+            colours
+                .iter()
+                .any(|colour| colour_close(*colour, [0.0, 1.0, 0.0]))
+        );
+    }
+
+    #[test]
+    fn preflight_counts_occurrence_colour_mesh_variants() {
+        let mut child = Part {
+            name: Some("Pump".into()),
+            product_id: Some("Pump".into()),
+            ..Part::default()
+        };
+        child
+            .shapes
+            .push(triangle_shape(1, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+        let mut root = Part {
+            name: Some("Root".into()),
+            product_id: Some("Root".into()),
+            children: vec![
+                Occurrence {
+                    part: 1,
+                    id: Some(10),
+                    name: Some("Pump A".into()),
+                    transform: Transform::IDENTITY,
+                    placed_by: None,
+                },
+                Occurrence {
+                    part: 1,
+                    id: Some(11),
+                    name: Some("Pump B".into()),
+                    transform: Transform::IDENTITY,
+                    placed_by: None,
+                },
+            ],
+            ..Part::default()
+        };
+        root.product_id = Some("Root".into());
+        let model = StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts: vec![root, child],
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: vec![
+                OccurrenceColour {
+                    path: vec![10],
+                    item: 1,
+                    colour: [1.0, 0.0, 0.0, 1.0],
+                },
+                OccurrenceColour {
+                    path: vec![11],
+                    item: 1,
+                    colour: [0.0, 1.0, 0.0, 1.0],
+                },
+            ],
+            warnings: Vec::new(),
+        };
+        let limits = NativeImportLimits {
+            max_triangles: 1,
+            ..NativeImportLimits::default()
+        };
+
+        let error = preflight_model(&model, limits).unwrap_err();
+        assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+        assert!(error.to_string().contains("projects at least 2 triangles"));
     }
 
     #[test]
@@ -1037,7 +1450,7 @@ mod tests {
             layers: Vec::new(),
         };
         let positions = convert_positions(&shape, 1.0).unwrap();
-        let groups = grouped_triangle_positions(&shape, &positions).unwrap();
+        let groups = grouped_triangle_positions(&shape, &positions, &[]).unwrap();
 
         assert_eq!(groups.len(), 2);
         assert!(groups.iter().all(|(_, positions, indices)| {
