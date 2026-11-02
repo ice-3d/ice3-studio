@@ -221,6 +221,29 @@ fn successful_parent_cannot_leave_background_descendants() {
     assert!(!marker.exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn escaped_descendant_holding_pipes_cannot_extend_the_converter_timeout() {
+    let root = tempfile::tempdir().unwrap();
+    let input = root.path().join("assembly.jt");
+    let output = root.path().join("raw.glb");
+    std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
+    let config = JtConverterConfig::new(
+        fixture("escape-with-child-converter.py"),
+        Duration::from_secs(1),
+    );
+    let started = Instant::now();
+
+    run_jt_converter(&input, &output, &config).unwrap();
+
+    assert!(
+        started.elapsed() < Duration::from_millis(1_500),
+        "escaped pipe holder extended runtime to {:?}",
+        started.elapsed()
+    );
+    studio_import::jt::validate_jt_converter_output(&output).unwrap();
+}
+
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/source-import/jt")

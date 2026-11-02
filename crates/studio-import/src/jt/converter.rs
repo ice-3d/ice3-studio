@@ -2,6 +2,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -91,14 +92,25 @@ pub fn run_jt_converter(
     let mut child = command.group_spawn().map_err(|_| converter_failed())?;
     let stdout = child.inner().stdout.take().ok_or_else(converter_failed)?;
     let stderr = child.inner().stderr.take().ok_or_else(converter_failed)?;
-    let stdout_reader = thread::spawn(move || collect_bounded(stdout));
-    let stderr_reader = thread::spawn(move || collect_bounded(stderr));
+    let stdout = collect_stream(stdout);
+    let stderr = collect_stream(stderr);
 
-    let outcome = wait_for_converter(&mut child, config.timeout);
-    let _stdout = stdout_reader.join().map_err(|_| converter_failed())??;
-    let _stderr = stderr_reader.join().map_err(|_| converter_failed())??;
+    let outcome = match wait_for_converter(&mut child, config.timeout) {
+        Ok(outcome) => outcome,
+        Err(error) => {
+            let cleanup = terminate_converter(&mut child);
+            let stream = check_stream_errors(&stdout, &stderr);
+            let _ = fs::remove_file(&output);
+            cleanup?;
+            stream?;
+            return Err(error);
+        }
+    };
+    check_stream_errors(&stdout, &stderr).inspect_err(|_| {
+        let _ = fs::remove_file(&output);
+    })?;
 
-    match outcome? {
+    match outcome {
         ConverterOutcome::Exited(status) if status.success() => {
             validate_jt_converter_output(&output).inspect_err(|_| {
                 let _ = fs::remove_file(&output);
@@ -152,6 +164,31 @@ enum ConverterOutcome {
     TimedOut,
 }
 
+#[cfg(unix)]
+fn wait_for_converter(
+    child: &mut command_group::GroupChild,
+    timeout: Duration,
+) -> Result<ConverterOutcome, ImportError> {
+    let started = Instant::now();
+    loop {
+        if leader_has_exited(child)? {
+            // Keep the exited leader unreaped so its PID/PGID cannot be
+            // reused, then kill any descendants that remain in its group.
+            kill_group_if_present(child)?;
+            return child
+                .wait()
+                .map(ConverterOutcome::Exited)
+                .map_err(|_| converter_failed());
+        }
+        if started.elapsed() >= timeout {
+            terminate_converter(child)?;
+            return Ok(ConverterOutcome::TimedOut);
+        }
+        thread::sleep(WAIT_POLL_INTERVAL);
+    }
+}
+
+#[cfg(windows)]
 fn wait_for_converter(
     child: &mut command_group::GroupChild,
     timeout: Duration,
@@ -159,9 +196,6 @@ fn wait_for_converter(
     let started = Instant::now();
     loop {
         if let Some(status) = child.try_wait().map_err(|_| converter_failed())? {
-            // A converter that exits successfully must not be able to leave
-            // background descendants holding pipes or mutating temporary output.
-            let _ = child.kill();
             return Ok(ConverterOutcome::Exited(status));
         }
         if started.elapsed() >= timeout {
@@ -172,11 +206,50 @@ fn wait_for_converter(
     }
 }
 
+#[cfg(unix)]
+fn leader_has_exited(child: &mut command_group::GroupChild) -> Result<bool, ImportError> {
+    let mut info = std::mem::MaybeUninit::<libc::siginfo_t>::zeroed();
+    let result = unsafe {
+        libc::waitid(
+            libc::P_PID,
+            child.id() as libc::id_t,
+            info.as_mut_ptr(),
+            libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+        )
+    };
+    if result != 0 {
+        return Err(converter_failed());
+    }
+    let info = unsafe { info.assume_init() };
+    Ok(unsafe { info.si_pid() } != 0)
+}
+
+#[cfg(unix)]
+fn kill_group_if_present(child: &mut command_group::GroupChild) -> Result<(), ImportError> {
+    match child.kill() {
+        Ok(()) => Ok(()),
+        Err(error) if matches!(error.raw_os_error(), Some(libc::EPERM) | Some(libc::ESRCH)) => {
+            // macOS reports EPERM for a group containing only the unreaped
+            // leader. Since the leader remains unreaped, the PGID cannot have
+            // been reused; there are no live descendants left to terminate.
+            Ok(())
+        }
+        Err(_) => Err(converter_failed()),
+    }
+}
+
 fn terminate_converter(child: &mut command_group::GroupChild) -> Result<(), ImportError> {
     #[cfg(unix)]
     {
         use command_group::{Signal, UnixChildExt};
-        let _ = child.signal(Signal::SIGTERM);
+        if child.signal(Signal::SIGTERM).is_err() {
+            if leader_has_exited(child)? {
+                kill_group_if_present(child)?;
+                child.wait().map_err(|_| converter_failed())?;
+                return Ok(());
+            }
+            return Err(converter_failed());
+        }
     }
     #[cfg(windows)]
     {
@@ -188,13 +261,39 @@ fn terminate_converter(child: &mut command_group::GroupChild) -> Result<(), Impo
     {
         let grace_deadline = Instant::now() + TERMINATE_GRACE;
         while Instant::now() < grace_deadline {
-            if child.try_wait().map_err(|_| converter_failed())?.is_some() {
+            if leader_has_exited(child)? {
+                kill_group_if_present(child)?;
+                child.wait().map_err(|_| converter_failed())?;
                 return Ok(());
             }
             thread::sleep(WAIT_POLL_INTERVAL);
         }
-        let _ = child.kill();
-        let _ = child.wait();
+        kill_group_if_present(child)?;
+        child.wait().map_err(|_| converter_failed())?;
+    }
+    Ok(())
+}
+
+fn collect_stream(
+    mut reader: impl Read + Send + 'static,
+) -> Receiver<Result<Vec<u8>, ImportError>> {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = sender.send(collect_bounded(&mut reader));
+    });
+    receiver
+}
+
+fn check_stream_errors(
+    stdout: &Receiver<Result<Vec<u8>, ImportError>>,
+    stderr: &Receiver<Result<Vec<u8>, ImportError>>,
+) -> Result<(), ImportError> {
+    for stream in [stdout, stderr] {
+        match stream.try_recv() {
+            Ok(Ok(_)) | Err(TryRecvError::Empty) => {}
+            Ok(Err(error)) => return Err(error),
+            Err(TryRecvError::Disconnected) => return Err(converter_failed()),
+        }
     }
     Ok(())
 }

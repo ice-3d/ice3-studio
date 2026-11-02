@@ -2742,6 +2742,7 @@ dependencies = [
  "ifc-lite-core",
  "ifc-lite-geometry",
  "ifc-lite-processing",
+ "libc",
  "openusd",
  "oxideav-step",
  "serde",
