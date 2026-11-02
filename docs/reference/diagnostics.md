@@ -98,11 +98,6 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_IMPORT_JT_EXPORT_INVALID` | Converter 输出不是合法的 regular-file GLB |
 | `ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` | JT 层级、transform、bounds 或 metadata 映射无效 |
 | `ICE3_STUDIO_IMPORT_JT_TIMEOUT` | JT converter/worker 超过配置期限并被终止 |
-| `ICE3_STUDIO_IMPORT_JT_CONVERTER_UNAVAILABLE` | JT converter 未配置、不是 regular file 或不可执行 |
-| `ICE3_STUDIO_IMPORT_JT_TIMEOUT` | JT converter 或 JT worker 超过硬 timeout |
-| `ICE3_STUDIO_IMPORT_JT_CONVERT_FAILED` | JT converter 启动/退出或进程组清理失败 |
-| `ICE3_STUDIO_IMPORT_JT_EXPORT_INVALID` | JT converter 输出不是合法 GLB |
-| `ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` | JT hierarchy、transform 或 bounds 无效 |
 
 ## 恢复规则
 
