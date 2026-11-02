@@ -71,4 +71,19 @@ async fn candidate_preview_uses_the_native_candidate_path() {
             .join("native-candidate/cache/toolchain")
             .exists()
     );
+
+    let replacement = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/source-import/gltf/minimal.glb");
+    std::fs::copy(&replacement, &preview).unwrap();
+    let replacement_bytes = std::fs::read(&preview).unwrap();
+    let cached = common::rpc(
+        &server,
+        "export.runtimePreview",
+        serde_json::json!({ "candidateDigest": digest }),
+    )
+    .await;
+    assert_eq!(
+        cached["result"]["contentHash"],
+        format!("{:x}", Sha256::digest(&replacement_bytes))
+    );
 }

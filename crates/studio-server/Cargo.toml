@@ -21,6 +21,7 @@ studio-gpu = { path = "../studio-gpu" }
 studio-pipeline = { path = "../studio-pipeline" }
 studio-project = { path = "../studio-project" }
 studio-toolchain-client = { path = "../studio-toolchain-client" }
+tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
@@ -30,5 +31,4 @@ ts-rs.workspace = true
 [dev-dependencies]
 futures-util.workspace = true
 reqwest.workspace = true
-tempfile.workspace = true
 tokio-tungstenite.workspace = true

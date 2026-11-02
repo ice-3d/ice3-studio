@@ -147,6 +147,7 @@ impl PreviewAdapter {
         project_dir: &Path,
         asset_id: &str,
     ) -> Result<RuntimePreview, PreviewError> {
+        apply_preview_test_delay();
         let preview_dir = project_dir.join("cache/preview");
         std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
         let revision = document.revision.as_u64();
@@ -172,7 +173,7 @@ impl PreviewAdapter {
         let source_path = source_export.source_path;
         let source_digest = source_export.source_digest;
         let preview_path = preview_dir.join(format!("{revision:08}.glb"));
-        std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
+        publish_preview(&source_path, &preview_path)?;
         let content_hash = preview_content_hash(&preview_path)?;
         Ok(RuntimePreview {
             revision,
@@ -193,6 +194,7 @@ impl PreviewAdapter {
         project_dir: &Path,
         digest: &str,
     ) -> Result<CandidatePreview, PreviewError> {
+        apply_preview_test_delay();
         let candidate_dir = project_dir.join("cache/candidates");
         let preview_dir = project_dir.join("cache/preview/candidates");
         std::fs::create_dir_all(&candidate_dir).map_err(PreviewError::Io)?;
@@ -224,7 +226,7 @@ impl PreviewAdapter {
         let source = export_glb_from_scene(document, &evaluated)?;
         let source_path = candidate_dir.join(format!("{digest}-source.glb"));
         std::fs::write(&source_path, source).map_err(PreviewError::Io)?;
-        std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
+        publish_preview(&source_path, &preview_path)?;
         let content_hash = preview_content_hash(&preview_path)?;
         Ok(CandidatePreview {
             asset_id: digest.into(),
@@ -426,9 +428,13 @@ fn write_preview_packet(
 }
 
 fn valid_glb(path: &Path) -> bool {
-    std::fs::read(path)
-        .map(|bytes| bytes.len() >= 12 && &bytes[0..4] == b"glTF")
-        .unwrap_or(false)
+    std::fs::read(path).is_ok_and(|bytes| {
+        bytes.len() >= 12
+            && &bytes[0..4] == b"glTF"
+            && u32::from_le_bytes(bytes[4..8].try_into().expect("four bytes")) == 2
+            && u32::from_le_bytes(bytes[8..12].try_into().expect("four bytes")) as usize
+                == bytes.len()
+    })
 }
 
 fn preview_content_hash(path: &Path) -> Result<String, PreviewError> {
@@ -436,4 +442,75 @@ fn preview_content_hash(path: &Path) -> Result<String, PreviewError> {
         "{:x}",
         Sha256::digest(std::fs::read(path).map_err(PreviewError::Io)?)
     ))
+}
+
+fn publish_preview(source: &Path, destination: &Path) -> Result<(), PreviewError> {
+    let parent = destination.parent().ok_or_else(|| {
+        PreviewError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "preview destination has no parent directory",
+        ))
+    })?;
+    std::fs::create_dir_all(parent).map_err(PreviewError::Io)?;
+    let mut input = std::fs::File::open(source).map_err(PreviewError::Io)?;
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".preview-")
+        .suffix(".tmp")
+        .tempfile_in(parent)
+        .map_err(PreviewError::Io)?;
+    std::io::copy(&mut input, temporary.as_file_mut()).map_err(PreviewError::Io)?;
+    temporary.as_file().sync_all().map_err(PreviewError::Io)?;
+    temporary
+        .persist(destination)
+        .map_err(|error| PreviewError::Io(error.error))?;
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn apply_preview_test_delay() {
+    let Some(milliseconds) = std::env::var("ICE3_STUDIO_TEST_PREVIEW_DELAY_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+    else {
+        return;
+    };
+    std::thread::sleep(std::time::Duration::from_millis(milliseconds));
+}
+
+#[cfg(not(debug_assertions))]
+fn apply_preview_test_delay() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_publication_preserves_the_previous_public_bytes() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("preview.glb");
+        std::fs::write(&destination, b"previous-valid-preview").unwrap();
+        let missing_source = root.path().join("missing-source.glb");
+
+        let error = publish_preview(&missing_source, &destination).unwrap_err();
+
+        assert!(matches!(error, PreviewError::Io(_)));
+        assert_eq!(
+            std::fs::read(&destination).unwrap(),
+            b"previous-valid-preview"
+        );
+    }
+
+    #[test]
+    fn publication_replaces_the_destination_only_after_the_copy_completes() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source.glb");
+        let destination = root.path().join("preview.glb");
+        std::fs::write(&source, b"new-preview").unwrap();
+        std::fs::write(&destination, b"old-preview").unwrap();
+
+        publish_preview(&source, &destination).unwrap();
+
+        assert_eq!(std::fs::read(&destination).unwrap(), b"new-preview");
+        assert_eq!(std::fs::read(&source).unwrap(), b"new-preview");
+    }
 }
