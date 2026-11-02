@@ -1,15 +1,12 @@
-use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use sha2::Digest;
-use studio_assets::canonical::{PreparedGlbOptions, write_prepared_glb};
 use studio_assets::{AssetError, read_glb, validate_prepared_profile};
+use studio_cli::import::{
+    ImportOptions, execute_internal_worker, import_limits_from_environment, import_source,
+};
 use studio_cli::schema;
 use studio_core::gpu_contract::GeometryBackendMode;
-use studio_import::{
-    GltfImporter, ImportRequest, ObjImporter, SourceImporterRegistry, to_canonical,
-};
 use studio_project::{ProjectStore, WorkspacePath};
 use studio_server::capabilities::WriteMode;
 use studio_server::runtime_tileset::RuntimeTilesetExporter;
@@ -31,7 +28,11 @@ enum Command {
         output: PathBuf,
         #[arg(long)]
         asset_id: String,
-        #[arg(long, default_value = "auto")]
+        #[arg(
+            long,
+            default_value = "auto",
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd"]
+        )]
         adapter: String,
         #[arg(long)]
         warnings_as_errors: bool,
@@ -99,6 +100,11 @@ enum ExportCommand {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(request_path) = internal_worker_request()? {
+        execute_internal_worker(&request_path).map_err(|error| CliFailure(error.to_string()))?;
+        return Ok(());
+    }
+
     let cli = Cli::parse();
     match cli.command {
         Command::Import {
@@ -109,43 +115,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             warnings_as_errors,
             force,
         } => {
-            let registry = SourceImporterRegistry::try_new(vec![
-                Box::new(GltfImporter::new()),
-                Box::new(ObjImporter::new()),
-            ])?;
-            let imported = registry.import(&ImportRequest {
-                path: source.clone(),
-                asset_id: asset_id.clone(),
-                requested_adapter: Some(adapter),
-            })?;
-            if warnings_as_errors && let Some(warning) = imported.warnings.first() {
-                return Err(format!("{}: {}", warning.code, warning.message).into());
-            }
-            let source_bytes = std::fs::read(&source)?;
-            let source_digest = format!("{:x}", sha2::Sha256::digest(&source_bytes));
-            let canonical = to_canonical(&imported);
-            let bytes = write_prepared_glb(
-                &canonical,
-                &PreparedGlbOptions {
-                    asset_id,
-                    source_format: canonical.source_format.clone(),
-                    source_digest: source_digest.clone(),
-                },
-            )?;
-            let parsed = studio_assets::read_glb_bytes(&bytes, &std::env::temp_dir())?;
-            validate_prepared_profile(&parsed)?;
-            write_atomic_output(&output, &bytes, force)?;
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&serde_json::json!({
-                    "command": "import",
-                    "output": output,
-                    "adapter": imported.source_format.as_str(),
-                    "warnings": imported.warnings,
-                    "sourceDigest": source_digest,
-                    "bytes": bytes.len()
-                }))?
-            );
+            let limits =
+                import_limits_from_environment().map_err(|error| CliFailure(error.to_string()))?;
+            let report = import_source(ImportOptions {
+                source,
+                output,
+                asset_id,
+                adapter,
+                warnings_as_errors,
+                force,
+                limits,
+            })
+            .map_err(|error| CliFailure(error.to_string()))?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
         }
         Command::Validate { source } => {
             let parsed = read_glb(&source)?;
@@ -242,39 +224,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn write_atomic_output(
-    output: &std::path::Path,
-    bytes: &[u8],
-    force: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if output.exists() && !force {
-        return Err("output already exists".into());
+fn internal_worker_request() -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
+    let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
+    if arguments.first().map(std::ffi::OsString::as_os_str)
+        != Some(std::ffi::OsStr::new("--internal-import-worker"))
+    {
+        return Ok(None);
     }
-    let parent = output
-        .parent()
-        .ok_or("output must have a parent directory")?;
-    std::fs::create_dir_all(parent)?;
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let name = output
-        .file_name()
-        .and_then(|value| value.to_str())
-        .ok_or("output name is invalid")?;
-    let temporary = parent.join(format!(".{name}.{nonce}.tmp"));
-    let result = (|| {
-        let mut file = std::fs::File::create(&temporary)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        std::fs::rename(&temporary, output)?;
-        Ok::<(), std::io::Error>(())
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(temporary);
-    }
-    result.map_err(Into::into)
+    let [_, request_path] = arguments.as_slice() else {
+        return Err("expected --internal-import-worker REQUEST_PATH".into());
+    };
+    Ok(Some(PathBuf::from(request_path)))
 }
+
+struct CliFailure(String);
+
+impl std::fmt::Debug for CliFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::fmt::Display for CliFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for CliFailure {}
 
 fn parse_compute_mode(value: &str) -> Result<GeometryBackendMode, String> {
     match value {
@@ -340,5 +317,41 @@ mod tests {
 
         let validate = Cli::try_parse_from(["ice3-studio", "validate", "plant.glb"]).unwrap();
         assert!(matches!(validate.command, Command::Validate { .. }));
+    }
+
+    #[test]
+    fn restricts_import_adapters_to_the_native_registry() {
+        for adapter in ["auto", "gltf", "obj", "fbx", "usd"] {
+            let cli = Cli::try_parse_from([
+                "ice3-studio",
+                "import",
+                "plant.test",
+                "--output",
+                "plant.glb",
+                "--asset-id",
+                "plant",
+                "--adapter",
+                adapter,
+            ])
+            .unwrap();
+            assert!(matches!(
+                cli.command,
+                Command::Import { adapter: parsed, .. } if parsed == adapter
+            ));
+        }
+        assert!(
+            Cli::try_parse_from([
+                "ice3-studio",
+                "import",
+                "plant.test",
+                "--output",
+                "plant.glb",
+                "--asset-id",
+                "plant",
+                "--adapter",
+                "external",
+            ])
+            .is_err()
+        );
     }
 }

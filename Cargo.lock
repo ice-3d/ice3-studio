@@ -2275,6 +2275,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "schemars",
+ "serde",
  "serde_json",
  "sha2",
  "studio-assets",
