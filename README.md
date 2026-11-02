@@ -132,17 +132,30 @@ cargo run -p studio-cli -- import plant.usdc \
   --asset-id plant-usd \
   --adapter usd
 
+cargo run -p studio-cli -- import plant.step \
+  --output plant-step.glb \
+  --asset-id plant-step \
+  --adapter step
+
+cargo run -p studio-cli -- import plant.ifc \
+  --output plant-ifc.glb \
+  --asset-id plant-ifc \
+  --adapter ifc
+
 cargo run -p studio-cli -- validate plant.glb
 ```
 
-Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary 和 USD ASCII/Binary。OBJ/MTL
-资源限制在源文件同目录；FBX/USD 解析在 Studio 自带 worker 中运行，不需要安装外部
-DCC。worker 有硬超时、进程崩溃隔离、512 MiB response 上限和 1 MiB stderr 上限，
+Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242
+和 IFC4X3。OBJ/MTL 资源限制在源文件同目录；FBX/USD/STEP/IFC 解析在 Studio 自带 worker 中
+运行，不需要安装外部 DCC。worker 有硬超时、进程崩溃隔离、512 MiB response 上限和
+1 MiB stderr 上限，
 默认预算为 1,000,000 nodes、20,000,000 triangles、512 MiB estimated decoded
 memory 和 120 秒。内存预算通过分配前预检和 post-decode scene accounting 执行，
-不宣称等同于进程 RSS。FBX/USD 是默认启用、可关闭的 Cargo features；关闭后仍可构建
-glTF/OBJ-only 的 `studio-import` 与 CLI。USD composition 限制在源文件目录，并限制
-递归深度和 layer 数量；失败不会替换已有输出。
+不宣称等同于进程 RSS。FBX/USD/STEP/IFC 是默认启用、可关闭的 Cargo features；关闭后仍可
+构建其它格式组合。USD composition 限制在源文件目录，并限制递归深度和 layer 数量；
+STEP 只接受 AP242，并保留产品层级、实例、颜色、Selection 和单位换算；失败不会替换
+已有输出。IFC 只接受 IFC4X3，保留空间层级、Pset/Qto/System、实例、颜色和
+GlobalId Selection。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
@@ -175,7 +188,7 @@ Studio Server ── 认证、单事务串行、持久化、revision 事件
       │
       ├── studio-core      Document、几何、事务、校验、GLB 导出（无 IO）
       ├── studio-assets    glTF/GLB 读取、Prepared Profile、accessor 与来源摘要
-      ├── studio-import    glTF/GLB、OBJ/MTL、FBX、USD 与统一 SourceScene
+      ├── studio-import    glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与统一 SourceScene
       ├── studio-pipeline  partition、LOD、coarse chunk、Tileset 与 render batch
       ├── studio-project   路径、写锁、原子快照、变更集、几何缓存
       ├── studio-gpu       wgpu 几何内核、residency（实验）
@@ -245,8 +258,8 @@ session。功能已交付，但性能门禁未过，默认关闭。
 静态资产导入、跨项目 GPU 缓冲持久化。清单与理由见
 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
-Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD Source Import
-已由 Studio 原生实现。Toolchain 只保留 STEP、IFC、JT 的迁移兼容能力与 parity 证据。
+Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC
+Source Import 已由 Studio 原生实现。Toolchain 只保留 JT 的迁移兼容能力与 parity 证据。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。

@@ -85,12 +85,16 @@ base directory 内解析外部资源。Draco primitive 在读取阶段物化为�
   shared Mesh、颜色、实例和有界 custom properties。
 - `usd`：`.usda`、`.usdc`，native stage 在隔离 worker 中保留 prim path、层级、
   instance/prototype、Geometry、颜色和有界 metadata。
+- `step`：`.step`、`.stp`，原生 AP242 reader 在隔离 worker 中保留 product/assembly
+  层级、occurrence 矩阵、shared Mesh、逐面颜色、Selection 和单位归一。
+- `ifc`：`.ifc`，原生 IFC4X3 parser/geometry pipeline 在隔离 worker 中保留空间层级、
+  产品、Pset/Qto/System、shared instance、颜色、Selection、单位和 bounded metadata。
 
 adapter 不写 Tileset；`studio-assets::canonical` 把 `SourceScene` 写成 Prepared GLB。
-重要安全边界：外部资源只能读取源文件目录内文件。FBX/USD worker 使用硬 timeout、进程
-崩溃隔离、response/stderr 上限和 post-decode scene budgets；USD composition 额外限制
-递归深度、layer 数量、绝对路径、URI、`..` 和 symlink escape。任何超时、崩溃、协议污染
-或越界资源都失败关闭。
+重要安全边界：外部资源只能读取源文件目录内文件。FBX/USD/STEP/IFC worker 使用硬 timeout、
+进程崩溃隔离、response/stderr 上限和 post-decode scene budgets；USD composition 额外
+限制递归深度、layer 数量、绝对路径、URI、`..` 和 symlink escape。任何超时、崩溃、
+协议污染或越界资源都失败关闭。
 
 ### `studio-pipeline`
 
@@ -117,7 +121,7 @@ Compute service 负责 GPU 内存、并发、优先级、取消、健康检查�
 修改 Document、ChangeSet、审批状态或 revision。
 
 新 `import` 和 `export tileset` 都不经过该客户端。Toolchain 只保留为 parity oracle，
-以及 STEP、IFC、JT Source Importer 的迁移兼容层。
+以及 JT Source Importer 的迁移兼容层。
 
 ### `studio-cli`
 
@@ -211,9 +215,9 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 - 跨项目持久 GPU buffer pool。
 
 Runtime LOD、空间 partition 和 GLB Runtime Asset 发布已由 Studio 原生 crate 实现。
-glTF/GLB、OBJ/MTL、FBX 与 USD Source Import 已迁入 Studio。STEP、IFC 和 JT 仍按
-Spec-016 后续阶段迁移；在这些阶段完成前，Toolchain 仅作为迁移兼容层和 parity oracle
-保留。Toolchain 不再拥有 FBX/USD 生产 adapter 或外部 DCC bridge。
+glTF/GLB、OBJ/MTL、FBX、USD、STEP 与 IFC Source Import 已迁入 Studio。JT 仍按
+Spec-016 后续阶段迁移；在该阶段完成前，Toolchain 仅作为迁移兼容层和 parity oracle
+保留。Toolchain 不再拥有 STEP/IFC/FBX/USD 生产 adapter 或外部 DCC bridge。
 
 ## 关联文档
 

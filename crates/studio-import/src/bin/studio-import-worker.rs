@@ -3,6 +3,10 @@ use std::process::ExitCode;
 
 #[cfg(feature = "fbx")]
 use studio_import::FbxImporter;
+#[cfg(feature = "ifc")]
+use studio_import::IfcImporter;
+#[cfg(feature = "step")]
+use studio_import::StepImporter;
 #[cfg(feature = "usd")]
 use studio_import::UsdImporter;
 use studio_import::{GltfImporter, ObjImporter, SourceImporterRegistry, execute_worker_request};
@@ -35,6 +39,10 @@ fn worker_main(arguments: Vec<PathBuf>) -> Result<(), studio_import::ImportError
     importers.push(Box::new(FbxImporter::new()));
     #[cfg(feature = "usd")]
     importers.push(Box::new(UsdImporter::new()));
+    #[cfg(feature = "step")]
+    importers.push(Box::new(StepImporter::new()));
+    #[cfg(feature = "ifc")]
+    importers.push(Box::new(IfcImporter::new()));
     let registry = SourceImporterRegistry::try_new(importers)?;
     execute_worker_request(request_path, &registry)
 }

@@ -34,7 +34,7 @@ enum Command {
         #[arg(
             long,
             default_value = "auto",
-            value_parser = ["auto", "gltf", "obj", "fbx", "usd"]
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc"]
         )]
         adapter: String,
         #[arg(long)]

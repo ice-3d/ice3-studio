@@ -6,9 +6,13 @@ use studio_assets::canonical::{PreparedGlbOptions, write_prepared_glb};
 use studio_assets::{AssetError, read_glb_bytes, validate_prepared_profile};
 #[cfg(feature = "fbx")]
 use studio_import::FbxImporter;
+#[cfg(feature = "ifc")]
+use studio_import::IfcImporter;
+#[cfg(feature = "step")]
+use studio_import::StepImporter;
 #[cfg(feature = "usd")]
 use studio_import::UsdImporter;
-#[cfg(any(feature = "fbx", feature = "usd"))]
+#[cfg(any(feature = "fbx", feature = "ifc", feature = "step", feature = "usd"))]
 use studio_import::run_isolated_import;
 use studio_import::{
     GltfImporter, ImportError, ImportRequest, ImportWarning, NativeImportLimits, ObjImporter,
@@ -70,6 +74,10 @@ pub fn source_importer_registry() -> Result<SourceImporterRegistry, ImportError>
     importers.push(Box::new(FbxImporter::new()));
     #[cfg(feature = "usd")]
     importers.push(Box::new(UsdImporter::new()));
+    #[cfg(feature = "step")]
+    importers.push(Box::new(StepImporter::new()));
+    #[cfg(feature = "ifc")]
+    importers.push(Box::new(IfcImporter::new()));
     SourceImporterRegistry::try_new(importers)
 }
 
@@ -150,6 +158,10 @@ pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportComma
         "fbx" => run_isolated_import(&FbxImporter::new(), &request, options.limits)?,
         #[cfg(feature = "usd")]
         "usd" => run_isolated_import(&UsdImporter::new(), &request, options.limits)?,
+        #[cfg(feature = "step")]
+        "step" => run_isolated_import(&StepImporter::new(), &request, options.limits)?,
+        #[cfg(feature = "ifc")]
+        "ifc" => run_isolated_import(&IfcImporter::new(), &request, options.limits)?,
         _ => registry.import(&request)?,
     };
 

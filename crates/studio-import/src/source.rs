@@ -11,6 +11,8 @@ pub enum SourceFormat {
     Obj,
     Fbx,
     Usd,
+    Step,
+    Ifc,
 }
 
 impl SourceFormat {
@@ -20,6 +22,8 @@ impl SourceFormat {
             Self::Obj => "obj",
             Self::Fbx => "fbx",
             Self::Usd => "usd",
+            Self::Step => "step",
+            Self::Ifc => "ifc",
         }
     }
 }
@@ -115,6 +119,8 @@ pub enum ImportError {
     ResourceIgnored(String),
     #[error("source import limit exceeded: {0}")]
     LimitExceeded(String),
+    #[error("{code}: {message}")]
+    SourceDiagnostic { code: String, message: String },
     #[error("source import worker timed out")]
     WorkerTimeout,
     #[error("source import worker protocol is invalid: {0}")]
@@ -139,6 +145,7 @@ impl ImportError {
             Self::EmptyGeometry => "ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY",
             Self::ResourceIgnored(_) => "ICE3_STUDIO_IMPORT_RESOURCE_IGNORED",
             Self::LimitExceeded(_) => "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED",
+            Self::SourceDiagnostic { code, .. } => code,
             Self::WorkerTimeout => "ICE3_STUDIO_IMPORT_TIMEOUT",
             Self::WorkerProtocolInvalid(_) => "ICE3_STUDIO_IMPORT_WORKER_PROTOCOL_INVALID",
             Self::WorkerReported { code, .. } => code,

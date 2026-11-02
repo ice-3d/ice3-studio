@@ -92,6 +92,13 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_IMPORT_RESOURCE_UNSUPPORTED` | glTF animation、skin、texture 等资源被跳过 |
 | `ICE3_STUDIO_IMPORT_FBX_*` | FBX animation、skin、camera、light、texture、NURBS 或 decoder warning |
 | `ICE3_STUDIO_IMPORT_USD_UNSUPPORTED_RESOURCE` | USD camera、light、skeleton、volume 等资源被跳过 |
+| `ICE3_STUDIO_IMPORT_STEP_SCHEMA_UNSUPPORTED` | STEP schema 不是 AP242 |
+| `ICE3_STUDIO_IMPORT_STEP_UNSUPPORTED_ENTITY` | STEP representation 或产品内容被跳过 |
+| `ICE3_STUDIO_IMPORT_IFC_SCHEMA_UNSUPPORTED` | IFC schema 不是 IFC4X3 |
+| `ICE3_STUDIO_IMPORT_IFC_UNIT_UNSUPPORTED` | IFC 项目缺少唯一、可解析且有效的长度单位 |
+| `ICE3_STUDIO_IMPORT_IFC_DUPLICATE_GLOBAL_ID` | IFC GlobalId 重复，Selection 使用 Express ID 消歧 |
+| `ICE3_STUDIO_IMPORT_IFC_UNSUPPORTED_RESOURCE` | IFC camera、light、skeleton、volume 或 texture 被跳过 |
+| `ICE3_STUDIO_IMPORT_IFC_METADATA_TRUNCATED` | IFC metadata 超出深度或数组上限而被省略 |
 
 ## Recovery Rules
 

@@ -3,10 +3,14 @@
 #[cfg(feature = "fbx")]
 mod fbx;
 mod gltf;
+#[cfg(feature = "ifc")]
+mod ifc;
 mod limits;
 pub mod obj;
 mod registry;
 mod source;
+#[cfg(feature = "step")]
+mod step;
 #[cfg(feature = "usd")]
 mod usd;
 mod worker;
@@ -14,6 +18,11 @@ mod worker;
 #[cfg(feature = "fbx")]
 pub use fbx::FbxImporter;
 pub use gltf::GltfImporter;
+#[cfg(feature = "ifc")]
+pub use ifc::{
+    IfcImporter, IfcMetadata, IfcNodeMetadata, IfcProductMetadata, IfcPropertySetMetadata,
+    IfcQuantitySetMetadata, IfcSystemMetadata, IfcSystemReference, extract_ifc_metadata,
+};
 pub use limits::{NativeImportLimits, WorkerLimits, validate_scene_limits};
 pub use obj::ObjImporter;
 pub use registry::SourceImporterRegistry;
@@ -21,6 +30,8 @@ pub use source::{
     ImportError, ImportRequest, ImportWarning, SourceCapabilities, SourceFormat, SourceImporter,
     SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceScene,
 };
+#[cfg(feature = "step")]
+pub use step::StepImporter;
 #[cfg(feature = "usd")]
 pub use usd::UsdImporter;
 pub use worker::{

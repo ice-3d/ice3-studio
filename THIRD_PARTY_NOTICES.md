@@ -1,7 +1,7 @@
 # Third-Party Notices
 
-ICE3 Studio uses the following third-party components for native FBX and USD
-source import. ICE3 does not modify these components.
+ICE3 Studio uses the following third-party components for native FBX, USD, STEP and
+IFC source import. ICE3 does not modify these components.
 
 ## FBX Source Import
 
@@ -15,6 +15,30 @@ This component documents that parts of its scene conversion derive operationally
 from ufbx 0.23.1. The incorporated ufbx work is used under the MIT license:
 
 Copyright (c) 2020 Samuli Raivio
+
+## STEP Source Import
+
+### oxideav-step 0.0.1
+
+Available under the MIT license.
+
+This component incorporates `oxideav-ifc 0.0.3`, also available under the MIT
+license.
+
+Copyright (c) 2026 Karpelès Lab Inc.
+
+## IFC Source Import
+
+### ifc-lite-core 27.1.0
+
+### ifc-lite-geometry 27.1.0
+
+### ifc-lite-processing 27.1.0
+
+Available under the Mozilla Public License Version 2.0.
+
+ICE3 does not modify these components. The complete license text is included in
+`third-party-licenses/MPL-2.0.txt`.
 
 ## USD Source Import
 
