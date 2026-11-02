@@ -69,6 +69,62 @@ createInterface({ input: process.stdin }).on('line', (line) => {
 });
 "#;
 
+pub async fn rpc(
+    server: &TestServer,
+    method: &str,
+    params: serde_json::Value,
+) -> serde_json::Value {
+    rpc_with_bearer(server, server.token(), method, params).await
+}
+
+pub async fn create_and_evaluate_candidate(server: &TestServer) -> serde_json::Value {
+    let created = rpc(
+        server,
+        "changeset.create",
+        serde_json::json!({ "baseRevision": 0, "title": "candidate preview" }),
+    )
+    .await;
+    let change_set_id = created["result"]["id"].as_str().unwrap();
+    rpc(
+        server,
+        "changeset.addOperations",
+        serde_json::json!({
+            "changeSetId": change_set_id,
+            "expectedVersion": 0,
+            "entries": [{
+                "source": { "kind": "agent", "label": "native-preview" },
+                "operation": {
+                    "type": "node.create",
+                    "node_id": "node-000001",
+                    "parent_id": null,
+                    "name": "Candidate tank",
+                    "transform": {
+                        "translation": { "x": 0, "y": 0, "z": 0 },
+                        "rotation": [0, 0, 0, 1],
+                        "scale": { "x": 1, "y": 1, "z": 1 }
+                    },
+                    "content": { "type": "group" },
+                    "material_id": null,
+                    "metadata": {}
+                }
+            }]
+        }),
+    )
+    .await;
+    let evaluated = rpc(
+        server,
+        "changeset.evaluate",
+        serde_json::json!({
+            "changeSetId": change_set_id,
+            "expectedVersion": 1,
+            "includeCandidate": false
+        }),
+    )
+    .await;
+    assert_eq!(evaluated["result"]["status"], "ready");
+    evaluated["result"].clone()
+}
+
 pub async fn start_with_toolchain(project_id: &str, body: &str) -> TestServer {
     let server = start_test_server(ServerConfig::for_tests(project_id)).await;
     replace_toolchain_body(&server, body).await;

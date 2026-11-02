@@ -21,7 +21,6 @@ use crate::preview_packet::{
     PreviewGeometryNode, build_full_preview_packet, build_scene_preview_delta,
     decode_preview_packet, encode_preview_packet,
 };
-use crate::toolchain::ToolchainService;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
@@ -94,18 +93,12 @@ pub(crate) fn export_source_with_scene(
 
 #[derive(Debug, Error)]
 pub enum PreviewError {
-    #[error("toolchain adapter must be a file inside the configured workspace")]
-    InvalidToolchain,
     #[error("source GLB export failed")]
     Export(#[from] studio_core::export::glb::ExportError),
     #[error("preview I/O failed")]
     Io(#[source] std::io::Error),
-    #[error("preview adapter exited with status {0}")]
-    AdapterFailed(std::process::ExitStatus),
     #[error("preview adapter did not produce a valid GLB")]
     InvalidOutput,
-    #[error("Toolchain sidecar failed: {0}")]
-    Toolchain(#[from] studio_toolchain_client::ToolchainClientError),
     #[error("geometry cache failed: {0}")]
     GeometryCache(#[from] GeometryCacheError),
     #[error("derived scene evaluation failed: {0}")]
@@ -118,37 +111,15 @@ pub struct ScenePreviewContext {
     pub patch: ScenePatch,
 }
 
-/// 判断 toolchain 的失败是否只意味着"没有可用的优化器"。
-/// 未配置与版本不匹配时，Studio 用自己的产物即可；其余错误仍然暴露，
-/// 因为它们往往说明输入本身有问题，静默降级会掩盖真实故障。
-fn toolchain_is_optional(error: &studio_toolchain_client::ToolchainClientError) -> bool {
-    use studio_toolchain_client::ToolchainClientError;
-    matches!(
-        error,
-        ToolchainClientError::Unavailable { .. } | ToolchainClientError::Incompatible { .. }
-    )
-}
-
 pub struct PreviewAdapter {
-    toolchain: Arc<ToolchainService>,
     preview_packets_enabled: bool,
     compute: Option<Arc<ComputeService>>,
     scene_preview: Option<ScenePreviewContext>,
 }
 
 impl PreviewAdapter {
-    pub fn new(workspace_root: &Path, toolchain_cli: PathBuf) -> Result<Self, PreviewError> {
-        Ok(Self {
-            toolchain: Arc::new(ToolchainService::new(workspace_root, Some(toolchain_cli))),
-            preview_packets_enabled: false,
-            compute: None,
-            scene_preview: None,
-        })
-    }
-
-    pub fn from_service(toolchain: Arc<ToolchainService>) -> Self {
+    pub fn new() -> Self {
         Self {
-            toolchain,
             preview_packets_enabled: false,
             compute: None,
             scene_preview: None,
@@ -176,7 +147,7 @@ impl PreviewAdapter {
         project_dir: &Path,
         asset_id: &str,
     ) -> Result<RuntimePreview, PreviewError> {
-        let preview_dir = project_dir.join("cache/toolchain/preview");
+        let preview_dir = project_dir.join("cache/preview");
         std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
         let revision = document.revision.as_u64();
         let evaluator = self.compute.as_deref().map(ComputeEvaluator::new);
@@ -201,23 +172,11 @@ impl PreviewAdapter {
         let source_path = source_export.source_path;
         let source_digest = source_export.source_digest;
         let preview_path = preview_dir.join(format!("{revision:08}.glb"));
-        // 内核本身就能产出 GLB；toolchain 只负责额外的压缩与分块优化。
-        // 未配置或版本不匹配时直接使用内核产物，外部进程因此不再是必需依赖。
-        let (resolved_asset_id, content_hash) =
-            match self
-                .toolchain
-                .preview(&source_path, &preview_path, asset_id)
-            {
-                Ok(asset) => (asset.asset_id, asset.content_hash),
-                Err(error) if toolchain_is_optional(&error) => {
-                    std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
-                    (asset_id.to_string(), source_digest.clone())
-                }
-                Err(error) => return Err(PreviewError::Toolchain(error)),
-            };
+        std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
+        let content_hash = preview_content_hash(&preview_path)?;
         Ok(RuntimePreview {
             revision,
-            asset_id: resolved_asset_id,
+            asset_id: asset_id.to_string(),
             source_digest,
             content_hash,
             source_path,
@@ -235,23 +194,12 @@ impl PreviewAdapter {
         digest: &str,
     ) -> Result<CandidatePreview, PreviewError> {
         let candidate_dir = project_dir.join("cache/candidates");
-        let preview_dir = project_dir.join("cache/toolchain/candidates");
+        let preview_dir = project_dir.join("cache/preview/candidates");
         std::fs::create_dir_all(&candidate_dir).map_err(PreviewError::Io)?;
         std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
         let preview_path = preview_dir.join(format!("{digest}.glb"));
         if valid_glb(&preview_path) {
-            return Ok(CandidatePreview {
-                asset_id: digest.into(),
-                digest: digest.into(),
-                content_hash: format!(
-                    "{:x}",
-                    Sha256::digest(std::fs::read(&preview_path).map_err(PreviewError::Io)?)
-                ),
-                url: format!("/previews/candidates/{digest}"),
-                packet_url: self
-                    .preview_packets_enabled
-                    .then(|| format!("/preview-packets/candidates/{digest}")),
-            });
+            return self.cached_candidate_preview(digest, &preview_path);
         }
         let mut cache = GeometryDiskCache::new(project_dir)?;
         let evaluator = self.compute.as_deref().map(ComputeEvaluator::new);
@@ -274,22 +222,10 @@ impl PreviewAdapter {
             )?;
         }
         let source = export_glb_from_scene(document, &evaluated)?;
-        let source_digest = format!("{:x}", Sha256::digest(&source));
         let source_path = candidate_dir.join(format!("{digest}-source.glb"));
         std::fs::write(&source_path, source).map_err(PreviewError::Io)?;
-        // 与主预览一致：toolchain 只是可选优化器，缺失时使用内核产物。
-        let content_hash = match self.toolchain.preview(
-            &source_path,
-            &preview_path,
-            &format!("candidate-{source_digest}"),
-        ) {
-            Ok(asset) => asset.content_hash,
-            Err(error) if toolchain_is_optional(&error) => {
-                std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
-                source_digest.clone()
-            }
-            Err(error) => return Err(PreviewError::Toolchain(error)),
-        };
+        std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
+        let content_hash = preview_content_hash(&preview_path)?;
         Ok(CandidatePreview {
             asset_id: digest.into(),
             digest: digest.into(),
@@ -314,6 +250,22 @@ impl PreviewAdapter {
             _ => GeometryEvaluationMode::Cpu,
         };
         (status.selected_backend, mode)
+    }
+
+    fn cached_candidate_preview(
+        &self,
+        digest: &str,
+        path: &Path,
+    ) -> Result<CandidatePreview, PreviewError> {
+        Ok(CandidatePreview {
+            asset_id: digest.into(),
+            digest: digest.into(),
+            content_hash: preview_content_hash(path)?,
+            url: format!("/previews/candidates/{digest}"),
+            packet_url: self
+                .preview_packets_enabled
+                .then(|| format!("/preview-packets/candidates/{digest}")),
+        })
     }
 
     fn write_runtime_packet(
@@ -433,6 +385,12 @@ impl PreviewAdapter {
     }
 }
 
+impl Default for PreviewAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn export_source_from_scene(
     document: &Document,
     project_dir: &Path,
@@ -471,4 +429,11 @@ fn valid_glb(path: &Path) -> bool {
     std::fs::read(path)
         .map(|bytes| bytes.len() >= 12 && &bytes[0..4] == b"glTF")
         .unwrap_or(false)
+}
+
+fn preview_content_hash(path: &Path) -> Result<String, PreviewError> {
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(std::fs::read(path).map_err(PreviewError::Io)?)
+    ))
 }

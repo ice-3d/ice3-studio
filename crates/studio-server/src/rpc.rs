@@ -793,30 +793,33 @@ async fn dispatch_unlocked_preview(
             }
             (
                 crate::changeset::prepare_candidate_preview(&mut session, &digest),
-                Arc::clone(&session.toolchain),
                 Arc::clone(&session.compute),
                 session.compute.policy().preview_packet_enabled,
             )
         };
-        let (prepared, toolchain, compute, preview_packets_enabled) = prepared;
+        let (prepared, compute, preview_packets_enabled) = prepared;
         let prepared = match prepared {
             Ok(prepared) => prepared,
             Err(error) => return Some(Err(error)),
         };
         let result = tokio::task::spawn_blocking(move || {
-            PreviewAdapter::from_service(toolchain)
+            PreviewAdapter::new()
                 .with_compute(compute)
                 .with_preview_packets(preview_packets_enabled)
                 .generate_candidate(&prepared.document, &prepared.project_dir, &prepared.digest)
         })
-        .await
-        .unwrap_or_else(|error| {
-            Err(crate::preview::PreviewError::Toolchain(
-                studio_toolchain_client::ToolchainClientError::Crashed {
-                    message: format!("preview worker failed: {error}"),
-                },
-            ))
-        });
+        .await;
+        let result = match result {
+            Ok(result) => result,
+            Err(error) => {
+                return Some(Err(RpcError::with_diagnostic(
+                    -32603,
+                    DiagnosticCode::RuntimePreviewFailed.as_str(),
+                    format!("preview worker failed: {error}"),
+                    None,
+                )));
+            }
+        };
         return Some(match result {
             Ok(preview) => serde_json::to_value(preview).map_err(serialize_error),
             Err(error) => {
@@ -836,7 +839,6 @@ async fn dispatch_unlocked_preview(
         document,
         project_dir,
         project_id,
-        toolchain,
         compute,
         preview_packets_enabled,
         closed,
@@ -858,7 +860,6 @@ async fn dispatch_unlocked_preview(
             session.document.clone(),
             session.store.project_dir().to_path_buf(),
             session.project_id.clone(),
-            Arc::clone(&session.toolchain),
             Arc::clone(&session.compute),
             session.compute.policy().preview_packet_enabled,
             session.closed,
@@ -875,7 +876,7 @@ async fn dispatch_unlocked_preview(
     }
     Some(
         tokio::task::spawn_blocking(move || {
-            let adapter = PreviewAdapter::from_service(toolchain)
+            let adapter = PreviewAdapter::new()
                 .with_compute(compute)
                 .with_preview_packets(preview_packets_enabled);
             let adapter = match scene_preview {
@@ -1366,7 +1367,7 @@ fn dispatch(
                 return crate::changeset::export_candidate_preview(session, &digest)
                     .and_then(|preview| serde_json::to_value(preview).map_err(serialize_error));
             }
-            let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain))
+            let adapter = PreviewAdapter::new()
                 .with_compute(Arc::clone(&session.compute))
                 .with_preview_packets(session.compute.policy().preview_packet_enabled);
             let output = adapter
@@ -1606,7 +1607,7 @@ async fn preview_file(
         session
             .store
             .project_dir()
-            .join("cache/toolchain/preview")
+            .join("cache/preview")
             .join(format!("{revision:08}.glb"))
     };
     match tokio::fs::read(path).await {
@@ -1632,7 +1633,7 @@ async fn candidate_preview_file(
         session
             .store
             .project_dir()
-            .join("cache/toolchain/candidates")
+            .join("cache/preview/candidates")
             .join(format!("{digest}.glb"))
     };
     match tokio::fs::read(path).await {
@@ -2149,22 +2150,6 @@ fn large_scene_error(error: studio_core::large_scene::evaluate::LargeSceneError)
 fn preview_error(error: crate::preview::PreviewError) -> RpcError {
     let diagnostic = match &error {
         crate::preview::PreviewError::Export(_) => DiagnosticCode::ExportFailed,
-        crate::preview::PreviewError::Toolchain(
-            studio_toolchain_client::ToolchainClientError::Unavailable { .. },
-        ) => DiagnosticCode::ToolchainUnavailable,
-        crate::preview::PreviewError::Toolchain(
-            studio_toolchain_client::ToolchainClientError::Incompatible { .. },
-        ) => DiagnosticCode::ToolchainIncompatible,
-        crate::preview::PreviewError::Toolchain(
-            studio_toolchain_client::ToolchainClientError::Timeout { .. },
-        ) => DiagnosticCode::ToolchainTimeout,
-        crate::preview::PreviewError::Toolchain(
-            studio_toolchain_client::ToolchainClientError::Protocol { .. }
-            | studio_toolchain_client::ToolchainClientError::Crashed { .. },
-        ) => DiagnosticCode::ToolchainProtocolInvalid,
-        crate::preview::PreviewError::Toolchain(
-            studio_toolchain_client::ToolchainClientError::Rejected { .. },
-        ) => DiagnosticCode::ToolchainJobFailed,
         _ => DiagnosticCode::RuntimePreviewFailed,
     };
     RpcError::with_diagnostic(
