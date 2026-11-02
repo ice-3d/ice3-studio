@@ -71,11 +71,15 @@ function summarizeLegacy(document, sourceDigest) {
       baseColorFactor: material.pbrMetallicRoughness.baseColorFactor,
     }))
     .sort((left, right) => left.name.localeCompare(right.name, 'en'));
-  const triangles = meshes.reduce((total, mesh) => total + (
-    mesh.primitives ?? []
-  ).reduce((meshTotal, primitive) => (
-    meshTotal + document.json.accessors[primitive.indices].count / 3
-  ), 0), 0);
+  const meshTriangles = meshes.map((mesh) => (
+    (mesh.primitives ?? []).reduce((meshTotal, primitive) => (
+      meshTotal + document.json.accessors[primitive.indices].count / 3
+    ), 0)
+  ));
+  const triangles = meshTriangles.reduce((total, count) => total + count, 0);
+  const expandedTriangles = nodes.reduce((total, node) => (
+    node.mesh === undefined ? total : total + meshTriangles[node.mesh]
+  ), 0);
   const nodeMetadata = nodes
     .map((node) => node.extras?.ice3?.jt)
     .filter(Boolean);
@@ -91,6 +95,7 @@ function summarizeLegacy(document, sourceDigest) {
       nodeCount: nodes.length,
       meshCount: meshes.length,
       triangleCount: triangles,
+      expandedTriangleCount: expandedTriangles,
       vertexCount: document.json.accessors[
         meshes[0].primitives[0].attributes.POSITION
       ].count,
@@ -114,7 +119,7 @@ function summarizeLegacy(document, sourceDigest) {
     coordinateSystem: document.json.asset?.extras?.ice3?.coordinateSystem,
     bounds: boundsFor(document),
     normalizationRules: [
-      'Triangle count is unique mesh geometry; instance expansion is recorded separately.',
+      'Triangle count is unique mesh geometry; expandedTriangleCount applies node occurrences.',
       'Source-level material values are compared before Prepared edge/default materials are added.',
     ],
   };
@@ -155,6 +160,9 @@ function assertBaseline(baseline) {
   if (baseline.stats.nodeCount !== 4) throw new Error('node baseline');
   if (baseline.stats.meshCount !== 2) throw new Error('mesh baseline');
   if (baseline.stats.triangleCount !== 24) throw new Error('triangle baseline');
+  if (baseline.stats.expandedTriangleCount !== 36) {
+    throw new Error('expanded triangle baseline');
+  }
   if (baseline.stats.instanceNodeCount !== 1) throw new Error('instance baseline');
   if (baseline.selectionIds.length !== 4) throw new Error('selection baseline');
   if (baseline.materials.length !== 2) throw new Error('material baseline');

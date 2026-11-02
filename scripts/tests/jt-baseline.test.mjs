@@ -11,6 +11,7 @@ test('JT baseline pins business semantics', async () => {
   assert.equal(baseline.stats.nodeCount, 4);
   assert.equal(baseline.stats.meshCount, 2);
   assert.equal(baseline.stats.triangleCount, 24);
+  assert.equal(baseline.stats.expandedTriangleCount, 36);
   assert.equal(baseline.stats.instanceNodeCount, 1);
   assert.deepEqual(baseline.nodeNames, [
     'TreatmentLine',

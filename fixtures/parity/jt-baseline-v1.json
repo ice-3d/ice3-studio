@@ -10,6 +10,7 @@
     "nodeCount": 4,
     "meshCount": 2,
     "triangleCount": 24,
+    "expandedTriangleCount": 36,
     "vertexCount": 8,
     "instanceNodeCount": 1
   },
@@ -122,7 +123,7 @@
     ]
   },
   "normalizationRules": [
-    "Triangle count is unique mesh geometry; instance expansion is recorded separately.",
+    "Triangle count is unique mesh geometry; expandedTriangleCount applies node occurrences.",
     "Source-level material values are compared before Prepared edge/default materials are added."
   ]
 }
