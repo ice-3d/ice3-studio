@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+#[cfg(debug_assertions)]
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -467,14 +469,37 @@ fn publish_preview(source: &Path, destination: &Path) -> Result<(), PreviewError
 }
 
 #[cfg(debug_assertions)]
+static PREVIEW_TEST_DELAY_MS: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+pub struct PreviewTestDelayGuard {
+    previous: u64,
+}
+
+#[cfg(debug_assertions)]
+impl Drop for PreviewTestDelayGuard {
+    fn drop(&mut self) {
+        PREVIEW_TEST_DELAY_MS.store(self.previous, Ordering::Release);
+    }
+}
+
+/// Deterministically holds preview evaluation for integration tests without
+/// mutating process-global environment variables.
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+pub fn hold_preview_for_tests(duration: std::time::Duration) -> PreviewTestDelayGuard {
+    let milliseconds = u64::try_from(duration.as_millis()).unwrap_or(u64::MAX);
+    let previous = PREVIEW_TEST_DELAY_MS.swap(milliseconds, Ordering::AcqRel);
+    PreviewTestDelayGuard { previous }
+}
+
+#[cfg(debug_assertions)]
 fn apply_preview_test_delay() {
-    let Some(milliseconds) = std::env::var("ICE3_STUDIO_TEST_PREVIEW_DELAY_MS")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-    else {
-        return;
-    };
-    std::thread::sleep(std::time::Duration::from_millis(milliseconds));
+    let milliseconds = PREVIEW_TEST_DELAY_MS.load(Ordering::Acquire);
+    if milliseconds > 0 {
+        std::thread::sleep(std::time::Duration::from_millis(milliseconds));
+    }
 }
 
 #[cfg(not(debug_assertions))]

@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 
+use studio_server::preview::hold_preview_for_tests;
 use studio_server::{ServerConfig, start_test_server};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -11,9 +12,7 @@ async fn health_stays_responsive_while_native_preview_processing_blocks() {
     let server = start_test_server(ServerConfig::for_tests("native-preview-hold")).await;
     server.apply_fixture_batch().await.unwrap();
 
-    unsafe {
-        std::env::set_var("ICE3_STUDIO_TEST_PREVIEW_DELAY_MS", "1500");
-    }
+    let _preview_delay = hold_preview_for_tests(Duration::from_millis(1500));
     let started = std::time::Instant::now();
     let preview = tokio::spawn({
         let rpc_url = server.rpc_url();
@@ -57,10 +56,6 @@ async fn health_stays_responsive_while_native_preview_processing_blocks() {
     });
     let preview = preview.await.unwrap();
     let health = health.join().unwrap();
-    unsafe {
-        std::env::remove_var("ICE3_STUDIO_TEST_PREVIEW_DELAY_MS");
-    }
-
     assert!(health.starts_with("HTTP/1.1 200 OK"), "{health}");
     assert!(preview["result"]["previewPath"].is_string(), "{preview}");
     assert!(started.elapsed() >= Duration::from_millis(1500));
