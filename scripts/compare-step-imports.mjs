@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
+  access,
   mkdir,
   mkdtemp,
   readFile,
@@ -22,99 +23,223 @@ const baselinePath = join(
   studioRoot,
   'fixtures/parity/step-baseline-v1.json',
 );
+const reportPath = join(studioRoot, 'output/step-import-parity.json');
+const nativeCli = join(studioRoot, 'target/debug/studio-cli');
 const assetId = 'parity-step';
+const mode = process.argv[2] ?? '--compare';
 
-if (process.argv.slice(2).join(' ') !== '--capture') {
-  console.error('usage: node scripts/compare-step-imports.mjs --capture');
+if (!['--compare', '--capture'].includes(mode)) {
+  console.error('usage: node scripts/compare-step-imports.mjs [--compare|--capture]');
   process.exit(2);
 }
 
-const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-step-baseline-'));
+if (mode === '--capture') {
+  await captureBaseline();
+} else {
+  await compareNative();
+}
 
-try {
-  const outputPath = join(temporaryRoot, 'step.glb');
-  const reportPath = join(temporaryRoot, 'step.report.json');
-  const command = spawnSync('node', [
-    '--import',
-    'tsx',
-    'packages/cli/src/main.ts',
-    'import',
-    fixturePath,
-    '--output',
-    outputPath,
-    '--report',
-    reportPath,
-    '--asset-id',
-    assetId,
-    '--adapter',
-    'step',
-    '--json',
-  ], {
-    cwd: toolchainRoot,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (command.status !== 0) {
-    throw new Error(
-      `Toolchain STEP baseline import failed:\n${command.stderr}\n${command.stdout}`,
-    );
-  }
+async function captureBaseline() {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-step-baseline-'));
+  try {
+    const outputPath = join(temporaryRoot, 'step.glb');
+    const reportFile = join(temporaryRoot, 'step.report.json');
+    const command = spawnSync('node', [
+      '--import', 'tsx', 'packages/cli/src/main.ts', 'import',
+      fixturePath,
+      '--output', outputPath,
+      '--report', reportFile,
+      '--asset-id', assetId,
+      '--adapter', 'step',
+      '--json',
+    ], {
+      cwd: toolchainRoot,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (command.status !== 0) {
+      throw new Error(
+        `Toolchain STEP baseline import failed:\n${command.stderr}\n${command.stdout}`,
+      );
+    }
 
-  const [sourceBytes, reportBytes, outputBytes] = await Promise.all([
-    readFile(fixturePath),
-    readFile(reportPath),
-    readFile(outputPath),
-  ]);
-  const report = JSON.parse(reportBytes.toString('utf8'));
-  const glb = parseGlb(outputBytes);
-  const summary = summarizeGlb(glb);
-  const baseline = {
-    kind: 'ice3-step-import-baseline',
-    schemaVersion: '1.0',
-    fixture: relative(studioRoot, fixturePath),
-    assetId,
-    sourceDigest: sha256(sourceBytes),
-    legacy: {
-      tool: report.tool,
-      adapter: report.adapter,
-      stats: {
-        nodeCount: summary.nodeCount,
-        maxNodeDepth: report.metrics.maxNodeDepth,
-        meshCount: summary.meshCount,
-        primitiveCount: report.metrics.primitiveCount,
-        triangleCount: summary.triangleCount,
-        vertexCount: summary.vertexCount,
-        instanceNodeCount: summary.instanceNodeCount,
-        semanticMaterialCount: summary.materials.length,
-        edgeSegmentCount: summary.edgeSegmentCount,
-        encodedBytes: report.metrics.encodedBytes,
+    const [sourceBytes, reportBytes, outputBytes] = await Promise.all([
+      readFile(fixturePath),
+      readFile(reportFile),
+      readFile(outputPath),
+    ]);
+    const report = JSON.parse(reportBytes.toString('utf8'));
+    const summary = summarizeGlb(parseGlb(outputBytes));
+    const baseline = {
+      kind: 'ice3-step-import-baseline',
+      schemaVersion: '1.0',
+      fixture: relative(studioRoot, fixturePath),
+      assetId,
+      sourceDigest: sha256(sourceBytes),
+      legacy: {
+        tool: report.tool,
+        adapter: report.adapter,
+        stats: {
+          nodeCount: summary.nodeCount,
+          maxNodeDepth: report.metrics.maxNodeDepth,
+          meshCount: summary.meshCount,
+          primitiveCount: report.metrics.primitiveCount,
+          triangleCount: summary.triangleCount,
+          vertexCount: summary.vertexCount,
+          instanceNodeCount: summary.instanceNodeCount,
+          semanticMaterialCount: summary.materials.length,
+          edgeSegmentCount: summary.edgeSegmentCount,
+          encodedBytes: report.metrics.encodedBytes,
+        },
+        legacySourceDigest: report.source.digest,
+        contentDigest: report.asset.contentDigest,
+        nodeNames: summary.nodeNames,
+        selectionIds: summary.selectionIds,
+        bounds: summary.bounds,
+        surfaceArea: summary.surfaceArea,
+        materials: summary.materials,
+        warningCodes: warningCodes(report.adapter.warnings),
       },
-      sourceGlbDigest: report.source.digest,
-      contentDigest: report.asset.contentDigest,
-      nodeNames: summary.nodeNames,
-      selectionIds: summary.selectionIds,
-      bounds: summary.bounds,
-      surfaceArea: summary.surfaceArea,
-      materials: summary.materials,
-      warningCodes: warningCodes(report.adapter.warnings),
-    },
-    normalizationRules: [
-      'Tessellation triangles may differ while bounds, area and business identity remain equivalent.',
-    ],
-  };
-  assertBaseline(baseline);
-  await mkdir(dirname(baselinePath), { recursive: true });
-  await writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-  const reread = JSON.parse(await readFile(baselinePath, 'utf8'));
-  assertBaseline(reread);
-  console.log(JSON.stringify({
-    status: 'captured',
-    baseline: relative(studioRoot, baselinePath),
-    stats: baseline.legacy.stats,
-    surfaceArea: baseline.legacy.surfaceArea,
-  }, null, 2));
-} finally {
-  await rm(temporaryRoot, { recursive: true, force: true });
+      normalizationRules: [
+        'Tessellation triangles may differ while normalized bounds, area and business identity remain equivalent.',
+      ],
+    };
+    assertBaseline(baseline);
+    await mkdir(dirname(baselinePath), { recursive: true });
+    await writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
+    const reread = JSON.parse(await readFile(baselinePath, 'utf8'));
+    assertBaseline(reread);
+    console.log(JSON.stringify({
+      status: 'captured',
+      baseline: relative(studioRoot, baselinePath),
+      stats: baseline.legacy.stats,
+      surfaceArea: baseline.legacy.surfaceArea,
+    }, null, 2));
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+async function compareNative() {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-step-parity-'));
+  try {
+    ensureNativeCli();
+    const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
+    const outputPath = join(temporaryRoot, 'native-step.glb');
+    const command = runNativeImport({
+      fixture: fixturePath,
+      output: outputPath,
+      adapter: 'step',
+      assetId,
+    });
+    const [sourceBytes, nativeBytes] = await Promise.all([
+      readFile(fixturePath),
+      readFile(outputPath),
+    ]);
+    const native = summarizeGlb(parseGlb(nativeBytes));
+    const legacy = baseline.legacy;
+    const triangleRatio = native.triangleCount / legacy.stats.triangleCount;
+    const comparisons = {
+      sourceDigest: {
+        baseline: baseline.sourceDigest,
+        native: sha256(sourceBytes),
+        equal: baseline.sourceDigest === sha256(sourceBytes),
+      },
+      nodeCount: {
+        baseline: legacy.stats.nodeCount,
+        native: native.nodeCount,
+        equal: legacy.stats.nodeCount === native.nodeCount,
+      },
+      nodeNames: {
+        baseline: legacy.nodeNames,
+        native: native.nodeNames,
+        equal: JSON.stringify(legacy.nodeNames) === JSON.stringify(native.nodeNames),
+      },
+      selectionIds: {
+        baseline: legacy.selectionIds,
+        native: native.selectionIds,
+        nativePrefix: `${assetId}/step/node/`,
+        equal: selectionIdsEquivalent(legacy.selectionIds, native.selectionIds, assetId),
+      },
+      meshCount: {
+        baseline: legacy.stats.meshCount,
+        native: native.meshCount,
+        equal: legacy.stats.meshCount === native.meshCount,
+      },
+      instanceNodeCount: {
+        baseline: legacy.stats.instanceNodeCount,
+        native: native.instanceNodeCount,
+        equal: legacy.stats.instanceNodeCount === native.instanceNodeCount,
+      },
+      materialCount: {
+        baseline: legacy.stats.semanticMaterialCount,
+        native: native.materials.length,
+        equal: legacy.stats.semanticMaterialCount === native.materials.length,
+      },
+      materials: {
+        baseline: legacy.materials,
+        native: native.materials,
+        equal: materialsClose(legacy.materials, native.materials),
+      },
+      normalizedBounds: {
+        baseline: normalizeBounds(legacy.bounds),
+        native: normalizeBounds(native.bounds),
+        equal: normalizedBoundsClose(legacy.bounds, native.bounds),
+      },
+      surfaceArea: {
+        baseline: legacy.surfaceArea,
+        native: native.surfaceArea,
+        relativeError: relativeError(native.surfaceArea, legacy.surfaceArea),
+        equal: relativeError(native.surfaceArea, legacy.surfaceArea) <= 0.02,
+      },
+      triangleCount: {
+        baseline: legacy.stats.triangleCount,
+        native: native.triangleCount,
+        ratio: triangleRatio,
+        equal: triangleRatio >= 0.75 && triangleRatio <= 1.33,
+      },
+      warningCodes: {
+        baseline: legacy.warningCodes,
+        native: warningCodes(command.warnings),
+        equal: JSON.stringify(legacy.warningCodes)
+          === JSON.stringify(warningCodes(command.warnings)),
+      },
+    };
+    const failures = Object.entries(comparisons)
+      .filter(([, value]) => value.equal !== true)
+      .map(([key]) => key);
+    const report = {
+      kind: 'ice3-step-import-parity',
+      schemaVersion: '1.0',
+      status: failures.length === 0 ? 'pass' : 'fail',
+      failures,
+      fixture: relative(studioRoot, fixturePath),
+      sourceDigest: comparisons.sourceDigest.native,
+      byteDigest: sha256(nativeBytes),
+      comparisons,
+      allowedDifferences: [
+        {
+          key: 'triangleCount',
+          reason: 'Tessellators may choose different triangle counts; normalized bounds, surface area, business identity and ratio bounds are enforced.',
+        },
+        {
+          key: 'byteDigest',
+          reason: 'Accessor layout and generated normals differ deterministically.',
+        },
+      ],
+      negativeCorpus: await runNegativeCorpus(temporaryRoot),
+    };
+    for (const [name, result] of Object.entries(report.negativeCorpus)) {
+      if (result.status !== 'pass') report.failures.push(`negativeCorpus.${name}`);
+    }
+    if (report.failures.length > 0) report.status = 'fail';
+    await mkdir(dirname(reportPath), { recursive: true });
+    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    console.log(JSON.stringify(report, null, 2));
+    if (report.status !== 'pass') process.exitCode = 1;
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
 }
 
 function assertBaseline(value) {
@@ -124,6 +249,192 @@ function assertBaseline(value) {
   if (value.legacy.stats.triangleCount !== 188) throw new Error('triangle baseline');
   if (value.legacy.selectionIds.length !== 6) throw new Error('selection baseline');
   if (!(value.legacy.surfaceArea > 0)) throw new Error('surface area baseline');
+}
+
+function ensureNativeCli() {
+  const result = spawnSync('cargo', ['build', '--quiet', '-p', 'studio-cli'], {
+    cwd: studioRoot,
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || 'studio-cli build failed');
+  }
+}
+
+function runNativeImport({
+  fixture,
+  output,
+  adapter,
+  assetId: targetAssetId,
+  force = false,
+  environment = process.env,
+}) {
+  const args = [
+    'import',
+    fixture,
+    '--output',
+    output,
+    '--asset-id',
+    targetAssetId,
+    '--adapter',
+    adapter,
+  ];
+  if (force) args.push('--force');
+  const result = spawnSync(nativeCli, args, {
+    cwd: studioRoot,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    env: environment,
+  });
+  if (result.status !== 0) {
+    throw new Error(`native STEP import failed:\n${result.stderr}\n${result.stdout}`);
+  }
+  return JSON.parse(result.stdout);
+}
+
+async function runNegativeCorpus(temporaryRoot) {
+  const root = join(temporaryRoot, 'negative');
+  await mkdir(root, { recursive: true });
+  const nonAp242Path = join(root, 'non-ap242.step');
+  const nonAp242 = (await readFile(fixturePath, 'utf8')).replace(
+    'AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF',
+    'AUTOMOTIVE_DESIGN',
+  );
+  await writeFile(nonAp242Path, nonAp242);
+
+  return {
+    empty: await expectFailure(root, 'empty', {
+      fixture: join(toolchainRoot, 'tests/fixtures/step/empty-assembly.step'),
+      adapter: 'step',
+      expectedCode: 'ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY',
+    }),
+    truncated: await expectFailure(root, 'truncated', {
+      fixture: join(toolchainRoot, 'tests/fixtures/step/truncated.step'),
+      adapter: 'step',
+      expectedCode: 'ICE3_STUDIO_IMPORT_INVALID_SOURCE',
+    }),
+    nonAp242: await expectFailure(root, 'non-ap242', {
+      fixture: nonAp242Path,
+      adapter: 'step',
+      expectedCode: 'ICE3_STUDIO_IMPORT_STEP_SCHEMA_UNSUPPORTED',
+    }),
+    limitExceeded: await expectFailure(root, 'limit', {
+      fixture: fixturePath,
+      adapter: 'step',
+      expectedCode: 'ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED',
+      environment: {
+        ...process.env,
+        ICE3_STUDIO_IMPORT_MAX_TRIANGLES: '1',
+      },
+    }),
+    timeout: await expectFailure(root, 'timeout', {
+      fixture: fixturePath,
+      adapter: 'step',
+      expectedCode: 'ICE3_STUDIO_IMPORT_TIMEOUT',
+      preserveOutput: 'keep',
+      force: true,
+      environment: {
+        ...process.env,
+        ICE3_STUDIO_IMPORT_WORKER_TIMEOUT_MS: '1',
+      },
+    }),
+  };
+}
+
+async function expectFailure(root, name, options) {
+  const output = join(root, `${name}.glb`);
+  if (options.preserveOutput !== undefined) {
+    await writeFile(output, options.preserveOutput);
+  }
+  const args = [
+    'import',
+    options.fixture,
+    '--output',
+    output,
+    '--asset-id',
+    `negative-${name}`,
+    '--adapter',
+    options.adapter,
+  ];
+  if (options.force) args.push('--force');
+  const processResult = spawnSync(nativeCli, args, {
+    cwd: studioRoot,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    env: options.environment ?? process.env,
+  });
+  const outputDisposition = options.preserveOutput !== undefined
+    ? (await readFile(output, 'utf8')) === options.preserveOutput
+      ? 'preserved'
+      : 'changed'
+    : await access(output).then(() => 'present', () => 'absent');
+  const status = (
+    processResult.status !== 0
+    && processResult.stderr.includes(options.expectedCode)
+    && ['absent', 'preserved'].includes(outputDisposition)
+  ) ? 'pass' : 'fail';
+  return {
+    status,
+    exitCode: processResult.status,
+    expectedCode: options.expectedCode,
+    diagnosticPresent: processResult.stderr.includes(options.expectedCode),
+    outputDisposition,
+  };
+}
+
+function normalizeBounds(bounds) {
+  return {
+    min: [0, 0, 0],
+    max: bounds.max.map((value, axis) => value - bounds.min[axis]),
+  };
+}
+
+function normalizedBoundsClose(left, right) {
+  return [0, 1, 2].every((axis) => {
+    const leftExtent = left.max[axis] - left.min[axis];
+    const rightExtent = right.max[axis] - right.min[axis];
+    const tolerance = Math.max(0.0001, Math.abs(leftExtent) * 0.00001);
+    return Math.abs(leftExtent - rightExtent) <= tolerance;
+  });
+}
+
+function selectionIdsEquivalent(baseline, native, sourceAssetId) {
+  if (baseline.length !== native.length) return false;
+  const baselineOrdinals = baseline.map((id) => {
+    const match = id.match(new RegExp(
+      `^${escapeRegex(sourceAssetId)}/(?:step/)?node/(\\d+)$`,
+    ));
+    return match?.[1];
+  });
+  const nativeOrdinals = native.map((id) => {
+    const match = id.match(new RegExp(
+      `^${escapeRegex(sourceAssetId)}/step/node/(\\d+)$`,
+    ));
+    return match?.[1];
+  });
+  return baselineOrdinals.every((value, index) => (
+    value !== undefined && value === nativeOrdinals[index]
+  ));
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function materialsClose(left, right) {
+  return left.length === right.length
+    && left.every((material, index) => (
+      material.name === right[index].name
+      && material.baseColorFactor.every((value, component) => (
+        Math.abs(value - right[index].baseColorFactor[component]) <= 1e-5
+      ))
+    ));
+}
+
+function relativeError(value, reference) {
+  if (reference === 0) return value === 0 ? 0 : Infinity;
+  return Math.abs(value - reference) / Math.abs(reference);
 }
 
 function parseGlb(bytes) {

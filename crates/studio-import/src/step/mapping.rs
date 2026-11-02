@@ -22,6 +22,20 @@ struct Projection<'a> {
     used_names: BTreeSet<String>,
     warnings: BTreeSet<ImportWarning>,
     visited_parts: BTreeSet<usize>,
+    pending_mesh_nodes: Vec<PendingMeshNode>,
+}
+
+struct PendingMeshNode {
+    parent_id: String,
+    name: String,
+    world: DMat4,
+    mesh: usize,
+    product_id: Option<String>,
+    definition_id: Option<u64>,
+    representation_id: Option<u64>,
+    occurrence_id: Option<u64>,
+    item_ids: Vec<u64>,
+    layers: Vec<String>,
 }
 
 pub(super) fn project_model(
@@ -60,16 +74,33 @@ pub(super) fn project_model(
             })
             .collect(),
         visited_parts: BTreeSet::new(),
+        pending_mesh_nodes: Vec::new(),
     };
 
+    let root_id = format!("{asset_id}/step/node/0");
+    projection.used_names.insert("step/node/0".into());
+    projection.nodes.push(SourceNode {
+        id: root_id.clone(),
+        name: "step/node/0".into(),
+        parent: None,
+        matrix: DMat4::IDENTITY.to_cols_array().map(|value| value as f32),
+        mesh: None,
+        material: None,
+        extras: step_node_extras(None, None, None, None, &[], &[]),
+    });
+    projection
+        .node_worlds
+        .insert(root_id.clone(), DMat4::IDENTITY);
+
     for occurrence in &model.roots {
-        projection.visit_occurrence(occurrence, None, None, 0)?;
+        projection.visit_occurrence(occurrence, Some(&root_id), Some(DMat4::IDENTITY), 0)?;
     }
     for part_index in 0..model.parts.len() {
         if !projection.visited_parts.contains(&part_index) {
-            projection.visit_part(part_index, None, None, None, 0)?;
+            projection.visit_part(part_index, None, Some(&root_id), Some(DMat4::IDENTITY), 0)?;
         }
     }
+    projection.append_pending_mesh_nodes()?;
 
     if projection.nodes.len() > limits.max_nodes {
         return Err(ImportError::LimitExceeded(format!(
@@ -183,10 +214,10 @@ impl Projection<'_> {
             name,
             parent: parent.map(str::to_owned),
             matrix,
-            mesh,
+            mesh: None,
             material: None,
             extras: step_node_extras(
-                product_id,
+                product_id.clone(),
                 definition,
                 representation,
                 occurrence.and_then(|value| value.id),
@@ -195,8 +226,48 @@ impl Projection<'_> {
             ),
         });
         self.visited_parts.insert(part_index);
+        if let Some(mesh) = mesh {
+            let mesh_name = self.stable_name(&raw_name);
+            self.pending_mesh_nodes.push(PendingMeshNode {
+                parent_id: node_id.clone(),
+                name: mesh_name,
+                world,
+                mesh,
+                product_id,
+                definition_id: definition,
+                representation_id: representation,
+                occurrence_id: occurrence.and_then(|value| value.id),
+                item_ids,
+                layers,
+            });
+        }
         for child in children {
             self.visit_occurrence(&child, Some(&node_id), Some(world), depth + 1)?;
+        }
+        Ok(())
+    }
+
+    fn append_pending_mesh_nodes(&mut self) -> Result<(), ImportError> {
+        for pending in std::mem::take(&mut self.pending_mesh_nodes) {
+            let ordinal = self.nodes.len();
+            let node_id = format!("{}/step/node/{ordinal}", self.asset_id);
+            self.node_worlds.insert(node_id.clone(), pending.world);
+            self.nodes.push(SourceNode {
+                id: node_id,
+                name: pending.name,
+                parent: Some(pending.parent_id),
+                matrix: DMat4::IDENTITY.to_cols_array().map(|value| value as f32),
+                mesh: Some(pending.mesh),
+                material: None,
+                extras: step_node_extras(
+                    pending.product_id,
+                    pending.definition_id,
+                    pending.representation_id,
+                    pending.occurrence_id,
+                    &pending.item_ids,
+                    &pending.layers,
+                ),
+            });
         }
         Ok(())
     }

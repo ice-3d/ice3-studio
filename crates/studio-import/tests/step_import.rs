@@ -18,6 +18,17 @@ fn imports_ap242_hierarchy_and_geometry() {
     assert!(names.contains(&"SyntheticSkid"));
     assert!(names.contains(&"PrimaryTank"));
     assert!(names.contains(&"TransferPump"));
+    assert_eq!(
+        names,
+        [
+            "step/node/0",
+            "SyntheticSkid",
+            "PrimaryTank",
+            "TransferPump",
+            "PrimaryTank[1]",
+            "TransferPump[1]",
+        ]
+    );
     assert_eq!(scene.meshes.len(), 2);
     assert_eq!(scene.source_format, SourceFormat::Step);
     assert_eq!(

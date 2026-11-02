@@ -6,8 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["fbx", "usd"]
+default = ["fbx", "usd", "step"]
 fbx = ["studio-import/fbx"]
+step = ["studio-import/step"]
 usd = ["studio-import/usd"]
 
 [dependencies]
