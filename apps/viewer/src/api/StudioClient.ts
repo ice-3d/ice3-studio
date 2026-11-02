@@ -125,14 +125,6 @@ export type DocumentDiff = {
   removedConstraintIds: string[];
 };
 
-export type ToolchainStatus = {
-  state: 'starting' | 'ready' | 'busy' | 'unavailable' | 'incompatible' | 'failed';
-  contractVersion: string | null;
-  packageVersion: string | null;
-  capabilities: string[];
-  reason: string | null;
-};
-
 export type ComputeStatus = {
   mode: 'auto' | 'cpu' | 'gpu';
   incrementalSceneCache?: boolean;
@@ -208,7 +200,6 @@ export type StudioCapabilities = {
   apiVersion: string;
   schemaVersion: number;
   methods: string[];
-  toolchain: ToolchainStatus;
   compute: ComputeStatus;
 };
 

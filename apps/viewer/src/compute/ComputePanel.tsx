@@ -109,7 +109,7 @@ export function ComputePanel({ status }: { status: ComputeStatus | null }) {
   return (
     <section className={`status-card compute-panel status-card--${view.state}`} aria-label="Native compute status">
       <div className="status-card__heading">
-        <span className="toolchain-panel__eyebrow">Geometry engine</span>
+        <span className="status-card__eyebrow">Geometry engine</span>
         <strong>
           <span className="status-dot" aria-hidden="true" />
           {view.title}
@@ -123,7 +123,7 @@ export function ComputePanel({ status }: { status: ComputeStatus | null }) {
           ))}
         </div>
       ) : null}
-      {view.fallbackReason ? <p className="toolchain-panel__reason">{view.fallbackReason}</p> : null}
+      {view.fallbackReason ? <p className="status-card__reason">{view.fallbackReason}</p> : null}
     </section>
   );
 }

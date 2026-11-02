@@ -76,7 +76,7 @@ test('loads an arbitrary generic project without industry-specific UI', async ({
   await expect(page.getByText('Aeration Tank')).toHaveCount(0);
 });
 
-test('keeps editing available when Toolchain is incompatible', async ({ page }) => {
+test('uses the native asset pipeline without a driver status surface', async ({ page }) => {
   await page.route('**/rpc', async (route) => {
     const request = route.request().postDataJSON() as { method?: string };
     if (request.method !== 'system.capabilities') {
@@ -90,20 +90,31 @@ test('keeps editing available when Toolchain is incompatible', async ({ page }) 
           apiVersion: '1.0',
           schemaVersion: 2,
           methods: [],
-          toolchain: {
-            state: 'incompatible',
-            contractVersion: null,
-            packageVersion: null,
-            capabilities: [],
-            reason: 'required contract 1.x',
+          compute: {
+            mode: 'cpu',
+            selectedBackend: 'cpu',
+            adapter: 'reference',
+            tier: 'cpu',
+            memoryBudgetBytes: 0,
+            health: 'ready',
+            fallbackReason: null,
+            queueDepth: 0,
+            maxConcurrentJobs: 1,
+            gpuThresholdTriangles: 0,
+            lastKernelMs: 0,
+            lastUploadBytes: 0,
+            lastReadbackBytes: 0,
+            lastCacheHits: 0,
           },
         },
       }),
     });
   });
   await page.goto('/');
+  await expect(page.getByRole('region', { name: 'Agent mission control' })).toBeVisible();
   await page.getByRole('tab', { name: 'Inspect' }).click();
-  await expect(page.getByText('Toolchain incompatible')).toBeVisible();
   await expect(page.locator('canvas[data-layer="scene"]')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Objects' })).toBeVisible();
+  await expect(page.getByText(/Toolchain/i)).toHaveCount(0);
+  await expect(page.getByLabel('Toolchain status')).toHaveCount(0);
 });
