@@ -453,6 +453,8 @@ Phase 4 整体完成条件：
 
 - `ICE3-STUDIO-SPEC-016` — [Studio 原生 Asset Pipeline 迁移](2026-11-01-native-asset-pipeline-migration-design.md)
 - `ICE3-STUDIO-PLAN-021` — [Phase 3 实施计划](../plans/2026-11-02-native-asset-pipeline-phase-3.md)
+- `ICE3-STUDIO-PLAN-022` — [Phase 4A STEP 实施计划](../plans/2026-11-02-native-step-import.md)
+- `ICE3-STUDIO-PLAN-023` — [Phase 4B IFC 实施计划](../plans/2026-11-02-native-ifc-import.md)
 - `ICE3-STUDIO-ARC-001` — [Studio 架构](../architecture.md)
 - `ICE3-STUDIO-REF-001` — [能力清单](../reference/capabilities.md)
 - `ICE3-STUDIO-REF-004` — [Diagnostics](../reference/diagnostics.md)

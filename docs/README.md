@@ -44,6 +44,8 @@
 | `ICE3-STUDIO-PLAN-019` | [Studio 原生 Asset Pipeline Phase 1](plans/2026-11-01-native-asset-pipeline-phase-1.md) | Implemented | Rust GLB、partition、LOD、Tileset、binding manifest 和 CLI 导出 |
 | `ICE3-STUDIO-PLAN-020` | [Studio 原生 Asset Pipeline Phase 2](plans/2026-11-01-native-asset-pipeline-phase-2.md) | Implemented | glTF/GLB 与 OBJ/MTL 原生 Source Import、CLI validate 和 OBJ Toolchain 退役 |
 | `ICE3-STUDIO-PLAN-021` | [Studio 原生 Asset Pipeline Phase 3](plans/2026-11-02-native-asset-pipeline-phase-3.md) | Implemented | FBX/USD 原生 importer、隔离 worker、资源限制和 bridge 退役 |
+| `ICE3-STUDIO-PLAN-022` | [Studio 原生 STEP Source Import](plans/2026-11-02-native-step-import.md) | Proposed | Phase 4A AP242 hierarchy、instances、colors、worker、parity 和 STEP bridge 退役 |
+| `ICE3-STUDIO-PLAN-023` | [Studio 原生 IFC Source Import](plans/2026-11-02-native-ifc-import.md) | Proposed | Phase 4B IFC4X3 metadata、geometry、instances、worker、parity 和 IFC bridge 退役 |
 | `ICE3-STUDIO-PLAN-014` | [Large Reference Asset Editing 实施计划](plans/2026-10-31-large-reference-assets.md) | Implemented | 引用资产存储、绑定编辑、流式 Viewer 与真实大模型验收 |
 | `ICE3-STUDIO-PLAN-011` | [Revision-Scoped GPU Scene Session 实施计划](plans/2026-10-31-gpu-scene-session.md) | Implemented | CPU 增量场景、GPU residency、preview delta 和量化门禁 |
 | `ICE3-STUDIO-PLAN-012` | [Agent-Friendly Modeling API 实施计划](plans/2026-10-31-agent-friendly-modeling-api.md) | Implemented | Agent manifest、上下文查询、派生场景发现和稀疏 patch 的 TDD 交付步骤 |
