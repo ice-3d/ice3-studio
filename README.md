@@ -268,9 +268,10 @@ session。功能已交付，但性能门禁未过，默认关闭。
 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
 Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC、
-JT Source Import 已由 Studio 原生实现。Toolchain 不再承载 Source Import 生产路径；
-Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview 始终由
-Studio 原生生成。Toolchain repository 的最终源码清理与归档准备仍由 Phase 5C 完成。
+JT Source Import 已由 Studio 原生实现。Studio 不再消费 Toolchain Source Import
+生产路径；Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview
+始终由 Studio 原生生成。相邻 Toolchain repository 中残留的 JT adapter、CLI 和
+release surface 仍待 Phase 5C 清理，repository 归档也尚未执行。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。

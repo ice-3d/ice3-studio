@@ -224,9 +224,10 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 Runtime LOD、空间 partition 和 GLB Runtime Asset 发布已由 Studio 原生 crate 实现。
 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT Source Import 已迁入 Studio。
 `studio-import` 的 JT adapter 在 isolated worker 中调用 host-owned converter，验证
-标准 GLB，并在 `f64` 共享原点转换后生成 `SourceScene`。Toolchain 不再拥有 Source
-Import 生产 adapter 或外部 DCC bridge。Sidecar/client/UI 已退役；Toolchain repository
-的最终源码清理与归档准备仍属于 Phase 5C。
+标准 GLB，并在 `f64` 共享原点转换后生成 `SourceScene`。Studio 不再消费 Toolchain
+Source Import 生产路径或外部 DCC bridge 服务。Sidecar/client/UI 已退役；相邻
+Toolchain repository 中残留的 JT adapter、CLI 和 release surface 仍待 Phase 5C
+清理，repository 归档也尚未执行。
 
 ## 关联文档
 

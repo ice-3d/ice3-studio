@@ -18,19 +18,19 @@
 
 ## 1. 背景
 
-Phase 1 至 Phase 4 已将 glTF/GLB、OBJ/MTL、FBX、USD、STEP AP242 和 IFC4X3 的
-Source Import 迁入 Studio。迁移后的产品路径不再通过 Toolchain 导入这些格式，但仍有
-三类历史连接：
+在 Phase 5A、Phase 5B 开始前，Phase 1 至 Phase 4 已将 glTF/GLB、OBJ/MTL、FBX、USD、
+STEP AP242 和 IFC4X3 的 Source Import 迁入 Studio。当时的 Studio 产品路径不再通过
+Toolchain 导入这些格式，但仍有三类历史连接：
 
-1. `.jt` 的 converter、GLB canonicalization 和 Diagnostic 仍由 Toolchain TypeScript
-   package 提供。
-2. Studio Server 仍链接 `studio-toolchain-client`，启动可选 Sidecar，并通过
+1. `.jt` 的 converter、GLB canonicalization 和 Diagnostic 当时由 Toolchain
+   TypeScript package 提供。
+2. Studio Server 当时链接 `studio-toolchain-client`，启动可选 Sidecar，并通过
    `system.capabilities`、`ToolchainPanel` 和预览 fallback 暴露其状态。
-3. Studio 多个 importer 测试、parity 脚本、Viewer E2E、benchmark 和验证脚本仍直接
-   读取 `../ice3-toolchain` 的 fixtures 或构建 Toolchain package。
+3. Studio 多个 importer 测试、parity 脚本、Viewer E2E、benchmark 和验证脚本当时
+   直接读取 `../ice3-toolchain` 的 fixtures 或构建 Toolchain package。
 
-因此当前并不是完整的“Studio 独立”。即使未配置 Sidecar 时编辑和预览仍可运行，测试与
-发布流程仍隐含要求旧 repository 存在。
+因此 Phase 5A、Phase 5B 开始前的 Studio 并不是完整的“Studio 独立”。即使未配置
+Sidecar 时编辑和预览可以运行，测试与发布流程仍隐含要求旧 repository 存在。
 
 ## 2. 成功标准
 
@@ -362,7 +362,7 @@ fixtures/source-import/
   统计作为 `retiredBaseline` 证据；
 - 新增 `scripts/compare-jt-imports.mjs`，从旧 Toolchain JT adapter 和 Studio `jt`
   adapter 双跑相同 corpus；
-- parity 通过后才删除 Toolchain JT 生产 adapter；
+- parity 通过后，由 Phase 5C 删除 Toolchain JT 生产 adapter；
 - Studio 最终验证不要求 Toolchain repository 或其 `node_modules` 存在。
 
 JT parity corpus 至少覆盖：
@@ -413,7 +413,8 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 **状态：Implemented（2026-11-02）。**
 
 - CLI、测试和 parity 改用 Studio JT adapter。
-- 删除 Toolchain JT adapter、CLI import 分支和 release JT 验证。
+- Studio 不再消费 Toolchain JT adapter、CLI import 分支或 release JT 验证；旧
+  repository 中的这些源码仍保留，直到 Phase 5C 清理。
 - 移除 Studio Server 的 Sidecar client、配置、状态和 preview fallback。
 - 移除 Viewer Toolchain surface、build hooks 和 benchmark 注入。
 - 所有 source fixtures 改为 Studio-local。
@@ -423,6 +424,7 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 ### Phase 5C：最终退役与归档准备
 
 - 执行 repository-wide dependency、script、docs 和客户模型审计。
+- 删除 Toolchain repository 中残留的 JT adapter、CLI import 分支和 release JT 验证。
 - 删除剩余 Toolchain release/package 入口。
 - 更新上级 Spec-016、文档索引、AGENTS、第三方声明、CLI 和 capability reference。
 - 输出可复核的归档清单；等待单独授权后归档 repository。
@@ -479,7 +481,7 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 | Large-origin GLB 在 `f32` 转换后抖动 | 在 source JSON/world transform 阶段用 `f64` 计算并先应用 shared origin |
 | 删除 Sidecar 后 preview 性能回退 | 以 Studio native preview 建立新的 benchmark 基线，不用缺失外部进程掩盖结果 |
 | Fixtures 留在旧 repo 形成假独立 | 复制、hash、重写所有 test path，并在隐藏旧 repo 后执行 full verify |
-| Toolchain 与 Studio 同时保留 JT 语义实现 | Phase 5A 双跑只作为 parity oracle；Phase 5B 立即删除旧生产 adapter |
+| Toolchain 与 Studio 同时保留 JT 语义实现 | Phase 5A 双跑只作为 parity oracle；Phase 5B 停止 Studio 消费旧路径；Phase 5C 删除旧生产 adapter |
 | 归档 repository 造成不可恢复损失 | Repository archive/delete 必须单独确认；先保留可恢复快照和归档清单 |
 
 ## 14. 关联文档
