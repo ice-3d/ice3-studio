@@ -8,7 +8,7 @@ rust-version.workspace = true
 [features]
 default = ["fbx", "usd", "step", "ifc"]
 fbx = ["dep:fbx-rs"]
-ifc = ["dep:ifc-lite-core", "dep:ifc-lite-processing"]
+ifc = ["dep:ifc-lite-core", "dep:ifc-lite-geometry", "dep:ifc-lite-processing"]
 step = ["dep:oxideav-step"]
 usd = ["dep:openusd"]
 
@@ -17,6 +17,7 @@ bincode.workspace = true
 fbx-rs = { workspace = true, optional = true }
 glam.workspace = true
 ifc-lite-core = { workspace = true, optional = true }
+ifc-lite-geometry = { workspace = true, optional = true }
 ifc-lite-processing = { workspace = true, optional = true }
 openusd = { workspace = true, optional = true }
 oxideav-step = { workspace = true, optional = true }

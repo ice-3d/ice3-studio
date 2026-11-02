@@ -171,6 +171,12 @@ fn build_metadata(
     let mut warnings = BTreeSet::new();
     let nodes = build_nodes(&data.spatial_hierarchy.nodes)?;
     let product_ids = collect_product_ids(&data, &nodes);
+    collect_unsupported_entity_warnings(
+        data.entities
+            .iter()
+            .map(|entity| (entity.entity_id, entity.type_name.as_str())),
+        &mut warnings,
+    );
     let entities = data
         .entities
         .into_iter()
@@ -546,10 +552,57 @@ fn normalize_global_id(value: Option<String>) -> Option<String> {
     value.filter(|value| !value.is_empty() && value != "$")
 }
 
+fn collect_unsupported_entity_warnings<'a>(
+    entities: impl IntoIterator<Item = (u32, &'a str)>,
+    warnings: &mut BTreeSet<ImportWarning>,
+) {
+    for (express_id, type_name) in entities {
+        let kind = match type_name.to_ascii_uppercase().as_str() {
+            name if name.contains("CAMERA") => "camera",
+            name if name.contains("LIGHT") => "light",
+            name if name.contains("SKELETON") => "skeleton",
+            name if name.contains("VOLUME") => "volume",
+            _ => continue,
+        };
+        warnings.insert(warning(
+            "ICE3_STUDIO_IMPORT_IFC_UNSUPPORTED_RESOURCE",
+            format!("{kind} #{express_id}"),
+        ));
+    }
+}
+
 fn warning(code: &str, message: String) -> ImportWarning {
     ImportWarning {
         code: code.into(),
         message,
         path: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::collect_unsupported_entity_warnings;
+
+    #[test]
+    fn warns_for_each_known_unsupported_entity_category() {
+        let mut warnings = Default::default();
+        collect_unsupported_entity_warnings(
+            [
+                (10, "IfcCamera"),
+                (11, "IfcLightFixture"),
+                (12, "IfcSkeleton"),
+                (13, "IfcVolume"),
+                (14, "IfcWall"),
+            ],
+            &mut warnings,
+        );
+        let messages = warnings
+            .iter()
+            .map(|warning| warning.message.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            messages,
+            ["camera #10", "light #11", "skeleton #12", "volume #13"]
+        );
     }
 }

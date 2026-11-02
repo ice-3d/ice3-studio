@@ -1,5 +1,8 @@
 use std::path::Path;
 
+use ifc_lite_geometry::resource::{
+    Cost, ExecutionAccount, ExecutionPolicy, ResourceLimits, charge,
+};
 use ifc_lite_processing::ProcessingRequest;
 
 use super::{extract_ifc_metadata, geometry::project_ifc_scene};
@@ -48,10 +51,7 @@ impl IfcImporter {
         }
         let bytes = read_bounded_source(&request.path, limits.max_memory_bytes)?;
         let metadata = extract_ifc_metadata(&bytes, asset_id, limits)?;
-        let processing = ProcessingRequest::full_pass()
-            .retain_meshes(true)
-            .instancing(true);
-        let result = ifc_lite_processing::process(&bytes, &processing, &mut ());
+        let result = process_geometry_with_budget(&bytes, limits)?;
         if result.metadata.schema_version != metadata.schema {
             return Err(ImportError::SourceDiagnostic {
                 code: "ICE3_STUDIO_IMPORT_IFC_SCHEMA_UNSUPPORTED".into(),
@@ -77,6 +77,46 @@ impl IfcImporter {
         }
         project_ifc_scene(&metadata, &result, asset_id, limits)
     }
+}
+
+fn process_geometry_with_budget(
+    bytes: &[u8],
+    limits: NativeImportLimits,
+) -> Result<ifc_lite_processing::ProcessingResult, ImportError> {
+    let max_bytes = u64::try_from(limits.max_memory_bytes)
+        .map_err(|_| ImportError::LimitExceeded("IFC memory budget is not representable".into()))?;
+    let max_nodes = u64::try_from(limits.max_nodes)
+        .map_err(|_| ImportError::LimitExceeded("IFC node budget is not representable".into()))?;
+    let processing = ProcessingRequest::full_pass()
+        .retain_meshes(true)
+        .instancing(true);
+    let account = ExecutionAccount::new(ExecutionPolicy::Bounded(ResourceLimits {
+        output_bytes: Some(max_bytes),
+        live_bytes: Some(max_bytes),
+        occurrences: Some(max_nodes),
+        ..ResourceLimits::default()
+    }));
+    let estimated_geometry_bytes = u64::try_from(bytes.len())
+        .ok()
+        .and_then(|size| size.checked_mul(64))
+        .unwrap_or(u64::MAX);
+    let result = account.scope(|| {
+        let _reservation = charge(Cost {
+            output_bytes: estimated_geometry_bytes,
+            live_bytes: estimated_geometry_bytes,
+            ..Cost::default()
+        })
+        .map_err(|_| {
+            ImportError::LimitExceeded("IFC geometry exceeded the native resource budget".into())
+        })?;
+        Ok::<_, ImportError>(ifc_lite_processing::process(bytes, &processing, &mut ()))
+    })?;
+    if account.check().is_err() {
+        return Err(ImportError::LimitExceeded(
+            "IFC geometry exceeded the native resource budget".into(),
+        ));
+    }
+    Ok(result)
 }
 
 impl SourceImporter for IfcImporter {
@@ -119,4 +159,25 @@ fn read_bounded_source(path: &Path, limit: usize) -> Result<Vec<u8>, ImportError
         )));
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn geometry_budget_refusal_maps_to_a_stable_limit() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc");
+        let bytes = std::fs::read(path).unwrap();
+        let limits = NativeImportLimits {
+            max_memory_bytes: 4_096,
+            ..NativeImportLimits::default()
+        };
+        let error = match process_geometry_with_budget(&bytes, limits) {
+            Ok(_) => panic!("geometry budget unexpectedly accepted"),
+            Err(error) => error,
+        };
+        assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+    }
 }

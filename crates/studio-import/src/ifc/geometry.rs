@@ -44,11 +44,7 @@ pub fn validate_ifc_geometry(
     result: &ProcessingResult,
     limits: NativeImportLimits,
 ) -> Result<(), ImportError> {
-    let node_count = metadata
-        .nodes
-        .len()
-        .checked_add(metadata.products.len())
-        .ok_or_else(|| ImportError::LimitExceeded("IFC node count overflowed".into()))?;
+    let node_count = projected_node_count(metadata, result)?;
     if node_count > limits.max_nodes {
         return Err(ImportError::LimitExceeded(format!(
             "IFC has {node_count} nodes; limit is {}",
@@ -112,7 +108,8 @@ pub fn project_ifc_scene(
 ) -> Result<SourceScene, ImportError> {
     validate_ifc_geometry(metadata, result, limits)?;
 
-    let (mut meshes, materials, templates) = build_geometry(&result.meshes)?;
+    let source_origin = source_origin_for(&result.meshes, &result.instances).unwrap_or(DVec3::ZERO);
+    let (mut meshes, materials, templates) = build_geometry(&result.meshes, source_origin)?;
     let template_by_express = templates
         .iter()
         .map(|template| (template.express_id, template.mesh_index))
@@ -152,11 +149,15 @@ pub fn project_ifc_scene(
     }
 
     let project_parent = spatial_id(metadata.project_id);
-    let unassigned_parent = metadata
+    let has_unassigned = metadata
         .products
         .values()
         .any(|product| !spatial_parent_by_element.contains_key(&product.express_id))
-        .then(|| format!("{asset_id}/ifc/unassigned"));
+        || result.instances.iter().any(|instance| {
+            !metadata.products.contains_key(&instance.express_id)
+                && !spatial_parent_by_element.contains_key(&instance.express_id)
+        });
+    let unassigned_parent = has_unassigned.then(|| format!("{asset_id}/ifc/unassigned"));
     if let Some(unassigned_id) = &unassigned_parent {
         pending.push(PendingNode {
             id: unassigned_id.clone(),
@@ -221,10 +222,6 @@ pub fn project_ifc_scene(
     }
 
     add_shared_mesh_groups(&mut pending);
-    let source_origin =
-        scene_bounds(&pending, &meshes).map_or([0.0; 3], |(min, _)| [min.x, 0.0, min.z]);
-    apply_spatial_origin(&mut pending, metadata.project_id, source_origin, asset_id);
-
     let nodes = pending
         .into_iter()
         .map(|node| SourceNode {
@@ -254,7 +251,7 @@ pub fn project_ifc_scene(
                 },
                 "ifc": {
                     "schema": metadata.schema,
-                    "sourceOrigin": source_origin,
+                    "sourceOrigin": [source_origin.x, 0.0, source_origin.z],
                 }
             }
         }),
@@ -263,7 +260,10 @@ pub fn project_ifc_scene(
     Ok(scene)
 }
 
-fn build_geometry(source_meshes: &[MeshData]) -> Result<GeometryProjection, ImportError> {
+fn build_geometry(
+    source_meshes: &[MeshData],
+    source_origin: DVec3,
+) -> Result<GeometryProjection, ImportError> {
     let mut meshes: Vec<SourceMesh> = Vec::new();
     let mut materials = Vec::new();
     let mut templates = Vec::new();
@@ -275,7 +275,7 @@ fn build_geometry(source_meshes: &[MeshData]) -> Result<GeometryProjection, Impo
         if primitive_count == 0 {
             continue;
         }
-        let positions = convert_positions(source)?;
+        let positions = convert_positions(source, source_origin)?;
         let normals = convert_normals(source);
         let key = material_key(source);
         let material = if let Some(index) = material_by_key.get(&key) {
@@ -329,7 +329,7 @@ fn build_geometry(source_meshes: &[MeshData]) -> Result<GeometryProjection, Impo
     Ok((meshes, materials, templates))
 }
 
-fn convert_positions(mesh: &MeshData) -> Result<Vec<[f32; 3]>, ImportError> {
+fn convert_positions(mesh: &MeshData, source_origin: DVec3) -> Result<Vec<[f32; 3]>, ImportError> {
     if !mesh.positions.len().is_multiple_of(3) {
         return Err(ImportError::InvalidSource(
             "IFC mesh position length is not divisible by three".into(),
@@ -358,7 +358,10 @@ fn convert_positions(mesh: &MeshData) -> Result<Vec<[f32; 3]>, ImportError> {
                     "IFC mesh contains non-finite positions".into(),
                 ));
             }
-            Ok([x as f32, z as f32, (-y) as f32])
+            let rebased_x = x - source_origin.x;
+            let rebased_y = z - source_origin.y;
+            let rebased_z = -y - source_origin.z;
+            Ok([rebased_x as f32, rebased_y as f32, rebased_z as f32])
         })
         .collect()
 }
@@ -403,43 +406,75 @@ fn rgba_components(bits: [u32; 4]) -> [f32; 4] {
     bits.map(f32::from_bits)
 }
 
-fn scene_bounds(nodes: &[PendingNode], meshes: &[SourceMesh]) -> Option<(DVec3, DVec3)> {
+fn source_origin_for(meshes: &[MeshData], instances: &[InstanceRecord]) -> Option<DVec3> {
+    let by_express = meshes
+        .iter()
+        .map(|mesh| (mesh.express_id, mesh))
+        .collect::<BTreeMap<_, _>>();
     let mut min = DVec3::splat(f64::INFINITY);
-    let mut max = DVec3::splat(f64::NEG_INFINITY);
-    for node in nodes {
-        let Some(mesh_index) = node.mesh else {
+    for mesh in meshes {
+        update_mesh_bounds(mesh, DMat4::IDENTITY, &mut min);
+    }
+    for instance in instances {
+        let Some(mesh) = by_express.get(&instance.template_express_id) else {
             continue;
         };
-        for primitive in &meshes[mesh_index].primitives {
-            for position in &primitive.positions {
-                let point = node.world.transform_point3(DVec3::new(
-                    f64::from(position[0]),
-                    f64::from(position[1]),
-                    f64::from(position[2]),
-                ));
-                min = min.min(point);
-                max = max.max(point);
-            }
-        }
+        update_mesh_bounds(mesh, row_major_to_y_up(instance.transform), &mut min);
     }
-    min.is_finite().then_some((min, max))
+    min.is_finite().then_some(DVec3::new(min.x, 0.0, min.z))
 }
 
-fn apply_spatial_origin(
-    nodes: &mut [PendingNode],
-    project_id: u32,
-    source_origin: [f64; 3],
-    asset_id: &str,
-) {
-    let translation = DMat4::from_translation(DVec3::from_array(source_origin)) * -1.0;
-    let project_node_id = format!("{asset_id}/ifc/express/{project_id}");
-    let project_node = nodes
-        .iter()
-        .position(|node| node.id == project_node_id)
-        .or_else(|| nodes.iter().position(|node| node.parent.is_none()));
-    if let Some(index) = project_node {
-        nodes[index].world = translation * nodes[index].world;
+fn update_mesh_bounds(mesh: &MeshData, transform: DMat4, min: &mut DVec3) {
+    for position in mesh.positions.as_chunks::<3>().0 {
+        let x = mesh.origin[0] + f64::from(position[0]);
+        let y = mesh.origin[1] + f64::from(position[1]);
+        let z = mesh.origin[2] + f64::from(position[2]);
+        let point = transform.transform_point3(DVec3::new(x, z, -y));
+        *min = min.min(point);
     }
+}
+
+fn projected_node_count(
+    metadata: &IfcMetadata,
+    result: &ProcessingResult,
+) -> Result<usize, ImportError> {
+    let spatial_parents = metadata
+        .nodes
+        .values()
+        .flat_map(|node| node.elements.iter().copied())
+        .collect::<BTreeSet<_>>();
+    let has_unassigned = metadata
+        .products
+        .values()
+        .any(|product| !spatial_parents.contains(&product.express_id))
+        || result.instances.iter().any(|instance| {
+            !metadata.products.contains_key(&instance.express_id)
+                && !spatial_parents.contains(&instance.express_id)
+        });
+    let fallback_instances = result
+        .instances
+        .iter()
+        .filter(|instance| !metadata.products.contains_key(&instance.express_id))
+        .count();
+    projected_node_count_parts(
+        metadata.nodes.len(),
+        metadata.products.len(),
+        fallback_instances,
+        has_unassigned,
+    )
+}
+
+fn projected_node_count_parts(
+    spatial_nodes: usize,
+    products: usize,
+    fallback_instances: usize,
+    has_unassigned: bool,
+) -> Result<usize, ImportError> {
+    spatial_nodes
+        .checked_add(products)
+        .and_then(|count| count.checked_add(fallback_instances))
+        .and_then(|count| count.checked_add(usize::from(has_unassigned)))
+        .ok_or_else(|| ImportError::LimitExceeded("IFC node count overflowed".into()))
 }
 
 fn add_shared_mesh_groups(nodes: &mut [PendingNode]) {
@@ -650,5 +685,33 @@ mod tests {
             warning.code == "ICE3_STUDIO_IMPORT_IFC_UNSUPPORTED_RESOURCE"
                 && warning.message == "surface texture 7"
         }));
+    }
+
+    #[test]
+    fn rebases_large_origins_before_narrowing_positions() {
+        let mut mesh = MeshData::new(
+            9,
+            "IfcPump".into(),
+            vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            Vec::new(),
+            vec![0, 1, 2],
+            [1.0, 1.0, 1.0, 1.0],
+        );
+        mesh.origin = [16_777_216.0, 0.0, -5.0];
+        let origin = source_origin_for(std::slice::from_ref(&mesh), &[]).unwrap();
+        let (meshes, _, _) = build_geometry(&[mesh], origin).unwrap();
+        let positions = &meshes[0].primitives[0].positions;
+        assert!((positions[1][0] - positions[0][0] - 1.0).abs() < 1e-6);
+        assert!(
+            positions
+                .iter()
+                .all(|position| { position.iter().all(|value| value.is_finite()) })
+        );
+    }
+
+    #[test]
+    fn node_count_includes_fallback_instances_and_unassigned_container() {
+        let count = projected_node_count_parts(5, 3, 2, true).unwrap();
+        assert_eq!(count, 11);
     }
 }
