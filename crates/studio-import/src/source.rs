@@ -10,6 +10,7 @@ pub enum SourceFormat {
     Gltf,
     Obj,
     Fbx,
+    Usd,
 }
 
 impl SourceFormat {
@@ -18,6 +19,7 @@ impl SourceFormat {
             Self::Gltf => "gltf",
             Self::Obj => "obj",
             Self::Fbx => "fbx",
+            Self::Usd => "usd",
         }
     }
 }

@@ -6,6 +6,7 @@ mod limits;
 pub mod obj;
 mod registry;
 mod source;
+mod usd;
 mod worker;
 
 pub use fbx::FbxImporter;
@@ -17,6 +18,7 @@ pub use source::{
     ImportError, ImportRequest, ImportWarning, SourceCapabilities, SourceFormat, SourceImporter,
     SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceScene,
 };
+pub use usd::UsdImporter;
 pub use worker::{
     WORKER_PROTOCOL_VERSION, WorkerRequest, WorkerResponse, decode_worker_response,
     execute_worker_request, run_isolated_import,
