@@ -83,7 +83,7 @@
       "quantitySets": [
         {
           "name": "Qto_PumpBaseQuantities",
-          "properties": {
+          "quantities": {
             "GrossWeight": 480,
             "Length": 1400
           }
@@ -94,6 +94,115 @@
           "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
           "name": "Sludge Transfer",
           "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "nodeSelections": [
+        {
+          "name": "Synthetic IFC Plant",
+          "selectionId": "parity-ifc/node/0",
+          "business": false
+        },
+        {
+          "name": "Synthetic Site",
+          "selectionId": "parity-ifc/node/1",
+          "business": false
+        },
+        {
+          "name": "Treatment Building",
+          "selectionId": "parity-ifc/node/2",
+          "business": false
+        },
+        {
+          "name": "Process Floor",
+          "selectionId": "parity-ifc/node/3",
+          "business": false
+        },
+        {
+          "name": "Buffer Tank",
+          "mesh": 1,
+          "selectionId": "parity-ifc/ifc/3KYC_dK497BBYg7947RLi$",
+          "business": true
+        },
+        {
+          "name": "Primary Pump",
+          "mesh": 0,
+          "selectionId": "parity-ifc/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+          "business": true
+        }
+      ],
+      "productRecords": [
+        {
+          "name": "Buffer Tank",
+          "selectionId": "parity-ifc/ifc/3KYC_dK497BBYg7947RLi$",
+          "propertySets": [
+            {
+              "name": "Pset_TankTypeCommon",
+              "properties": {
+                "NominalCapacity": 20,
+                "StorageType": "LIQUID"
+              }
+            }
+          ],
+          "quantitySets": [],
+          "systems": [
+            {
+              "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/1",
+              "baseColorFactor": [
+                0.9639762327436437,
+                0.708369650344471,
+                0.31330415714736104,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Primary Pump",
+          "selectionId": "parity-ifc/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+          "propertySets": [
+            {
+              "name": "Pset_PumpTypeCommon",
+              "properties": {
+                "FlowRate": 12.5,
+                "PumpType": "CENTRIFUGAL",
+                "IsVariableSpeed": true
+              }
+            }
+          ],
+          "quantitySets": [
+            {
+              "name": "Qto_PumpBaseQuantities",
+              "quantities": {
+                "GrossWeight": 480,
+                "Length": 1400
+              }
+            }
+          ],
+          "systems": [
+            {
+              "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/0",
+              "baseColorFactor": [
+                0.3810918585155354,
+                0.6799757283637317,
+                0.8962438838245138,
+                1
+              ]
+            }
+          ]
         }
       ],
       "bounds": {
@@ -213,7 +322,7 @@
       "quantitySets": [
         {
           "name": "Qto_PumpBaseQuantities",
-          "properties": {
+          "quantities": {
             "GrossWeight": 480,
             "Length": 1400
           }
@@ -224,6 +333,115 @@
           "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
           "name": "Sludge Transfer",
           "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "nodeSelections": [
+        {
+          "name": "Synthetic IFC Plant",
+          "selectionId": "parity-ifc-duplicate-global-id/node/0",
+          "business": false
+        },
+        {
+          "name": "Synthetic Site",
+          "selectionId": "parity-ifc-duplicate-global-id/node/1",
+          "business": false
+        },
+        {
+          "name": "Treatment Building",
+          "selectionId": "parity-ifc-duplicate-global-id/node/2",
+          "business": false
+        },
+        {
+          "name": "Process Floor",
+          "selectionId": "parity-ifc-duplicate-global-id/node/3",
+          "business": false
+        },
+        {
+          "name": "Buffer Tank",
+          "mesh": 1,
+          "selectionId": "parity-ifc-duplicate-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+          "business": true
+        },
+        {
+          "name": "Primary Pump",
+          "mesh": 0,
+          "selectionId": "parity-ifc-duplicate-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK/express/18",
+          "business": true
+        }
+      ],
+      "productRecords": [
+        {
+          "name": "Buffer Tank",
+          "selectionId": "parity-ifc-duplicate-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+          "propertySets": [
+            {
+              "name": "Pset_TankTypeCommon",
+              "properties": {
+                "NominalCapacity": 20,
+                "StorageType": "LIQUID"
+              }
+            }
+          ],
+          "quantitySets": [],
+          "systems": [
+            {
+              "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/1",
+              "baseColorFactor": [
+                0.9639762327436437,
+                0.708369650344471,
+                0.31330415714736104,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Primary Pump",
+          "selectionId": "parity-ifc-duplicate-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK/express/18",
+          "propertySets": [
+            {
+              "name": "Pset_PumpTypeCommon",
+              "properties": {
+                "FlowRate": 12.5,
+                "PumpType": "CENTRIFUGAL",
+                "IsVariableSpeed": true
+              }
+            }
+          ],
+          "quantitySets": [
+            {
+              "name": "Qto_PumpBaseQuantities",
+              "quantities": {
+                "GrossWeight": 480,
+                "Length": 1400
+              }
+            }
+          ],
+          "systems": [
+            {
+              "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/0",
+              "baseColorFactor": [
+                0.3810918585155354,
+                0.6799757283637317,
+                0.8962438838245138,
+                1
+              ]
+            }
+          ]
         }
       ],
       "bounds": {
@@ -343,7 +561,7 @@
       "quantitySets": [
         {
           "name": "Qto_PumpBaseQuantities",
-          "properties": {
+          "quantities": {
             "GrossWeight": 480,
             "Length": 1400
           }
@@ -354,6 +572,115 @@
           "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
           "name": "Sludge Transfer",
           "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "nodeSelections": [
+        {
+          "name": "Synthetic IFC Plant",
+          "selectionId": "parity-ifc-missing-global-id/node/0",
+          "business": false
+        },
+        {
+          "name": "Synthetic Site",
+          "selectionId": "parity-ifc-missing-global-id/node/1",
+          "business": false
+        },
+        {
+          "name": "Treatment Building",
+          "selectionId": "parity-ifc-missing-global-id/node/2",
+          "business": false
+        },
+        {
+          "name": "Process Floor",
+          "selectionId": "parity-ifc-missing-global-id/node/3",
+          "business": false
+        },
+        {
+          "name": "Buffer Tank",
+          "mesh": 1,
+          "selectionId": "parity-ifc-missing-global-id/ifc/express/19",
+          "business": true
+        },
+        {
+          "name": "Primary Pump",
+          "mesh": 0,
+          "selectionId": "parity-ifc-missing-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+          "business": true
+        }
+      ],
+      "productRecords": [
+        {
+          "name": "Buffer Tank",
+          "selectionId": "parity-ifc-missing-global-id/ifc/express/19",
+          "propertySets": [
+            {
+              "name": "Pset_TankTypeCommon",
+              "properties": {
+                "NominalCapacity": 20,
+                "StorageType": "LIQUID"
+              }
+            }
+          ],
+          "quantitySets": [],
+          "systems": [
+            {
+              "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/1",
+              "baseColorFactor": [
+                0.9639762327436437,
+                0.708369650344471,
+                0.31330415714736104,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Primary Pump",
+          "selectionId": "parity-ifc-missing-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+          "propertySets": [
+            {
+              "name": "Pset_PumpTypeCommon",
+              "properties": {
+                "FlowRate": 12.5,
+                "PumpType": "CENTRIFUGAL",
+                "IsVariableSpeed": true
+              }
+            }
+          ],
+          "quantitySets": [
+            {
+              "name": "Qto_PumpBaseQuantities",
+              "quantities": {
+                "GrossWeight": 480,
+                "Length": 1400
+              }
+            }
+          ],
+          "systems": [
+            {
+              "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/0",
+              "baseColorFactor": [
+                0.3810918585155354,
+                0.6799757283637317,
+                0.8962438838245138,
+                1
+              ]
+            }
+          ]
         }
       ],
       "bounds": {
@@ -476,7 +803,7 @@
       "quantitySets": [
         {
           "name": "Qto_PumpBaseQuantities",
-          "properties": {
+          "quantities": {
             "GrossWeight": 480,
             "Length": 1400
           }
@@ -487,6 +814,139 @@
           "globalId": "28fItmaEnAHumm8mcnuG3E",
           "name": "Sludge Transfer",
           "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "nodeSelections": [
+        {
+          "name": "Synthetic IFC Plant",
+          "selectionId": "parity-ifc-orphan-product/node/0",
+          "business": false
+        },
+        {
+          "name": "Synthetic Site",
+          "selectionId": "parity-ifc-orphan-product/node/1",
+          "business": false
+        },
+        {
+          "name": "Treatment Building",
+          "selectionId": "parity-ifc-orphan-product/node/2",
+          "business": false
+        },
+        {
+          "name": "Process Floor",
+          "selectionId": "parity-ifc-orphan-product/node/3",
+          "business": false
+        },
+        {
+          "name": "Buffer Tank",
+          "mesh": 1,
+          "selectionId": "parity-ifc-orphan-product/ifc/2QfDA8etvFy997txGciOcZ",
+          "business": true
+        },
+        {
+          "name": "Primary Pump",
+          "mesh": 0,
+          "selectionId": "parity-ifc-orphan-product/ifc/2ogGST4b1Af9dj_xe62Hqz",
+          "business": true
+        },
+        {
+          "name": "Orphan Pump",
+          "mesh": 2,
+          "selectionId": "parity-ifc-orphan-product/ifc/2EkdHADtn6gxj2XurU_kH9",
+          "business": true
+        }
+      ],
+      "productRecords": [
+        {
+          "name": "Buffer Tank",
+          "selectionId": "parity-ifc-orphan-product/ifc/2QfDA8etvFy997txGciOcZ",
+          "propertySets": [
+            {
+              "name": "Pset_TankTypeCommon",
+              "properties": {
+                "NominalCapacity": 20,
+                "StorageType": "LIQUID"
+              }
+            }
+          ],
+          "quantitySets": [],
+          "systems": [
+            {
+              "globalId": "28fItmaEnAHumm8mcnuG3E",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/1",
+              "baseColorFactor": [
+                0.9639762327436437,
+                0.708369650344471,
+                0.31330415714736104,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Primary Pump",
+          "selectionId": "parity-ifc-orphan-product/ifc/2ogGST4b1Af9dj_xe62Hqz",
+          "propertySets": [
+            {
+              "name": "Pset_PumpTypeCommon",
+              "properties": {
+                "FlowRate": 12.5,
+                "PumpType": "CENTRIFUGAL",
+                "IsVariableSpeed": true
+              }
+            }
+          ],
+          "quantitySets": [
+            {
+              "name": "Qto_PumpBaseQuantities",
+              "quantities": {
+                "GrossWeight": 480,
+                "Length": 1400
+              }
+            }
+          ],
+          "systems": [
+            {
+              "globalId": "28fItmaEnAHumm8mcnuG3E",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/0",
+              "baseColorFactor": [
+                0.3810918585155354,
+                0.6799757283637317,
+                0.8962438838245138,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Orphan Pump",
+          "selectionId": "parity-ifc-orphan-product/ifc/2EkdHADtn6gxj2XurU_kH9",
+          "propertySets": [],
+          "quantitySets": [],
+          "systems": [],
+          "materials": [
+            {
+              "name": "ifc/material/2",
+              "baseColorFactor": [
+                0.7353569830524495,
+                0.7353569830524495,
+                0.7353569830524495,
+                1
+              ]
+            }
+          ]
         }
       ],
       "bounds": {
@@ -615,7 +1075,7 @@
       "quantitySets": [
         {
           "name": "Qto_PumpBaseQuantities",
-          "properties": {
+          "quantities": {
             "GrossWeight": 480,
             "Length": 1400
           }
@@ -626,6 +1086,104 @@
           "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
           "name": "Sludge Transfer",
           "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "nodeSelections": [
+        {
+          "name": "Synthetic IFC Plant",
+          "selectionId": "parity-ifc-semantic-only/node/0",
+          "business": false
+        },
+        {
+          "name": "Synthetic Site",
+          "selectionId": "parity-ifc-semantic-only/node/1",
+          "business": false
+        },
+        {
+          "name": "Treatment Building",
+          "selectionId": "parity-ifc-semantic-only/node/2",
+          "business": false
+        },
+        {
+          "name": "Process Floor",
+          "selectionId": "parity-ifc-semantic-only/node/3",
+          "business": false
+        },
+        {
+          "name": "Buffer Tank",
+          "mesh": 0,
+          "selectionId": "parity-ifc-semantic-only/ifc/3KYC_dK497BBYg7947RLi$",
+          "business": true
+        },
+        {
+          "name": "Primary Pump",
+          "selectionId": "parity-ifc-semantic-only/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+          "business": true
+        }
+      ],
+      "productRecords": [
+        {
+          "name": "Buffer Tank",
+          "selectionId": "parity-ifc-semantic-only/ifc/3KYC_dK497BBYg7947RLi$",
+          "propertySets": [
+            {
+              "name": "Pset_TankTypeCommon",
+              "properties": {
+                "NominalCapacity": 20,
+                "StorageType": "LIQUID"
+              }
+            }
+          ],
+          "quantitySets": [],
+          "systems": [
+            {
+              "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": [
+            {
+              "name": "ifc/material/0",
+              "baseColorFactor": [
+                0.9639762327436437,
+                0.708369650344471,
+                0.31330415714736104,
+                1
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Primary Pump",
+          "selectionId": "parity-ifc-semantic-only/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+          "propertySets": [
+            {
+              "name": "Pset_PumpTypeCommon",
+              "properties": {
+                "FlowRate": 12.5,
+                "PumpType": "CENTRIFUGAL",
+                "IsVariableSpeed": true
+              }
+            }
+          ],
+          "quantitySets": [
+            {
+              "name": "Qto_PumpBaseQuantities",
+              "quantities": {
+                "GrossWeight": 480,
+                "Length": 1400
+              }
+            }
+          ],
+          "systems": [
+            {
+              "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+              "name": "Sludge Transfer",
+              "ifcType": "IFCDISTRIBUTIONSYSTEM"
+            }
+          ],
+          "materials": []
         }
       ],
       "bounds": {

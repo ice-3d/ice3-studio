@@ -45,6 +45,7 @@ if (mode === '--capture') {
 
 async function compareNative() {
   ensureNativeCli();
+  assertIfcComparatorRejectsSwaps();
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-ifc-parity-'));
   try {
     const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
@@ -115,6 +116,27 @@ async function compareFixture(root, key, fixtureName, assetId, legacy) {
   const triangleRatio = native.triangleCount / legacy.stats.triangleCount;
   const normalizedLegacyBounds = normalizeLegacyIfcBounds(legacy.bounds);
   const normalizedNativeBounds = normalizeNativeIfcBounds(nativeBytes);
+  const materialNamesByColour = materialNamesByNormalizedColour(native.materials);
+  const normalizedLegacyNodeSelections = normalizeNodeSelections(
+    legacy.nodeSelections,
+    key,
+  );
+  const normalizedNativeNodeSelections = normalizeNodeSelections(
+    native.nodeSelections,
+    key,
+  );
+  const normalizedLegacyProducts = normalizeProductRecords(
+    legacy.productRecords,
+    key,
+    true,
+    materialNamesByColour,
+  );
+  const normalizedNativeProducts = normalizeProductRecords(
+    native.productRecords,
+    key,
+    false,
+    materialNamesByColour,
+  );
   const comparisons = {
     sourceDigest: {
       baseline: legacy.sourceDigest,
@@ -138,6 +160,12 @@ async function compareFixture(root, key, fixtureName, assetId, legacy) {
       native: normalizeIfcSelectionIds(native.selectionIds, key),
       equal: JSON.stringify(normalizeIfcSelectionIds(legacy.selectionIds, key))
         === JSON.stringify(normalizeIfcSelectionIds(native.selectionIds, key)),
+    },
+    nodeSelectionPairs: {
+      baseline: normalizedLegacyNodeSelections,
+      native: normalizedNativeNodeSelections,
+      equal: JSON.stringify(normalizedLegacyNodeSelections)
+        === JSON.stringify(normalizedNativeNodeSelections),
     },
     spatialPaths: {
       baseline: normalizedSpatialPaths(legacy.spatialPaths),
@@ -182,6 +210,14 @@ async function compareFixture(root, key, fixtureName, assetId, legacy) {
       native: normalizeSystems(native.systems),
       equal: JSON.stringify(normalizeSystems(legacy.systems))
         === JSON.stringify(normalizeSystems(native.systems)),
+    },
+    productSemantics: {
+      baseline: normalizedLegacyProducts,
+      native: normalizedNativeProducts,
+      equal: normalizedProductRecordsClose(
+        normalizedLegacyProducts,
+        normalizedNativeProducts,
+      ),
     },
     bounds: {
       baseline: normalizedLegacyBounds,
@@ -247,6 +283,17 @@ async function compareInstanceCorpus(root) {
   const meshNodeSelections = native.nodeSelections.filter((pair) => (
     pair.mesh !== undefined
   ));
+  const normalizedPairs = normalizeNodeSelections(native.nodeSelections, 'instanceCorpus');
+  const expectedPairs = [
+    {
+      name: 'Mapped Equipment A',
+      selectionId: '0000000000000000000010',
+    },
+    {
+      name: 'Mapped Equipment B',
+      selectionId: '0000000000000000000011',
+    },
+  ];
   const comparisons = {
     sharedMeshNodeCount: {
       native: native.sharedMeshNodeCount,
@@ -260,6 +307,10 @@ async function compareInstanceCorpus(root) {
       native: meshNodeSelections.map((pair) => pair.selectionId),
       equal: new Set(meshNodeSelections.map((pair) => pair.selectionId)).size
         === meshNodeSelections.length,
+    },
+    businessIdentityPairs: {
+      native: normalizedPairs,
+      equal: JSON.stringify(normalizedPairs) === JSON.stringify(expectedPairs),
     },
     warningCodes: {
       native: normalizeWarningCodes(warningCodes(command.warnings)),
@@ -519,6 +570,143 @@ function normalizeMaterialColours(materials, fromSrgb) {
     ));
 }
 
+function normalizeProductRecords(
+  records,
+  fixtureKey,
+  fromSrgb,
+  materialNamesByColour = new Map(),
+) {
+  return (records ?? [])
+    .filter((record) => record.name !== 'Unassigned IFC Products')
+    .map((record) => ({
+      name: normalizeBusinessName(record.name),
+      selectionId: normalizeSelectionForBusiness(
+        record.selectionId,
+        fixtureKey,
+        record.name,
+      ),
+      propertySets: normalizePropertySets(record.propertySets),
+      quantitySets: normalizeQuantitySets(record.quantitySets),
+      systems: normalizeSystems(record.systems),
+      materials: normalizeOwnedMaterials(
+        record.materials,
+        fromSrgb,
+        materialNamesByColour,
+      ),
+    }))
+    .sort((left, right) => (
+      left.name.localeCompare(right.name, 'en')
+      || left.selectionId.localeCompare(right.selectionId, 'en')
+    ));
+}
+
+function normalizeOwnedMaterials(
+  materials,
+  fromSrgb,
+  materialNamesByColour = new Map(),
+) {
+  return (materials ?? [])
+    .map((material) => {
+      const baseColorFactor = material.baseColorFactor.map((component, index) => (
+        index === 3 || !fromSrgb
+          ? component
+          : srgbToLinear(component)
+      ));
+      const rawName = material.name ?? '';
+      const semanticName = (
+        /^ifc\/material\/\d+$/u.test(rawName) || rawName === ''
+          ? materialNamesByColour.get(materialColourKey(baseColorFactor))
+            ?? '<unnamed>'
+          : rawName
+      );
+      return { name: semanticName, baseColorFactor };
+    })
+    .sort(compareMaterial);
+}
+
+function materialNamesByNormalizedColour(materials) {
+  const byColour = new Map();
+  for (const material of materials ?? []) {
+    if (!material.name || /^ifc\/material\/\d+$/u.test(material.name)) continue;
+    const key = materialColourKey(material.baseColorFactor);
+    const names = byColour.get(key) ?? new Set();
+    names.add(material.name);
+    byColour.set(key, names);
+  }
+  return new Map([...byColour.entries()]
+    .filter(([, names]) => names.size === 1)
+    .map(([key, names]) => [key, [...names][0]]));
+}
+
+function materialColourKey(colour) {
+  return colour.map((component) => Number(component).toFixed(6)).join(',');
+}
+
+function normalizeNodeSelections(selections, fixtureKey) {
+  return (selections ?? [])
+    .filter((pair) => (
+      pair.business
+      && pair.selectionId
+      && pair.name !== 'Unassigned IFC Products'
+    ))
+    .map((pair) => ({
+      name: normalizeBusinessName(pair.name),
+      selectionId: normalizeSelectionForBusiness(
+        pair.selectionId,
+        fixtureKey,
+        pair.name,
+      ),
+    }))
+    .sort((left, right) => (
+      left.name.localeCompare(right.name, 'en')
+      || left.selectionId.localeCompare(right.selectionId, 'en')
+    ));
+}
+
+function normalizeBusinessName(name) {
+  return String(name ?? '').replace(/\[\d+\]$/u, '');
+}
+
+function normalizeIfcSelectionId(id, fixtureKey) {
+  const value = String(id);
+  const ifcIndex = value.indexOf('/ifc/');
+  const nodeIndex = value.indexOf('/node/');
+  const start = ifcIndex >= 0 ? ifcIndex + 5 : nodeIndex >= 0 ? nodeIndex + 6 : 0;
+  const normalized = value.slice(start);
+  if (fixtureKey === 'duplicateGlobalId') return '<duplicate>';
+  return normalized;
+}
+
+function normalizeSelectionForBusiness(id, fixtureKey, name) {
+  if (fixtureKey === 'duplicateGlobalId') {
+    return `<duplicate>@${normalizeBusinessName(name)}`;
+  }
+  return normalizeIfcSelectionId(id, fixtureKey);
+}
+
+function normalizedProductRecordsClose(left, right) {
+  return left.length === right.length
+    && left.every((record, index) => {
+      const other = right[index];
+      return record.name === other.name
+        && record.selectionId === other.selectionId
+        && JSON.stringify(record.propertySets) === JSON.stringify(other.propertySets)
+        && JSON.stringify(record.quantitySets) === JSON.stringify(other.quantitySets)
+        && JSON.stringify(record.systems) === JSON.stringify(other.systems)
+        && normalizedOwnedMaterialsClose(record.materials, other.materials);
+    });
+}
+
+function normalizedOwnedMaterialsClose(left, right) {
+  return left.length === right.length
+    && left.every((material, index) => (
+      material.name === right[index].name
+      && material.baseColorFactor.every((value, component) => (
+        Math.abs(value - right[index].baseColorFactor[component]) <= 1e-5
+      ))
+    ));
+}
+
 function srgbToLinear(component) {
   return component <= 0.04045
     ? component / 12.92
@@ -529,6 +717,53 @@ function sortedRecord(value) {
   return Object.fromEntries(
     Object.entries(value).sort(([left], [right]) => left.localeCompare(right, 'en')),
   );
+}
+
+function assertIfcComparatorRejectsSwaps() {
+  const baselinePairs = [
+    { name: 'Buffer Tank', selectionId: 'tank', business: true },
+    { name: 'Primary Pump', selectionId: 'pump', business: true },
+  ];
+  const swappedPairs = [
+    { name: 'Buffer Tank', selectionId: 'pump', business: true },
+    { name: 'Primary Pump', selectionId: 'tank', business: true },
+  ];
+  if (JSON.stringify(normalizeNodeSelections(baselinePairs, 'syntheticPlant'))
+    === JSON.stringify(normalizeNodeSelections(swappedPairs, 'syntheticPlant'))) {
+    throw new Error('IFC comparator accepts swapped Selection IDs');
+  }
+
+  const baselineProducts = [
+    {
+      name: 'Buffer Tank',
+      selectionId: 'tank',
+      propertySets: [{ name: 'TankPset', properties: { A: 'tank' } }],
+      quantitySets: [],
+      systems: [],
+      materials: [{ name: 'Tank Orange', baseColorFactor: [1, 0, 0, 1] }],
+    },
+    {
+      name: 'Primary Pump',
+      selectionId: 'pump',
+      propertySets: [{ name: 'PumpPset', properties: { A: 'pump' } }],
+      quantitySets: [],
+      systems: [],
+      materials: [{ name: 'Pump Blue', baseColorFactor: [0, 0, 1, 1] }],
+    },
+  ];
+  const swappedProducts = baselineProducts.map((record) => ({
+    ...record,
+    propertySets: record.name === 'Buffer Tank'
+      ? baselineProducts[1].propertySets
+      : baselineProducts[0].propertySets,
+    materials: record.name === 'Buffer Tank'
+      ? baselineProducts[1].materials
+      : baselineProducts[0].materials,
+  }));
+  if (JSON.stringify(normalizeProductRecords(baselineProducts, 'syntheticPlant', false))
+    === JSON.stringify(normalizeProductRecords(swappedProducts, 'syntheticPlant', false))) {
+    throw new Error('IFC comparator accepts swapped product semantics');
+  }
 }
 
 function normalizedIfcNodeNames(names) {
@@ -548,11 +783,7 @@ function normalizedSpatialPaths(paths) {
 function normalizeIfcSelectionIds(ids, fixtureKey) {
   return ids
     .filter((id) => !id.endsWith('/unassigned'))
-    .map((id) => (
-      fixtureKey === 'duplicateGlobalId'
-        ? id.replace(/\/express\/\d+$/u, '/express/<duplicate>')
-        : id
-    ))
+    .map((id) => normalizeIfcSelectionId(id, fixtureKey))
     .sort((left, right) => left.localeCompare(right, 'en'));
 }
 
@@ -644,6 +875,8 @@ async function captureFixture(root, key, fixtureName, assetId) {
     propertySets: summary.propertySets,
     quantitySets: summary.quantitySets,
     systems: summary.systems,
+    nodeSelections: summary.nodeSelections,
+    productRecords: summary.productRecords,
     bounds: summary.bounds,
     surfaceArea: summary.surfaceArea,
     materials: summary.materials,
@@ -729,7 +962,8 @@ function summarizeGlb(glb, assetId) {
   const meshReferences = new Map();
   let triangleCount = 0;
   let surfaceArea = 0;
-  for (const mesh of meshes) {
+  const materialsByMesh = new Map();
+  for (const [meshIndex, mesh] of meshes.entries()) {
     for (const primitive of mesh.primitives ?? []) {
       if ((primitive.mode ?? 4) !== 4) continue;
       const positionIndex = primitive.attributes?.POSITION;
@@ -743,7 +977,12 @@ function summarizeGlb(glb, assetId) {
         readAccessor(glb, positionIndex),
         readAccessor(glb, primitive.indices),
       );
-      if (primitive.material !== undefined) usedMaterials.add(primitive.material);
+      if (primitive.material !== undefined) {
+        usedMaterials.add(primitive.material);
+        const owned = materialsByMesh.get(meshIndex) ?? new Set();
+        owned.add(primitive.material);
+        materialsByMesh.set(meshIndex, owned);
+      }
     }
   }
   for (const node of nodes) {
@@ -768,10 +1007,10 @@ function summarizeGlb(glb, assetId) {
     }))
     .filter((entry) => entry.extras);
   const propertySets = uniqueByName(
-    ifcNodes.flatMap((entry) => entry.extras.propertySets ?? []),
+    ifcNodes.flatMap((entry) => splitIfcSets(entry.extras).propertySets),
   );
   const quantitySets = uniqueByName(
-    ifcNodes.flatMap((entry) => entry.extras.quantitySets ?? []),
+    ifcNodes.flatMap((entry) => splitIfcSets(entry.extras).quantitySets),
   );
   const meshNodes = nodes.filter((node) => Number.isInteger(node.mesh));
   const sharedMeshNodeCount = nodes.filter((node) => (
@@ -793,13 +1032,43 @@ function summarizeGlb(glb, assetId) {
       return {
         name: node.name ?? '',
         mesh: node.mesh,
-        selectionId: node.extras?.ice3?.id
-          ?? node.extras?.ice3?.selectionId,
+        selectionId: node.extras?.ice3?.ifc?.selectionId
+          ?? node.extras?.ice3?.selectionId
+          ?? node.extras?.ice3?.id,
         business: ifc !== undefined
           && !spatialTypes.has(String(ifc.ifcType).toUpperCase()),
       };
     })
     .filter((pair) => pair.selectionId !== undefined);
+  const productRecords = ifcNodes
+    .filter((entry) => (
+      !spatialTypes.has(String(entry.extras.ifcType).toUpperCase())
+    ))
+    .map((entry) => {
+      const selectionId = entry.node.extras?.ice3?.ifc?.selectionId
+        ?? entry.node.extras?.ice3?.selectionId
+        ?? entry.node.extras?.ice3?.id;
+      const materialIndexes = (
+        materialsByMesh.get(entry.node.mesh) ?? new Set()
+      );
+      const sets = splitIfcSets(entry.extras);
+      return {
+        name: entry.node.name ?? '',
+        selectionId,
+        propertySets: sets.propertySets,
+        quantitySets: sets.quantitySets,
+        systems: entry.extras.systems ?? [],
+        materials: [...materialIndexes]
+          .map((index) => glb.json.materials[index])
+          .filter(Boolean)
+          .map((material) => ({
+            name: material.name ?? '',
+            baseColorFactor:
+              material.pbrMetallicRoughness?.baseColorFactor ?? [1, 1, 1, 1],
+          })),
+      };
+    })
+    .filter((entry) => entry.selectionId !== undefined);
   return {
     nodeCount: nodes.length,
     meshCount: meshes.length,
@@ -832,7 +1101,27 @@ function summarizeGlb(glb, assetId) {
     bounds: requireBounds(glb),
     surfaceArea,
     materials,
+    productRecords,
     assetId,
+  };
+}
+
+function splitIfcSets(extras) {
+  const sourceProperties = extras.propertySets ?? [];
+  const propertySets = sourceProperties
+    .filter((set) => !String(set.name ?? '').startsWith('Qto_'));
+  const embeddedQuantities = sourceProperties
+    .filter((set) => String(set.name ?? '').startsWith('Qto_'))
+    .map((set) => ({
+      name: set.name,
+      quantities: set.quantities ?? set.properties ?? {},
+    }));
+  return {
+    propertySets,
+    quantitySets: [
+      ...(extras.quantitySets ?? []),
+      ...embeddedQuantities,
+    ],
   };
 }
 
