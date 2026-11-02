@@ -1,0 +1,661 @@
+{
+  "kind": "ice3-ifc-import-baseline",
+  "schemaVersion": "1.0",
+  "assetId": "parity-ifc",
+  "fixtures": {
+    "syntheticPlant": {
+      "fixture": "../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc",
+      "sourceDigest": "2517ba5b269b3db9d500dc2a81f81adb9a387d90032454d41ee23a4f2cf5c008",
+      "tool": {
+        "name": "ice3-toolchain",
+        "version": "0.2.0"
+      },
+      "adapter": {
+        "id": "ifc",
+        "sourceFormat": "ifc-4x3",
+        "capabilities": {
+          "hierarchy": true,
+          "vertexColors": false,
+          "materialColors": true,
+          "instances": false,
+          "semanticMetadata": true
+        },
+        "warnings": []
+      },
+      "metrics": {
+        "nodeCount": 6,
+        "maxNodeDepth": 4,
+        "meshCount": 2,
+        "primitiveCount": 4,
+        "triangleCount": 24,
+        "edgeSegmentCount": 24,
+        "materialCount": 7,
+        "selectionGroupCount": 2,
+        "encodedBytes": 6732,
+        "jsonChunkBytes": 5648,
+        "binChunkBytes": 1056
+      },
+      "stats": {
+        "nodeCount": 6,
+        "meshCount": 2,
+        "triangleCount": 24,
+        "vertexCount": 68,
+        "instanceNodeCount": 0,
+        "semanticMaterialCount": 2
+      },
+      "nodeNames": [
+        "Synthetic IFC Plant",
+        "Synthetic Site",
+        "Treatment Building",
+        "Process Floor",
+        "Buffer Tank",
+        "Primary Pump"
+      ],
+      "selectionIds": [
+        "parity-ifc/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+        "parity-ifc/ifc/3KYC_dK497BBYg7947RLi$"
+      ],
+      "spatialPaths": [
+        "Synthetic IFC Plant",
+        "Synthetic IFC Plant/Synthetic Site",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Buffer Tank",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Primary Pump"
+      ],
+      "propertySets": [
+        {
+          "name": "Pset_PumpTypeCommon",
+          "properties": {
+            "FlowRate": 12.5,
+            "PumpType": "CENTRIFUGAL",
+            "IsVariableSpeed": true
+          }
+        },
+        {
+          "name": "Pset_TankTypeCommon",
+          "properties": {
+            "NominalCapacity": 20,
+            "StorageType": "LIQUID"
+          }
+        }
+      ],
+      "quantitySets": [
+        {
+          "name": "Qto_PumpBaseQuantities",
+          "properties": {
+            "GrossWeight": 480,
+            "Length": 1400
+          }
+        }
+      ],
+      "systems": [
+        {
+          "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+          "name": "Sludge Transfer",
+          "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "bounds": {
+        "min": [
+          0,
+          -3,
+          0
+        ],
+        "max": [
+          5,
+          -1,
+          1.2000000476837158
+        ]
+      },
+      "surfaceArea": 15.64000057935715,
+      "materials": [
+        {
+          "name": "ifc/material/0",
+          "baseColorFactor": [
+            0.3810918585155354,
+            0.6799757283637317,
+            0.8962438838245138,
+            1
+          ]
+        },
+        {
+          "name": "ifc/material/1",
+          "baseColorFactor": [
+            0.9639762327436437,
+            0.708369650344471,
+            0.31330415714736104,
+            1
+          ]
+        }
+      ],
+      "warningCodes": []
+    },
+    "duplicateGlobalId": {
+      "fixture": "../ice3-toolchain/tests/fixtures/ifc/duplicate-global-id.ifc",
+      "sourceDigest": "a72e52eb042bcbb82b507087f406acac7d858b5f3a2bbcb6c3f808672552ba1a",
+      "tool": {
+        "name": "ice3-toolchain",
+        "version": "0.2.0"
+      },
+      "adapter": {
+        "id": "ifc",
+        "sourceFormat": "ifc-4x3",
+        "capabilities": {
+          "hierarchy": true,
+          "vertexColors": false,
+          "materialColors": true,
+          "instances": false,
+          "semanticMetadata": true
+        },
+        "warnings": [
+          "IFC_DUPLICATE_GLOBAL_ID:18"
+        ]
+      },
+      "metrics": {
+        "nodeCount": 6,
+        "maxNodeDepth": 4,
+        "meshCount": 2,
+        "primitiveCount": 4,
+        "triangleCount": 24,
+        "edgeSegmentCount": 24,
+        "materialCount": 7,
+        "selectionGroupCount": 2,
+        "encodedBytes": 7100,
+        "jsonChunkBytes": 6016,
+        "binChunkBytes": 1056
+      },
+      "stats": {
+        "nodeCount": 6,
+        "meshCount": 2,
+        "triangleCount": 24,
+        "vertexCount": 68,
+        "instanceNodeCount": 0,
+        "semanticMaterialCount": 2
+      },
+      "nodeNames": [
+        "Synthetic IFC Plant",
+        "Synthetic Site",
+        "Treatment Building",
+        "Process Floor",
+        "Buffer Tank",
+        "Primary Pump"
+      ],
+      "selectionIds": [
+        "parity-ifc-duplicate-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+        "parity-ifc-duplicate-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK/express/18"
+      ],
+      "spatialPaths": [
+        "Synthetic IFC Plant",
+        "Synthetic IFC Plant/Synthetic Site",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Buffer Tank",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Primary Pump"
+      ],
+      "propertySets": [
+        {
+          "name": "Pset_PumpTypeCommon",
+          "properties": {
+            "FlowRate": 12.5,
+            "PumpType": "CENTRIFUGAL",
+            "IsVariableSpeed": true
+          }
+        },
+        {
+          "name": "Pset_TankTypeCommon",
+          "properties": {
+            "NominalCapacity": 20,
+            "StorageType": "LIQUID"
+          }
+        }
+      ],
+      "quantitySets": [
+        {
+          "name": "Qto_PumpBaseQuantities",
+          "properties": {
+            "GrossWeight": 480,
+            "Length": 1400
+          }
+        }
+      ],
+      "systems": [
+        {
+          "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+          "name": "Sludge Transfer",
+          "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "bounds": {
+        "min": [
+          0,
+          -3,
+          0
+        ],
+        "max": [
+          5,
+          -1,
+          1.2000000476837158
+        ]
+      },
+      "surfaceArea": 15.64000057935715,
+      "materials": [
+        {
+          "name": "ifc/material/0",
+          "baseColorFactor": [
+            0.3810918585155354,
+            0.6799757283637317,
+            0.8962438838245138,
+            1
+          ]
+        },
+        {
+          "name": "ifc/material/1",
+          "baseColorFactor": [
+            0.9639762327436437,
+            0.708369650344471,
+            0.31330415714736104,
+            1
+          ]
+        }
+      ],
+      "warningCodes": [
+        "IFC_DUPLICATE_GLOBAL_ID:18"
+      ]
+    },
+    "missingGlobalId": {
+      "fixture": "../ice3-toolchain/tests/fixtures/ifc/missing-global-id.ifc",
+      "sourceDigest": "d407ddf6579aba0c4c495cdfd565a3a3a8c6c1a290a119d54278d1212bd79422",
+      "tool": {
+        "name": "ice3-toolchain",
+        "version": "0.2.0"
+      },
+      "adapter": {
+        "id": "ifc",
+        "sourceFormat": "ifc-4x3",
+        "capabilities": {
+          "hierarchy": true,
+          "vertexColors": false,
+          "materialColors": true,
+          "instances": false,
+          "semanticMetadata": true
+        },
+        "warnings": []
+      },
+      "metrics": {
+        "nodeCount": 6,
+        "maxNodeDepth": 4,
+        "meshCount": 2,
+        "primitiveCount": 4,
+        "triangleCount": 24,
+        "edgeSegmentCount": 24,
+        "materialCount": 7,
+        "selectionGroupCount": 2,
+        "encodedBytes": 7008,
+        "jsonChunkBytes": 5924,
+        "binChunkBytes": 1056
+      },
+      "stats": {
+        "nodeCount": 6,
+        "meshCount": 2,
+        "triangleCount": 24,
+        "vertexCount": 68,
+        "instanceNodeCount": 0,
+        "semanticMaterialCount": 2
+      },
+      "nodeNames": [
+        "Synthetic IFC Plant",
+        "Synthetic Site",
+        "Treatment Building",
+        "Process Floor",
+        "Buffer Tank",
+        "Primary Pump"
+      ],
+      "selectionIds": [
+        "parity-ifc-missing-global-id/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+        "parity-ifc-missing-global-id/ifc/express/19"
+      ],
+      "spatialPaths": [
+        "Synthetic IFC Plant",
+        "Synthetic IFC Plant/Synthetic Site",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Buffer Tank",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Primary Pump"
+      ],
+      "propertySets": [
+        {
+          "name": "Pset_PumpTypeCommon",
+          "properties": {
+            "FlowRate": 12.5,
+            "PumpType": "CENTRIFUGAL",
+            "IsVariableSpeed": true
+          }
+        },
+        {
+          "name": "Pset_TankTypeCommon",
+          "properties": {
+            "NominalCapacity": 20,
+            "StorageType": "LIQUID"
+          }
+        }
+      ],
+      "quantitySets": [
+        {
+          "name": "Qto_PumpBaseQuantities",
+          "properties": {
+            "GrossWeight": 480,
+            "Length": 1400
+          }
+        }
+      ],
+      "systems": [
+        {
+          "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+          "name": "Sludge Transfer",
+          "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "bounds": {
+        "min": [
+          0,
+          -3,
+          0
+        ],
+        "max": [
+          5,
+          -1,
+          1.2000000476837158
+        ]
+      },
+      "surfaceArea": 15.64000057935715,
+      "materials": [
+        {
+          "name": "ifc/material/0",
+          "baseColorFactor": [
+            0.3810918585155354,
+            0.6799757283637317,
+            0.8962438838245138,
+            1
+          ]
+        },
+        {
+          "name": "ifc/material/1",
+          "baseColorFactor": [
+            0.9639762327436437,
+            0.708369650344471,
+            0.31330415714736104,
+            1
+          ]
+        }
+      ],
+      "warningCodes": []
+    },
+    "orphanProduct": {
+      "fixture": "../ice3-toolchain/tests/fixtures/ifc/orphan-product.ifc",
+      "sourceDigest": "045f50e904c61cb04a689445460aee00dd78861b7334419c8a3e6128663cdfb0",
+      "tool": {
+        "name": "ice3-toolchain",
+        "version": "0.2.0"
+      },
+      "adapter": {
+        "id": "ifc",
+        "sourceFormat": "ifc-4x3",
+        "capabilities": {
+          "hierarchy": true,
+          "vertexColors": false,
+          "materialColors": true,
+          "instances": false,
+          "semanticMetadata": true
+        },
+        "warnings": [
+          "IFC_UNMAPPED_GEOMETRY:76"
+        ]
+      },
+      "metrics": {
+        "nodeCount": 7,
+        "maxNodeDepth": 4,
+        "meshCount": 3,
+        "primitiveCount": 6,
+        "triangleCount": 36,
+        "edgeSegmentCount": 36,
+        "materialCount": 9,
+        "selectionGroupCount": 3,
+        "encodedBytes": 9108,
+        "jsonChunkBytes": 7496,
+        "binChunkBytes": 1584
+      },
+      "stats": {
+        "nodeCount": 7,
+        "meshCount": 3,
+        "triangleCount": 36,
+        "vertexCount": 102,
+        "instanceNodeCount": 0,
+        "semanticMaterialCount": 3
+      },
+      "nodeNames": [
+        "Synthetic IFC Plant",
+        "Synthetic Site",
+        "Treatment Building",
+        "Process Floor",
+        "Buffer Tank",
+        "Primary Pump",
+        "Orphan Pump"
+      ],
+      "selectionIds": [
+        "parity-ifc-orphan-product/ifc/2EkdHADtn6gxj2XurU_kH9",
+        "parity-ifc-orphan-product/ifc/2QfDA8etvFy997txGciOcZ",
+        "parity-ifc-orphan-product/ifc/2ogGST4b1Af9dj_xe62Hqz"
+      ],
+      "spatialPaths": [
+        "Synthetic IFC Plant",
+        "Synthetic IFC Plant/Orphan Pump",
+        "Synthetic IFC Plant/Synthetic Site",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Buffer Tank",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Primary Pump"
+      ],
+      "propertySets": [
+        {
+          "name": "Pset_PumpTypeCommon",
+          "properties": {
+            "FlowRate": 12.5,
+            "PumpType": "CENTRIFUGAL",
+            "IsVariableSpeed": true
+          }
+        },
+        {
+          "name": "Pset_TankTypeCommon",
+          "properties": {
+            "NominalCapacity": 20,
+            "StorageType": "LIQUID"
+          }
+        }
+      ],
+      "quantitySets": [
+        {
+          "name": "Qto_PumpBaseQuantities",
+          "properties": {
+            "GrossWeight": 480,
+            "Length": 1400
+          }
+        }
+      ],
+      "systems": [
+        {
+          "globalId": "28fItmaEnAHumm8mcnuG3E",
+          "name": "Sludge Transfer",
+          "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "bounds": {
+        "min": [
+          0,
+          -3,
+          0
+        ],
+        "max": [
+          8,
+          0,
+          1.2000000476837158
+        ]
+      },
+      "surfaceArea": 18.12000066518784,
+      "materials": [
+        {
+          "name": "ifc/material/0",
+          "baseColorFactor": [
+            0.3810918585155354,
+            0.6799757283637317,
+            0.8962438838245138,
+            1
+          ]
+        },
+        {
+          "name": "ifc/material/1",
+          "baseColorFactor": [
+            0.9639762327436437,
+            0.708369650344471,
+            0.31330415714736104,
+            1
+          ]
+        },
+        {
+          "name": "ifc/material/2",
+          "baseColorFactor": [
+            0.7353569830524495,
+            0.7353569830524495,
+            0.7353569830524495,
+            1
+          ]
+        }
+      ],
+      "warningCodes": [
+        "IFC_UNMAPPED_GEOMETRY:76"
+      ]
+    },
+    "semanticOnlyProduct": {
+      "fixture": "../ice3-toolchain/tests/fixtures/ifc/semantic-only-product.ifc",
+      "sourceDigest": "25a10e7b200f2d630a195c7fca7b3f7c23dd85f9722c213f7db6bc06f296c2fd",
+      "tool": {
+        "name": "ice3-toolchain",
+        "version": "0.2.0"
+      },
+      "adapter": {
+        "id": "ifc",
+        "sourceFormat": "ifc-4x3",
+        "capabilities": {
+          "hierarchy": true,
+          "vertexColors": false,
+          "materialColors": true,
+          "instances": false,
+          "semanticMetadata": true
+        },
+        "warnings": []
+      },
+      "metrics": {
+        "nodeCount": 6,
+        "maxNodeDepth": 4,
+        "meshCount": 1,
+        "primitiveCount": 2,
+        "triangleCount": 12,
+        "edgeSegmentCount": 12,
+        "materialCount": 5,
+        "selectionGroupCount": 1,
+        "encodedBytes": 5316,
+        "jsonChunkBytes": 4760,
+        "binChunkBytes": 528
+      },
+      "stats": {
+        "nodeCount": 6,
+        "meshCount": 1,
+        "triangleCount": 12,
+        "vertexCount": 34,
+        "instanceNodeCount": 0,
+        "semanticMaterialCount": 1
+      },
+      "nodeNames": [
+        "Synthetic IFC Plant",
+        "Synthetic Site",
+        "Treatment Building",
+        "Process Floor",
+        "Buffer Tank",
+        "Primary Pump"
+      ],
+      "selectionIds": [
+        "parity-ifc-semantic-only/ifc/1iwOd0pZv1BAvoVKqbjYQK",
+        "parity-ifc-semantic-only/ifc/3KYC_dK497BBYg7947RLi$"
+      ],
+      "spatialPaths": [
+        "Synthetic IFC Plant",
+        "Synthetic IFC Plant/Synthetic Site",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Buffer Tank",
+        "Synthetic IFC Plant/Synthetic Site/Treatment Building/Process Floor/Primary Pump"
+      ],
+      "propertySets": [
+        {
+          "name": "Pset_PumpTypeCommon",
+          "properties": {
+            "FlowRate": 12.5,
+            "PumpType": "CENTRIFUGAL",
+            "IsVariableSpeed": true
+          }
+        },
+        {
+          "name": "Pset_TankTypeCommon",
+          "properties": {
+            "NominalCapacity": 20,
+            "StorageType": "LIQUID"
+          }
+        }
+      ],
+      "quantitySets": [
+        {
+          "name": "Qto_PumpBaseQuantities",
+          "properties": {
+            "GrossWeight": 480,
+            "Length": 1400
+          }
+        }
+      ],
+      "systems": [
+        {
+          "globalId": "0kmOh4k9DE8eoEXOH3yD2c",
+          "name": "Sludge Transfer",
+          "ifcType": "IFCDISTRIBUTIONSYSTEM"
+        }
+      ],
+      "bounds": {
+        "min": [
+          0,
+          -3,
+          0
+        ],
+        "max": [
+          2,
+          -2,
+          1.2000000476837158
+        ]
+      },
+      "surfaceArea": 11.200000286102295,
+      "materials": [
+        {
+          "name": "ifc/material/0",
+          "baseColorFactor": [
+            0.9639762327436437,
+            0.708369650344471,
+            0.31330415714736104,
+            1
+          ]
+        }
+      ],
+      "warningCodes": []
+    }
+  },
+  "normalizationRules": [
+    "Tessellation triangles may differ while normalized bounds, area, business identity, metadata and instance identity remain equivalent."
+  ]
+}
