@@ -4,8 +4,10 @@ use std::time::Duration;
 
 use serde::Serialize;
 use sha2::Digest;
-use studio_assets::canonical::{PreparedGlbOptions, write_prepared_glb};
-use studio_assets::{AssetError, read_glb_bytes, validate_prepared_profile};
+use studio_assets::{
+    AssetError, AssetMetrics, BudgetProfile, BudgetResult, BudgetStatus, PreparationMetadata,
+    PrepareOptions, prepare_canonical,
+};
 #[cfg(feature = "fbx")]
 use studio_import::FbxImporter;
 #[cfg(feature = "ifc")]
@@ -58,6 +60,10 @@ pub struct ImportReport {
     pub warnings: Vec<ImportWarning>,
     pub source_digest: String,
     pub bytes: usize,
+    pub metrics: AssetMetrics,
+    pub content_digest: String,
+    pub preparation: PreparationMetadata,
+    pub budget: BudgetResult,
 }
 
 #[derive(Debug, Error)]
@@ -76,6 +82,28 @@ pub enum ImportCommandError {
     WarningAsError { code: String, message: String },
     #[error("ICE3_STUDIO_IMPORT_INVALID_LIMIT: invalid {name}: {value}")]
     InvalidLimit { name: &'static str, value: String },
+}
+
+impl ImportCommandError {
+    pub fn code(&self) -> &str {
+        match self {
+            Self::Import(error) => error.code(),
+            Self::Asset(error) => error.code(),
+            Self::Io(_) => "ICE3_STUDIO_ASSET_IO",
+            Self::OutputExists => "ICE3_STUDIO_ASSET_OUTPUT_EXISTS",
+            Self::InvalidOutputName => "ICE3_STUDIO_ASSET_INVALID_OPTIONS",
+            Self::WarningAsError { code, .. } => code,
+            Self::InvalidLimit { .. } => "ICE3_STUDIO_ASSET_INVALID_OPTIONS",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ImportedSource {
+    pub scene: studio_import::SourceScene,
+    pub adapter: String,
+    pub source_digest: String,
+    pub warnings: Vec<ImportWarning>,
 }
 
 pub fn source_importer_registry() -> Result<SourceImporterRegistry, ImportError> {
@@ -157,34 +185,55 @@ pub fn import_limits_from_environment() -> Result<NativeImportLimits, ImportComm
     }
 }
 
-pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportCommandError> {
+pub fn import_source_scene(
+    source: &Path,
+    asset_id: &str,
+    adapter: &str,
+    limits: NativeImportLimits,
+) -> Result<ImportedSource, ImportCommandError> {
     let registry = source_importer_registry()?;
     let request = ImportRequest {
-        path: options.source.clone(),
-        asset_id: options.asset_id.clone(),
-        requested_adapter: Some(options.adapter),
+        path: source.to_path_buf(),
+        asset_id: asset_id.into(),
+        requested_adapter: Some(adapter.into()),
     };
     let selected_adapter = registry
         .resolve(&request.path, request.requested_adapter.as_deref())?
         .id();
     let imported = match selected_adapter {
         #[cfg(feature = "fbx")]
-        "fbx" => run_isolated_import(&FbxImporter::new(), &request, options.limits)?,
+        "fbx" => run_isolated_import(&FbxImporter::new(), &request, limits)?,
         #[cfg(feature = "usd")]
-        "usd" => run_isolated_import(&UsdImporter::new(), &request, options.limits)?,
+        "usd" => run_isolated_import(&UsdImporter::new(), &request, limits)?,
         #[cfg(feature = "step")]
-        "step" => run_isolated_import(&StepImporter::new(), &request, options.limits)?,
+        "step" => run_isolated_import(&StepImporter::new(), &request, limits)?,
         #[cfg(feature = "ifc")]
-        "ifc" => run_isolated_import(&IfcImporter::new(), &request, options.limits)?,
+        "ifc" => run_isolated_import(&IfcImporter::new(), &request, limits)?,
         #[cfg(feature = "jt")]
         "jt" => {
-            let limits = jt_worker_limits(options.limits)?;
+            let limits = jt_worker_limits(limits)?;
             run_isolated_import(&JtImporter::new(), &request, limits)
                 .map_err(map_jt_worker_error)?
         }
         _ => registry.import(&request)?,
     };
+    let warnings = imported.warnings.clone();
+    let source_bytes = std::fs::read(source)?;
+    Ok(ImportedSource {
+        scene: imported,
+        adapter: selected_adapter.into(),
+        source_digest: format!("{:x}", sha2::Sha256::digest(&source_bytes)),
+        warnings,
+    })
+}
 
+pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportCommandError> {
+    let imported = import_source_scene(
+        &options.source,
+        &options.asset_id,
+        &options.adapter,
+        options.limits,
+    )?;
     if options.warnings_as_errors
         && let Some(warning) = imported.warnings.first()
     {
@@ -194,28 +243,53 @@ pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportComma
         });
     }
 
-    let source_bytes = std::fs::read(&options.source)?;
-    let source_digest = format!("{:x}", sha2::Sha256::digest(&source_bytes));
-    let canonical = to_canonical(&imported);
-    let bytes = write_prepared_glb(
+    let canonical = to_canonical(&imported.scene);
+    let artifact = prepare_canonical(
         &canonical,
-        &PreparedGlbOptions {
+        PrepareOptions {
             asset_id: options.asset_id,
             source_format: canonical.source_format.clone(),
-            source_digest: source_digest.clone(),
+            source_digest: format!("sha256:{}", imported.source_digest),
+            crease_angle_degrees: 30.0,
+            generate_edges: false,
+            budget: BudgetProfile::interactive_desktop_v1(),
         },
     )?;
-    let parsed = read_glb_bytes(&bytes, &std::env::temp_dir())?;
-    validate_prepared_profile(&parsed)?;
-    write_atomic_output(&options.output, &bytes, options.force)?;
+    if options.warnings_as_errors && artifact.budget.status == BudgetStatus::Warning {
+        return Err(ImportCommandError::WarningAsError {
+            code: "ICE3_STUDIO_ASSET_BUDGET_WARNING".into(),
+            message: "asset exceeds one or more soft budget limits".into(),
+        });
+    }
+    if options.warnings_as_errors
+        && let Some(warning) = artifact.warnings.first()
+    {
+        return Err(ImportCommandError::WarningAsError {
+            code: warning.code.clone(),
+            message: warning.message.clone(),
+        });
+    }
+    let mut warnings = imported.warnings;
+    warnings.extend(artifact.warnings.iter().map(|warning| ImportWarning {
+        code: warning.code.clone(),
+        message: warning.message.clone(),
+        path: warning.path.clone(),
+    }));
+    warnings.sort();
+    warnings.dedup();
+    write_atomic_output(&options.output, &artifact.bytes, options.force)?;
 
     Ok(ImportReport {
         command: "import".into(),
         output: options.output,
-        adapter: imported.source_format.as_str().into(),
-        warnings: imported.warnings,
-        source_digest,
-        bytes: bytes.len(),
+        adapter: imported.adapter,
+        warnings,
+        source_digest: imported.source_digest,
+        bytes: artifact.bytes.len(),
+        metrics: artifact.metrics,
+        content_digest: artifact.content_digest,
+        preparation: artifact.preparation,
+        budget: artifact.budget,
     })
 }
 

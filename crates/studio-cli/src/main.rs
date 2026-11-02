@@ -1,10 +1,12 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use serde::Serialize;
 use studio_assets::{AssetError, read_glb, validate_prepared_profile};
 use studio_cli::import::{
     ImportOptions, execute_internal_worker, import_limits_from_environment, import_source,
 };
+use studio_cli::prepare_command::{InspectOptions, PrepareCommandOptions, run_build, run_inspect};
 use studio_cli::schema;
 use studio_core::gpu_contract::GeometryBackendMode;
 use studio_project::{ProjectStore, WorkspacePath};
@@ -41,6 +43,52 @@ enum Command {
         warnings_as_errors: bool,
         #[arg(long)]
         force: bool,
+    },
+    /// Build a source asset with prepared render edges.
+    Build {
+        source: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        asset_id: String,
+        #[arg(
+            long,
+            default_value = "auto",
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
+        )]
+        adapter: String,
+        #[arg(long, default_value_t = 30.0)]
+        crease_angle: f32,
+        #[arg(long)]
+        skip_edges: bool,
+        #[arg(long)]
+        budget: Option<String>,
+        #[arg(long)]
+        report: Option<PathBuf>,
+        #[arg(long)]
+        warnings_as_errors: bool,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Inspect a source or Prepared GLB without publishing files.
+    Inspect {
+        source: PathBuf,
+        #[arg(
+            long,
+            default_value = "auto",
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
+        )]
+        adapter: String,
+        #[arg(long, default_value_t = 30.0)]
+        crease_angle: f32,
+        #[arg(long)]
+        skip_edges: bool,
+        #[arg(long)]
+        budget: Option<String>,
+        #[arg(long)]
+        json: bool,
     },
     /// Validate a GLB, glTF, or Prepared GLB.
     Validate { source: PathBuf },
@@ -143,6 +191,58 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|error| CliFailure(error.to_string()))?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
+        Command::Build {
+            source,
+            output,
+            asset_id,
+            adapter,
+            crease_angle,
+            skip_edges,
+            budget,
+            report,
+            warnings_as_errors,
+            force,
+            json,
+        } => {
+            let limits =
+                import_limits_from_environment().map_err(|error| CliFailure(error.to_string()))?;
+            let output = run_build(PrepareCommandOptions {
+                source,
+                output,
+                asset_id,
+                adapter,
+                crease_angle_degrees: crease_angle,
+                skip_edges,
+                budget,
+                report,
+                warnings_as_errors,
+                force,
+                limits,
+            })
+            .map_err(|error| CliFailure(error.to_string()))?;
+            print_json(&output.report, json)?;
+        }
+        Command::Inspect {
+            source,
+            adapter,
+            crease_angle,
+            skip_edges,
+            budget,
+            json,
+        } => {
+            let limits =
+                import_limits_from_environment().map_err(|error| CliFailure(error.to_string()))?;
+            let report = run_inspect(InspectOptions {
+                source,
+                adapter,
+                crease_angle_degrees: crease_angle,
+                skip_edges,
+                budget,
+                limits,
+            })
+            .map_err(|error| CliFailure(error.to_string()))?;
+            print_json(&report, json)?;
+        }
         Command::Validate { source } => {
             let parsed = read_glb(&source)?;
             let report = match validate_prepared_profile(&parsed) {
@@ -233,6 +333,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .await?;
         }
+    }
+    Ok(())
+}
+
+fn print_json(value: &impl Serialize, compact: bool) -> Result<(), serde_json::Error> {
+    if compact {
+        println!("{}", serde_json::to_string(value)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(value)?);
     }
     Ok(())
 }
