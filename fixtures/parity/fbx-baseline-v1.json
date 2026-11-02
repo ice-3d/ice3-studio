@@ -8,7 +8,8 @@
     "tool": "ice3-toolchain",
     "version": "0.2.0",
     "command": "ice3-tool import SOURCE --output OUTPUT --asset-id parity-fbx --adapter fbx --json",
-    "sourceRoot": "../ice3-toolchain/tests/fixtures/fbx"
+    "sourceRoot": "fixtures/source-import/fbx",
+    "retiredSourceRoot": "../ice3-toolchain/tests/fixtures/fbx"
   },
   "canonical": {
     "stats": {

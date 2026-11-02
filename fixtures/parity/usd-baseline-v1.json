@@ -8,7 +8,8 @@
     "tool": "ice3-toolchain",
     "version": "0.2.0",
     "command": "ice3-tool import SOURCE --output OUTPUT --asset-id parity-usd --adapter usd --json",
-    "sourceRoot": "../ice3-toolchain/tests/fixtures/usd"
+    "sourceRoot": "fixtures/source-import/usd",
+    "retiredSourceRoot": "../ice3-toolchain/tests/fixtures/usd"
   },
   "canonical": {
     "stats": {

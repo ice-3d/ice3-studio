@@ -181,6 +181,6 @@ fn rejects_non_ifc4x3_schema() {
 
 fn fixture(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(relative)
 }

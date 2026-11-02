@@ -16,7 +16,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
 const fixturePath = resolve(
   studioRoot,
-  '../ice3-toolchain/tests/fixtures/minimal.glb',
+  'fixtures/source-import/gltf/minimal.glb',
 );
 const legacyCli = resolve(
   studioRoot,

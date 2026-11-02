@@ -66,7 +66,7 @@ fn timeout_does_not_replace_existing_output() {
     std::fs::write(&output_path, "keep").unwrap();
 
     let result = run_import_at_path(
-        &toolchain_fixture("usd/synthetic-plant.usda"),
+        &source_fixture("usd/synthetic-plant.usda"),
         "usd",
         "timeout-fixture",
         &output_path,
@@ -88,7 +88,7 @@ fn invalid_source_does_not_replace_existing_output() {
     std::fs::write(&output_path, "keep").unwrap();
 
     let result = run_import_at_path(
-        &toolchain_fixture("usd/truncated.usda"),
+        &source_fixture("usd/truncated.usda"),
         "usd",
         "failure-fixture",
         &output_path,
@@ -124,7 +124,7 @@ fn limit_failure_code_crosses_the_worker_boundary() {
     let root = tempfile::tempdir().unwrap();
     let output_path = root.path().join("plant.glb");
     let result = run_import_at_path(
-        &toolchain_fixture("usd/synthetic-plant.usda"),
+        &source_fixture("usd/synthetic-plant.usda"),
         "usd",
         "limit-code",
         &output_path,
@@ -146,7 +146,7 @@ fn worker_crash_does_not_replace_existing_output() {
     std::fs::write(&output_path, "keep").unwrap();
 
     let result = run_import_at_path(
-        &toolchain_fixture("usd/synthetic-plant.usda"),
+        &source_fixture("usd/synthetic-plant.usda"),
         "usd",
         "crash-fixture",
         &output_path,
@@ -165,7 +165,7 @@ fn run_import(fixture: &str, adapter: &str, asset_id: &str, force: bool) -> Impo
     let root = tempfile::tempdir().unwrap();
     let output_path = root.path().join("plant.glb");
     let output = run_import_at_path(
-        &toolchain_fixture(fixture),
+        &source_fixture(fixture),
         adapter,
         asset_id,
         &output_path,
@@ -208,9 +208,9 @@ fn studio_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_studio-cli"))
 }
 
-fn toolchain_fixture(name: &str) -> PathBuf {
+fn source_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(name)
 }
 

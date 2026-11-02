@@ -14,7 +14,7 @@ import { spawnSync } from 'node:child_process';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
 const toolchainRoot = resolve(studioRoot, '../ice3-toolchain');
-const fixtureRoot = join(toolchainRoot, 'tests/fixtures/ifc');
+const fixtureRoot = join(studioRoot, 'fixtures/source-import/ifc');
 const baselinePath = join(studioRoot, 'fixtures/parity/ifc-baseline-v1.json');
 const instanceFixturePath = join(
   studioRoot,

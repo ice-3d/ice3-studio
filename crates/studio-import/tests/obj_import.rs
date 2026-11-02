@@ -32,7 +32,7 @@ fn resolves_negative_obj_indices() {
 #[test]
 fn shifts_large_world_coordinates_to_the_source_origin() {
     let scene = ObjImporter::new()
-        .import_file(&toolchain_fixture("obj/large-origin.obj"), "large")
+        .import_file(&source_fixture("obj/large-origin.obj"), "large")
         .unwrap();
     let bounds = bounds(&scene);
     assert!(bounds.min[0].abs() < 1e-5);
@@ -50,7 +50,7 @@ fn shifts_large_world_coordinates_to_the_source_origin() {
 #[test]
 fn rejects_an_obj_without_faces() {
     let error = ObjImporter::new()
-        .import_file(&toolchain_fixture("obj/empty.obj"), "empty")
+        .import_file(&source_fixture("obj/empty.obj"), "empty")
         .unwrap_err();
     assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY");
 }
@@ -61,9 +61,9 @@ fn fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
-fn toolchain_fixture(name: &str) -> PathBuf {
+fn source_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(name)
 }
 

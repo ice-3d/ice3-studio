@@ -1,0 +1,93 @@
+#usda 1.0
+(
+    defaultPrim = "Plant"
+    metersPerUnit = 1
+    upAxis = "Y"
+)
+
+def Xform "Plant"
+{
+    def Xform "TreatmentLine"
+    {
+        custom string userProperties:ProcessArea = "water-line"
+
+        def Mesh "PrimaryPump" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            float3[] extent = [(-1, -1, -1), (1, 1, 1)]
+            int[] faceVertexCounts = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+            int[] faceVertexIndices = [1, 2, 0, 3, 6, 2, 7, 4, 6, 5, 0, 4, 6, 0, 2, 3, 5, 7, 1, 3, 2, 3, 7, 6, 7, 5, 4, 5, 1, 0, 6, 4, 0, 3, 1, 5]
+            rel material:binding = </Plant/_materials/PumpBlue>
+            point3f[] points = [(-1, -1, -1), (-1, -1, 1), (-1, 1, -1), (-1, 1, 1), (1, -1, -1), (1, -1, 1), (1, 1, -1), (1, 1, 1)]
+            color3f[] primvars:displayColor = [(0.12, 0.38, 0.68)] (
+                interpolation = "constant"
+            )
+            uniform token subdivisionScheme = "none"
+            custom string userProperties:EquipmentClass = "pump"
+            custom string userProperties:EquipmentTag = "P-101"
+            float3 xformOp:scale = (1.2, 0.65, 0.8)
+            double3 xformOp:translate = (2, 1.5, 0.8)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Xform "PumpInstanceA" (
+            instanceable = true
+            prepend references = </Plant/TreatmentLine/PrimaryPump>
+        )
+        {
+            double3 xformOp:translate = (-2, 1.5, 0.8)
+        }
+
+        def Mesh "BufferTank" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            float3[] extent = [(-1, -1, -1), (1, 1, 1)]
+            int[] faceVertexCounts = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+            int[] faceVertexIndices = [1, 2, 0, 3, 6, 2, 7, 4, 6, 5, 0, 4, 6, 0, 2, 3, 5, 7, 1, 3, 2, 3, 7, 6, 7, 5, 4, 5, 1, 0, 6, 4, 0, 3, 1, 5]
+            rel material:binding = </Plant/_materials/TankTaupe>
+            point3f[] points = [(-1, -1, -1), (-1, -1, 1), (-1, 1, -1), (-1, 1, 1), (1, -1, -1), (1, -1, 1), (1, 1, -1), (1, 1, 1)]
+            color3f[] primvars:displayColor = [(0.62, 0.55, 0.4)] (
+                interpolation = "constant"
+            )
+            uniform token subdivisionScheme = "none"
+            custom string userProperties:EquipmentClass = "tank"
+            custom string userProperties:EquipmentTag = "T-101"
+            float3 xformOp:scale = (1.4, 1, 1.8)
+            double3 xformOp:translate = (0, -2.2, 1.8)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def "_materials"
+    {
+        def Material "PumpBlue"
+        {
+            token outputs:surface.connect = </Plant/_materials/PumpBlue/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.12, 0.38, 0.68)
+                float inputs:metallic = 0
+                float inputs:roughness = 1
+                token outputs:surface
+            }
+        }
+
+        def Material "TankTaupe"
+        {
+            token outputs:surface.connect = </Plant/_materials/TankTaupe/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.62, 0.55, 0.4)
+                float inputs:metallic = 0
+                float inputs:roughness = 1
+                token outputs:surface
+            }
+        }
+    }
+}

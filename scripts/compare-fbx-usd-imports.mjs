@@ -16,7 +16,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
 const fixtureRoot = resolve(
   studioRoot,
-  '../ice3-toolchain/tests/fixtures',
+  'fixtures/source-import',
 );
 const nativeCli = join(studioRoot, 'target/debug/studio-cli');
 const reportPath = join(studioRoot, 'output/fbx-usd-import-parity.json');

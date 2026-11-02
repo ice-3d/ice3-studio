@@ -11,10 +11,10 @@ use studio_import::{FbxImporter, NativeImportLimits, SourceFormat, SourceImporte
 #[test]
 fn imports_ascii_and_binary_fbx_with_the_same_semantics() {
     let ascii = FbxImporter::new()
-        .import_file(&toolchain_fixture("fbx/synthetic-ascii.fbx"), "fbx")
+        .import_file(&source_fixture("fbx/synthetic-ascii.fbx"), "fbx")
         .unwrap();
     let binary = FbxImporter::new()
-        .import_file(&toolchain_fixture("fbx/synthetic-binary.fbx"), "fbx")
+        .import_file(&source_fixture("fbx/synthetic-binary.fbx"), "fbx")
         .unwrap();
 
     assert_eq!(semantic_summary(&ascii), semantic_summary(&binary));
@@ -31,7 +31,7 @@ fn imports_ascii_and_binary_fbx_with_the_same_semantics() {
 #[test]
 fn preserves_fbx_shared_mesh_instances() {
     let scene = FbxImporter::new()
-        .import_file(&toolchain_fixture("fbx/synthetic-binary.fbx"), "fbx")
+        .import_file(&source_fixture("fbx/synthetic-binary.fbx"), "fbx")
         .unwrap();
     let mesh_counts = scene.nodes.iter().filter_map(|node| node.mesh).fold(
         BTreeMap::new(),
@@ -45,7 +45,7 @@ fn preserves_fbx_shared_mesh_instances() {
 
 #[test]
 fn keeps_distinct_mesh_objects_with_duplicate_names_in_distinct_groups() {
-    let source = std::fs::read_to_string(toolchain_fixture("fbx/synthetic-ascii.fbx")).unwrap();
+    let source = std::fs::read_to_string(source_fixture("fbx/synthetic-ascii.fbx")).unwrap();
     let duplicate_names = source.replace(
         r#"Geometry: 288163325,"Cube::Geometry","Mesh""#,
         r#"Geometry: 288163325,"Cube.001::Geometry","Mesh""#,
@@ -77,7 +77,7 @@ fn keeps_distinct_mesh_objects_with_duplicate_names_in_distinct_groups() {
 #[test]
 fn converts_centimeter_fbx_to_meters_exactly_once() {
     let centimeters = FbxImporter::new()
-        .import_file(&toolchain_fixture("fbx/synthetic-ascii.fbx"), "centimeters")
+        .import_file(&source_fixture("fbx/synthetic-ascii.fbx"), "centimeters")
         .unwrap();
     assert_eq!(
         centimeters.asset_extras["ice3"]["fbx"]["originalUnitMeters"],
@@ -88,7 +88,7 @@ fn converts_centimeter_fbx_to_meters_exactly_once() {
         "meter"
     );
 
-    let source = std::fs::read_to_string(toolchain_fixture("fbx/synthetic-ascii.fbx")).unwrap();
+    let source = std::fs::read_to_string(source_fixture("fbx/synthetic-ascii.fbx")).unwrap();
     let meters = source
         .replace(
             r#"P: "UnitScaleFactor","double","Number","",1"#,
@@ -115,7 +115,7 @@ fn converts_centimeter_fbx_to_meters_exactly_once() {
 #[test]
 fn preserves_custom_properties_and_instance_metadata() {
     let scene = FbxImporter::new()
-        .import_file(&toolchain_fixture("fbx/synthetic-binary.fbx"), "fbx")
+        .import_file(&source_fixture("fbx/synthetic-binary.fbx"), "fbx")
         .unwrap();
     let pump = scene
         .nodes
@@ -134,7 +134,7 @@ fn preserves_custom_properties_and_instance_metadata() {
 #[test]
 fn uses_one_local_origin_for_georeferenced_fbx() {
     let scene = FbxImporter::new()
-        .import_file(&toolchain_fixture("fbx/large-origin.fbx"), "large-fbx")
+        .import_file(&source_fixture("fbx/large-origin.fbx"), "large-fbx")
         .unwrap();
     let origin = scene.asset_extras["ice3"]["fbx"]["sourceOrigin"]
         .as_array()
@@ -153,12 +153,12 @@ fn uses_one_local_origin_for_georeferenced_fbx() {
 #[test]
 fn rejects_empty_truncated_and_corrupt_fbx_with_stable_codes() {
     let empty = FbxImporter::new()
-        .import_file(&toolchain_fixture("fbx/empty.fbx"), "empty")
+        .import_file(&source_fixture("fbx/empty.fbx"), "empty")
         .unwrap_err();
     assert_eq!(empty.code(), "ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY");
 
     let truncated = FbxImporter::new()
-        .import_file(&toolchain_fixture("fbx/truncated.fbx"), "truncated")
+        .import_file(&source_fixture("fbx/truncated.fbx"), "truncated")
         .unwrap_err();
     assert_eq!(truncated.code(), "ICE3_STUDIO_IMPORT_INVALID_SOURCE");
 
@@ -183,7 +183,7 @@ fn exposes_the_fbx_adapter_contract() {
 fn applies_the_native_triangle_limit_before_mapping() {
     let error = FbxImporter::new()
         .import_file_with_limits(
-            &toolchain_fixture("fbx/synthetic-binary.fbx"),
+            &source_fixture("fbx/synthetic-binary.fbx"),
             "limited",
             NativeImportLimits {
                 max_triangles: 1,
@@ -197,10 +197,7 @@ fn applies_the_native_triangle_limit_before_mapping() {
 #[test]
 fn maps_to_a_valid_prepared_glb_with_studio_assets() {
     let scene = FbxImporter::new()
-        .import_file(
-            &toolchain_fixture("fbx/synthetic-binary.fbx"),
-            "fbx-prepared",
-        )
+        .import_file(&source_fixture("fbx/synthetic-binary.fbx"), "fbx-prepared")
         .unwrap();
     let canonical = studio_import::to_canonical(&scene);
     let bytes = studio_assets::canonical::write_prepared_glb(
@@ -389,8 +386,8 @@ struct Bounds {
     max: [f32; 3],
 }
 
-fn toolchain_fixture(name: &str) -> PathBuf {
+fn source_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(name)
 }

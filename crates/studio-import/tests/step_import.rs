@@ -120,7 +120,7 @@ fn parsed_repeated_occurrences_share_one_mesh() {
 
 fn fixture(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(relative)
 }
 

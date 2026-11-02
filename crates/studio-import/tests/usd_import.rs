@@ -11,10 +11,10 @@ use studio_import::{NativeImportLimits, SourceFormat, SourceImporter, SourceScen
 #[test]
 fn imports_ascii_and_binary_usd_with_the_same_semantics() {
     let ascii = UsdImporter::new()
-        .import_file(&toolchain_fixture("usd/synthetic-plant.usda"), "usd")
+        .import_file(&source_fixture("usd/synthetic-plant.usda"), "usd")
         .unwrap();
     let binary = UsdImporter::new()
-        .import_file(&toolchain_fixture("usd/synthetic-plant.usdc"), "usd")
+        .import_file(&source_fixture("usd/synthetic-plant.usdc"), "usd")
         .unwrap();
 
     assert_eq!(semantic_summary(&ascii), semantic_summary(&binary));
@@ -39,10 +39,7 @@ fn imports_ascii_and_binary_usd_with_the_same_semantics() {
 #[test]
 fn preserves_usd_reference_instances() {
     let scene = UsdImporter::new()
-        .import_file(
-            &toolchain_fixture("usd/synthetic-plant.usda"),
-            "usd-instances",
-        )
+        .import_file(&source_fixture("usd/synthetic-plant.usda"), "usd-instances")
         .unwrap();
     let pump_indices = scene
         .nodes
@@ -229,10 +226,7 @@ fn expands_every_mesh_in_a_point_instancer_prototype() {
 #[test]
 fn preserves_materials_display_colors_and_metadata() {
     let scene = UsdImporter::new()
-        .import_file(
-            &toolchain_fixture("usd/synthetic-plant.usda"),
-            "usd-materials",
-        )
+        .import_file(&source_fixture("usd/synthetic-plant.usda"), "usd-materials")
         .unwrap();
     let pump = scene
         .nodes
@@ -294,7 +288,7 @@ fn converts_non_meter_and_z_up_stage_once() {
 #[test]
 fn normalizes_a_large_usd_origin_once() {
     let scene = UsdImporter::new()
-        .import_file(&toolchain_fixture("usd/large-origin.usda"), "large-usd")
+        .import_file(&source_fixture("usd/large-origin.usda"), "large-usd")
         .unwrap();
     let origin = scene.asset_extras["ice3"]["usd"]["sourceOrigin"]
         .as_array()
@@ -410,12 +404,12 @@ fn rejects_malformed_stage_coordinate_metadata() {
 #[test]
 fn rejects_empty_truncated_missing_and_cyclic_composition() {
     let empty = UsdImporter::new()
-        .import_file(&toolchain_fixture("usd/empty.usda"), "empty")
+        .import_file(&source_fixture("usd/empty.usda"), "empty")
         .unwrap_err();
     assert_eq!(empty.code(), "ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY");
 
     let truncated = UsdImporter::new()
-        .import_file(&toolchain_fixture("usd/truncated.usda"), "truncated")
+        .import_file(&source_fixture("usd/truncated.usda"), "truncated")
         .unwrap_err();
     assert_eq!(truncated.code(), "ICE3_STUDIO_IMPORT_INVALID_SOURCE");
 
@@ -447,7 +441,7 @@ fn rejects_empty_truncated_missing_and_cyclic_composition() {
     assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_INVALID_SOURCE");
 
     let corrupt = directory.path().join("corrupt.usdc");
-    let mut bytes = std::fs::read(toolchain_fixture("usd/synthetic-plant.usdc")).unwrap();
+    let mut bytes = std::fs::read(source_fixture("usd/synthetic-plant.usdc")).unwrap();
     bytes.truncate(16);
     std::fs::write(&corrupt, bytes).unwrap();
     let error = UsdImporter::new()
@@ -543,7 +537,7 @@ fn exposes_usd_adapter_contract_and_limits() {
 
     let error = importer
         .import_file_with_limits(
-            &toolchain_fixture("usd/synthetic-plant.usda"),
+            &source_fixture("usd/synthetic-plant.usda"),
             "limited",
             NativeImportLimits {
                 max_triangles: 1,
@@ -595,7 +589,7 @@ fn rejects_point_instancer_node_growth_before_expansion() {
 fn rejects_mesh_output_before_exceeding_the_memory_budget() {
     let error = UsdImporter::new()
         .import_file_with_limits(
-            &toolchain_fixture("usd/synthetic-plant.usda"),
+            &source_fixture("usd/synthetic-plant.usda"),
             "memory-budget",
             NativeImportLimits {
                 max_memory_bytes: 64,
@@ -610,10 +604,7 @@ fn rejects_mesh_output_before_exceeding_the_memory_budget() {
 #[test]
 fn maps_to_a_valid_prepared_glb() {
     let scene = UsdImporter::new()
-        .import_file(
-            &toolchain_fixture("usd/synthetic-plant.usda"),
-            "usd-prepared",
-        )
+        .import_file(&source_fixture("usd/synthetic-plant.usda"), "usd-prepared")
         .unwrap();
     let canonical = studio_import::to_canonical(&scene);
     let bytes = studio_assets::canonical::write_prepared_glb(
@@ -667,9 +658,9 @@ fn cube_body() -> &'static str {
      \x20           )"
 }
 
-fn toolchain_fixture(relative: &str) -> PathBuf {
+fn source_fixture(relative: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(relative)
 }
 

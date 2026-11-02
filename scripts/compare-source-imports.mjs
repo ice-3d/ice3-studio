@@ -9,7 +9,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
 const fixture = resolve(
   studioRoot,
-  '../ice3-toolchain/tests/fixtures/obj/synthetic-plant.obj',
+  'fixtures/source-import/obj/synthetic-plant.obj',
 );
 const baselinePath = join(studioRoot, 'fixtures/parity/obj-baseline-v1.json');
 const reportPath = join(studioRoot, 'output/source-import-parity.json');

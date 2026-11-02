@@ -182,7 +182,7 @@ mod tests {
     #[test]
     fn geometry_budget_refusal_maps_to_a_stable_limit() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc");
+            .join("../../fixtures/source-import/ifc/synthetic-plant.ifc");
         let bytes = std::fs::read(path).unwrap();
         let limits = NativeImportLimits {
             max_memory_bytes: 4_096,
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn representative_input_above_eight_mib_passes_pre_meshing_gate() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc");
+            .join("../../fixtures/source-import/ifc/synthetic-plant.ifc");
         let source = std::fs::read(path).unwrap();
         let marker = b"\nDATA;";
         let marker_offset = source

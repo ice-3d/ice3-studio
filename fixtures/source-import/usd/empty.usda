@@ -1,0 +1,13 @@
+#usda 1.0
+(
+    defaultPrim = "Plant"
+    metersPerUnit = 1
+    upAxis = "Y"
+)
+
+def Xform "Plant"
+{
+    def Xform "TreatmentLine"
+    {
+    }
+}

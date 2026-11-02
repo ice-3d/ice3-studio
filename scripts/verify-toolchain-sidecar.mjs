@@ -19,7 +19,7 @@ if (index < 0 || !args[index + 1]) {
 const bundle = resolve(args[index + 1]);
 const fixtureIndex = args.indexOf('--fixture');
 const fixture = fixtureIndex < 0
-  ? resolve('../ice3-toolchain/tests/fixtures/minimal.glb')
+  ? resolve('fixtures/source-import/gltf/minimal.glb')
   : resolve(args[fixtureIndex + 1]);
 const manifest = JSON.parse(
   await readFile(join(bundle, 'manifest.json'), 'utf8'),

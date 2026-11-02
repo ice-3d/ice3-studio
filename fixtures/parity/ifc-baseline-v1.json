@@ -4,7 +4,8 @@
   "assetId": "parity-ifc",
   "fixtures": {
     "syntheticPlant": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc",
+      "fixture": "fixtures/source-import/ifc/synthetic-plant.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc",
       "sourceDigest": "2517ba5b269b3db9d500dc2a81f81adb9a387d90032454d41ee23a4f2cf5c008",
       "tool": {
         "name": "ice3-toolchain",
@@ -241,7 +242,8 @@
       "warningCodes": []
     },
     "duplicateGlobalId": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/duplicate-global-id.ifc",
+      "fixture": "fixtures/source-import/ifc/duplicate-global-id.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/duplicate-global-id.ifc",
       "sourceDigest": "a72e52eb042bcbb82b507087f406acac7d858b5f3a2bbcb6c3f808672552ba1a",
       "tool": {
         "name": "ice3-toolchain",
@@ -482,7 +484,8 @@
       ]
     },
     "missingGlobalId": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/missing-global-id.ifc",
+      "fixture": "fixtures/source-import/ifc/missing-global-id.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/missing-global-id.ifc",
       "sourceDigest": "d407ddf6579aba0c4c495cdfd565a3a3a8c6c1a290a119d54278d1212bd79422",
       "tool": {
         "name": "ice3-toolchain",
@@ -719,7 +722,8 @@
       "warningCodes": []
     },
     "orphanProduct": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/orphan-product.ifc",
+      "fixture": "fixtures/source-import/ifc/orphan-product.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/orphan-product.ifc",
       "sourceDigest": "045f50e904c61cb04a689445460aee00dd78861b7334419c8a3e6128663cdfb0",
       "tool": {
         "name": "ice3-toolchain",
@@ -996,7 +1000,8 @@
       ]
     },
     "semanticOnlyProduct": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/semantic-only-product.ifc",
+      "fixture": "fixtures/source-import/ifc/semantic-only-product.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/semantic-only-product.ifc",
       "sourceDigest": "25a10e7b200f2d630a195c7fca7b3f7c23dd85f9722c213f7db6bc06f296c2fd",
       "tool": {
         "name": "ice3-toolchain",

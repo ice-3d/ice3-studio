@@ -5,7 +5,7 @@ use studio_assets::{read_glb, validate_prepared_profile};
 
 #[test]
 fn imports_obj_to_a_readable_prepared_glb() {
-    let fixture = toolchain_fixture("obj/synthetic-plant.obj");
+    let fixture = source_fixture("obj/synthetic-plant.obj");
     let root = tempfile::tempdir().unwrap();
     let output = root.path().join("plant.glb");
     let binary = env!("CARGO_BIN_EXE_studio-cli");
@@ -46,7 +46,7 @@ fn imports_obj_to_a_readable_prepared_glb() {
 
 #[test]
 fn existing_output_is_rejected_unless_force_is_set() {
-    let fixture = toolchain_fixture("obj/synthetic-plant.obj");
+    let fixture = source_fixture("obj/synthetic-plant.obj");
     let root = tempfile::tempdir().unwrap();
     let output = root.path().join("plant.glb");
     std::fs::write(&output, "keep").unwrap();
@@ -87,7 +87,7 @@ fn existing_output_is_rejected_unless_force_is_set() {
 
 #[test]
 fn warnings_as_errors_prevents_publication() {
-    let fixture = toolchain_fixture("obj/synthetic-plant.obj");
+    let fixture = source_fixture("obj/synthetic-plant.obj");
     let root = tempfile::tempdir().unwrap();
     let output = root.path().join("plant.glb");
     let binary = env!("CARGO_BIN_EXE_studio-cli");
@@ -107,8 +107,8 @@ fn warnings_as_errors_prevents_publication() {
     assert!(!output.exists());
 }
 
-fn toolchain_fixture(name: &str) -> PathBuf {
+fn source_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(name)
 }

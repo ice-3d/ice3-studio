@@ -15,10 +15,8 @@ import { spawnSync } from 'node:child_process';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
 const toolchainRoot = resolve(studioRoot, '../ice3-toolchain');
-const fixturePath = join(
-  toolchainRoot,
-  'tests/fixtures/step/synthetic-skid.step',
-);
+const fixtureRoot = join(studioRoot, 'fixtures/source-import/step');
+const fixturePath = join(fixtureRoot, 'synthetic-skid.step');
 const baselinePath = join(
   studioRoot,
   'fixtures/parity/step-baseline-v1.json',
@@ -587,12 +585,12 @@ async function runNegativeCorpus(temporaryRoot) {
 
   return {
     empty: await expectFailure(root, 'empty', {
-      fixture: join(toolchainRoot, 'tests/fixtures/step/empty-assembly.step'),
+      fixture: join(fixtureRoot, 'empty-assembly.step'),
       adapter: 'step',
       expectedCode: 'ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY',
     }),
     truncated: await expectFailure(root, 'truncated', {
-      fixture: join(toolchainRoot, 'tests/fixtures/step/truncated.step'),
+      fixture: join(fixtureRoot, 'truncated.step'),
       adapter: 'step',
       expectedCode: 'ICE3_STUDIO_IMPORT_INVALID_SOURCE',
     }),

@@ -39,7 +39,7 @@ fn fixture(name: &str) -> PathBuf {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     match name {
         "shared-mesh.gltf" => manifest.join("tests/fixtures/gltf/shared-mesh.gltf"),
-        "minimal.glb" => manifest.join("../../../ice3-toolchain/tests/fixtures/minimal.glb"),
+        "minimal.glb" => manifest.join("../../fixtures/source-import/gltf/minimal.glb"),
         _ => panic!("unknown fixture"),
     }
 }
