@@ -166,8 +166,19 @@ fn face_normal(positions: &[[f32; 3]], triangle: [u32; 3]) -> Vec3 {
     let a = Vec3::from_array(positions[triangle[0] as usize]);
     let b = Vec3::from_array(positions[triangle[1] as usize]);
     let c = Vec3::from_array(positions[triangle[2] as usize]);
-    let normal = (b - a).cross(c - a);
-    if normal.length_squared() <= f32::EPSILON {
+    let ab = b - a;
+    let ac = c - a;
+    let normal = ab.cross(ac);
+    let scale_squared = ab
+        .length_squared()
+        .max(ac.length_squared())
+        .max((c - b).length_squared());
+    if !normal.is_finite()
+        || !scale_squared.is_finite()
+        || scale_squared <= f32::MIN_POSITIVE
+        || normal.length_squared() / scale_squared
+            <= scale_squared * f32::EPSILON * f32::EPSILON
+    {
         Vec3::ZERO
     } else {
         normal.normalize()

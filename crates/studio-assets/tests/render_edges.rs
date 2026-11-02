@@ -96,6 +96,21 @@ fn accepts_empty_triangles_and_rejects_degenerate_triangles() {
 }
 
 #[test]
+fn accepts_small_nonzero_triangles() {
+    let positions = [
+        [12.0, 0.0, 0.0],
+        [12.0, 0.001, 0.0],
+        [12.0, 0.0, 0.001],
+    ];
+    assert_eq!(
+        generate_edge_indices(&positions, &[0, 1, 2], 30.0)
+            .unwrap()
+            .len(),
+        6
+    );
+}
+
+#[test]
 fn rejects_out_of_range_and_non_finite_inputs() {
     let errors = [
         generate_edge_indices(&[[0.0; 3]], &[0, 1, 2], 30.0).unwrap_err(),
