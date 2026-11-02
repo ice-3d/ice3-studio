@@ -1,16 +1,23 @@
 //! Native source import registry and format-neutral source scene.
 
 mod gltf;
+mod limits;
 pub mod obj;
 mod registry;
 mod source;
+mod worker;
 
 pub use gltf::GltfImporter;
+pub use limits::{NativeImportLimits, WorkerLimits, validate_scene_limits};
 pub use obj::ObjImporter;
 pub use registry::SourceImporterRegistry;
 pub use source::{
     ImportError, ImportRequest, ImportWarning, SourceCapabilities, SourceFormat, SourceImporter,
     SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceScene,
+};
+pub use worker::{
+    WORKER_PROTOCOL_VERSION, WorkerRequest, WorkerResponse, decode_worker_response,
+    execute_worker_request, run_isolated_import,
 };
 
 pub fn to_canonical(source: &SourceScene) -> studio_assets::canonical::CanonicalScene {

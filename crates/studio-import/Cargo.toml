@@ -6,11 +6,12 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+bincode.workspace = true
 glam.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 studio-assets = { path = "../studio-assets" }
+tempfile.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
