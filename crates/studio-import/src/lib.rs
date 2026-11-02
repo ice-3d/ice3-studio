@@ -3,6 +3,8 @@
 #[cfg(feature = "fbx")]
 mod fbx;
 mod gltf;
+#[cfg(feature = "ifc")]
+mod ifc;
 mod limits;
 pub mod obj;
 mod registry;
@@ -16,6 +18,11 @@ mod worker;
 #[cfg(feature = "fbx")]
 pub use fbx::FbxImporter;
 pub use gltf::GltfImporter;
+#[cfg(feature = "ifc")]
+pub use ifc::{
+    IfcMetadata, IfcNodeMetadata, IfcProductMetadata, IfcPropertySetMetadata,
+    IfcQuantitySetMetadata, IfcSystemMetadata, IfcSystemReference, extract_ifc_metadata,
+};
 pub use limits::{NativeImportLimits, WorkerLimits, validate_scene_limits};
 pub use obj::ObjImporter;
 pub use registry::SourceImporterRegistry;

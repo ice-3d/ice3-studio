@@ -12,6 +12,7 @@ pub enum SourceFormat {
     Fbx,
     Usd,
     Step,
+    Ifc,
 }
 
 impl SourceFormat {
@@ -22,6 +23,7 @@ impl SourceFormat {
             Self::Fbx => "fbx",
             Self::Usd => "usd",
             Self::Step => "step",
+            Self::Ifc => "ifc",
         }
     }
 }
