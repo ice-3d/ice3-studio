@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use command_group::CommandGroup;
 
 use crate::ImportError;
+use crate::jt::JT_CONVERTER_PGID_ENV as PGID_ENV;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
 const TERMINATE_GRACE: Duration = Duration::from_secs(1);
@@ -42,29 +43,30 @@ impl JtConverterConfig {
                 )
             })?;
         let binary = validate_converter_binary(PathBuf::from(binary))?;
-        let timeout = match std::env::var("ICE3_JT_TIMEOUT_MS") {
-            Ok(value) => {
-                let value = value.trim();
-                if value.is_empty()
-                    || !value.bytes().all(|byte| byte.is_ascii_digit())
-                    || value
-                        .parse::<u64>()
-                        .ok()
-                        .filter(|value| *value > 0)
-                        .is_none()
-                {
-                    return Err(converter_failed());
-                }
-                Duration::from_millis(value.parse::<u64>().map_err(|_| converter_failed())?)
-            }
-            Err(std::env::VarError::NotPresent) => DEFAULT_TIMEOUT,
-            Err(std::env::VarError::NotUnicode(_)) => return Err(converter_failed()),
-        };
+        let timeout = jt_timeout_from_environment()?;
         Ok(Self { binary, timeout })
     }
 
     pub const fn timeout(&self) -> Duration {
         self.timeout
+    }
+}
+
+pub fn jt_timeout_from_environment() -> Result<Duration, ImportError> {
+    match std::env::var("ICE3_JT_TIMEOUT_MS") {
+        Ok(value) => {
+            let value = value.trim();
+            let millis = value
+                .bytes()
+                .all(|byte| byte.is_ascii_digit())
+                .then(|| value.parse::<u64>().ok())
+                .flatten()
+                .filter(|value| *value > 0)
+                .ok_or_else(converter_failed)?;
+            Ok(Duration::from_millis(millis))
+        }
+        Err(std::env::VarError::NotPresent) => Ok(DEFAULT_TIMEOUT),
+        Err(std::env::VarError::NotUnicode(_)) => Err(converter_failed()),
     }
 }
 
@@ -89,7 +91,17 @@ pub fn run_jt_converter(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = command.group_spawn().map_err(|_| converter_failed())?;
+    let mut group = command.group();
+    #[cfg(windows)]
+    group.kill_on_drop(true);
+    let mut child = group.spawn().map_err(|_| converter_failed())?;
+    let _pgid_file = match record_converter_group(child.id()) {
+        Ok(file) => file,
+        Err(error) => {
+            let _ = terminate_converter(&mut child);
+            return Err(error);
+        }
+    };
     let stdout = child.inner().stdout.take().ok_or_else(converter_failed)?;
     let stderr = child.inner().stderr.take().ok_or_else(converter_failed)?;
     let stdout = collect_stream(stdout);
@@ -343,6 +355,36 @@ fn remove_stale_output(output: &Path) -> Result<(), ImportError> {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(_) => Err(export_invalid()),
+    }
+}
+
+fn record_converter_group(pgid: u32) -> Result<Option<RemoveOnDrop>, ImportError> {
+    let Some(path) = std::env::var_os(PGID_ENV).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    let path = PathBuf::from(path);
+    let parent = path.parent().ok_or_else(converter_failed)?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|_| converter_failed())?;
+    temporary
+        .write_all(pgid.to_string().as_bytes())
+        .map_err(|_| converter_failed())?;
+    temporary
+        .as_file()
+        .sync_all()
+        .map_err(|_| converter_failed())?;
+    temporary
+        .persist(&path)
+        .map_err(|error| ImportError::Io(error.error))?;
+    Ok(Some(RemoveOnDrop { path }))
+}
+
+struct RemoveOnDrop {
+    path: PathBuf,
+}
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
     }
 }
 
