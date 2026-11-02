@@ -14,8 +14,10 @@ typed connections, shared CPU evaluation, persistent geometry caching, GLB mesh 
 projections, parameter forms, a 216-object / 6.1M-triangle fixture, topology checks, and
 machine-readable performance evidence.
 
-M3 native GPU evaluation and M4 Runtime publication remain pending. The system therefore remains
-`Proposed` as a whole.
+M3 native GPU evaluation and M4 Runtime publication have since been delivered. Native GPU remains
+an experimental, default-off execution path because its measured crossover does not justify
+default enablement; canonical CPU evaluation, GLB export and Toolchain-backed Runtime publication
+are active. The design is therefore implemented with the GPU path explicitly marked experimental.
 
 ## 1. Summary
 

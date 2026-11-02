@@ -1,4 +1,4 @@
-# Architecture
+# ICE3 Studio 架构
 
 > Document ID: ICE3-STUDIO-ARC-001
 >
@@ -6,176 +6,220 @@
 >
 > Owner: ICE3 Studio maintainers
 
-ICE3 Studio is a local-first authoring system designed for external AI operation. Natural
-language understanding stays outside Studio. Studio receives typed modeling intent through a
-public API and turns it into deterministic document revisions.
+ICE3 Studio 是本地优先的 AI-native authoring workspace。自然语言理解和 Agent 规划留在
+Studio 外部；Studio 通过公开 API 接收类型化 Operation，把提案、人工修改、求值、审阅和
+持久化组织为可重放的 Document revision。
 
-## Boundary
+## 边界
 
 ```text
-external AI or script
+外部 Agent / 用户
         |
         | JSON-RPC 2.0
         v
-Studio Server (loopback)
-        |-------------------+-------------------+
-        |                   |                   |
-        v                   v                   v
-Rust Studio Core
-  document + operations + validation + geometry + export
-        |             Native GPU Compute
-        |               bounded wgpu kernels + CPU parity
-        |                   |
-        +-------------------+
+Studio Server（仅 loopback）
         |
-        +----> revision snapshots and history
+        +---- studio-core
+        |     Document、Operation、校验、几何、GLB
         |
-        +----> source GLB
+        +---- studio-assets
+        |     glTF/GLB、Prepared Profile、accessor、source digest
         |
-        +----> revision event ----> thin Web Viewer
+        +---- studio-pipeline
+        |     partition、LOD、coarse、Tileset、render batch
         |
-        +----> studio-toolchain-client ----> pinned Toolchain Sidecar
-                                                  |
-                                                  +----> prepared GLB / preview / partition
+        +---- studio-import
+        |     glTF/GLB、OBJ/MTL、FBX、USD、SourceScene、adapter registry
+        |
+        +---- studio-project
+        |     revision、锁、ChangeSet、缓存
+        |
+        +---- studio-gpu
+        |     实验性 wgpu 几何求值
+        |
+        +---- studio-toolchain-client
+        |     固定版本本地 Sidecar
+        |
+        +---- revision 事件 ----> Web Viewer
 ```
 
-Studio Core has no dependency on the Viewer, Engine, Toolchain, or an AI provider SDK. Node.js
-is used only for Viewer build tooling and the out-of-process Toolchain adapter.
+Studio Core 不依赖 Viewer、Engine、Toolchain、Node.js 或模型供应商 SDK。Node.js 只用于
+Viewer 构建和迁移期 parity。Runtime Asset 主路径由 `studio-assets`、`studio-pipeline`
+和 `studio-server::runtime_tileset` 完成；Toolchain Sidecar 不再是新导出的依赖。
 
-## Components
+## 组件
 
 ### `studio-core`
 
-Owns stable types, generic modeling operations, primitive and sweep evaluation, materials,
-relations, constraints, diagnostics, document diffs, and standard GLB serialization. It has no
-file, process, network, or UI access.
+拥有稳定 Document 类型、通用 Operation、primitive/sweep Geometry、Material、relation、
+constraint、Diagnostic、Document diff 和标准 GLB 序列化。它没有文件、进程、网络或 UI
+访问权限。
 
-The `large_scene` module owns generic component definitions, instances, deterministic instance
-sets, typed parameter resolution, port-aware connections, and CPU reference expansion. It emits
-shared evaluated meshes and stable derived identities without becoming industry-specific.
+`large_scene` 模块拥有 Component Definition、Instance、InstanceSet、参数解析、端口感知
+Connection 和 CPU 参考展开。派生 Geometry 和 identity 必须确定性生成，行业术语只能进入
+metadata 或案例资产。
+
+Material 使用 RGBA base color、opacity、可选 edge color 和可选 `directional`、`flat` 或
+`water` shading。opacity 小于 1 时 GLB 导出为 alpha blend；shading 写入
+`extras.ice3.shading`。
 
 ### `studio-project`
 
-Owns project paths, writer locks, atomic snapshots, revision history, undo/redo, and snapshot
-integrity. It also owns the bounded content-addressed geometry cache under
-`cache/geometry/`. A snapshot is persisted before the new revision becomes externally visible.
+拥有项目路径、写锁、原子 revision snapshot、undo/redo、ChangeSet、内容寻址 Geometry
+cache 和项目完整性检查。新 revision 只有在 snapshot 持久化完成后才对外可见。
+
+### `studio-assets`
+
+读取 GLB/glTF、解析多 buffer 与 accessor、验证 `ice3-prepared` profile，并在允许的
+base directory 内解析外部资源。Draco primitive 在读取阶段物化为普通 accessor；绝对
+路径、URI scheme、`..`、symlink escape、畸形 chunk 和越界 accessor 均失败关闭。
+
+### `studio-import`
+
+定义格式无关的 `SourceImporter`、registry 和 `SourceScene`。当前 adapter：
+
+- `gltf`：`.gltf`、`.glb`，保留层级、共享 Mesh、Material、extras 和 Selection。
+- `obj`：`.obj`，Rust parser 支持 OBJ face、负索引、多边形三角化、object/group 和
+  同目录 MTL。
+- `fbx`：`.fbx`，native decoder 在隔离 worker 中保留 ASCII/Binary 层级、transform、
+  shared Mesh、颜色、实例和有界 custom properties。
+- `usd`：`.usda`、`.usdc`，native stage 在隔离 worker 中保留 prim path、层级、
+  instance/prototype、Geometry、颜色和有界 metadata。
+
+adapter 不写 Tileset；`studio-assets::canonical` 把 `SourceScene` 写成 Prepared GLB。
+重要安全边界：外部资源只能读取源文件目录内文件。FBX/USD worker 使用硬 timeout、进程
+崩溃隔离、response/stderr 上限和 post-decode scene budgets；USD composition 额外限制
+递归深度、layer 数量、绝对路径、URI、`..` 和 symlink escape。任何超时、崩溃、协议污染
+或越界资源都失败关闭。
+
+### `studio-pipeline`
+
+拥有 partition unit 分析、确定性的空间切分、meshopt LOD、coarse chunk、可选 semantic
+proxy、静态 render batch 和 Tileset document。共享 Mesh 的实例保持同一 atomic partition
+unit；LOD 保留稳定 selection identity，简化失败时保留原几何。
 
 ### `studio-gpu`
 
-Owns the local adapter/device lifecycle, bounded `wgpu` buffers, WGSL kernels, CPU/GPU parity
-checks, and backend statistics for native geometry compute. It does not read projects, serve HTTP,
-approve revisions, or replace browser WebGPU rendering. CPU remains the canonical evaluator and is
-the default automatic path until adapter-specific benchmarks demonstrate a positive crossover.
+拥有本地 `wgpu` adapter/device、生命周期、受预算约束的 buffer 和 WGSL kernel、CPU/GPU
+parity 以及执行证据。它不读取项目、不提供 HTTP、不批准 revision，也不替代浏览器渲染。
+CPU 是权威求值路径；Native GPU 和 resident geometry 保持实验性、默认关闭。
 
 ### `studio-server`
 
-Owns the local HTTP and WebSocket boundary. It validates authentication and parameters, applies
-one transaction at a time, persists accepted revisions, and publishes revision events. Blocking
-filesystem and Toolchain work runs on Tokio blocking workers so health and event delivery remain
-responsive. Scene bounds and evaluation read from the same cached derived scene so a request does
-not evaluate equivalent component instances twice. `ComputeService` enforces GPU memory,
-concurrency, priority, cancellation-safe admission, backend health, and automatic CPU fallback.
+拥有 loopback HTTP/WebSocket 边界、认证、参数校验、单事务串行、持久化和 revision 事件。
+阻塞文件系统与 Toolchain 工作使用 Tokio blocking worker，避免阻塞 health 和事件流。
+Compute service 负责 GPU 内存、并发、优先级、取消、健康检查和 CPU fallback。
 
-### `studio-toolchain-client` and Toolchain sidecar
+### Toolchain Sidecar 客户端
 
-Owns the pinned sidecar process, capability handshake, newline-delimited JSON-RPC request map,
-timeout, bounded stderr capture, restart policy, and project-relative asset paths. Toolchain
-prepares derived assets and never receives document mutation authority.
+拥有固定 Sidecar 进程、capability handshake、NDJSON 请求复用、timeout、stderr 上限、
+崩溃后一次重启重试和 workspace-relative path 校验。Sidecar 只能准备派生 Asset，不能
+修改 Document、ChangeSet、审批状态或 revision。
+
+新 `import` 和 `export tileset` 都不经过该客户端。Toolchain 只保留为 parity oracle，
+以及 STEP、IFC、JT Source Importer 的迁移兼容层。
 
 ### `studio-cli`
 
-Starts the local server and generates deterministic schemas and declarations.
+启动本地 Server，生成确定性的 JSON Schema/TypeScript declaration，提供 project pack
+和 unpack、Source Import/validate，并从 committed revision 发布
+`agent-console-v1` Runtime bundle。
 
-### Viewer
+### Web Viewer
 
-Consumes public read APIs and revision events, displays the prepared GLB, and reports selection
-and validation state. It does not mutate the document directly.
+只消费公开 API 和 revision 事件，不直接修改 Document。默认打开 `Agent` tab；在同一个
+三栏工作台中提供 Agent 上下文、3D Scene、Objects、Inspect、Changes 和 Evidence。
 
-## Source of Truth
+Objects 搜索会保留匹配项祖先并显示匹配数。Selection 以完整业务实体或 source object
+为单位；Reference Asset 的派生 selection 会映射回同一 binding。用户点击对象后先更新
+Agent 焦点，只有点击 `Inspect selected object` 才进入人工参数编辑。
 
-The serializable `Document` plus its operation history is durable truth. Component definitions,
-instances, instance-set rules, and connection intents are source data. Triangle meshes, derived
-part identities, world bounds, diagnostics, GLB buffers, and Toolchain previews are derived
-values. This keeps AI operations explainable, replayable, and diffable.
+Agent Gateway 不可用时界面显示离线状态，但对象搜索、参数检查、candidate review 和人工
+提交保持可用。Viewer 不自带模型凭据、Prompt 或 Agent policy。
 
-Every committed transaction increments the revision once. Stable object IDs survive renames,
-reloads, undo, and redo. Atomic snapshots and idempotency records make retries safe within the
-local project boundary.
+## 真源与派生值
 
-Native geometry may remain resident outside the Document, but it is always derived state. The
-server separates queueable resident work from explicit CPU snapshots, emits `ICE3PGP1` full or
-delta packets only when preview packets are host-enabled, and falls back to canonical GLB.
-Browser caches key geometry by stable packet identity and apply dirty ranges without recreating
-unchanged buffers. Native residency, browser WebGPU, and preview packets are experimental because
-the measured resident performance gate has not passed; the default remains CPU compute plus
-WebGL2 rendering.
+可序列化 `Document` 加 operation history 是持久真源。Component Definition、Instance、
+InstanceSet 和 Connection Intent 都是 source data。Triangle Mesh、part identity、world
+bounds、Diagnostic、GLB、runtime preview、Tileset、coarse tile 和 binding manifest
+都是派生值。
 
-A revision-scoped CPU scene cache is the default. It retains the resolved scene index across
-committed revisions and reduces large-scene transform updates from about 1.28 seconds to about
-116 milliseconds. The experimental native GPU layer adds resident topology and instance buffers,
-but measured GPU incremental latency is about 0.92× the CPU incremental baseline, so native GPU
-remains default-off.
+每次成功事务只增加一个 revision。稳定 object ID 在 rename、reload、undo 和 redo 后保持
+不变。Operation history 与 revision snapshot 共同提供可重放和可审计状态。
 
-When preview packets are enabled, the production runtime-preview path reuses the previous packet
-for transform-only revisions and reads back only scene geometries affected by attribute or topology
-changes. Missing scene state or a missing base packet selects the existing CPU full-packet fallback.
+Component parameter 和 part binding 使用 untagged wire format：标量直接写数字，Vector3
+直接写 `{x,y,z}`，Color 直接写四元素数组，Enumeration 直接写字符串。参数引用使用
+`{param:"name"}`，派生标量使用 `{expr:"radius - wall / 2"}`。
 
-The experimental scene session also keeps per-instance bounds resident and exposes a compute-based
-visibility query that consumes the uploaded matrices and bounds. Instance transforms update only
-their changed matrix ranges instead of re-uploading the complete instance table. The large-scene
-narrow-frustum query returns 243 instances through both paths. CPU and GPU p50 latencies are
-2.613 and 0.601 milliseconds respectively; p95 is 3.616 and 2.276 milliseconds. The result also
-includes stable node IDs because CPU scene positions and GPU instance slots are not interchangeable.
-The API remains experimental. When native scene sessions are disabled or unavailable, the server
-computes the same query from its cached CPU scene.
+## 大规模场景与 GPU
 
-Scene phase measurements show GPU planning and synchronization are now a small fraction of warm
-revision latency. Document transaction handling, durable snapshot writing, and the JSON-RPC
-boundary are the dominant remaining costs.
+CPU revision-scoped scene cache 默认开启，并复用已解析的 scene index。实验性 Native GPU
+层增加 resident topology、instance buffer、稳定 handle 和增量求值，但当前设备上没有稳定
+的性能 crossover，因此默认仍然使用 CPU。
 
-The Agent capability layer is a read facade over the same Document and cached evaluated scene.
-`system.agentManifest` describes tools and effective token authority; `scene.context` returns a
-bounded project summary; `scene.search` pages source and derived identities with revision-bound
-cursors; and `evaluation.query` limits payload reads to an explicit node set. These reads do not
-introduce a second scene model. Agent proposals use the existing ChangeSet and Operation pipeline.
-Sparse instance, component, connection, and material patches reuse the same atomic validation,
-diff, idempotency, persistence, and revision semantics as full operations.
+Preview packet 只有在 host 明确开启时发布。客户端验证完整 packet 后原子复用未变化的
+buffer，失败时回退到 canonical GLB。GPU scene visibility 也提供 CPU fallback；GPU
+handle、device generation 和 buffer slot 不能泄漏为公共 object identity。
 
-## Industry Layering
+静态 Schema 固化 37 个 JSON-RPC 方法；运行中的 Server 另外公布
+`evaluation.waitScene` 和 `evaluation.visibleInstances`，共 39 个方法。后者属于实验性
+能力，调用前应读取 `system.capabilities`。
 
-Core primitives and operations are generic. Industrial concepts use metadata, relations, and
-assemblies above the Core boundary. `wastewater-mini` (11 nodes) is the deterministic contract
-fixture used by the verification gate. The current authoring scene is the Studio-native
-`wastewater-plant` project, while the programmatic large-industrial fixture exercises larger
-component and connection counts. None is a hard-coded process type in the modeling API.
+## Agent capability
 
-The authoritative inventory of methods, operations, ChangeSet states, diagnostics, CLI flags,
-and environment variables lives in [能力清单](reference/capabilities.md). That file mirrors the
-code; when it disagrees with narrative documentation, it wins.
+`system.agentManifest` 描述可用 tool、当前 token authority 和调用上限；
+`scene.context` 返回固定大小摘要；`scene.search` 提供 revision-bound 分页结果；
+`evaluation.query` 只读取显式列出的派生 Geometry。所有读接口复用同一 Document 和缓存。
 
-## Security Posture
+Agent proposal 必须经过 ChangeSet。`changeset.impact` 返回 local、targeted、broad、
+full_rebuild 或 unavailable 的门禁与缓存证据，但不会发布 candidate Scene。提交后使用
+`evaluation.stats` 读取 committed revision 的真实执行结果。
 
-- HTTP and WebSocket bind to `127.0.0.1`.
-- Writes require a process-scoped bearer token.
-- Project IDs and resources are confined to the configured workspace.
-- Operations cannot submit paths, URLs, shell commands, scripts, or arbitrary expressions.
-- The Toolchain executable comes from a host-owned pinned manifest, never from an API request.
-- GPU requests cannot submit WGSL, select an arbitrary adapter, or bypass host budgets.
-- Diagnostics exclude credentials and out-of-workspace paths.
+## 行业分层
 
-## Not Yet Implemented
+Core primitive 和 Operation 保持行业中立。工业概念使用 metadata、relation、component
+assembly 和案例资产表达。`wastewater-mini` 是 11 节点确定性契约 fixture；默认 authoring
+工程是 `projects/wastewater-plant`；大型程序化工业 fixture 用于验证组件、实例、连接、
+缓存和性能和规模边界。
 
-The following capabilities are in product scope but are not built yet. They are gaps to close,
-not out-of-scope decisions:
+Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最新的工程；时间相同时选择
+更高 `currentRevision`。权威能力清单位于
+[能力清单](reference/capabilities.md)，当前文件与代码冲突时以代码和该清单为准。
 
-- Boolean geometry (cut, union, intersect) for openings and pipe penetrations.
-- Free-form curves and curve-driven sweeps.
-- Sculpting and organic mesh editing.
-- Collaborative editing and concurrent multi-user sessions.
-- Cloud tenancy, accounts, and remote deployment.
-- Large static asset import as a modeling input.
-- Persistent GPU buffer pooling across projects.
+## 安全边界
 
-Two entries below are boundaries rather than deferrals. Runtime LOD and spatial partitioning
-remain Toolchain responsibilities. Native GPU execution is implemented and stays default-off
-until the release benchmark shows a stable latency gain.
+- HTTP 和 WebSocket 只绑定 `127.0.0.1`。
+- 写请求需要进程级 bearer token。
+- ChangeSet commit 需要审批 Cookie，并与 candidate digest 绑定。
+- 项目和 Resource 限制在配置的 workspace。
+- Operation 不能提交路径、URL、shell command、脚本或任意表达式。
+- Sidecar executable 只来自 host-owned pinned manifest，不能由 API 请求选择。
+- Diagnostic 不包含凭据或 workspace 外路径。
+
+这套边界是单用户本地工具的安全模型，不是多租户 remote deployment 模型。
+
+## 尚未实现
+
+以下能力在产品范围但尚未交付：
+
+- Boolean geometry，包括 cut、union 和 intersect。
+- Free-form curve 与 curve-driven sweep。
+- Sculpting 和有机网格编辑。
+- 协作编辑与并发多用户 session。
+- 云租户、账号和远程部署。
+- 大型静态 Asset 作为直接建模输入。
+- 跨项目持久 GPU buffer pool。
+
+Runtime LOD、空间 partition 和 GLB Runtime Asset 发布已由 Studio 原生 crate 实现。
+glTF/GLB、OBJ/MTL、FBX 与 USD Source Import 已迁入 Studio。STEP、IFC 和 JT 仍按
+Spec-016 后续阶段迁移；在这些阶段完成前，Toolchain 仅作为迁移兼容层和 parity oracle
+保留。Toolchain 不再拥有 FBX/USD 生产 adapter 或外部 DCC bridge。
+
+## 关联文档
+
+- `ICE3-STUDIO-RM-001` — [Studio README](../README.md)
+- `ICE3-STUDIO-REF-001` — [能力清单](reference/capabilities.md)
+- `ICE3-STUDIO-REF-002` — [API Reference](reference/api.md)
+- `ICE3-STUDIO-SPEC-014` — [Agent 主导工作台设计](specs/2026-11-01-agent-led-workbench-design.md)
+- `ICE3-STUDIO-SPEC-016` — [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md)
+- `ICE3-DOC-ADR-006` — [Agent 主导的 Studio 工作台](https://github.com/ice-3d/ice3-doc/blob/main/docs/decisions/0006-agent-led-studio-workbench.md)

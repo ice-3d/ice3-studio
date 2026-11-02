@@ -1,14 +1,14 @@
 # Engineering-Grade Wastewater Plant Asset Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
-
 > Document ID: ICE3-STUDIO-PLAN-015
 >
 > Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
+> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
+> checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 将 `projects/wastewater-plant` 升级为原创、可专业评审、30 万至 50 万三角形的通用
 污水处理厂资产。

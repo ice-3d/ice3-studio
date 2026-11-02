@@ -17,6 +17,23 @@ fn creates_and_reopens_deterministic_project_state() {
 }
 
 #[test]
+fn reads_committed_state_while_a_writer_holds_the_project_lock() {
+    let root = tempfile::tempdir().unwrap();
+    let path = WorkspacePath::new(root.path(), "concurrent-read").unwrap();
+    let writer = ProjectStore::create(path.clone()).unwrap();
+    writer
+        .write_snapshot(&Document::new("concurrent-read"))
+        .unwrap();
+
+    let reader = ProjectStore::open_read_only(path.clone()).unwrap();
+    assert_eq!(
+        reader.load_current_read_only().unwrap().project_id,
+        "concurrent-read"
+    );
+    assert!(ProjectStore::open(path).is_err());
+}
+
+#[test]
 fn rejects_project_paths_outside_the_workspace() {
     let root = tempfile::tempdir().unwrap();
     assert!(WorkspacePath::new(root.path(), "../escape").is_err());

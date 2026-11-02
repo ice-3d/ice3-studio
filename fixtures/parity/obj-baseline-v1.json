@@ -1,0 +1,47 @@
+{
+  "kind": "ice3-source-import-baseline",
+  "schemaVersion": "1.0",
+  "fixture": "../ice3-toolchain/tests/fixtures/obj/synthetic-plant.obj",
+  "sourceDigest": "f59ecd5f3ef818a850cd9d470db37279ff3434ba54f2276c66ff2c48293638a2",
+  "baselineGlbDigest": "ae3f23558b399ead5bc1b097762a16886fde1b435f6b9ac0819627f8bb5f58ca",
+  "stats": {
+    "nodeCount": 3,
+    "meshCount": 2,
+    "triangleCount": 24,
+    "vertexCount": 72,
+    "edgeSegmentCount": 24,
+    "semanticMaterialCount": 2
+  },
+  "selectionIds": [
+    "parity-obj/obj/node/0",
+    "parity-obj/obj/node/1",
+    "parity-obj/obj/node/2"
+  ],
+  "bounds": {
+    "min": [0, -2, 0],
+    "max": [2.799999952316284, 3.5999999046325684, 3.5999999046325684]
+  },
+  "materials": [
+    {
+      "name": "PumpBlue",
+      "baseColorFactor": [
+        0.3810918544541135,
+        0.6499564513286469,
+        0.8433891712280845,
+        1
+      ]
+    },
+    {
+      "name": "TankTaupe",
+      "baseColorFactor": [
+        0.8094681526358262,
+        0.7673756654827062,
+        0.6651850891023338,
+        1
+      ]
+    }
+  ],
+  "warningCodes": [
+    "ICE3_STUDIO_IMPORT_OBJ_UNIT_ASSUMED_METERS"
+  ]
+}

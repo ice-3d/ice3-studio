@@ -1,5 +1,11 @@
 # GPU Resident Hot-Path Redesign Implementation Plan
 
+> Document ID: ICE3-STUDIO-PLAN-010
+>
+> Status: Implemented
+>
+> Owner: ICE3 Studio maintainers
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Eliminate whole-mesh hashing and per-node synchronization from resident work, then measure and route the production preview path through stable resident handles without weakening CPU authority or fallback behavior.

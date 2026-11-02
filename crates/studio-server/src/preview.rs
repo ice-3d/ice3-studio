@@ -63,7 +63,7 @@ pub fn export_source(
     export_source_with_scene(document, project_dir, None).map(|(source, _)| source)
 }
 
-fn export_source_with_scene(
+pub(crate) fn export_source_with_scene(
     document: &Document,
     project_dir: &Path,
     evaluator: Option<&dyn GeometryEvaluator>,

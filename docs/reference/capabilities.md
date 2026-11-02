@@ -1,6 +1,6 @@
 # 能力清单
 
-> Document ID: ICE3-STUDIO-REF-CAP-001
+> Document ID: ICE3-STUDIO-REF-001
 >
 > Status: Implemented
 >
@@ -18,7 +18,11 @@
 - `review-required` 模式下 Agent 令牌不能直接 `document.apply` 或 `changeset.commit`；
   `autonomous` 模式下允许直接写入。
 
-## JSON-RPC 方法（39）
+## JSON-RPC 方法（固化 37，运行时 39）
+
+`schemas/studio-api.schema.json` 固化 37 个方法。Server 的 `system.capabilities` 额外
+公布两个实验性 GPU scene 方法 `evaluation.waitScene` 和
+`evaluation.visibleInstances`，因此运行时能力清单共 39 个。
 
 ### system（3）
 
@@ -71,8 +75,8 @@
 | `evaluation.evaluate` | 否 | 无 | 按 node ID 的求值网格 |
 | `evaluation.query` | 否 | `EvaluationQueryRequest` | 有界派生几何摘要与可选负载 |
 | `evaluation.stats` | 否 | 无 | 有效三角形、唯一网格、缓存命中统计 |
-| `evaluation.waitScene` | 否 | `{ revision? }` | 已发布的实验性 GPU 场景状态 |
-| `evaluation.visibleInstances` | 否 | `{ targetRevision, planes[6][4] }` | 可见实例索引与稳定 node ID |
+| `evaluation.waitScene` | 否 | `{ revision? }` | 实验性；已发布的 GPU 场景状态 |
+| `evaluation.visibleInstances` | 否 | `{ targetRevision, planes[6][4] }` | 实验性；可见实例索引与稳定 node ID |
 
 ### export（2）
 
@@ -104,13 +108,13 @@
 | `referenceAsset.get` | 否 | `{ assetId }` | 描述符与流式资产 URL |
 | `referenceAsset.bindings` | 否 | `{ assetId, cursor?, limit? }` | 稳定设备绑定页（limit 1..=100） |
 
-## Operation 类型（27）
+## Operation 类型（29）
 
 `document.apply` 与 `changeset.addOperations` 接受同一组操作。
 
 | 域 | 操作 |
 |---|---|
-| node（4） | `node.create`、`node.update`、`node.reparent`、`node.delete` |
+| node（6） | `node.create`、`node.update`、`node.reparent`、`node.delete`、`primitive.update`、`mesh.replace` |
 | component（4） | `component.define`、`component.update`、`component.patch`、`component.delete` |
 | instance（4） | `instance.create`、`instance.update`、`instance.patch`、`instance.delete` |
 | instanceSet（3） | `instanceSet.create`、`instanceSet.update`、`instanceSet.delete` |
@@ -121,6 +125,13 @@
 
 `*.patch` 为稀疏字段修改，只提交声明的字段，但仍经过完整校验、diff、幂等和 revision
 冲突检查。操作不能提交路径、URL、shell 命令、脚本或任意表达式。
+
+Component parameter 与 part binding 使用 untagged wire format：Number 直接写数字，
+Vector3 直接写 `{x,y,z}`，Color 直接写四元数组，Enumeration 直接写字符串。部件字段
+字面量直接写值，参数引用写 `{param:"name"}`，派生标量写 `{expr:"radius - wall / 2"}`。
+
+Material 的 `opacity < 1` 导出为 alpha blend；`shading` 可为 `directional`、`flat` 或
+`water`，省略时等价于 `directional`。
 
 ## ChangeSet 状态（7）
 
@@ -153,12 +164,24 @@
 
 完整说明与恢复规则见 [Diagnostics](diagnostics.md)。
 
+Source Import CLI 另有稳定码：
+`ICE3_STUDIO_IMPORT_UNSUPPORTED`、`ICE3_STUDIO_IMPORT_ADAPTER_UNAVAILABLE`、
+`ICE3_STUDIO_IMPORT_REGISTRY_INVALID`、`ICE3_STUDIO_IMPORT_INVALID_SOURCE`、
+`ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY`、`ICE3_STUDIO_IMPORT_RESOURCE_IGNORED` 和
+`ICE3_STUDIO_IMPORT_IO`。OBJ warning 使用 `ICE3_STUDIO_IMPORT_OBJ_*` 命名空间。
+
 ## CLI
 
 ```
 ice3-studio schema --output <dir> [--check]
 ice3-studio pack --project <dir> --output <file.ice3>
 ice3-studio unpack <file.ice3> --into <dir>
+ice3-studio import SOURCE --output FILE --asset-id ID
+                        [--adapter auto|gltf|obj|fbx|usd]
+                        [--warnings-as-errors] [--force]
+ice3-studio validate FILE
+ice3-studio export tileset --project <dir> --output <dir>
+                         [--profile agent-console-v1] [--force]
 ice3-studio serve --workspace <dir> --project <id>
                   [--fixture <dir>] [--port <u16>] [--write-mode <mode>]
                   [--native-gpu <cpu|auto|gpu>]
@@ -172,6 +195,40 @@ ice3-studio serve --workspace <dir> --project <id>
 | `--port` | `8120` | 仅绑定 loopback |
 | `--write-mode` | `review-required` | 或 `autonomous` |
 | `--native-gpu` | `cpu` | 启动期策略，不能被 API 请求覆盖 |
+
+`import` 支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary 和 USD ASCII/Binary。adapter 生成
+统一 `SourceScene`，canonical writer 生成 `ice3-prepared` GLB。OBJ/MTL、glTF 和 USD
+外部资源被限制在源文件同目录；OBJ 假定米制并发出 warning。FBX/USD 通过 Studio 自带
+worker 解析，不需要外部 DCC。worker 默认限制 1,000,000 nodes、20,000,000 triangles、
+512 MiB estimated decoded memory 和 120 秒硬 timeout；response 与 stderr 上限分别为
+512 MiB 和 1 MiB。内存预算在主要 geometry/metadata 分配前预检，并在 worker response
+解码后重新记账；该值不是进程 RSS 的字节级硬上限。FBX/USD 是默认启用的 Cargo
+features，关闭后可构建 glTF/OBJ-only importer 和 CLI。超时、崩溃、协议污染和越界资源
+失败关闭。USD composition 额外限制深度 32、总 layer 数 1,024，并拒绝绝对路径、URI、
+`..` 与 symlink escape。
+
+`--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
+替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。
+
+`export tileset` 读取当前 committed revision，生成：
+
+```text
+tileset.json
+parts/
+coarse/
+bindings.json
+export.json
+```
+
+source GLB 只保留在 `projects/<id>/cache/preview/`，不会复制到发布目录。输出目录默认
+不可覆盖；`--force` 通过 sibling staging、backup 和 rename 原子替换，失败时恢复上一份
+成功 bundle。`agent-console-v1` 固定使用 60,000 triangles/part、64 MiB/part、LOD ratio
+0.5、adaptive allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk、
+`semanticProxy=off` 和 static render batch。导出只读取 Studio committed revision。
+
+`bindings.json` 优先按 metadata `tag` 聚合完整设备，`selectionId` 为
+`plant/equipment/<tag>`；无 tag 的独立场景对象使用 source owner ID。`nodeSelectionIds`
+按稳定 ID 排序，bounds 使用 world-space union，`area` 优先取 `train`，否则取 `stage`。
 
 ## 环境变量
 
@@ -189,7 +246,7 @@ ice3-studio serve --workspace <dir> --project <id>
 | `STUDIO_INCREMENTAL_SCENE_CACHE` | 设为 `0` 关闭 CPU 增量场景缓存（默认开启） |
 | `ICE3_TOOLCHAIN_CLI` | 透传给 Sidecar 的 Toolchain CLI 入口 |
 | `ICE3_JT_CONVERTER` | JT 转换器路径，由部署方提供 |
-| `ICE3_FBX_TIMEOUT_MS`、`ICE3_USD_TIMEOUT_MS`、`ICE3_JT_TIMEOUT_MS` | 各导入器超时 |
+| `ICE3_JT_TIMEOUT_MS` | JT converter timeout |
 
 注意：`ICE3_TOOLCHAIN_CLI` 与 `ICE3_JT_CONVERTER` 由 Sidecar 进程解析，其工作目录是
 **项目目录**而非仓库根，相对路径必须基于项目目录书写，或直接使用绝对路径。
@@ -267,15 +324,23 @@ Studio 直接使用自己的 GLB 产物；其它错误（协议错误、崩溃�
 
 | 模块 | 职责 |
 |---|---|
-| `app` | Workbench 主框架与表头 |
+| `app` | Workbench 主框架、Agent-first Review dock、表头与视觉 token |
 | `viewport` | 视口、SceneAdapter、相机取景 |
-| `navigation` | 对象树与树模型 |
+| `navigation` | 对象搜索、层级过滤、对象树与树模型 |
 | `forms` | 表单渲染、实例参数、表单到操作的编译 |
 | `changeset` | 候选变更的 Provider、Store 与类型 |
-| `agent` | Agent 面板、对话 Store、传输层 |
+| `agent` | Agent Mission Control、上下文、对话 Store 与传输层 |
 | `session` | 会话与令牌管理 |
 | `compute` | GPU/compute 证据展示 |
 | `toolchain` | Toolchain 状态展示 |
 | `api`、`shared` | RPC 客户端与共享工具 |
 
 Viewer 只调用公开读 API 并订阅 revision 事件，不持有任何私有修改通道。
+
+Review dock 默认打开 Agent。Agent 面板显示 Gateway 状态、project、revision 和焦点
+object；选择对象只更新 Agent 上下文，用户点击 `Inspect selected object` 后才进入人工
+参数编辑。Agent Gateway 离线不会禁用对象搜索、Inspect、Changes、candidate review 或
+人工提交。
+
+Selection 以完整业务实体或 source object 为单位。参考资产中多个派生 selection 会归并到
+同一 binding；视口和对象树使用同一实体身份，不把池壁、栏杆或其它面片当成独立实体。

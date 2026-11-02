@@ -1,6 +1,10 @@
 # Agent Iteration Impact Analysis Implementation Plan
 
-> **Status:** Implemented
+> Document ID: ICE3-STUDIO-PLAN-013
+>
+> Status: Implemented
+>
+> Owner: ICE3 Studio maintainers
 
 **Goal:** Add `changeset.impact` so an Agent can quantify whether a proposed iterative change is
 local, targeted, broad, or requires a full scene rebuild before requesting approval.

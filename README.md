@@ -33,14 +33,15 @@ Prompt 或 Agent 策略。
 | 几何 | 参数化 primitive、sweep、稳定顶点序的三角网格求值 |
 | 组件 | component definition、typed parameter、part override、实例化 |
 | 装配 | 有向/无向 typed relation、port 感知连接、工艺线成链校验 |
-| 材质 | material 定义、指派、稀疏 patch |
+| 材质 | material 定义、指派、稀疏 patch、opaque/alpha blend、directional/flat/water shading |
 | 布局 | instance set、确定性实例展开、批量变换 |
 | 事务 | 原子事务、幂等键、revision 冲突检测、undo/redo |
-| 输出 | 标准 GLB 导出、Runtime preview |
+| 输出 | 标准 GLB、Runtime preview、原生 partition/LOD Tileset bundle |
 | 大场景 | 共享几何复用、内容寻址几何缓存、增量求值、外部引用资产 |
 
-变更通过 27 种 operation 表达（`node.*`、`component.*`、`instance.*`、`instanceSet.*`、
-`connection.*`、`material.*`、`relation.*`、`constraint.*`）。全量清单见
+变更通过 29 种 operation 表达（`node.*`、`primitive.update`、`mesh.replace`、
+`component.*`、`instance.*`、`instanceSet.*`、`connection.*`、`material.*`、
+`relation.*`、`constraint.*`）。全量清单见
 [能力清单](docs/reference/capabilities.md)。
 
 ## 工作流
@@ -57,14 +58,19 @@ discarded），只有 `ready` 且 digest 一致才可提交。
 
 ## 界面
 
-Web Viewer 是工具的界面层，只消费公开 API，没有私有修改路径：
+Web Viewer 是工具的界面层，只消费公开 API，没有私有修改路径。工作台采用
+Agent-first 的默认落点，同时保留现有 Objects、3D Scene 和 Review dock 三栏：
 
-- 对象树（source 与 derived 节点）
-- 3D 视口（WebGL2 默认，WebGPU 显式实验开启）
-- 属性表单（typed parameter 编译成 `instance.update`）
-- Agent 面板（流式对话、工具调用、失败与取消）
-- 变更审阅（候选 diff、诊断、批准）
-- 诊断与 revision 事件
+- Objects：对象搜索、层级过滤、source/derived identity 和完整实体 Selection
+- 3D Scene：WebGL2 默认，WebGPU 显式实验开启；展示当前 revision 或 candidate
+- Agent：默认 tab，显示 Gateway 状态、project、revision、焦点 object、计划和活动
+- Inspect：人工参数检查与 `instance.update` 编译，可由 Agent 显式接手
+- Changes：候选 diff、诊断、review 和人工批准
+- Evidence：Operations、Timeline 和 Diagnostics
+
+Agent Gateway 离线时界面如实显示离线状态，不阻塞对象搜索、参数检查、ChangeSet review
+或人工提交。设计记录见
+[Agent 主导的 Studio 工作台](docs/specs/2026-11-01-agent-led-workbench-design.md)。
 
 ## 当前场景与测试资产
 
@@ -94,6 +100,49 @@ npm run verify      # 18 道门禁：fmt / clippy / test / schema / fixture / vi
 npm run benchmark
 npm run benchmark:gpu
 ```
+
+从已提交 revision 导出 Agent Console Runtime Asset：
+
+```bash
+cargo run -p studio-cli -- export tileset \
+  --project ./projects/wastewater-plant \
+  --output /tmp/ice3-runtime-tileset \
+  --profile agent-console-v1
+```
+
+该命令由 Rust 直接完成 GLB 读取、Prepared Profile 校验、partition、LOD、coarse
+chunk、Tileset 和 binding manifest 发布，不启动 Toolchain Sidecar、Node Asset runtime
+或外部 DCC。输出不包含完整 source GLB。
+
+Source Import 也由 Studio 原生完成：
+
+```bash
+cargo run -p studio-cli -- import plant.obj \
+  --output plant.glb \
+  --asset-id plant \
+  --adapter obj
+
+cargo run -p studio-cli -- import plant.fbx \
+  --output plant-fbx.glb \
+  --asset-id plant-fbx \
+  --adapter fbx
+
+cargo run -p studio-cli -- import plant.usdc \
+  --output plant-usd.glb \
+  --asset-id plant-usd \
+  --adapter usd
+
+cargo run -p studio-cli -- validate plant.glb
+```
+
+Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary 和 USD ASCII/Binary。OBJ/MTL
+资源限制在源文件同目录；FBX/USD 解析在 Studio 自带 worker 中运行，不需要安装外部
+DCC。worker 有硬超时、进程崩溃隔离、512 MiB response 上限和 1 MiB stderr 上限，
+默认预算为 1,000,000 nodes、20,000,000 triangles、512 MiB estimated decoded
+memory 和 120 秒。内存预算通过分配前预检和 post-decode scene accounting 执行，
+不宣称等同于进程 RSS。FBX/USD 是默认启用、可关闭的 Cargo features；关闭后仍可构建
+glTF/OBJ-only 的 `studio-import` 与 CLI。USD composition 限制在源文件目录，并限制
+递归深度和 layer 数量；失败不会替换已有输出。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
@@ -125,9 +174,12 @@ cargo run -p studio-cli -- unpack wwtp.ice3 --into ./restored
 Studio Server ── 认证、单事务串行、持久化、revision 事件
       │
       ├── studio-core      Document、几何、事务、校验、GLB 导出（无 IO）
+      ├── studio-assets    glTF/GLB 读取、Prepared Profile、accessor 与来源摘要
+      ├── studio-import    glTF/GLB、OBJ/MTL、FBX、USD 与统一 SourceScene
+      ├── studio-pipeline  partition、LOD、coarse chunk、Tileset 与 render batch
       ├── studio-project   路径、写锁、原子快照、变更集、几何缓存
       ├── studio-gpu       wgpu 几何内核、residency（实验）
-      └── studio-toolchain-client → 固定版本 Toolchain Sidecar
+      └── studio-toolchain-client → 迁移期兼容与 parity
       │
       └── revision 事件 ──→ Web Viewer（薄客户端）
 ```
@@ -139,7 +191,8 @@ Document 加操作历史是唯一真源，几何、bounds、诊断、GLB、预�
 
 ## API
 
-39 个 JSON-RPC 方法，分 9 个域（`system`、`project`、`document`、`scene`、`validation`、
+静态 Schema 固化 37 个 JSON-RPC 方法；运行时能力清单另外暴露 2 个实验性 GPU scene
+方法，共 39 个，分 9 个域（`system`、`project`、`document`、`scene`、`validation`、
 `evaluation`、`export`、`changeset`、`referenceAsset`）。完整方法表、参数与返回见
 [API Reference](docs/reference/api.md)，错误码见 [Diagnostics](docs/reference/diagnostics.md)。
 
@@ -192,7 +245,8 @@ session。功能已交付，但性能门禁未过，默认关闭。
 静态资产导入、跨项目 GPU 缓冲持久化。清单与理由见
 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
-不属于本仓库职责：Runtime LOD 与空间分区由 Toolchain 负责。
+Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD Source Import
+已由 Studio 原生实现。Toolchain 只保留 STEP、IFC、JT 的迁移兼容能力与 parity 证据。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。
@@ -206,6 +260,8 @@ session。功能已交付，但性能门禁未过，默认关闭。
 - [Diagnostics](docs/reference/diagnostics.md)
 - [ChangeSet 审阅](docs/reference/change-sets.md)
 - [Toolchain Sidecar](docs/reference/toolchain-sidecar.md)
+- [原生 Asset Pipeline 迁移设计](docs/specs/2026-11-01-native-asset-pipeline-migration-design.md)
+- [Agent 主导的工作台设计](docs/specs/2026-11-01-agent-led-workbench-design.md)
 
 ## AI 辅助开发
 

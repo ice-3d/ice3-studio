@@ -1,8 +1,10 @@
 # 0002: The Local API Is the Product Boundary
 
-> Document ID: ICE3-STUDIO-ADR-0002
+> Document ID: ICE3-STUDIO-ADR-002
 >
 > Status: Implemented
+>
+> Owner: ICE3 Studio maintainers
 >
 > Date: 2026-10-30
 

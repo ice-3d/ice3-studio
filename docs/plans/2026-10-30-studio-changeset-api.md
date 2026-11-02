@@ -1,12 +1,12 @@
 # Studio ChangeSet and Approval API Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Use checkbox (`- [ ]`) syntax for tracking.
-
 > Document ID: ICE3-STUDIO-PLAN-002
 >
 > Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a persistent, digest-bound ChangeSet review layer and split proposal/approval
 capabilities without weakening the existing atomic revision model.

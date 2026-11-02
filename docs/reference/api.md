@@ -1,176 +1,97 @@
-# Local API Reference
+# ICE3 Studio 本地 API
 
-> Document ID: ICE3-STUDIO-REF-API-001
+> Document ID: ICE3-STUDIO-REF-002
 >
 > Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
-The Studio Server exposes the same API to external AI clients, scripts, and the Web Viewer.
-The Web Viewer has no private mutation path.
+Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
+路径；所有修改都必须进入事务或 ChangeSet。
 
 ## Transport
 
-- `GET /health`: unauthenticated process and contract health.
-- `POST /rpc`: JSON-RPC 2.0.
-- `GET /ws?token=...`: revision event stream.
-- `GET /schemas/studio-api.schema.json`: generated JSON Schema.
-- `GET /schemas/studio-types.ts`: generated TypeScript declarations.
-- `GET /previews/{revision}`: prepared GLB for a committed revision.
-- `GET /preview-packets/{revision}`: revisioned `ICE3PGP1` geometry packet when host policy enables
-  preview packets.
-- `GET /preview-packets/candidates/{digest}`: candidate packet with the same media type.
-- `GET /reference-assets/{assetId}/tileset.json`: streamed reference tileset with relative tile
-  content rewritten beneath `/tiled/`.
-- `GET /reference-assets/{assetId}/tiled/{path}`: immutable coarse/fine GLB tiles.
-- `GET /reference-assets/{assetId}/prepared.glb`: immutable Prepared GLB fallback.
-- `GET /reference-assets/{assetId}/bindings.json`: immutable binding manifest. The legacy
-  `/equipment.json` path resolves to the same file.
+- `GET /health`：无需认证的进程和 contract health。
+- `POST /rpc`：JSON-RPC 2.0。
+- `GET /ws?token=...`：revision 和 ChangeSet event stream。
+- `GET /schemas/studio-api.schema.json`：生成 JSON Schema。
+- `GET /schemas/studio-types.ts`：生成 TypeScript declaration。
+- `GET /previews/{revision}`：已提交 revision 的 GLB fallback。
+- `GET /preview-packets/{revision}`：host policy 开启时的 `ICE3PGP1` preview packet。
+- `GET /preview-packets/candidates/{digest}`：candidate preview packet。
+- `GET /reference-assets/{assetId}/tileset.json`：Reference Asset Tileset。
+- `GET /reference-assets/{assetId}/tiled/{path}`：不可变粗模或细模 tile。
+- `GET /reference-assets/{assetId}/prepared.glb`：Prepared GLB fallback。
+- `GET /reference-assets/{assetId}/bindings.json`：binding manifest。
 
-The default origin is `http://127.0.0.1:8120`. Server startup generates a short-lived token;
-mutating methods require `Authorization: Bearer <token>`.
+默认 origin 是 `http://127.0.0.1:8120`。写入需要
+`Authorization: Bearer <token>`；ChangeSet commit 还需要审批 Cookie。
 
-## JSON-RPC Envelope
+## JSON-RPC envelope
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": "request-1",
-  "method": "document.apply",
+  "method": "document.get",
   "params": {}
 }
 ```
 
-Success returns `result`; failure returns `error.code`, `error.message`,
-`error.diagnosticCode`, and optional structured `error.data`. Unknown methods use JSON-RPC code
-`-32601`. Parse failures use `-32700` with a null request ID.
+成功返回 `result`。失败返回 `error.code`、`error.message`、
+`error.diagnosticCode` 和可选 `error.data`。解析错误使用 `-32700`，未知方法使用
+`-32601`。
 
-## Methods
+## 方法清单
 
-| Method | Write | Parameters | Result |
+静态 Schema 固化 37 个方法；运行中的 `system.capabilities` 另有两个实验性 GPU scene
+方法，共 39 个。
+
+| 方法 | 写 | 参数 | 返回 |
 |---|---:|---|---|
-| `system.health` | No | none | Version and status |
-| `system.capabilities` | No | none | API version, method inventory, Toolchain state, and native compute evidence |
-| `system.agentManifest` | No | none | Agent tools, current token authority, limits, and workflow hints |
-| `project.create` | Yes | `{ projectId }` | `{ opened: true }` |
-| `project.open` | Yes | `{ projectId }` | `{ opened: true }` |
-| `project.get` | No | none | Current document |
-| `project.save` | Yes | none | Current persisted revision |
-| `project.close` | Yes | none | Release the writer lock and close the active project |
-| `document.get` | No | none | Current document |
-| `document.apply` | Yes | `ApplyRequest` | `ApplyResult` |
-| `document.undo` | Yes | none | Restored document as a new revision |
-| `document.redo` | Yes | none | Restored document as a new revision |
-| `document.history` | No | none | Operation history |
-| `scene.get` | No | none | Current scene |
-| `scene.query` | No | See below | Matching nodes in deterministic scene order |
-| `scene.context` | No | none | Bounded project counts, bounds, facets, access, and limits |
-| `scene.search` | No | `SceneSearchRequest` | Revision-bound source/derived node pages |
-| `scene.bounds` | No | none | World-space bounds by node ID |
-| `validation.run` | No | none | Diagnostic array |
-| `referenceAsset.register` | Yes | `ReferenceAssetRegisterParams` | Immutable asset ID and bounded descriptor |
-| `referenceAsset.get` | No | `{ assetId }` | Descriptor and streamed asset URLs |
-| `referenceAsset.bindings` | No | `{ assetId, cursor?, limit? }` | Stable equipment page, limit `1..=100` |
-| `evaluation.evaluate` | No | none | Evaluated mesh by node ID |
-| `evaluation.query` | No | `EvaluationQueryRequest` | Bounded derived geometry summaries and optional payloads |
-| `evaluation.waitScene` | No | `{ revision? }` | Published experimental GPU scene status |
-| `evaluation.visibleInstances` | No | `{ targetRevision, planes[6][4] }` | Visible GPU buffer indices and stable node IDs; GPU compute when experimental scene sessions are ready, CPU fallback otherwise |
-| `evaluation.stats` | No | none | Effective triangle, unique mesh, and cache statistics for the current revision |
-| `changeset.create` | Yes | `{ baseRevision, title }` | New draft ChangeSet |
-| `changeset.addOperations` | Yes | `{ changeSetId, expectedVersion, entries }` | Updated ChangeSet |
-| `changeset.removeOperations` | Yes | `{ changeSetId, expectedVersion, entryIds }` | Updated ChangeSet |
-| `changeset.evaluate` | Yes | `{ changeSetId, expectedVersion, includeCandidate? }` | Status, diagnostics, and candidate digest |
-| `changeset.commit` | Yes | `{ changeSetId, expectedVersion, approvedDigest, idempotencyKey }` | Committed revision |
-| `changeset.get` | No | `{ changeSetId }` | Persisted ChangeSet |
-| `changeset.getCandidate` | No | `{ changeSetId }` | Candidate document |
-| `changeset.impact` | No | `{ changeSetId, expectedVersion }` | Change impact and geometry rebuild classification |
-| `changeset.list` | No | none | Persisted ChangeSet list |
-| `changeset.discard` | Yes | `{ changeSetId }` | Discarded ChangeSet |
-| `export.sourceGlb` | Yes | none | Source GLB export metadata |
-| `export.runtimePreview` | Yes | `RuntimePreviewRequest` | Prepared committed or candidate preview metadata |
+| `system.health` | 否 | 无 | API/schema version 和状态 |
+| `system.capabilities` | 否 | 无 | 方法、Toolchain、compute、权限与限制 |
+| `system.agentManifest` | 否 | 无 | Agent tools、authority 和 workflow |
+| `project.create` | 是 | `{ projectId }` | `{ opened: true }` |
+| `project.open` | 是 | `{ projectId }` | `{ opened: true }` |
+| `project.get` | 否 | 无 | 当前 Document |
+| `project.save` | 是 | 无 | 当前已持久化 revision |
+| `project.close` | 是 | 无 | 释放 writer lock |
+| `document.get` | 否 | 无 | 当前 Document |
+| `document.apply` | 是 | `ApplyRequest` | `ApplyResult` |
+| `document.undo` | 是 | 无 | 新 revision |
+| `document.redo` | 是 | 无 | 新 revision |
+| `document.history` | 否 | 无 | operation history |
+| `scene.get` | 否 | 无 | 当前 Scene |
+| `scene.query` | 否 | filters | 确定性顺序的 Node |
+| `scene.context` | 否 | 无 | 有界项目摘要 |
+| `scene.search` | 否 | `SceneSearchRequest` | revision-bound page |
+| `scene.bounds` | 否 | 无 | 按 Node ID 的 world bounds |
+| `validation.run` | 否 | 无 | Diagnostic |
+| `referenceAsset.register` | 是 | 四个 workspace-relative path | asset ID 和 descriptor |
+| `referenceAsset.get` | 否 | `{ assetId }` | descriptor 和 URL |
+| `referenceAsset.bindings` | 否 | `{ assetId, cursor?, limit? }` | binding page，limit `1..=100` |
+| `evaluation.evaluate` | 否 | 无 | 按 Node ID 的 evaluated Mesh |
+| `evaluation.query` | 否 | `EvaluationQueryRequest` | 有界 Geometry summary/payload |
+| `evaluation.stats` | 否 | 无 | 三角、Mesh 和 cache 统计 |
+| `evaluation.waitScene` | 否 | `{ revision? }` | 实验性 GPU scene status |
+| `evaluation.visibleInstances` | 否 | `{ targetRevision, planes[6][4] }` | 可见实例与稳定 Node ID |
+| `export.sourceGlb` | 是 | 无 | Source GLB metadata |
+| `export.runtimePreview` | 是 | `RuntimePreviewRequest` | committed/candidate preview metadata |
+| `changeset.create` | 是 | `{ baseRevision, title }` | 新 draft ChangeSet |
+| `changeset.addOperations` | 是 | `{ changeSetId, expectedVersion, entries }` | 更新后的 ChangeSet |
+| `changeset.removeOperations` | 是 | `{ changeSetId, expectedVersion, entryIds }` | 更新后的 ChangeSet |
+| `changeset.evaluate` | 是 | `{ changeSetId, expectedVersion, includeCandidate? }` | 状态、Diagnostic、digest |
+| `changeset.commit` | 是 | `{ changeSetId, expectedVersion, approvedDigest, idempotencyKey }` | committed revision |
+| `changeset.get` | 否 | `{ changeSetId }` | 持久 ChangeSet |
+| `changeset.getCandidate` | 否 | `{ changeSetId }` | candidate Document |
+| `changeset.impact` | 否 | `{ changeSetId, expectedVersion }` | 影响范围与 Geometry 复用证据 |
+| `changeset.list` | 否 | 无 | ChangeSet 列表 |
+| `changeset.discard` | 是 | `{ changeSetId }` | 丢弃结果 |
 
-`export.runtimePreview` prepares the current document revision when `candidateDigest` is absent.
-When a candidate digest is provided, it prepares that persisted ChangeSet candidate for review.
-A commit is persisted before its revision event is published.
+实验方法必须先从 `system.capabilities.methods` 确认，再由调用方准备 CPU fallback。
 
-`system.capabilities.toolchain` reports `state`, contract/package versions, enabled operations,
-and a sanitized failure reason. Runtime preview responses include the derived `assetId` and
-content hash. Toolchain failures do not change the current revision or the previously valid
-preview.
-
-`system.capabilities.compute` reports host `mode`, the last selected backend, sanitized adapter
-tier and backend family, effective memory budget, health and fallback reason, queue depth,
-concurrency limit, crossover threshold, and the latest kernel/upload/readback/cache evidence.
-It also reports `lastEvaluationMode`, resident count/bytes, peak bytes, topology and resident
-hits, evictions, pipeline warm-up, preview packet version/bytes, browser upload bytes, snapshot
-readback bytes, `residentHotPathHashes`, `handleLookupMs`, phase-specific lookup/plan/validation/
-encode/submit/kernel/wait/snapshot/transport evidence, and `previewGeometryPacket: "1"` when packet
-transport is enabled.
-Native compute and browser rendering are separate: this status does not describe the Viewer's
-WebGL2 or experimental browser WebGPU renderer.
-
-The current default is CPU reference evaluation because the integrated Metal benchmark did not
-meet the native GPU crossover. `cpu`, `auto`, and explicit `gpu` host modes exist in the scheduler;
-`auto` falls back to CPU when GPU health, parity, budget, or device state is unsuitable, while
-explicit GPU-only failure returns a stable `ICE3_STUDIO_GPU_*` diagnostic.
-
-`export.runtimePreview` returns `packetUrl` beside the GLB fallback when
-`STUDIO_PREVIEW_PACKETS=1` or the equivalent host configuration is enabled. The packet media type
-is `application/vnd.ice3.preview-geometry; version=1`; clients must validate the whole packet and
-atomically fall back to the GLB route on unsupported, invalid, stale, or over-budget responses.
-
-After `project.close`, document and scene methods return `ICE3_STUDIO_PROJECT_NOT_FOUND`
-until a project is opened again.
-
-## Reference Assets
-
-`referenceAsset.register` copies the source GLB, optional Prepared GLB, tileset directory, and
-equipment manifest into the active project as immutable files. Registration is idempotent for the
-same hashes and requires approval in `review-required` mode. Paths are relative to the configured
-workspace; absolute paths, `..`, symlink components, malformed GLBs, and embedded digest mismatches
-are rejected before publication.
-
-The descriptor contains only bounded metadata: hashes, world bounds, source/mesh/material/
-equipment counts, and one timestamp. Positions, indices, buffers, credentials, and absolute
-filesystem paths are not returned. `document.get` stores one `reference_instance` node per editable
-semantic binding:
-
-```json
-{
-  "type": "reference_instance",
-  "assetId": "asset-000001",
-  "selectionId": "ice3-virtual-wwtp/equipment/AE-101"
-}
-```
-
-Binding transform, visibility, material, and metadata edits use normal `node.update`,
-`material.assign`, `node.delete`, and ChangeSet history. Impact analysis reports these edits as
-local and reports zero generated reference geometry. `scene.context` and `evaluation.stats` add the
-asset baseline triangle/mesh counts once per referenced digest.
-
-For a baseline-only project, `export.sourceGlb` returns the registered source digest and path
-without rebuilding geometry. If a binding has an authored transform, material, or visibility
-override, export returns `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` rather than silently discarding
-the overlay. Composing reference overrides into a new monolithic GLB is outside this phase.
-
-The on-disk layout below the project is:
-
-```text
-references/<assetId>/
-  asset.json
-  source.glb
-  prepared.glb
-  bindings.json
-  tiled/tileset.json
-```
-
-Early projects store the same manifest as `equipment.json`; both names are readable.
-
-Viewer sessions request the small Document, descriptor, and 100-item binding pages. An
-`ICETilesetLoader` streams coarse-to-fine tiles; imported selection IDs map back to Studio node
-IDs, and the previous ready scene remains mounted until a replacement coarse tile is available.
-
-## Transaction Contract
+## Transaction
 
 ```json
 {
@@ -181,215 +102,183 @@ IDs, and the previous ready scene remains mounted until a replacement coarse til
 }
 ```
 
-- `expectedRevision` rejects stale writes.
-- `idempotencyKey` returns the original result when the same semantic request is retried.
-- `dryRun` performs the same operation application, validation, and diff without persistence.
-- A batch is atomic. One invalid operation rejects all mutations in the batch.
-- Failed transactions and dry runs publish no revision event.
+- `expectedRevision` 拒绝 stale write。
+- 相同 `idempotencyKey` 和相同语义请求返回原结果；复用于不同内容会被拒绝。
+- `dryRun` 执行完整校验、求值和 diff，但不持久化。
+- 一个 Operation 无效会拒绝整批修改。
+- 成功事务只增加一个 revision；失败事务和 dry run 不发布 event。
 
-## Operations
+## Operation
 
-| Type | Purpose |
+当前有 29 种 Operation：
+
+| 域 | 类型 |
 |---|---|
-| `node.create` | Create a group, primitive, custom mesh, sweep, or component-instance node |
-| `node.update` | Update name, transform, visibility, metadata, or replace node content |
-| `node.reparent` | Change a node parent |
-| `node.delete` | Delete an unreferenced node |
-| `material.upsert` | Create or update a material |
-| `material.assign` | Assign or clear a node material |
-| `material.patch` | Update only named material fields |
-| `relation.create` | Create a typed directed relationship |
-| `relation.update` | Update relationship fields or metadata |
-| `relation.delete` | Delete a relationship |
-| `constraint.upsert` | Create or update a spatial constraint |
-| `constraint.delete` | Delete a spatial constraint |
-| `component.define` | Create an unreferenced component definition |
-| `component.update` | Replace an existing component definition |
-| `component.delete` | Delete a component definition with no live references |
-| `instance.create` | Create an explicit component-instance Node |
-| `instance.update` | Replace instance parameters and supported overrides |
-| `instance.delete` | Delete an instance with no live connection references |
-| `instanceSet.create` | Create a deterministic repeated component placement |
-| `instanceSet.update` | Replace an instance-set layout and parameter overrides |
-| `instanceSet.delete` | Delete an unreferenced instance set |
-| `connection.create` | Create a routed connection for an existing Relation |
-| `connection.update` | Replace connection endpoints or routing policy |
-| `connection.delete` | Delete a connection and its linked Relation |
-| `instance.patch` | Update only named instance fields, parameters, and metadata |
-| `component.patch` | Update only definition name, parameter defaults, and metadata |
-| `connection.patch` | Update only named connection fields and metadata |
-| `material.patch` | Update only named material fields |
+| Node | `node.create`、`node.update`、`node.reparent`、`node.delete`、`primitive.update`、`mesh.replace` |
+| Component | `component.define`、`component.update`、`component.patch`、`component.delete` |
+| Instance | `instance.create`、`instance.update`、`instance.patch`、`instance.delete` |
+| InstanceSet | `instanceSet.create`、`instanceSet.update`、`instanceSet.delete` |
+| Connection | `connection.create`、`connection.update`、`connection.patch`、`connection.delete` |
+| Material | `material.upsert`、`material.assign`、`material.patch` |
+| Relation | `relation.create`、`relation.update`、`relation.delete` |
+| Constraint | `constraint.upsert`、`constraint.delete` |
 
-IDs, node order, material order, relation order, and diagnostic order are deterministic.
-Lengths are meters, angles are radians, coordinates are right-handed Y-up, and material colors
-are sRGB.
+`*.patch` 只修改显式字段，但仍执行完整校验、diff、幂等和 revision 冲突检查。传统
+Operation variant 顶层字段使用 snake_case（例如 `node_id`、`material_id`）；`*.patch`
+payload 和返回的 Document 使用 camelCase（例如 `nodeId`、`setParameters`）。
 
-## Agent Context And Search
+## Component 与参数
 
-`system.agentManifest` reports `access`, `limits`, tool schema references, and short inspection,
-proposal, review, commit, and recovery workflows. Manifest availability is descriptive; mutation
-authorization remains enforced by the RPC boundary.
-
-`scene.context` returns fixed-size counts, world bounds, units/coordinate system, source content
-facets, up to 50 relation types, and effective access. It never returns complete node or geometry
-collections.
-
-`scene.search` accepts `scope: source | derived | both`, metadata/content/component/material/
-visibility/bounds filters, an optional name/ID query, field projection, and a limit from 1 to 100.
-It returns `{ revision, items, nextCursor }`. Cursor pages are bound to the revision and normalized
-filters; using a stale cursor or a cursor with different filters returns
-`ICE3_STUDIO_REVISION_CONFLICT`.
-
-`evaluation.query` requires 1 to 32 unique derived node IDs. It returns vertex/index counts,
-world bounds, and geometry digests by default. Positions and indices appear only when requested
-with `summary`.
-
-Agent proposal iteration uses:
-
-```text
-changeset.create
-changeset.addOperations
-changeset.impact
-changeset.commit
-```
-
-`changeset.impact` returns the existing candidate digest plus bounded impact counts instead of a
-complete scene payload. Its `scope` is `local`, `targeted`, `broad`, `full_rebuild`, or
-`unavailable`. Local and targeted reports include affected source/derived counts, reused and
-generated geometry, cache hits/misses, and reason codes. It may warm content-addressed geometry
-entries but does not publish the candidate scene. Use post-commit `evaluation.stats` for exact
-execution evidence on the committed revision.
-
-Sparse patch payloads use camelCase fields. Omitted fields remain unchanged. Metadata set/remove
-keys and parameter set/remove names may not overlap. Material and edge-color clearing use explicit
-`clearMaterial` and `clearEdgeColor` flags.
-
-## Large-Scene Authoring
-
-Component parameters support finite Number, Vector3, Color, and Enumeration values. A Number may
-declare inclusive minimum and maximum values; Colors require four components in `0.0..=1.0`.
-Initial safety limits are a 16-level component-reference depth, 4096 parts per component, and
-100,000 items in one instance set.
-
-Instances may override typed parameters plus part material, visibility, and metadata. They cannot
-replace arbitrary shared internal geometry. Definitions form an acyclic graph and cannot be
-deleted while an instance or nested definition still references them.
-
-Derived identities are deterministic:
-
-```text
-<instance-id>/<part-id>
-<instance-set-id>/<six-digit-ordinal>/<part-id>
-<connection-id>/route
-```
-
-These identities appear in `evaluation.evaluate`, `scene.bounds`, GLB extras, and Runtime
-Selection. Component definitions and internal parts remain Document source data.
-
-Example Operations:
-
-```json
-[
-  {
-    "type": "component.define",
-    "definition": {
-      "id": "component-000001",
-      "name": "Equipment",
-      "parameters": [],
-      "parts": [{
-        "id": "body",
-        "parentId": null,
-        "transform": {
-          "translation": { "kind": "literal", "value": { "x": 0, "y": 0, "z": 0 } },
-          "rotation": [0, 0, 0, 1],
-          "scale": { "kind": "literal", "value": { "x": 1, "y": 1, "z": 1 } }
-        },
-        "content": {
-          "kind": "box",
-          "width": { "kind": "literal", "value": 1 },
-          "height": { "kind": "literal", "value": 1 },
-          "depth": { "kind": "literal", "value": 1 }
-        },
-        "materialRole": null,
-        "metadata": {},
-        "visible": true
-      }],
-      "ports": [],
-      "metadata": {}
-    }
-  },
-  {
-    "type": "instance.create",
-    "node_id": "node-000001",
-    "parent_id": null,
-    "name": "Equipment A",
-    "transform": {
-      "translation": { "x": 0, "y": 0, "z": 0 },
-      "rotation": [0, 0, 0, 1],
-      "scale": { "x": 1, "y": 1, "z": 1 }
-    },
-    "instance": {
-      "definitionId": "component-000001",
-      "parameters": {},
-      "overrides": {},
-      "metadata": {}
-    },
-    "material_id": null,
-    "metadata": {}
-  }
-]
-```
-
-Dry-run and committed batches use the same validation, derived identities, and diff. A failed
-dry-run is not the basis for a subsequent partial commit.
-
-## Scene Queries
-
-All filters are optional and combine with AND semantics:
+Component Parameter 支持 Number、Vector3、Color 和 Enumeration。API wire format 是
+untagged：
 
 ```json
 {
-  "nodeId": "node-000004",
-  "parentId": "node-000001",
-  "metadata": { "role": "pump" },
-  "relationType": "process",
-  "relatedNodeId": "node-000002",
-  "bounds": {
-    "min": { "x": -10, "y": 0, "z": -10 },
-    "max": { "x": 10, "y": 5, "z": 10 }
-  }
+  "radius": 15,
+  "centre": { "x": 0, "y": 2, "z": 0 },
+  "tint": [0.2, 0.4, 0.6, 1.0],
+  "mode": "clarifier"
 }
 ```
 
-`bounds` selects nodes whose world-space bounds intersect the query box. Relation filters select
-nodes participating in a matching relation.
+Number 可直接声明 inclusive `minimum` 和 `maximum`；Color 必须包含四个 `0.0..=1.0`
+分量。不要发送 `{kind:"number",value:15}` 一类包装对象。
 
-## History
-
-`document.history` returns ordered entries:
+Part scalar 和 vector 字面量同样直接写值：
 
 ```json
 {
-  "revision": 3,
-  "digest": "<sha256>",
-  "event": {
-    "kind": "apply",
-    "request": {
-      "expectedRevision": 2,
-      "dryRun": false,
-      "idempotencyKey": "ai-batch-0042",
-      "operations": []
-    }
-  }
+  "width": 12,
+  "height": { "param": "depth" },
+  "depth": { "expr": "radius - wall / 2" }
 }
 ```
 
-Revision 0 records the initial snapshot. Successful apply, undo, and redo events are appended
-without rewriting earlier entries.
+`{param:"name"}` 引用实例参数；`{expr:"..."}` 使用受控四则运算、括号和白名单数学函数。
+禁止脚本、环境访问和任意代码执行。
 
-## Revision Events
+实例、实例集、嵌套组件的安全上限由 server 校验：16 层组件引用、单组件 4096 parts、
+单实例集 100,000 items。
 
-The authenticated WebSocket emits ordered JSON messages:
+## Material
+
+```json
+{
+  "type": "material.upsert",
+  "material_id": "material-000001",
+  "name": "Process water",
+  "base_color": [0.24, 0.52, 0.62, 1.0],
+  "opacity": 0.72,
+  "edge_color": null,
+  "shading": "water"
+}
+```
+
+`opacity < 1` 导出为 glTF alpha blend。`shading` 允许 `directional`、`flat` 和 `water`；
+省略时等价于 `directional`。`material.patch` 使用显式 `clearEdgeColor` 清除边缘色。
+
+## Agent context 与搜索
+
+`system.agentManifest` 返回 Agent tools、当前 token authority、limits 和 inspection、
+proposal、review、commit、recovery workflow。manifest 只描述能力，实际权限仍由 RPC
+边界执行。
+
+`scene.context` 返回 counts、world bounds、单位/坐标系、source facets、最多 50 个
+relation type 和当前权限，不返回完整 Node 或 Geometry 集合。
+
+`scene.search` 支持：
+
+- `scope: source | derived | both`
+- metadata、content、component、material、visibility 和 bounds filter
+- name/ID query
+- field projection
+- `limit 1..=100`
+
+返回 `{revision, items, nextCursor}`。Cursor 绑定 revision 和 normalized filter；revision
+或 filter 变化后必须重新搜索。
+
+`evaluation.query` 接受 1 至 32 个唯一派生 Node ID。默认返回 vertex/index count、world
+bounds 和 Geometry digest；只有显式请求时才返回 positions/indices。
+
+## ChangeSet
+
+AI 提案和人工表单修改使用
+[ChangeSet Review](change-sets.md) 中的生命周期。`changeset.impact` 返回 candidate
+digest 和有界影响证据，scope 可为 `local`、`targeted`、`broad`、`full_rebuild` 或
+`unavailable`，但不发布 candidate Scene。
+
+Commit 要求：
+
+- `expectedVersion` 与 `approvedDigest` 匹配。
+- ChangeSet 处于 `ready` 且基线未前进。
+- 调用方拥有审批权限。
+- `idempotencyKey` 唯一，或重试与原请求完全一致。
+
+## Reference Asset
+
+`referenceAsset.register` 把 source GLB、可选 Prepared GLB、Tileset 和 binding manifest
+复制到活动项目并作为不可变文件发布。路径相对 workspace；绝对路径、`..`、symlink escape、
+无效 GLB 和 digest mismatch 在发布前失败。
+
+Descriptor 只返回 hash、world bounds、source/mesh/material/binding count 和 timestamp。
+Document 为每个可编辑 semantic binding 保存一个 `reference_instance` Node：
+
+```json
+{
+  "type": "reference_instance",
+  "assetId": "asset-000001",
+  "selectionId": "asset/binding/AE-101"
+}
+```
+
+Binding transform、visibility、material 和 metadata 修改使用普通 `node.update`、
+`material.assign`、`node.delete` 和 ChangeSet。带 authored override 的 baseline export
+返回 `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED`，不会静默丢弃 overlay。
+
+## Runtime Asset 导出
+
+Runtime Asset 是 CLI 产品入口，不是额外的 HTTP 写入方法：
+
+```bash
+ice3-studio export tileset \
+  --project PROJECT \
+  --output DIRECTORY \
+  --profile agent-console-v1 \
+  [--force]
+```
+
+命令只读取 committed revision；Studio Server 持锁时使用 read-only project reader，不改写
+Document、ChangeSet 或 revision。Pipeline 依次执行 Prepared GLB validation、atomic
+partition unit 分析、空间切分、LOD/coarse chunk、Tileset 和 binding aggregation。
+
+发布目录：
+
+```text
+DIRECTORY/
+├── tileset.json
+├── parts/
+├── coarse/
+├── bindings.json
+└── export.json
+```
+
+`export.json` 记录 `revision`、`profile`、`sourceDigest`、`tilesetDigest`、
+`bindingsDigest`、`bundleDigest`、文件相对路径/长度/digest 和统计。所有 Tileset
+content URI 均相对发布目录。完整 source GLB 只写入项目 `cache/preview/`，不进入 bundle。
+
+`bindings.json` 以 profile `1.0` 发布。带 `metadata.tag` 的节点聚合为
+`plant/equipment/<tag>`；无 tag 时使用 source owner identity。设备内
+`nodeSelectionIds` 稳定排序，world bounds 取并集，`area` 优先使用 `train`，否则使用
+`stage`。
+
+发布是失败关闭的：输出已存在时默认返回错误；`--force` 先完成全部 staging 写入，再把
+旧目录 rename 为 backup、staging rename 为目标目录。替换失败会恢复旧目录。当前 Toolchain
+仅用于 `scripts/compare-asset-pipelines.mjs` parity 对照，不在 `export tileset` 的生产
+调用图中。
+
+## Event 与 Revision
+
+认证 WebSocket 按顺序发送 ChangeSet 和 revision event，例如：
 
 ```json
 {
@@ -398,20 +287,13 @@ The authenticated WebSocket emits ordered JSON messages:
 }
 ```
 
-On receipt, a client should read the latest document and request its current preview. Replacing
-the document does not require replacing the canvas or rendering engine instance.
+客户端收到 revision event 后重新读取 Document 和 preview。Document 刷新不要求替换 canvas
+或 Engine instance。
 
-## Persistence and Export
+## 关联文档
 
-`document.apply`, undo, and redo persist revision snapshots atomically. `export.sourceGlb`
-writes a standard glTF 2.0 binary and reuses identical evaluated meshes for equivalent component
-instances. Runtime optimization, LOD, and spatial partitioning remain outside Studio Core and are
-performed by the configured Toolchain adapter.
-
-See [Diagnostics](diagnostics.md) for stable failure codes.
-
-## ChangeSet Review
-
-AI proposals and human form edits use the persistent ChangeSet lifecycle described in
-[ChangeSet Review](change-sets.md). Candidate approval binds `expectedVersion` to
-`approvedDigest`; no draft operation affects the current revision before commit.
+- `ICE3-STUDIO-ARC-001` — [Studio 架构](../architecture.md)
+- `ICE3-STUDIO-REF-001` — [能力清单](capabilities.md)
+- `ICE3-STUDIO-REF-003` — [ChangeSet 审阅](change-sets.md)
+- `ICE3-STUDIO-REF-004` — [Diagnostics](diagnostics.md)
+- `ICE3-STUDIO-REF-005` — [Toolchain Sidecar](toolchain-sidecar.md)

@@ -1,0 +1,17 @@
+[package]
+name = "studio-pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glam.workspace = true
+bytemuck.workspace = true
+meshopt = "0.7.0"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+studio-assets = { path = "../studio-assets" }
+studio-core = { path = "../studio-core" }
+thiserror.workspace = true

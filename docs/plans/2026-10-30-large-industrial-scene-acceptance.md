@@ -1,6 +1,10 @@
 # Large Industrial Scene Acceptance Implementation Plan
 
+> Document ID: ICE3-STUDIO-PLAN-007
+>
 > Status: Implemented
+>
+> Owner: ICE3 Studio maintainers
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan
 > task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -102,15 +106,15 @@ async fn apply_two_shared_instances(server: &TestServer) {
             "id": "body",
             "parentId": null,
             "transform": {
-                "translation": { "kind": "literal", "value": { "x": 0, "y": 0, "z": 0 } },
+                "translation": { "x": 0, "y": 0, "z": 0 },
                 "rotation": [0, 0, 0, 1],
-                "scale": { "kind": "literal", "value": { "x": 1, "y": 1, "z": 1 } }
+                "scale": { "x": 1, "y": 1, "z": 1 }
             },
             "content": {
                 "kind": "box",
-                "width": { "kind": "literal", "value": 1 },
-                "height": { "kind": "literal", "value": 1 },
-                "depth": { "kind": "literal", "value": 1 }
+                "width": 1,
+                "height": 1,
+                "depth": 1
             },
             "materialRole": null,
             "metadata": {},
@@ -1168,9 +1172,9 @@ Document:
 
 - [ ] **Step 2: Update document status**
 
-Add `M2` to the design's `Implementation Status`. Keep the design `Proposed` until GPU and Runtime
-publication are complete. Mark this plan `Implemented` in its header and index entry after all
-tests pass.
+This step originally kept the design `Approved` until GPU and Runtime publication were complete.
+Later GPU-scene and Toolchain integration plans delivered those capabilities; the design is now
+`Implemented` and native GPU execution remains experimental and default-off.
 
 - [ ] **Step 3: Run the full gate**
 
