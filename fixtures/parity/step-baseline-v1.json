@@ -1,0 +1,92 @@
+{
+  "kind": "ice3-step-import-baseline",
+  "schemaVersion": "1.0",
+  "fixture": "../ice3-toolchain/tests/fixtures/step/synthetic-skid.step",
+  "assetId": "parity-step",
+  "sourceDigest": "424b52ab5afcc5a6452f1307aa443e7a1952e56cd4b97bb571a951b72c0dac59",
+  "legacy": {
+    "tool": {
+      "name": "ice3-toolchain",
+      "version": "0.2.0"
+    },
+    "adapter": {
+      "id": "step",
+      "sourceFormat": "step-ap242",
+      "capabilities": {
+        "hierarchy": true,
+        "vertexColors": false,
+        "materialColors": true,
+        "instances": false,
+        "semanticMetadata": false
+      },
+      "warnings": []
+    },
+    "stats": {
+      "nodeCount": 6,
+      "maxNodeDepth": 3,
+      "meshCount": 2,
+      "primitiveCount": 18,
+      "triangleCount": 188,
+      "vertexCount": 690,
+      "instanceNodeCount": 0,
+      "semanticMaterialCount": 2,
+      "edgeSegmentCount": 204,
+      "encodedBytes": 19228
+    },
+    "sourceGlbDigest": "sha256:424b52ab5afcc5a6452f1307aa443e7a1952e56cd4b97bb571a951b72c0dac59",
+    "contentDigest": "sha256:dd07298e0c996889717554467ea46bd0dbc86507d3f498e2685c89d6f6ee131a",
+    "nodeNames": [
+      "step/node/0",
+      "SyntheticSkid",
+      "PrimaryTank",
+      "TransferPump",
+      "PrimaryTank[1]",
+      "TransferPump[1]"
+    ],
+    "selectionIds": [
+      "parity-step/node/0",
+      "parity-step/node/1",
+      "parity-step/node/2",
+      "parity-step/node/3",
+      "parity-step/node/4",
+      "parity-step/node/5"
+    ],
+    "bounds": {
+      "min": [
+        0,
+        0,
+        -0.699999988079071
+      ],
+      "max": [
+        2.009999990463257,
+        0.8999999761581421,
+        0.2598416209220886
+      ]
+    },
+    "surfaceArea": 6.306869186975434,
+    "materials": [
+      {
+        "name": "step/material/0",
+        "baseColorFactor": [
+          0.1599999991998655,
+          0.48000000468553666,
+          0.7200000033238447,
+          1
+        ]
+      },
+      {
+        "name": "step/material/1",
+        "baseColorFactor": [
+          0.9200000123974647,
+          0.5600000132598122,
+          0.12000000139546163,
+          1
+        ]
+      }
+    ],
+    "warningCodes": []
+  },
+  "normalizationRules": [
+    "Tessellation triangles may differ while bounds, area and business identity remain equivalent."
+  ]
+}
