@@ -137,9 +137,10 @@ cargo run -p studio-cli -- validate plant.glb
 
 Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary 和 USD ASCII/Binary。OBJ/MTL
 资源限制在源文件同目录；FBX/USD 解析在 Studio 自带 worker 中运行，不需要安装外部
-DCC。worker 有硬超时、进程崩溃隔离、512 MiB response/stderr 上限和默认 1,000,000
-nodes、20,000,000 triangles、512 MiB decoded memory、120 秒预算。USD composition
-限制在源文件目录，并限制递归深度和 layer 数量；失败不会替换已有输出。
+DCC。worker 有硬超时、进程崩溃隔离、512 MiB response 上限和 1 MiB stderr 上限，
+默认预算为 1,000,000 nodes、20,000,000 triangles、512 MiB decoded memory 和
+120 秒。USD composition 限制在源文件目录，并限制递归深度和 layer 数量；失败不会
+替换已有输出。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
