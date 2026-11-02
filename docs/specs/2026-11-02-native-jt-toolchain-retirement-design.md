@@ -2,12 +2,12 @@
 
 > Document ID: ICE3-STUDIO-SPEC-018
 >
-> Status: Approved
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
-> **阶段状态：** Phase 1 至 Phase 4、Phase 5A JT Source Import 与 Phase 5B
-> Sidecar 退场/Studio standalone 已实现。Phase 5C repository 源码清理与归档准备仍待完成。
+> **阶段状态：** Phase 1 至 Phase 5C 已实现。JT、Sidecar 和 Studio publication
+> 均归 Studio；旧 Toolchain repository 已完成源码清理并成为归档候选。
 
 **目标：** 将 JT 的受控 converter bridge 和全部相关调用迁入 Studio `studio-import`，
 随后删除 Studio 中的 Toolchain Sidecar、客户端、预览 fallback、配置、状态 UI 和构建
@@ -422,6 +422,8 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 **退出条件：** 不启动 Toolchain 的情况下 Studio 全功能验证通过。
 
 ### Phase 5C：最终退役与归档准备
+
+**状态：Implemented（2026-11-02）。**
 
 - 执行 repository-wide dependency、script、docs 和客户模型审计。
 - 删除 Toolchain repository 中残留的 JT adapter、CLI import 分支和 release JT 验证。

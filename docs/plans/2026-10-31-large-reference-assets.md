@@ -37,7 +37,7 @@ Sidecar, TypeScript/React Viewer, `ice3` tileset loader, esbuild, Node.js 24.22.
 - Do not use competitor or vendor names in code, comments, tests, documentation, or commits.
 - Git author and committer name is `damoqiongqiu`.
 - Root verification is
-  `PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
+  `PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 
 ## Review Focus
 
@@ -627,7 +627,7 @@ Run:
 
 ```bash
 cd apps/viewer
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm test
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm test
 ```
 
 Expected: compile/test failure because reference session fields and mapping do not exist.
@@ -651,9 +651,9 @@ Run:
 
 ```bash
 cd apps/viewer
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm test
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run typecheck
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run build
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm test
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run typecheck
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run build
 ```
 
 Expected: all pass.
@@ -671,7 +671,7 @@ git commit -m "feat(studio-viewer): stream reference assets"
 - Modify: `apps/viewer/src/viewport/cameraFraming.ts`
 - Modify: `apps/viewer/src/viewport/SceneAdapter.ts`
 - Modify: `apps/viewer/tests/camera-framing.test.ts`
-- Modify: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-engine/packages/renderer/src/WebGL2RendererBackend.ts`
+- Modify: `<workspace>/ice3-engine/packages/renderer/src/WebGL2RendererBackend.ts`
 - Test: `apps/viewer/e2e/large-reference.spec.ts`
 
 **Interfaces:**
@@ -711,8 +711,8 @@ test('uses negative polygon offset for selected semantic batches', async ({ page
 Run:
 
 ```bash
-(cd apps/viewer && PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm test)
-(cd apps/viewer && PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run test:e2e -- large-reference.spec.ts)
+(cd apps/viewer && PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm test)
+(cd apps/viewer && PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run test:e2e -- large-reference.spec.ts)
 ```
 
 Expected: framing tests pass; batched semantic selection does not set negative polygon offset.
@@ -731,8 +731,8 @@ Document the chosen camera clip range and verify the eight projected bounds corn
 Run:
 
 ```bash
-(cd apps/viewer && PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm test)
-(cd apps/viewer && PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run test:e2e -- large-reference.spec.ts)
+(cd apps/viewer && PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm test)
+(cd apps/viewer && PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run test:e2e -- large-reference.spec.ts)
 ```
 
 Expected: all pass.
@@ -740,9 +740,9 @@ Expected: all pass.
 - [x] **Step 5: Commit both repositories**
 
 ```bash
-git -C /Users/felix/Windows-E-workspace/felix/ice3/ice3-engine add \
+git -C <workspace>/ice3-engine add \
   packages/renderer/src/WebGL2RendererBackend.ts
-git -C /Users/felix/Windows-E-workspace/felix/ice3/ice3-engine commit \
+git -C <workspace>/ice3-engine commit \
   -m "fix(renderer): stabilize semantic selection depth"
 
 git add apps/viewer/e2e/large-reference.spec.ts apps/viewer
@@ -799,7 +799,7 @@ test('accepts only a bounded reference project with complete equipment semantics
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH \
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH \
   node --test scripts/tests/large-reference-acceptance.test.mjs
 ```
 
@@ -829,11 +829,11 @@ Document regeneration and run commands.
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH \
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH \
   node --test scripts/tests/large-reference-acceptance.test.mjs
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH \
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH \
   node scripts/run-large-reference-acceptance.mjs
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 ```
 
 Expected:

@@ -693,10 +693,10 @@ If any check fails, print the failed mode and leave Auto on CPU.
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:large-industrial
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:large-industrial
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu
 ```
 
 Expected: functional commands pass; `benchmark:gpu` passes only if all performance gates pass.

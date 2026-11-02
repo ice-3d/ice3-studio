@@ -41,7 +41,7 @@ Playwright, and the repository's native test and benchmark scripts.
 - Git author and committer name is `damoqiongqiu`.
 - Preserve unrelated dirty files in the Engine working tree.
 - Update machine-readable performance output whenever behavior or report semantics change.
-- Root verification is `PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
+- Root verification is `PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 
 ## Review Focus
 
@@ -1981,7 +1981,7 @@ new assertion.
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer test
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer test
 ```
 
 Expected: TypeScript compilation fails because `sceneSession` is missing from `ComputeStatus`.
@@ -2008,9 +2008,9 @@ formatting library.
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer test
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer run typecheck
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer run build
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer test
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer run typecheck
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer run build
 ```
 
 Expected: all pass.
@@ -2104,7 +2104,7 @@ test('cache-hit-only evidence cannot pass the scene gate', () => {
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH node --test scripts/tests/gpu-scene-report.test.mjs
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH node --test scripts/tests/gpu-scene-report.test.mjs
 ```
 
 Expected: module-not-found failure for `scripts/gpu-scene-gates.mjs`.
@@ -2166,9 +2166,9 @@ Add the script syntax gate to `scripts/verify.mjs`:
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH node --test scripts/tests/gpu-scene-report.test.mjs
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu-scene
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH node --test scripts/tests/gpu-scene-report.test.mjs
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu-scene
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 ```
 
 Expected: gate unit tests pass. The benchmark emits
@@ -2215,13 +2215,13 @@ cargo test -p studio-gpu --test resident_evaluation --release
 - [ ] Run the full repository verification:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 ```
 
 - [ ] Run the scene benchmark:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu-scene
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu-scene
 ```
 
 - [ ] Confirm the committed Document revision is unchanged by a simulated GPU scene failure and

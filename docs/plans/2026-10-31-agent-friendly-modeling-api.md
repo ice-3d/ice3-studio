@@ -39,7 +39,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 - Do not use competitor or vendor names in code, comments, tests, documentation, links, or commits.
 - Git author and committer name is `damoqiongqiu`.
 - Preserve unrelated dirty files in the Engine working tree.
-- Root verification is `PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
+- Root verification is `PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 - Use TDD for every production behavior change and commit each completed task.
 
 ## Review Focus
@@ -1182,7 +1182,7 @@ cargo test -p studio-core --test agent_contract
 cargo test -p studio-core --test agent_patches
 cargo test -p studio-server --test agent_api
 cargo test -p studio-server --test agent_workflow
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu-scene
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu-scene
 ```
 
 Expected: all tests pass; benchmark failures are empty and Agent byte evidence is
@@ -1193,7 +1193,7 @@ within limits.
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
+PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 ```
 
 Expected: all 14 gates pass after schema and binding regeneration.

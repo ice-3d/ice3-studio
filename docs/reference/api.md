@@ -277,9 +277,10 @@ content URI 均相对发布目录。完整 source GLB 只写入项目 `cache/pre
 
 发布是失败关闭的：输出已存在时默认返回错误；`--force` 先完成全部 staging 写入，再把
 旧目录 rename 为 backup、staging rename 为目标目录。替换失败会恢复旧目录。
-`scripts/compare-asset-pipelines.mjs` 仍可作为迁移期 legacy baseline 对照，但不进入
-Studio runtime；JT Source Import 由 Studio isolated worker 调用 host-owned converter
-完成，不在 `export tileset` 的生产调用图中。
+`scripts/compare-asset-pipelines.mjs` 对连续两次 Studio 导出执行结构、Selection、
+Tileset bounds、相对 URI 和字节确定性检查，不进入 Studio runtime；JT Source Import
+由 Studio isolated worker 调用 host-owned converter 完成，不在 `export tileset`
+的生产调用图中。
 
 ## Event 与 Revision
 

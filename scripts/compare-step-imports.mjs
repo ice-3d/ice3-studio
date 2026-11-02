@@ -14,7 +14,6 @@ import { spawnSync } from 'node:child_process';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
-const toolchainRoot = resolve(studioRoot, '../ice3-toolchain');
 const fixtureRoot = join(studioRoot, 'fixtures/source-import/step');
 const fixturePath = join(fixtureRoot, 'synthetic-skid.step');
 const baselinePath = join(
@@ -45,163 +44,13 @@ if (!['--compare', '--capture'].includes(mode)) {
 }
 
 if (mode === '--capture') {
-  await captureBaseline();
-} else {
-  await compareNative();
+  console.error(
+    'Baseline capture is retired; checked-in parity baseline is authoritative.',
+  );
+  process.exit(2);
 }
 
-async function captureBaseline() {
-  const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-step-baseline-'));
-  try {
-    const outputPath = join(temporaryRoot, 'step.glb');
-    const reportFile = join(temporaryRoot, 'step.report.json');
-    const command = spawnSync('node', [
-      '--import', 'tsx', 'packages/cli/src/main.ts', 'import',
-      fixturePath,
-      '--output', outputPath,
-      '--report', reportFile,
-      '--asset-id', assetId,
-      '--adapter', 'step',
-      '--json',
-    ], {
-      cwd: toolchainRoot,
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    });
-    if (command.status !== 0) {
-      throw new Error(
-        `Toolchain STEP baseline import failed:\n${command.stderr}\n${command.stdout}`,
-      );
-    }
-
-    const [sourceBytes, reportBytes, outputBytes] = await Promise.all([
-      readFile(fixturePath),
-      readFile(reportFile),
-      readFile(outputPath),
-    ]);
-    const report = JSON.parse(reportBytes.toString('utf8'));
-    const summary = summarizeGlb(parseGlb(outputBytes));
-    const baseline = {
-      kind: 'ice3-step-import-baseline',
-      schemaVersion: '1.0',
-      fixture: relative(studioRoot, fixturePath),
-      assetId,
-      sourceDigest: sha256(sourceBytes),
-      legacy: {
-        tool: report.tool,
-        adapter: report.adapter,
-        stats: {
-          nodeCount: summary.nodeCount,
-          maxNodeDepth: report.metrics.maxNodeDepth,
-          meshCount: summary.meshCount,
-          meshNodeCount: summary.meshNodeCount,
-          sharedMeshNodeCount: summary.sharedMeshNodeCount,
-          primitiveCount: report.metrics.primitiveCount,
-          triangleCount: summary.triangleCount,
-          vertexCount: summary.vertexCount,
-          instanceNodeCount: summary.instanceNodeCount,
-          semanticMaterialCount: summary.materials.length,
-          edgeSegmentCount: summary.edgeSegmentCount,
-          encodedBytes: report.metrics.encodedBytes,
-        },
-        legacySourceDigest: report.source.digest,
-        contentDigest: report.asset.contentDigest,
-        nodeNames: summary.nodeNames,
-        selectionIds: summary.selectionIds,
-        bounds: summary.bounds,
-        surfaceArea: summary.surfaceArea,
-        materials: summary.materials,
-        warningCodes: warningCodes(report.adapter.warnings),
-      },
-      normalizationRules: [
-        'Tessellation triangles may differ while normalized bounds, area and business identity remain equivalent.',
-      ],
-    };
-    assertBaseline(baseline);
-    await mkdir(dirname(baselinePath), { recursive: true });
-    await writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-    const reread = JSON.parse(await readFile(baselinePath, 'utf8'));
-    assertBaseline(reread);
-    console.log(JSON.stringify({
-      status: 'captured',
-      baseline: relative(studioRoot, baselinePath),
-      stats: baseline.legacy.stats,
-      surfaceArea: baseline.legacy.surfaceArea,
-    }, null, 2));
-
-    const instancedFixturePath = join(temporaryRoot, 'instanced.step');
-    const instancedOutputPath = join(temporaryRoot, 'instanced.glb');
-    const instancedReportFile = join(temporaryRoot, 'instanced.report.json');
-    await writeInstancedFixture(instancedFixturePath);
-    const instancedCommand = spawnSync('node', [
-      '--import', 'tsx', 'packages/cli/src/main.ts', 'import',
-      instancedFixturePath,
-      '--output', instancedOutputPath,
-      '--report', instancedReportFile,
-      '--asset-id', instancedAssetId,
-      '--adapter', 'step',
-      '--json',
-    ], {
-      cwd: toolchainRoot,
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    });
-    if (instancedCommand.status !== 0) {
-      throw new Error(
-        `Toolchain STEP instance baseline failed:\n${instancedCommand.stderr}\n${instancedCommand.stdout}`,
-      );
-    }
-    const [instancedSource, instancedReportBytes, instancedOutput] =
-      await Promise.all([
-        readFile(instancedFixturePath),
-        readFile(instancedReportFile),
-        readFile(instancedOutputPath),
-      ]);
-    const instancedReport = JSON.parse(instancedReportBytes.toString('utf8'));
-    const instancedSummary = summarizeGlb(parseGlb(instancedOutput));
-    const instancedBaseline = {
-      kind: 'ice3-step-import-instance-baseline',
-      schemaVersion: '1.0',
-      generator: 'append one PrimaryTank usage occurrence to synthetic-skid.step',
-      assetId: instancedAssetId,
-      sourceDigest: sha256(instancedSource),
-      legacy: {
-        tool: instancedReport.tool,
-        adapter: instancedReport.adapter,
-        stats: {
-          nodeCount: instancedSummary.nodeCount,
-          meshCount: instancedSummary.meshCount,
-          meshNodeCount: instancedSummary.meshNodeCount,
-          sharedMeshNodeCount: instancedSummary.sharedMeshNodeCount,
-          triangleCount: instancedSummary.triangleCount,
-          vertexCount: instancedSummary.vertexCount,
-          instanceNodeCount: instancedSummary.instanceNodeCount,
-          semanticMaterialCount: instancedSummary.materials.length,
-        },
-        nodeNames: instancedSummary.nodeNames,
-        selectionIds: instancedSummary.selectionIds,
-        bounds: instancedSummary.bounds,
-        materials: instancedSummary.materials,
-        warningCodes: warningCodes(instancedReport.adapter.warnings),
-      },
-      normalizationRules: [
-        'The legacy bridge duplicates repeated part geometry into separate meshes; native STEP must reuse the source mesh and report at least two shared-instance nodes.',
-      ],
-    };
-    assertInstancedBaseline(instancedBaseline);
-    await writeFile(
-      instancedBaselinePath,
-      `${JSON.stringify(instancedBaseline, null, 2)}\n`,
-    );
-    console.log(JSON.stringify({
-      status: 'captured',
-      baseline: relative(studioRoot, instancedBaselinePath),
-      stats: instancedBaseline.legacy.stats,
-    }, null, 2));
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-}
+await compareNative();
 
 async function compareNative() {
   const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-step-parity-'));

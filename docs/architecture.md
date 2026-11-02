@@ -226,8 +226,8 @@ glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT Source Import 已迁入 Studi
 `studio-import` 的 JT adapter 在 isolated worker 中调用 host-owned converter，验证
 标准 GLB，并在 `f64` 共享原点转换后生成 `SourceScene`。Studio 不再消费 Toolchain
 Source Import 生产路径或外部 DCC bridge 服务。Sidecar/client/UI 已退役；相邻
-Toolchain repository 中残留的 JT adapter、CLI 和 release surface 仍待 Phase 5C
-清理，repository 归档也尚未执行。
+Toolchain repository 的 JT adapter、CLI、Sidecar 和 release surface 已完成清理，
+Studio 的脚本、测试和构建不再引用旧 repository；repository 归档仍需单独授权。
 
 ## 关联文档
 

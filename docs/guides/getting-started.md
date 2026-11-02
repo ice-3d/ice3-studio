@@ -165,13 +165,14 @@ allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk 和 static rende
 命令不调用 Node、外部 DCC 或资产守护进程。CLI 可以在 Studio Server 持有 writer
 lock 时读取 committed revision，但不会修改工程。
 
-迁移期 legacy parity 对照：
+原生 asset pipeline 契约检查：
 
 ```bash
 node scripts/compare-asset-pipelines.mjs
 ```
 
-机器可读结果写入 `output/asset-pipeline-parity.json`。
+脚本连续执行两次 Studio 导出，校验 triangle/node/Selection、Tileset bounds、相对 URI
+和字节确定性；机器可读结果写入 `output/asset-pipeline-parity.json`。
 
 ## 导入 Source Asset
 

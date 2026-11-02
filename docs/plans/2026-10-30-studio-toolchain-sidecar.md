@@ -133,14 +133,14 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 
 **Files:**
 
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/docs/contracts/toolchain-sidecar-contract-v1.md`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/docs/contracts/toolchain-sidecar-v1.schema.json`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/scripts/fixtures/toolchain-sidecar/capabilities-v1.json`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/scripts/fixtures/toolchain-sidecar/preview-request-v1.json`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/scripts/fixtures/toolchain-sidecar/preview-result-v1.json`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/scripts/toolchain-sidecar-contract.test.mjs`
-- Modify: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/docs/README.md`
-- Modify: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/package.json`
+- Create: `<workspace>/ice3-doc/docs/contracts/toolchain-sidecar-contract-v1.md`
+- Create: `<workspace>/ice3-doc/docs/contracts/toolchain-sidecar-v1.schema.json`
+- Create: `<workspace>/ice3-doc/scripts/fixtures/toolchain-sidecar/capabilities-v1.json`
+- Create: `<workspace>/ice3-doc/scripts/fixtures/toolchain-sidecar/preview-request-v1.json`
+- Create: `<workspace>/ice3-doc/scripts/fixtures/toolchain-sidecar/preview-result-v1.json`
+- Create: `<workspace>/ice3-doc/scripts/toolchain-sidecar-contract.test.mjs`
+- Modify: `<workspace>/ice3-doc/docs/README.md`
+- Modify: `<workspace>/ice3-doc/package.json`
 
 **Interfaces:**
 
