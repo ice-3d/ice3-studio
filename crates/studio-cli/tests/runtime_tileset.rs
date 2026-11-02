@@ -51,6 +51,36 @@ fn exports_a_runtime_tileset_bundle() {
     assert!(!output.join("parts/source.glb").exists());
 }
 
+#[test]
+fn unsupported_profile_uses_the_tileset_diagnostic() {
+    let root = tempfile::tempdir().unwrap();
+    let projects = root.path().join("projects");
+    std::fs::create_dir_all(&projects).unwrap();
+    let project = projects.join("cli-fixture");
+    let workspace = WorkspacePath::new(&projects, "cli-fixture").unwrap();
+    ProjectStore::create(workspace)
+        .unwrap()
+        .write_snapshot(&fixture_document())
+        .unwrap();
+
+    let result = Command::new(env!("CARGO_BIN_EXE_studio-cli"))
+        .args([
+            "export",
+            "tileset",
+            "--project",
+            project.to_str().unwrap(),
+            "--output",
+            root.path().join("runtime").to_str().unwrap(),
+            "--profile",
+            "unsupported",
+        ])
+        .output()
+        .unwrap();
+
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("ICE3_STUDIO_ASSET_TILESET_INVALID"));
+}
+
 fn fixture_document() -> Document {
     let mut document = Document::new("cli-fixture");
     document.scene.nodes_mut().push(SceneNode {

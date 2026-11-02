@@ -378,7 +378,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 force,
             } => {
                 if profile != "agent-console-v1" {
-                    return Err(format!("unsupported runtime profile: {profile}").into());
+                    return Err(format!(
+                        "ICE3_STUDIO_ASSET_TILESET_INVALID: unsupported runtime profile: {profile}"
+                    )
+                    .into());
                 }
                 let project_id = project
                     .file_name()

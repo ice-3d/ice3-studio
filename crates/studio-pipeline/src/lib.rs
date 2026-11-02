@@ -36,7 +36,7 @@ impl PipelineError {
         match self {
             Self::Asset(error) => error.code(),
             Self::Partition(error) => error.code(),
-            Self::Tileset(_) => "ICE3_STUDIO_TILESET_INVALID",
+            Self::Tileset(_) => "ICE3_STUDIO_ASSET_TILESET_INVALID",
             Self::InvalidProfile(_) => "ICE3_STUDIO_ASSET_INVALID_PROFILE",
             Self::Io(_) => "ICE3_STUDIO_PIPELINE_IO",
         }

@@ -201,6 +201,7 @@ pub struct ExportedFile {
 #[serde(rename_all = "camelCase")]
 pub struct ExportedStats {
     pub triangle_count: u64,
+    pub edge_segment_count: u64,
     pub partition_count: usize,
     pub coarse_count: usize,
     pub binding_count: usize,
@@ -307,6 +308,7 @@ impl RuntimeTilesetExporter {
             files: exported_files,
             stats: ExportedStats {
                 triangle_count: artifact.stats.triangle_count,
+                edge_segment_count: artifact.stats.edge_segment_count,
                 partition_count: artifact.stats.partition_count,
                 coarse_count: artifact.stats.coarse_count,
                 binding_count: bindings_count(&bindings)?,
