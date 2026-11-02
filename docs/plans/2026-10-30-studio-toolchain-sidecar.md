@@ -2,9 +2,12 @@
 
 > Document ID: ICE3-STUDIO-PLAN-005
 >
-> Status: Implemented
+> Status: Historical
 >
 > Owner: ICE3 Studio maintainers
+
+> **历史说明：** Sidecar 已由 Studio 原生 preview 和 asset pipeline 取代。
+> 本文仅记录退役前的设计，不得作为当前部署或接口依据。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -130,14 +133,14 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 
 **Files:**
 
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/docs/contracts/toolchain-sidecar-contract-v1.md`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/docs/contracts/toolchain-sidecar-v1.schema.json`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/scripts/fixtures/toolchain-sidecar/capabilities-v1.json`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/scripts/fixtures/toolchain-sidecar/preview-request-v1.json`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/scripts/fixtures/toolchain-sidecar/preview-result-v1.json`
-- Create: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/scripts/toolchain-sidecar-contract.test.mjs`
-- Modify: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/docs/README.md`
-- Modify: `/Users/felix/Windows-E-workspace/felix/ice3/ice3-doc/package.json`
+- Create: `<workspace>/ice3-doc/docs/contracts/toolchain-sidecar-contract-v1.md`
+- Create: `<workspace>/ice3-doc/docs/contracts/toolchain-sidecar-v1.schema.json`
+- Create: `<workspace>/ice3-doc/scripts/fixtures/toolchain-sidecar/capabilities-v1.json`
+- Create: `<workspace>/ice3-doc/scripts/fixtures/toolchain-sidecar/preview-request-v1.json`
+- Create: `<workspace>/ice3-doc/scripts/fixtures/toolchain-sidecar/preview-result-v1.json`
+- Create: `<workspace>/ice3-doc/scripts/toolchain-sidecar-contract.test.mjs`
+- Modify: `<workspace>/ice3-doc/docs/README.md`
+- Modify: `<workspace>/ice3-doc/package.json`
 
 **Interfaces:**
 

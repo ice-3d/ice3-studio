@@ -13,15 +13,18 @@ import { spawnSync } from 'node:child_process';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
-const toolchainRoot = resolve(studioRoot, '../ice3-toolchain');
-const fixtureRoot = join(toolchainRoot, 'tests/fixtures/ifc');
+const fixtureRoot = join(studioRoot, 'fixtures/source-import/ifc');
 const baselinePath = join(studioRoot, 'fixtures/parity/ifc-baseline-v1.json');
 const instanceFixturePath = join(
   studioRoot,
   'crates/studio-import/tests/fixtures/ifc/instanced.ifc',
 );
 const reportPath = join(studioRoot, 'output/ifc-import-parity.json');
-const nativeCli = join(studioRoot, 'target/debug/studio-cli');
+const nativeCli = join(
+  studioRoot,
+  'target/debug',
+  process.platform === 'win32' ? 'studio-cli.exe' : 'studio-cli',
+);
 const mode = process.argv[2] ?? '--compare';
 
 const fixtures = [
@@ -38,10 +41,13 @@ if (!['--capture', '--compare'].includes(mode)) {
 }
 
 if (mode === '--capture') {
-  await captureBaseline();
-} else {
-  await compareNative();
+  console.error(
+    'Baseline capture is retired; checked-in parity baseline is authoritative.',
+  );
+  process.exit(2);
 }
+
+await compareNative();
 
 async function compareNative() {
   ensureNativeCli();
@@ -785,103 +791,6 @@ function normalizeIfcSelectionIds(ids, fixtureKey) {
     .filter((id) => !id.endsWith('/unassigned'))
     .map((id) => normalizeIfcSelectionId(id, fixtureKey))
     .sort((left, right) => left.localeCompare(right, 'en'));
-}
-
-async function captureBaseline() {
-  const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-ifc-baseline-'));
-  try {
-    const captured = {};
-    for (const [key, fixtureName, assetId] of fixtures) {
-      captured[key] = await captureFixture(
-        temporaryRoot,
-        key,
-        fixtureName,
-        assetId,
-      );
-    }
-    const baseline = {
-      kind: 'ice3-ifc-import-baseline',
-      schemaVersion: '1.0',
-      assetId: 'parity-ifc',
-      fixtures: captured,
-      normalizationRules: [
-        'Tessellation triangles may differ while normalized bounds, area, business identity, metadata and instance identity remain equivalent.',
-      ],
-    };
-    assertBaseline(baseline);
-    await mkdir(dirname(baselinePath), { recursive: true });
-    await writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-    assertBaseline(JSON.parse(await readFile(baselinePath, 'utf8')));
-    console.log(JSON.stringify({
-      status: 'captured',
-      baseline: relative(studioRoot, baselinePath),
-      fixtures: Object.fromEntries(
-        Object.entries(captured).map(([key, value]) => [key, value.stats]),
-      ),
-    }, null, 2));
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-}
-
-async function captureFixture(root, key, fixtureName, assetId) {
-  const fixturePath = join(fixtureRoot, fixtureName);
-  const outputPath = join(root, `${key}.glb`);
-  const reportPath = join(root, `${key}.report.json`);
-  const command = spawnSync('node', [
-    '--import', 'tsx', 'packages/cli/src/main.ts', 'import',
-    fixturePath,
-    '--output', outputPath,
-    '--report', reportPath,
-    '--asset-id', assetId,
-    '--adapter', 'ifc',
-    '--json',
-  ], {
-    cwd: toolchainRoot,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  if (command.status !== 0) {
-    throw new Error(
-      `Toolchain IFC baseline import failed for ${fixtureName}:\n`
-      + `${command.stderr}\n${command.stdout}`,
-    );
-  }
-
-  const [sourceBytes, reportBytes, outputBytes] = await Promise.all([
-    readFile(fixturePath),
-    readFile(reportPath),
-    readFile(outputPath),
-  ]);
-  const report = JSON.parse(reportBytes.toString('utf8'));
-  const summary = summarizeGlb(parseGlb(outputBytes), assetId);
-  return {
-    fixture: relative(studioRoot, fixturePath),
-    sourceDigest: sha256(sourceBytes),
-    tool: report.tool,
-    adapter: report.adapter,
-    metrics: report.metrics,
-    stats: {
-      nodeCount: summary.nodeCount,
-      meshCount: summary.meshCount,
-      triangleCount: summary.triangleCount,
-      vertexCount: summary.vertexCount,
-      instanceNodeCount: summary.instanceNodeCount,
-      semanticMaterialCount: summary.materials.length,
-    },
-    nodeNames: summary.nodeNames,
-    selectionIds: summary.selectionIds,
-    spatialPaths: summary.spatialPaths,
-    propertySets: summary.propertySets,
-    quantitySets: summary.quantitySets,
-    systems: summary.systems,
-    nodeSelections: summary.nodeSelections,
-    productRecords: summary.productRecords,
-    bounds: summary.bounds,
-    surfaceArea: summary.surfaceArea,
-    materials: summary.materials,
-    warningCodes: warningCodes(report.adapter.warnings),
-  };
 }
 
 function assertBaseline(value) {

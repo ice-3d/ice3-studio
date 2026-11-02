@@ -434,6 +434,9 @@ Phase 4B：
 3. 删除 Toolchain IFC adapter、依赖和 conformance entry。
 4. Toolchain 只保留 JT。
 
+历史说明：后续 Phase 5A 已将 JT Source Import 迁入 Studio；当前生产 Source Import
+不依赖 Toolchain adapter。
+
 两个 milestone 分别可合并，但不得在 native parity 通过前删除对应旧 adapter。
 
 ## 14. 验收

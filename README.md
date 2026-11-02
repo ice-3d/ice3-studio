@@ -96,7 +96,7 @@ Viewer URL 并持续服务，`Ctrl+C` 停止。
 完整验证与基准：
 
 ```bash
-npm run verify      # 18 道门禁：fmt / clippy / test / schema / fixture / viewer / E2E / audit
+npm run verify      # 22 道门禁：fmt / clippy / test / schema / fixture / viewer / E2E / audit
 npm run benchmark
 npm run benchmark:gpu
 ```
@@ -142,20 +142,32 @@ cargo run -p studio-cli -- import plant.ifc \
   --asset-id plant-ifc \
   --adapter ifc
 
+ICE3_JT_CONVERTER=/path/to/approved-jt-converter \
+  cargo run -p studio-cli -- import assembly.jt \
+    --output assembly-jt.glb \
+    --asset-id assembly-jt \
+    --adapter jt
+
 cargo run -p studio-cli -- validate plant.glb
 ```
 
 Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242
-和 IFC4X3。OBJ/MTL 资源限制在源文件同目录；FBX/USD/STEP/IFC 解析在 Studio 自带 worker 中
-运行，不需要安装外部 DCC。worker 有硬超时、进程崩溃隔离、512 MiB response 上限和
-1 MiB stderr 上限，
+、IFC4X3 和 JT。OBJ/MTL 资源限制在源文件同目录；FBX/USD/STEP/IFC/JT 解析在
+Studio 自带 worker 中运行，不需要安装外部 DCC。JT 的唯一例外是部署方通过
+`ICE3_JT_CONVERTER` 提供的组织批准 converter；Studio 固定调用参数并验证输出 GLB。
+Studio 通过 supervisor 握手在 converter 执行前登记可终止进程组；批准 converter 不得
+通过新 session、daemon 或等价方式主动脱离该进程组。
+worker 有硬超时、进程树清理、进程崩溃隔离、512 MiB response 上限和 1 MiB stderr 上限，
 默认预算为 1,000,000 nodes、20,000,000 triangles、512 MiB estimated decoded
 memory 和 120 秒。内存预算通过分配前预检和 post-decode scene accounting 执行，
-不宣称等同于进程 RSS。FBX/USD/STEP/IFC 是默认启用、可关闭的 Cargo features；关闭后仍可
-构建其它格式组合。USD composition 限制在源文件目录，并限制递归深度和 layer 数量；
+不宣称等同于进程 RSS。JT converter 默认期限为 300 秒，外层 worker 另有 5 秒清理宽限。
+FBX/USD/STEP/IFC/JT 是默认启用、可关闭的 Cargo features；关闭后仍可构建其它格式组合。
+USD composition 限制在源文件目录，并限制递归深度和 layer 数量；
 STEP 只接受 AP242，并保留产品层级、实例、颜色、Selection 和单位换算；失败不会替换
 已有输出。IFC 只接受 IFC4X3，保留空间层级、Pset/Qto/System、实例、颜色和
-GlobalId Selection。
+GlobalId Selection。JT 保留层级、共享 mesh instances、材质、object/assembly
+metadata、custom properties、`<assetId>/jt/node/<ordinal>` Selection 和 shared
+source origin。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
@@ -188,11 +200,10 @@ Studio Server ── 认证、单事务串行、持久化、revision 事件
       │
       ├── studio-core      Document、几何、事务、校验、GLB 导出（无 IO）
       ├── studio-assets    glTF/GLB 读取、Prepared Profile、accessor 与来源摘要
-      ├── studio-import    glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与统一 SourceScene
+      ├── studio-import    glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC、JT 与统一 SourceScene
       ├── studio-pipeline  partition、LOD、coarse chunk、Tileset 与 render batch
       ├── studio-project   路径、写锁、原子快照、变更集、几何缓存
-      ├── studio-gpu       wgpu 几何内核、residency（实验）
-      └── studio-toolchain-client → 迁移期兼容与 parity
+      └── studio-gpu       wgpu 几何内核、residency（实验）
       │
       └── revision 事件 ──→ Web Viewer（薄客户端）
 ```
@@ -234,7 +245,7 @@ Studio 不内置模型、Prompt、网关或 Agent 策略；自然语言理解留
 | 100 Operations ChangeSet 求值 | 15.31 ms |
 | `wastewater-mini` 求值 | 37.51 ms |
 | source GLB 导出 | 1.04 ms |
-| Toolchain Runtime preview | 10.21 ms |
+| Native Runtime preview | 7.06 ms |
 | ChangeSet candidate preview | 17.11 ms |
 
 **大场景增量是主要收益来源**：CPU 增量场景缓存默认开启，transform-only revision 从
@@ -258,8 +269,12 @@ session。功能已交付，但性能门禁未过，默认关闭。
 静态资产导入、跨项目 GPU 缓冲持久化。清单与理由见
 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
-Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC
-Source Import 已由 Studio 原生实现。Toolchain 只保留 JT 的迁移兼容能力与 parity 证据。
+Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC、
+JT Source Import 已由 Studio 原生实现。Studio 不再消费 Toolchain Source Import
+生产路径；Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview
+始终由 Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和
+release surface 已完成清理，Studio 不再包含旧 repository 的路径依赖；repository
+归档仍需用户单独授权。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。
@@ -272,7 +287,6 @@ Source Import 已由 Studio 原生实现。Toolchain 只保留 JT 的迁移兼�
 - [API Reference](docs/reference/api.md)
 - [Diagnostics](docs/reference/diagnostics.md)
 - [ChangeSet 审阅](docs/reference/change-sets.md)
-- [Toolchain Sidecar](docs/reference/toolchain-sidecar.md)
 - [原生 Asset Pipeline 迁移设计](docs/specs/2026-11-01-native-asset-pipeline-migration-design.md)
 - [Agent 主导的工作台设计](docs/specs/2026-11-01-agent-led-workbench-design.md)
 

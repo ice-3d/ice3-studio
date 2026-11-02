@@ -9,6 +9,10 @@
 本文件是 Studio 对外能力的**代码镜像**。内容逐项来自 `crates/` 与 `apps/viewer/src/`，
 实现变更时同步更新；与其它文档冲突时以本文件和代码为准。
 
+`API_VERSION` 当前为 `1.0`，但项目仍是 pre-release。Phase 5B 删除
+`system.capabilities.toolchain` 属于 breaking shape change；capabilities 调用方必须按
+当前 generated schema 解析，不能把版本字符串视为兼容性承诺。
+
 ## 传输与鉴权
 
 - JSON-RPC 2.0 over HTTP `POST /rpc`，另有 WebSocket 推送 revision 与 ChangeSet 事件。
@@ -29,7 +33,7 @@
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
 | `system.health` | 否 | 无 | `apiVersion`、`schemaVersion`、`status` |
-| `system.capabilities` | 否 | 无 | 方法清单、Toolchain 状态、compute 证据、写模式 |
+| `system.capabilities` | 否 | 无 | 方法清单、compute 证据、写模式与限制 |
 | `system.agentManifest` | 否 | 无 | Agent 工具、当前令牌权限、调用上限、工作流提示 |
 
 ### project（5）
@@ -147,7 +151,7 @@ Material 的 `opacity < 1` 导出为 alpha blend；`shading` 可为 `directional
 
 只有 `ready` 状态且提交时 digest 与审批时一致才会落为 revision。
 
-## 诊断码（32）
+## 诊断码（27）
 
 全部以 `ICE3_STUDIO_` 为前缀，稳定且不复用。
 
@@ -160,7 +164,6 @@ Material 的 `opacity < 1` 导出为 alpha blend；`shading` 可为 `directional
 | 引用资产 | `ICE3_STUDIO_REFERENCE_INVALID`、`ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` |
 | 导出与预览 | `ICE3_STUDIO_EXPORT_FAILED`、`ICE3_STUDIO_RUNTIME_PREVIEW_FAILED` |
 | GPU | `ICE3_STUDIO_GPU_UNAVAILABLE`、`ICE3_STUDIO_GPU_INCOMPATIBLE`、`ICE3_STUDIO_GPU_DEVICE_LOST`、`ICE3_STUDIO_GPU_KERNEL_FAILED`、`ICE3_STUDIO_GPU_PARITY_FAILED`、`ICE3_STUDIO_GPU_BUDGET_EXCEEDED` |
-| Toolchain | `ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE`、`ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE`、`ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID`、`ICE3_STUDIO_TOOLCHAIN_TIMEOUT`、`ICE3_STUDIO_TOOLCHAIN_JOB_FAILED` |
 
 完整说明与恢复规则见 [Diagnostics](diagnostics.md)。
 
@@ -169,6 +172,12 @@ Source Import CLI 另有稳定码：
 `ICE3_STUDIO_IMPORT_REGISTRY_INVALID`、`ICE3_STUDIO_IMPORT_INVALID_SOURCE`、
 `ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY`、`ICE3_STUDIO_IMPORT_RESOURCE_IGNORED` 和
 `ICE3_STUDIO_IMPORT_IO`。OBJ warning 使用 `ICE3_STUDIO_IMPORT_OBJ_*` 命名空间。
+JT 另有
+`ICE3_STUDIO_IMPORT_JT_CONVERTER_UNAVAILABLE`、
+`ICE3_STUDIO_IMPORT_JT_CONVERT_FAILED`、
+`ICE3_STUDIO_IMPORT_JT_EXPORT_INVALID`、
+`ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` 和
+`ICE3_STUDIO_IMPORT_JT_TIMEOUT`。
 
 ## CLI
 
@@ -177,7 +186,7 @@ ice3-studio schema --output <dir> [--check]
 ice3-studio pack --project <dir> --output <file.ice3>
 ice3-studio unpack <file.ice3> --into <dir>
 ice3-studio import SOURCE --output FILE --asset-id ID
-                        [--adapter auto|gltf|obj|fbx|usd|step|ifc]
+                        [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
                         [--warnings-as-errors] [--force]
 ice3-studio validate FILE
 ice3-studio export tileset --project <dir> --output <dir>
@@ -196,21 +205,27 @@ ice3-studio serve --workspace <dir> --project <id>
 | `--write-mode` | `review-required` | 或 `autonomous` |
 | `--native-gpu` | `cpu` | 启动期策略，不能被 API 请求覆盖 |
 
-`import` 支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242 和
-IFC4X3。
+`import` 支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242、
+IFC4X3 和 JT。
 adapter 生成
 统一 `SourceScene`，canonical writer 生成 `ice3-prepared` GLB。OBJ/MTL、glTF 和 USD
-外部资源被限制在源文件同目录；OBJ 假定米制并发出 warning。FBX/USD/STEP/IFC 通过 Studio
-自带 worker 解析，不需要外部 DCC。worker 默认限制 1,000,000 nodes、20,000,000 triangles、
+外部资源被限制在源文件同目录；OBJ 假定米制并发出 warning。FBX/USD/STEP/IFC/JT 通过
+Studio 自带 worker 解析，不需要外部 DCC。JT 使用 host-owned `ICE3_JT_CONVERTER`，固定
+`--input`/`--output` 参数并验证 GLB。worker 默认限制 1,000,000 nodes、20,000,000 triangles、
 512 MiB estimated decoded memory 和 120 秒硬 timeout；response 与 stderr 上限分别为
 512 MiB 和 1 MiB。内存预算在主要 geometry/metadata 分配前预检，并在 worker response
-解码后重新记账；该值不是进程 RSS 的字节级硬上限。FBX/USD/STEP/IFC 是默认启用的 Cargo
+解码后重新记账；该值不是进程 RSS 的字节级硬上限。FBX/USD/STEP/IFC/JT 是默认启用的 Cargo
 features，可分别关闭。超时、崩溃、协议污染和越界资源
 失败关闭。USD composition 额外限制深度 32、总 layer 数 1,024，并拒绝绝对路径、URI、
 `..` 与 symlink escape。STEP 只接受 AP242，保留 assembly/product 层级、共享实例、
 面颜色、Selection 和 metadata，并使用共享 source origin。
 IFC 只接受 IFC4X3 和可解析的唯一长度单位，保留空间层级、GlobalId Selection、
 Pset/Qto/System、共享实例、材质和 shared source origin。
+JT 默认 converter timeout 为 300 秒，外层 worker 另有 5 秒清理宽限；输出上限 512 MiB，
+保留层级、共享实例、材质、object/assembly metadata、custom properties、稳定
+Selection 和 shared source origin。Converter 必须先经过 supervisor 握手，Studio 登记
+process group 后才开始执行；批准 converter 不得通过新 session、daemon 或等价方式主动
+逃逸进程组。违反该 host trust contract 的 converter 不受支持。
 
 `--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
 替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。
@@ -243,18 +258,14 @@ source GLB 只保留在 `projects/<id>/cache/preview/`，不会复制到发布�
 | `STUDIO_SESSION_TOKEN` | 写入令牌；不设则随机生成并在启动时打印 |
 | `STUDIO_APPROVAL_TOKEN` | 审批令牌，写入 Cookie 用于提交 ChangeSet |
 | `STUDIO_AGENT_TOKEN` | 供 Agent 使用的令牌 |
-| `STUDIO_APP_ROOT` | Viewer 资源根 |
-| `STUDIO_NODE` | Sidecar 使用的 Node 可执行文件；不设则从 `PATH` 查找 |
-| `STUDIO_TOOLCHAIN_CLI` | Toolchain 适配脚本 |
 | `STUDIO_PREVIEW_PACKETS` | 设为 `1` 启用增量 preview packet（实验） |
 | `STUDIO_GPU_SCENE_SESSIONS` | 设为 `1` 启用 GPU 场景会话（实验） |
 | `STUDIO_INCREMENTAL_SCENE_CACHE` | 设为 `0` 关闭 CPU 增量场景缓存（默认开启） |
-| `ICE3_TOOLCHAIN_CLI` | 透传给 Sidecar 的 Toolchain CLI 入口 |
 | `ICE3_JT_CONVERTER` | JT 转换器路径，由部署方提供 |
-| `ICE3_JT_TIMEOUT_MS` | JT converter timeout |
+| `ICE3_JT_TIMEOUT_MS` | JT converter 正整数毫秒 timeout，默认 `300000` |
 
-注意：`ICE3_TOOLCHAIN_CLI` 与 `ICE3_JT_CONVERTER` 由 Sidecar 进程解析，其工作目录是
-**项目目录**而非仓库根，相对路径必须基于项目目录书写，或直接使用绝对路径。
+`ICE3_JT_CONVERTER` 由 Studio import worker 直接解析。相对路径基于 Studio 进程工作
+目录，部署时推荐使用绝对路径。Studio Server 不再读取任何 Sidecar/Node runtime 配置。
 
 ## 工程格式
 
@@ -314,14 +325,15 @@ source GLB 只保留在 `projects/<id>/cache/preview/`，不会复制到发布�
 Viewer 按槽位取色、按 `hidden` 隐藏，不解析节点名、不做行业推断。早期清单用
 `equipment` 作为数组键，读取时兼容。
 
-## 预览与 toolchain
+## 原生预览
 
-预览由 Studio 自己生成：内核把文档求值成 GLB，写入 `cache/toolchain/preview/<revision>.glb`，
-Viewer 通过 `/previews/<revision>` 读取。
+Studio Core 把文档求值成 GLB，committed preview 原子写入
+`cache/preview/<revision>.glb`，candidate preview 写入
+`cache/preview/candidates/<digest>.glb`。Viewer 通过 `/previews/<revision>` 和
+`/previews/candidates/<digest>` 读取。响应 digest 从实际文件字节重新计算。
 
-外部 toolchain sidecar 是**可选优化器**，只提供压缩、分块与 LOD。未配置或版本不匹配时，
-Studio 直接使用自己的 GLB 产物；其它错误（协议错误、崩溃、被拒绝）仍会上报，因为它们
-通常说明输入本身有问题。`system.capabilities.toolchain` 始终如实反映 sidecar 状态。
+Preview 不启动外部进程，也没有可选优化器 fallback。预览失败不会修改当前 revision 或
+已有有效 preview；`system.capabilities` 只报告 Studio 自身的能力。
 
 ## Viewer 能力
 
@@ -337,7 +349,6 @@ Studio 直接使用自己的 GLB 产物；其它错误（协议错误、崩溃�
 | `agent` | Agent Mission Control、上下文、对话 Store 与传输层 |
 | `session` | 会话与令牌管理 |
 | `compute` | GPU/compute 证据展示 |
-| `toolchain` | Toolchain 状态展示 |
 | `api`、`shared` | RPC 客户端与共享工具 |
 
 Viewer 只调用公开读 API 并订阅 revision 事件，不持有任何私有修改通道。

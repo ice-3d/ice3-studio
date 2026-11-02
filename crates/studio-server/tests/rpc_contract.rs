@@ -3,7 +3,19 @@ mod common;
 use futures_util::StreamExt;
 use studio_server::{ServerConfig, start_test_server};
 
-use common::SUCCESS_TOOLCHAIN;
+#[tokio::test]
+async fn capabilities_do_not_expose_a_retired_asset_driver() {
+    let server = start_test_server(ServerConfig::for_tests("native-capabilities")).await;
+    let response = common::rpc(&server, "system.capabilities", serde_json::json!({})).await;
+
+    assert!(response["result"].get("toolchain").is_none());
+    assert!(
+        response["result"]["methods"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("export.runtimePreview"))
+    );
+}
 
 #[tokio::test]
 async fn health_reports_api_and_schema_versions() {
@@ -124,65 +136,6 @@ async fn publishes_generated_api_schemas() {
     assert!(schema.contains("\"apiVersion\": \"1.0\""));
     assert!(schema.contains("node.create"));
     assert!(schema.contains("evaluation.stats"));
-}
-
-#[tokio::test]
-async fn health_stays_responsive_while_preview_processing_blocks() {
-    let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;
-    let adapter = server.workspace_root().join("slow-toolchain.mjs");
-    std::fs::write(
-        &adapter,
-        SUCCESS_TOOLCHAIN.replace("setTimeout(resolve, 600)", "setTimeout(resolve, 1500)"),
-    )
-    .unwrap();
-
-    server.set_toolchain_cli(adapter).await;
-
-    let health_url = server.health_url();
-    let health_probe = std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(150));
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        runtime.block_on(async {
-            let response = tokio::time::timeout(
-                // Keep the deadline below the 1.5 s blocking preview while
-                // allowing enough headroom for a loaded parallel test runner.
-                std::time::Duration::from_millis(1_200),
-                reqwest::get(health_url),
-            )
-            .await;
-            matches!(response, Ok(Ok(response)) if response.status().is_success())
-        })
-    });
-
-    let preview = tokio::spawn({
-        let rpc_url = server.rpc_url();
-        let token = server.token().to_owned();
-        async move {
-            reqwest::Client::new()
-                .post(rpc_url)
-                .bearer_auth(token)
-                .json(&serde_json::json!({
-                    "jsonrpc": "2.0",
-                    "id": 3,
-                    "method": "export.runtimePreview",
-                    "params": {}
-                }))
-                .send()
-                .await
-                .unwrap()
-                .json::<serde_json::Value>()
-                .await
-                .unwrap()
-        }
-    });
-
-    tokio::task::yield_now().await;
-    let preview = preview.await.unwrap();
-    assert!(health_probe.join().unwrap(), "health endpoint was blocked");
-    assert!(preview["result"]["previewPath"].is_string());
 }
 
 #[tokio::test]

@@ -162,20 +162,21 @@ cargo run -p studio-cli -- export tileset \
 
 `agent-console-v1` 使用 60,000 triangles/part、64 MiB/part、0.5 LOD ratio、adaptive
 allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk 和 static render batch。
-命令不调用 Node、外部 DCC 或 Toolchain Sidecar。CLI 可以在 Studio Server 持有 writer
+命令不调用 Node、外部 DCC 或资产守护进程。CLI 可以在 Studio Server 持有 writer
 lock 时读取 committed revision，但不会修改工程。
 
-Parity 双跑：
+原生 asset pipeline 契约检查：
 
 ```bash
 node scripts/compare-asset-pipelines.mjs
 ```
 
-机器可读结果写入 `output/asset-pipeline-parity.json`。
+脚本连续执行两次 Studio 导出，校验 triangle/node/Selection、Tileset bounds、相对 URI
+和字节确定性；机器可读结果写入 `output/asset-pipeline-parity.json`。
 
 ## 导入 Source Asset
 
-glTF/GLB、OBJ/MTL、FBX、USD、STEP 与 IFC 由 Studio 原生导入：
+glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT 由 Studio 原生导入：
 
 ```bash
 cargo run -p studio-cli -- import plant.obj \
@@ -203,6 +204,12 @@ cargo run -p studio-cli -- import plant.ifc \
   --asset-id plant-ifc \
   --adapter ifc
 
+ICE3_JT_CONVERTER=/path/to/approved-jt-converter \
+  cargo run -p studio-cli -- import assembly.jt \
+    --output /tmp/assembly-jt.glb \
+    --asset-id assembly-jt \
+    --adapter jt
+
 cargo run -p studio-cli -- validate /tmp/plant.glb
 ```
 
@@ -210,16 +217,19 @@ OBJ 假定单位为米；`mtllib` 和纹理引用只能访问源文件同目录�
 `..` 和 symlink escape 不会读取。输出先完成 Prepared GLB 校验，再以 sibling temporary
 file 原子发布。失败、warning-as-error 或已有 output 且未指定 `--force` 时不会替换文件。
 
-FBX/USD/STEP/IFC 在 Studio 自带的隔离 worker 中解析，不需要安装外部 DCC。worker 硬超时会终止
+FBX/USD/STEP/IFC/JT 在 Studio 自带的隔离 worker 中解析，不需要安装外部 DCC。worker 硬超时会终止
 进程；crash、协议污染、response/stderr 超限或 scene budget 越界都不会发布 output。
 默认预算为 1,000,000 nodes、20,000,000 triangles、512 MiB estimated decoded memory
 和 120 秒；内存值由分配前预检与 response 后记账共同执行，不等同于进程 RSS 上限。
-FBX/USD/STEP/IFC 默认由 Cargo features 启用，也可以分别关闭。
+FBX/USD/STEP/IFC/JT 默认由 Cargo features 启用，也可以分别关闭。
 USD 的 references、sublayers 和 payloads 只能访问源文件目录，并受 composition depth
 与 layer 总数限制。STEP 只接受 AP242，并保留装配/产品层级、共享实例、面颜色、
 Selection、单位换算和源 origin。
 IFC 只接受 IFC4X3，并保留空间层级、GlobalId Selection、Pset/Qto/System、共享实例、
 颜色和源 origin；unsupported resource 使用确定性 warning。
+JT 使用部署方提供的 `ICE3_JT_CONVERTER`，默认 timeout 为 300 秒，并由外层 worker
+额外提供 5 秒清理宽限。Studio 固定 converter 参数、验证 512 MiB 上限内的 GLB，并保留
+层级、共享实例、材质、JT metadata、Selection 和 shared source origin。
 
 ## 停止与恢复
 

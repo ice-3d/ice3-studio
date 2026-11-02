@@ -1,0 +1,13 @@
+newmtl PumpBlue
+Ka 0 0 0
+Kd 0.12 0.38 0.68
+Ks 0 0 0
+Ns 1
+illum 1
+
+newmtl TankTaupe
+Ka 0 0 0
+Kd 0.62 0.55 0.40
+Ks 0 0 0
+Ns 1
+illum 1

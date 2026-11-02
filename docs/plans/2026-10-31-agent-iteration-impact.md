@@ -36,7 +36,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 - Do not use competitor or vendor names in code, comments, tests, documentation, links, or commits.
 - Git author and committer name is `damoqiongqiu`.
 - Root verification is
-  `PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
+  `PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 - Use TDD for every production behavior change and commit each completed task.
 
 ## Review Focus
@@ -865,7 +865,7 @@ Run:
 
 ```bash
 node --test scripts/tests/agent-iteration-impact.test.mjs
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 ```
 
 Expected: the focused test passes and all 14 verification gates pass.
@@ -926,7 +926,7 @@ git commit -m "test(studio): verify local agent iteration impact"
 Run:
 
 ```bash
-PATH=/Users/felix/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 ```
 
 Expected: all 14 verification gates pass.
@@ -959,7 +959,7 @@ git commit -m "docs(studio): mark agent iteration impact implemented"
 Run:
 
 ```bash
-/Users/felix/.codex/skills/subagent-driven-development/scripts/review-package \
+~/.codex/skills/subagent-driven-development/scripts/review-package \
   1d5eccf HEAD
 ```
 

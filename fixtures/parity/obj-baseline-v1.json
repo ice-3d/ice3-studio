@@ -1,7 +1,11 @@
 {
   "kind": "ice3-source-import-baseline",
   "schemaVersion": "1.0",
-  "fixture": "../ice3-toolchain/tests/fixtures/obj/synthetic-plant.obj",
+  "fixture": "fixtures/source-import/obj/synthetic-plant.obj",
+  "retiredBaseline": {
+    "tool": "ice3-toolchain",
+    "fixture": "../ice3-toolchain/tests/fixtures/obj/synthetic-plant.obj"
+  },
   "sourceDigest": "f59ecd5f3ef818a850cd9d470db37279ff3434ba54f2276c66ff2c48293638a2",
   "baselineGlbDigest": "ae3f23558b399ead5bc1b097762a16886fde1b435f6b9ac0819627f8bb5f58ca",
   "stats": {

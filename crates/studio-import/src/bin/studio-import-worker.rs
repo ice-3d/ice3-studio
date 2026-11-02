@@ -5,6 +5,8 @@ use std::process::ExitCode;
 use studio_import::FbxImporter;
 #[cfg(feature = "ifc")]
 use studio_import::IfcImporter;
+#[cfg(feature = "jt")]
+use studio_import::JtImporter;
 #[cfg(feature = "step")]
 use studio_import::StepImporter;
 #[cfg(feature = "usd")]
@@ -12,6 +14,16 @@ use studio_import::UsdImporter;
 use studio_import::{GltfImporter, ObjImporter, SourceImporterRegistry, execute_worker_request};
 
 fn main() -> ExitCode {
+    #[cfg(feature = "jt")]
+    match studio_import::jt::run_jt_converter_supervisor(std::env::args_os().skip(1)) {
+        Ok(true) => return ExitCode::SUCCESS,
+        Ok(false) => {}
+        Err(error) => {
+            eprintln!("{}: {}", error.code(), error);
+            return ExitCode::FAILURE;
+        }
+    }
+
     match worker_main(std::env::args_os().skip(1).map(PathBuf::from).collect()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -43,6 +55,8 @@ fn worker_main(arguments: Vec<PathBuf>) -> Result<(), studio_import::ImportError
     importers.push(Box::new(StepImporter::new()));
     #[cfg(feature = "ifc")]
     importers.push(Box::new(IfcImporter::new()));
+    #[cfg(feature = "jt")]
+    importers.push(Box::new(JtImporter::new()));
     let registry = SourceImporterRegistry::try_new(importers)?;
     execute_worker_request(request_path, &registry)
 }

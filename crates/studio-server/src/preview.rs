@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+#[cfg(debug_assertions)]
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -21,7 +23,6 @@ use crate::preview_packet::{
     PreviewGeometryNode, build_full_preview_packet, build_scene_preview_delta,
     decode_preview_packet, encode_preview_packet,
 };
-use crate::toolchain::ToolchainService;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
@@ -94,18 +95,12 @@ pub(crate) fn export_source_with_scene(
 
 #[derive(Debug, Error)]
 pub enum PreviewError {
-    #[error("toolchain adapter must be a file inside the configured workspace")]
-    InvalidToolchain,
     #[error("source GLB export failed")]
     Export(#[from] studio_core::export::glb::ExportError),
     #[error("preview I/O failed")]
     Io(#[source] std::io::Error),
-    #[error("preview adapter exited with status {0}")]
-    AdapterFailed(std::process::ExitStatus),
     #[error("preview adapter did not produce a valid GLB")]
     InvalidOutput,
-    #[error("Toolchain sidecar failed: {0}")]
-    Toolchain(#[from] studio_toolchain_client::ToolchainClientError),
     #[error("geometry cache failed: {0}")]
     GeometryCache(#[from] GeometryCacheError),
     #[error("derived scene evaluation failed: {0}")]
@@ -118,37 +113,15 @@ pub struct ScenePreviewContext {
     pub patch: ScenePatch,
 }
 
-/// 判断 toolchain 的失败是否只意味着"没有可用的优化器"。
-/// 未配置与版本不匹配时，Studio 用自己的产物即可；其余错误仍然暴露，
-/// 因为它们往往说明输入本身有问题，静默降级会掩盖真实故障。
-fn toolchain_is_optional(error: &studio_toolchain_client::ToolchainClientError) -> bool {
-    use studio_toolchain_client::ToolchainClientError;
-    matches!(
-        error,
-        ToolchainClientError::Unavailable { .. } | ToolchainClientError::Incompatible { .. }
-    )
-}
-
 pub struct PreviewAdapter {
-    toolchain: Arc<ToolchainService>,
     preview_packets_enabled: bool,
     compute: Option<Arc<ComputeService>>,
     scene_preview: Option<ScenePreviewContext>,
 }
 
 impl PreviewAdapter {
-    pub fn new(workspace_root: &Path, toolchain_cli: PathBuf) -> Result<Self, PreviewError> {
-        Ok(Self {
-            toolchain: Arc::new(ToolchainService::new(workspace_root, Some(toolchain_cli))),
-            preview_packets_enabled: false,
-            compute: None,
-            scene_preview: None,
-        })
-    }
-
-    pub fn from_service(toolchain: Arc<ToolchainService>) -> Self {
+    pub fn new() -> Self {
         Self {
-            toolchain,
             preview_packets_enabled: false,
             compute: None,
             scene_preview: None,
@@ -176,7 +149,8 @@ impl PreviewAdapter {
         project_dir: &Path,
         asset_id: &str,
     ) -> Result<RuntimePreview, PreviewError> {
-        let preview_dir = project_dir.join("cache/toolchain/preview");
+        apply_preview_test_delay();
+        let preview_dir = project_dir.join("cache/preview");
         std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
         let revision = document.revision.as_u64();
         let evaluator = self.compute.as_deref().map(ComputeEvaluator::new);
@@ -201,23 +175,11 @@ impl PreviewAdapter {
         let source_path = source_export.source_path;
         let source_digest = source_export.source_digest;
         let preview_path = preview_dir.join(format!("{revision:08}.glb"));
-        // 内核本身就能产出 GLB；toolchain 只负责额外的压缩与分块优化。
-        // 未配置或版本不匹配时直接使用内核产物，外部进程因此不再是必需依赖。
-        let (resolved_asset_id, content_hash) =
-            match self
-                .toolchain
-                .preview(&source_path, &preview_path, asset_id)
-            {
-                Ok(asset) => (asset.asset_id, asset.content_hash),
-                Err(error) if toolchain_is_optional(&error) => {
-                    std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
-                    (asset_id.to_string(), source_digest.clone())
-                }
-                Err(error) => return Err(PreviewError::Toolchain(error)),
-            };
+        publish_preview(&source_path, &preview_path)?;
+        let content_hash = preview_content_hash(&preview_path)?;
         Ok(RuntimePreview {
             revision,
-            asset_id: resolved_asset_id,
+            asset_id: asset_id.to_string(),
             source_digest,
             content_hash,
             source_path,
@@ -234,24 +196,14 @@ impl PreviewAdapter {
         project_dir: &Path,
         digest: &str,
     ) -> Result<CandidatePreview, PreviewError> {
+        apply_preview_test_delay();
         let candidate_dir = project_dir.join("cache/candidates");
-        let preview_dir = project_dir.join("cache/toolchain/candidates");
+        let preview_dir = project_dir.join("cache/preview/candidates");
         std::fs::create_dir_all(&candidate_dir).map_err(PreviewError::Io)?;
         std::fs::create_dir_all(&preview_dir).map_err(PreviewError::Io)?;
         let preview_path = preview_dir.join(format!("{digest}.glb"));
         if valid_glb(&preview_path) {
-            return Ok(CandidatePreview {
-                asset_id: digest.into(),
-                digest: digest.into(),
-                content_hash: format!(
-                    "{:x}",
-                    Sha256::digest(std::fs::read(&preview_path).map_err(PreviewError::Io)?)
-                ),
-                url: format!("/previews/candidates/{digest}"),
-                packet_url: self
-                    .preview_packets_enabled
-                    .then(|| format!("/preview-packets/candidates/{digest}")),
-            });
+            return self.cached_candidate_preview(digest, &preview_path);
         }
         let mut cache = GeometryDiskCache::new(project_dir)?;
         let evaluator = self.compute.as_deref().map(ComputeEvaluator::new);
@@ -274,22 +226,10 @@ impl PreviewAdapter {
             )?;
         }
         let source = export_glb_from_scene(document, &evaluated)?;
-        let source_digest = format!("{:x}", Sha256::digest(&source));
         let source_path = candidate_dir.join(format!("{digest}-source.glb"));
         std::fs::write(&source_path, source).map_err(PreviewError::Io)?;
-        // 与主预览一致：toolchain 只是可选优化器，缺失时使用内核产物。
-        let content_hash = match self.toolchain.preview(
-            &source_path,
-            &preview_path,
-            &format!("candidate-{source_digest}"),
-        ) {
-            Ok(asset) => asset.content_hash,
-            Err(error) if toolchain_is_optional(&error) => {
-                std::fs::copy(&source_path, &preview_path).map_err(PreviewError::Io)?;
-                source_digest.clone()
-            }
-            Err(error) => return Err(PreviewError::Toolchain(error)),
-        };
+        publish_preview(&source_path, &preview_path)?;
+        let content_hash = preview_content_hash(&preview_path)?;
         Ok(CandidatePreview {
             asset_id: digest.into(),
             digest: digest.into(),
@@ -314,6 +254,22 @@ impl PreviewAdapter {
             _ => GeometryEvaluationMode::Cpu,
         };
         (status.selected_backend, mode)
+    }
+
+    fn cached_candidate_preview(
+        &self,
+        digest: &str,
+        path: &Path,
+    ) -> Result<CandidatePreview, PreviewError> {
+        Ok(CandidatePreview {
+            asset_id: digest.into(),
+            digest: digest.into(),
+            content_hash: preview_content_hash(path)?,
+            url: format!("/previews/candidates/{digest}"),
+            packet_url: self
+                .preview_packets_enabled
+                .then(|| format!("/preview-packets/candidates/{digest}")),
+        })
     }
 
     fn write_runtime_packet(
@@ -433,6 +389,12 @@ impl PreviewAdapter {
     }
 }
 
+impl Default for PreviewAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn export_source_from_scene(
     document: &Document,
     project_dir: &Path,
@@ -468,7 +430,112 @@ fn write_preview_packet(
 }
 
 fn valid_glb(path: &Path) -> bool {
-    std::fs::read(path)
-        .map(|bytes| bytes.len() >= 12 && &bytes[0..4] == b"glTF")
-        .unwrap_or(false)
+    std::fs::read(path).is_ok_and(|bytes| {
+        bytes.len() >= 12
+            && &bytes[0..4] == b"glTF"
+            && u32::from_le_bytes(bytes[4..8].try_into().expect("four bytes")) == 2
+            && u32::from_le_bytes(bytes[8..12].try_into().expect("four bytes")) as usize
+                == bytes.len()
+    })
+}
+
+fn preview_content_hash(path: &Path) -> Result<String, PreviewError> {
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(std::fs::read(path).map_err(PreviewError::Io)?)
+    ))
+}
+
+fn publish_preview(source: &Path, destination: &Path) -> Result<(), PreviewError> {
+    let parent = destination.parent().ok_or_else(|| {
+        PreviewError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "preview destination has no parent directory",
+        ))
+    })?;
+    std::fs::create_dir_all(parent).map_err(PreviewError::Io)?;
+    let mut input = std::fs::File::open(source).map_err(PreviewError::Io)?;
+    let mut temporary = tempfile::Builder::new()
+        .prefix(".preview-")
+        .suffix(".tmp")
+        .tempfile_in(parent)
+        .map_err(PreviewError::Io)?;
+    std::io::copy(&mut input, temporary.as_file_mut()).map_err(PreviewError::Io)?;
+    temporary.as_file().sync_all().map_err(PreviewError::Io)?;
+    temporary
+        .persist(destination)
+        .map_err(|error| PreviewError::Io(error.error))?;
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+static PREVIEW_TEST_DELAY_MS: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+pub struct PreviewTestDelayGuard {
+    previous: u64,
+}
+
+#[cfg(debug_assertions)]
+impl Drop for PreviewTestDelayGuard {
+    fn drop(&mut self) {
+        PREVIEW_TEST_DELAY_MS.store(self.previous, Ordering::Release);
+    }
+}
+
+/// Deterministically holds preview evaluation for integration tests without
+/// mutating process-global environment variables.
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+pub fn hold_preview_for_tests(duration: std::time::Duration) -> PreviewTestDelayGuard {
+    let milliseconds = u64::try_from(duration.as_millis()).unwrap_or(u64::MAX);
+    let previous = PREVIEW_TEST_DELAY_MS.swap(milliseconds, Ordering::AcqRel);
+    PreviewTestDelayGuard { previous }
+}
+
+#[cfg(debug_assertions)]
+fn apply_preview_test_delay() {
+    let milliseconds = PREVIEW_TEST_DELAY_MS.load(Ordering::Acquire);
+    if milliseconds > 0 {
+        std::thread::sleep(std::time::Duration::from_millis(milliseconds));
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn apply_preview_test_delay() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_publication_preserves_the_previous_public_bytes() {
+        let root = tempfile::tempdir().unwrap();
+        let destination = root.path().join("preview.glb");
+        std::fs::write(&destination, b"previous-valid-preview").unwrap();
+        let missing_source = root.path().join("missing-source.glb");
+
+        let error = publish_preview(&missing_source, &destination).unwrap_err();
+
+        assert!(matches!(error, PreviewError::Io(_)));
+        assert_eq!(
+            std::fs::read(&destination).unwrap(),
+            b"previous-valid-preview"
+        );
+    }
+
+    #[test]
+    fn publication_replaces_the_destination_only_after_the_copy_completes() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("source.glb");
+        let destination = root.path().join("preview.glb");
+        std::fs::write(&source, b"new-preview").unwrap();
+        std::fs::write(&destination, b"old-preview").unwrap();
+
+        publish_preview(&source, &destination).unwrap();
+
+        assert_eq!(std::fs::read(&destination).unwrap(), b"new-preview");
+        assert_eq!(std::fs::read(&source).unwrap(), b"new-preview");
+    }
 }

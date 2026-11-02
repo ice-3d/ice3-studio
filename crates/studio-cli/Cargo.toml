@@ -6,9 +6,10 @@ license.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["fbx", "usd", "step", "ifc"]
+default = ["fbx", "usd", "step", "ifc", "jt"]
 fbx = ["studio-import/fbx"]
 ifc = ["studio-import/ifc"]
+jt = ["studio-import/jt"]
 step = ["studio-import/step"]
 usd = ["studio-import/usd"]
 

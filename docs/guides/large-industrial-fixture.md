@@ -61,7 +61,7 @@
 ## 通过公共 API 生成
 
 ```bash
-source ~/.nvm/nvm.sh
+source $HOME/.nvm/nvm.sh
 nvm use 24.22.1
 npm run fixture:large-industrial
 ```

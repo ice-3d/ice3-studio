@@ -129,7 +129,6 @@ async fn production_transform_preview_writes_no_geometry_payload() {
         ..ServerConfig::for_tests("scene-preview-e2e")
     })
     .await;
-    common::replace_toolchain_body(&server, common::SUCCESS_TOOLCHAIN).await;
     let rpc = |method: &'static str, params: serde_json::Value| {
         common::rpc_with_bearer(&server, server.token(), method, params)
     };
@@ -290,7 +289,6 @@ async fn capabilities_and_runtime_preview_negotiate_a_versioned_packet_url() {
         ..ServerConfig::for_tests("packet-preview")
     })
     .await;
-    common::replace_toolchain_body(&server, common::SUCCESS_TOOLCHAIN).await;
 
     let capabilities = common::rpc_with_bearer(
         &server,

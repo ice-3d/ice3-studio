@@ -1,0 +1,3 @@
+# Synthetic OBJ without triangle geometry
+o EmptyEquipment
+mtllib synthetic-plant.mtl

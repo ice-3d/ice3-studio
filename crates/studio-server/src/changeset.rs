@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rand::RngCore;
@@ -141,7 +140,7 @@ pub(crate) fn export_candidate_preview(
     digest: &str,
 ) -> Result<CandidatePreview, RpcError> {
     let prepared = prepare_candidate_preview(session, digest)?;
-    let adapter = PreviewAdapter::from_service(Arc::clone(&session.toolchain));
+    let adapter = PreviewAdapter::new();
     match adapter.generate_candidate(&prepared.document, &prepared.project_dir, &prepared.digest) {
         Ok(preview) => Ok(preview),
         Err(error) => {

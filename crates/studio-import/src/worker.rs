@@ -1,12 +1,23 @@
+#[cfg(all(feature = "jt", unix))]
+use std::fs::OpenOptions;
+#[cfg(all(feature = "jt", unix))]
+use std::io::Seek;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+#[cfg(not(feature = "jt"))]
+use std::process::Child;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "jt")]
+use command_group::CommandGroup;
+
+#[cfg(feature = "jt")]
+use crate::jt::JT_CONVERTER_PGID_ENV;
 use crate::{
     ImportError, ImportRequest, ImportWarning, NativeImportLimits, SourceImporter,
     SourceImporterRegistry, WorkerLimits, validate_scene_limits,
@@ -17,6 +28,13 @@ const MAX_WORKER_REQUEST_BYTES: usize = 1_048_576;
 const MAX_WORKER_RESPONSE_BYTES: usize = 536_870_912;
 const MAX_WORKER_STDERR_BYTES: usize = 1_048_576;
 const WORKER_POLL_INTERVAL: Duration = Duration::from_millis(10);
+#[cfg(feature = "jt")]
+const WORKER_TERMINATE_GRACE: Duration = Duration::from_secs(1);
+
+#[cfg(feature = "jt")]
+type WorkerChild = command_group::GroupChild;
+#[cfg(not(feature = "jt"))]
+type WorkerChild = Child;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkerRequest {
@@ -106,16 +124,17 @@ where
         file.sync_all()?;
     }
     let response_path = response_path_for_request(&request_path)?;
+    let converter_group_path = temp.path().join("converter.pgid");
 
     let mut command = launch(&request_path)?;
-    let mut child = command
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    let stderr = child
-        .stderr
-        .take()
+        .stderr(Stdio::piped());
+    #[cfg(feature = "jt")]
+    command.env(JT_CONVERTER_PGID_ENV, &converter_group_path);
+    let mut child = spawn_worker(&mut command)?;
+    let stderr = take_worker_stderr(&mut child)
         .ok_or_else(|| ImportError::WorkerFailed("worker stderr was unavailable".into()))?;
     let stderr_exceeded = Arc::new(AtomicBool::new(false));
     let stderr_exceeded_by_reader = Arc::clone(&stderr_exceeded);
@@ -133,6 +152,7 @@ where
         started,
         limits.timeout,
         Arc::clone(&stderr_exceeded),
+        &converter_group_path,
     )?;
     let stderr_bytes = stderr_reader
         .join()
@@ -303,22 +323,30 @@ struct WorkerOutcome {
 }
 
 fn wait_for_worker(
-    child: &mut Child,
+    child: &mut WorkerChild,
     started: Instant,
     timeout: Duration,
     stderr_exceeded: Arc<AtomicBool>,
+    converter_group_path: &Path,
 ) -> Result<WorkerOutcome, ImportError> {
     loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok(WorkerOutcome {
-                status,
-                timed_out: false,
-                stderr_exceeded: stderr_exceeded.load(Ordering::Acquire),
-            });
+        match worker_try_wait(child) {
+            Ok(Some(status)) => {
+                terminate_recorded_converter_group(converter_group_path)?;
+                return Ok(WorkerOutcome {
+                    status,
+                    timed_out: false,
+                    stderr_exceeded: stderr_exceeded.load(Ordering::Acquire),
+                });
+            }
+            Ok(None) => {}
+            Err(error) => {
+                finish_worker_cleanup(child, converter_group_path)?;
+                return Err(ImportError::Io(error));
+            }
         }
         if stderr_exceeded.load(Ordering::Acquire) {
-            let _ = child.kill();
-            let status = child.wait()?;
+            let status = finish_worker_cleanup(child, converter_group_path)?;
             return Ok(WorkerOutcome {
                 status,
                 timed_out: false,
@@ -326,8 +354,7 @@ fn wait_for_worker(
             });
         }
         if started.elapsed() >= timeout {
-            let _ = child.kill();
-            let status = child.wait()?;
+            let status = finish_worker_cleanup(child, converter_group_path)?;
             return Ok(WorkerOutcome {
                 status,
                 timed_out: true,
@@ -336,6 +363,244 @@ fn wait_for_worker(
         }
         std::thread::sleep(WORKER_POLL_INTERVAL);
     }
+}
+
+fn finish_worker_cleanup(
+    child: &mut WorkerChild,
+    converter_group_path: &Path,
+) -> Result<std::process::ExitStatus, ImportError> {
+    let first_converter_cleanup = terminate_recorded_converter_group(converter_group_path);
+    let worker_cleanup = terminate_worker(child);
+    let worker_status = worker_cleanup.is_ok().then(|| worker_wait(child));
+    let final_converter_cleanup = terminate_recorded_converter_group(converter_group_path);
+
+    first_converter_cleanup.map_err(|error| {
+        ImportError::WorkerFailed(format!("pre-worker converter cleanup failed: {error}"))
+    })?;
+    worker_cleanup.map_err(|error| {
+        ImportError::WorkerFailed(format!("worker termination failed: {error}"))
+    })?;
+    let status = worker_status
+        .ok_or_else(|| ImportError::WorkerFailed("worker was not terminated".into()))?
+        .map_err(|error| ImportError::WorkerFailed(format!("worker wait failed: {error}")))?;
+    final_converter_cleanup.map_err(|error| {
+        ImportError::WorkerFailed(format!("final converter cleanup failed: {error}"))
+    })?;
+    Ok(status)
+}
+
+#[cfg(feature = "jt")]
+fn spawn_worker(command: &mut Command) -> std::io::Result<WorkerChild> {
+    let mut group = command.group();
+    #[cfg(windows)]
+    group.kill_on_drop(true);
+    group.spawn()
+}
+
+#[cfg(not(feature = "jt"))]
+fn spawn_worker(command: &mut Command) -> std::io::Result<WorkerChild> {
+    command.spawn()
+}
+
+#[cfg(feature = "jt")]
+fn take_worker_stderr(child: &mut WorkerChild) -> Option<std::process::ChildStderr> {
+    child.inner().stderr.take()
+}
+
+#[cfg(not(feature = "jt"))]
+fn take_worker_stderr(child: &mut WorkerChild) -> Option<std::process::ChildStderr> {
+    child.stderr.take()
+}
+
+fn worker_try_wait(child: &mut WorkerChild) -> std::io::Result<Option<std::process::ExitStatus>> {
+    child.try_wait()
+}
+
+fn worker_wait(child: &mut WorkerChild) -> std::io::Result<std::process::ExitStatus> {
+    child.wait()
+}
+
+fn terminate_worker(child: &mut WorkerChild) -> std::io::Result<()> {
+    #[cfg(all(feature = "jt", unix))]
+    {
+        use command_group::{Signal, UnixChildExt};
+        if let Err(error) = child.signal(Signal::SIGTERM) {
+            return if process_is_gone(&error) {
+                Ok(())
+            } else {
+                Err(error)
+            };
+        }
+        std::thread::sleep(WORKER_TERMINATE_GRACE);
+        if worker_leader_has_exited(child)? {
+            if let Err(error) = child.kill()
+                && !matches!(error.raw_os_error(), Some(libc::EPERM) | Some(libc::ESRCH))
+                && !process_is_gone(&error)
+            {
+                return Err(error);
+            }
+            return Ok(());
+        }
+        if let Err(error) = child.kill()
+            && !process_is_gone(&error)
+        {
+            return Err(error);
+        }
+        Ok(())
+    }
+    #[cfg(all(feature = "jt", windows))]
+    {
+        if let Err(error) = child.kill()
+            && !process_is_gone(&error)
+        {
+            return Err(error);
+        }
+        Ok(())
+    }
+    #[cfg(not(feature = "jt"))]
+    {
+        if let Err(error) = child.kill()
+            && !process_is_gone(&error)
+        {
+            return Err(error);
+        }
+        Ok(())
+    }
+}
+
+fn process_is_gone(error: &std::io::Error) -> bool {
+    let gone = matches!(
+        error.kind(),
+        std::io::ErrorKind::InvalidInput | std::io::ErrorKind::NotFound
+    );
+    #[cfg(all(feature = "jt", unix))]
+    {
+        gone || matches!(error.raw_os_error(), Some(libc::ESRCH))
+    }
+    #[cfg(any(not(feature = "jt"), windows))]
+    {
+        gone
+    }
+}
+
+#[cfg(all(feature = "jt", unix))]
+fn worker_leader_has_exited(child: &WorkerChild) -> std::io::Result<bool> {
+    let mut info = std::mem::MaybeUninit::<libc::siginfo_t>::zeroed();
+    let result = unsafe {
+        libc::waitid(
+            libc::P_PID,
+            child.id() as libc::id_t,
+            info.as_mut_ptr(),
+            libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+        )
+    };
+    if result != 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    let info = unsafe { info.assume_init() };
+    Ok(unsafe { info.si_pid() } != 0)
+}
+
+#[cfg(all(feature = "jt", unix))]
+fn terminate_recorded_converter_group(path: &Path) -> Result<(), ImportError> {
+    let mut file = match OpenOptions::new().read(true).write(true).open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(ImportError::Io(error)),
+    };
+    lock_rendezvous(&file).map_err(|error| {
+        ImportError::WorkerFailed(format!("converter rendezvous lock failed: {error}"))
+    })?;
+    let mut state = String::new();
+    file.seek(std::io::SeekFrom::Start(0)).map_err(|error| {
+        ImportError::WorkerFailed(format!("converter rendezvous seek failed: {error}"))
+    })?;
+    file.read_to_string(&mut state).map_err(|error| {
+        ImportError::WorkerFailed(format!("converter rendezvous read failed: {error}"))
+    })?;
+    let cleanup = match state.trim() {
+        "closed" => Ok(()),
+        value => match value
+            .strip_prefix("active ")
+            .and_then(|value| value.parse::<i32>().ok())
+            .filter(|value| *value > 0)
+        {
+            Some(pgid) => {
+                let terminate =
+                    signal_process_group(-pgid, libc::SIGTERM, false).map_err(|error| {
+                        ImportError::WorkerFailed(format!(
+                            "converter group terminate failed: {error}"
+                        ))
+                    });
+                std::thread::sleep(WORKER_TERMINATE_GRACE);
+                let force = signal_process_group(-pgid, libc::SIGKILL, true).map_err(|error| {
+                    ImportError::WorkerFailed(format!("converter group kill failed: {error}"))
+                });
+                terminate.and(force)
+            }
+            None => Err(ImportError::WorkerFailed(
+                "converter process group is invalid".into(),
+            )),
+        },
+    };
+    let removal = match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(ImportError::WorkerFailed(format!(
+            "converter rendezvous removal failed: {error}"
+        ))),
+    };
+    let unlock = unlock_rendezvous(&file).map_err(|error| {
+        ImportError::WorkerFailed(format!("converter rendezvous unlock failed: {error}"))
+    });
+    cleanup?;
+    removal?;
+    unlock
+}
+
+#[cfg(all(feature = "jt", unix))]
+fn lock_rendezvous(file: &std::fs::File) -> Result<(), ImportError> {
+    use std::os::fd::AsRawFd;
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } == 0 {
+        Ok(())
+    } else {
+        Err(ImportError::Io(std::io::Error::last_os_error()))
+    }
+}
+
+#[cfg(all(feature = "jt", unix))]
+fn unlock_rendezvous(file: &std::fs::File) -> Result<(), ImportError> {
+    use std::os::fd::AsRawFd;
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_UN) } == 0 {
+        Ok(())
+    } else {
+        Err(ImportError::Io(std::io::Error::last_os_error()))
+    }
+}
+
+#[cfg(all(feature = "jt", unix))]
+fn signal_process_group(
+    pgid: i32,
+    signal: i32,
+    eperm_means_no_live_members: bool,
+) -> Result<(), ImportError> {
+    let result = unsafe { libc::kill(pgid, signal) };
+    if result == 0 {
+        return Ok(());
+    }
+    let error = std::io::Error::last_os_error();
+    if error.raw_os_error() == Some(libc::ESRCH)
+        || (eperm_means_no_live_members && error.raw_os_error() == Some(libc::EPERM))
+    {
+        Ok(())
+    } else {
+        Err(ImportError::Io(error))
+    }
+}
+
+#[cfg(any(not(feature = "jt"), windows))]
+fn terminate_recorded_converter_group(_path: &Path) -> Result<(), ImportError> {
+    Ok(())
 }
 
 fn collect_bounded_stderr(
@@ -701,5 +966,42 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_WORKER_OUTPUT_TOO_LARGE");
+    }
+
+    #[cfg(all(feature = "jt", unix))]
+    #[test]
+    fn converter_rendezvous_closed_state_is_not_signalled() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("converter.pgid");
+        std::fs::write(&path, b"closed\n").unwrap();
+
+        terminate_recorded_converter_group(&path).unwrap();
+
+        assert!(!path.exists(), "closed rendezvous was not removed");
+    }
+
+    #[cfg(all(feature = "jt", unix))]
+    #[test]
+    fn invalid_converter_rendezvous_is_an_error_and_is_removed() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("converter.pgid");
+        std::fs::write(&path, b"active invalid\n").unwrap();
+
+        let error = terminate_recorded_converter_group(&path).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "source import worker failed: converter process group is invalid"
+        );
+        assert!(!path.exists(), "invalid rendezvous was left behind");
+    }
+
+    #[cfg(all(feature = "jt", unix))]
+    #[test]
+    fn permission_errors_do_not_mean_the_process_is_gone() {
+        let error = std::io::Error::from_raw_os_error(libc::EPERM);
+        assert!(!process_is_gone(&error));
+        let gone = std::io::Error::from_raw_os_error(libc::ESRCH);
+        assert!(process_is_gone(&gone));
     }
 }

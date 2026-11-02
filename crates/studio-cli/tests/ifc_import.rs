@@ -12,7 +12,7 @@ const MAX_TRIANGLES_ENV: &str = "ICE3_STUDIO_IMPORT_MAX_TRIANGLES";
 #[test]
 fn imports_ifc_through_the_internal_worker() {
     let result = run_import(
-        &toolchain_fixture("ifc/synthetic-plant.ifc"),
+        &source_fixture("ifc/synthetic-plant.ifc"),
         "ifc",
         "ifc-fixture",
         false,
@@ -34,7 +34,7 @@ fn imports_ifc_through_the_internal_worker() {
 #[test]
 fn auto_selects_ifc_from_the_extension() {
     let result = run_import(
-        &toolchain_fixture("ifc/synthetic-plant.ifc"),
+        &source_fixture("ifc/synthetic-plant.ifc"),
         "auto",
         "auto-ifc",
         false,
@@ -70,7 +70,7 @@ fn empty_and_truncated_ifc_do_not_publish_output() {
         ("ifc/empty-model.ifc", "ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY"),
         ("ifc/truncated.ifc", "ICE3_STUDIO_IMPORT_INVALID_SOURCE"),
     ] {
-        let result = run_import(&toolchain_fixture(fixture), "ifc", "ifc-failure", false);
+        let result = run_import(&source_fixture(fixture), "ifc", "ifc-failure", false);
         assert!(!result.output.status.success());
         assert!(
             String::from_utf8_lossy(&result.output.stderr).contains(expected_code),
@@ -87,7 +87,7 @@ fn limit_failure_code_crosses_the_worker_boundary() {
     let root = tempfile::tempdir().unwrap();
     let output_path = root.path().join("ifc.glb");
     let result = run_import_at_path(
-        &toolchain_fixture("ifc/synthetic-plant.ifc"),
+        &source_fixture("ifc/synthetic-plant.ifc"),
         "ifc",
         "ifc-limit",
         &output_path,
@@ -109,7 +109,7 @@ fn timeout_does_not_replace_existing_output() {
     let output_path = root.path().join("ifc.glb");
     std::fs::write(&output_path, b"keep").unwrap();
     let result = run_import_at_path(
-        &toolchain_fixture("ifc/synthetic-plant.ifc"),
+        &source_fixture("ifc/synthetic-plant.ifc"),
         "ifc",
         "ifc-timeout",
         &output_path,
@@ -129,7 +129,7 @@ fn assert_failure_preserves_output(fixture: &str, expected_code: &str) {
     let output_path = root.path().join("ifc.glb");
     std::fs::write(&output_path, b"keep").unwrap();
     let result = run_import_at_path(
-        &toolchain_fixture(fixture),
+        &source_fixture(fixture),
         "ifc",
         "ifc-failure",
         &output_path,
@@ -188,9 +188,9 @@ fn studio_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_studio-cli"))
 }
 
-fn toolchain_fixture(name: &str) -> PathBuf {
+fn source_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(name)
 }
 

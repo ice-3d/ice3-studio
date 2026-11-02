@@ -2019,7 +2019,7 @@ test('compiles only changed typed parameters into instance.update', () => {
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm --prefix apps/viewer test
 ```
 
@@ -2082,7 +2082,7 @@ not add a direct document mutation call.
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm --prefix apps/viewer test
 npm --prefix apps/viewer run typecheck
 ```
@@ -2148,7 +2148,7 @@ plan are now marked `Implemented`, with native GPU execution remaining experimen
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm run verify
 ```
 

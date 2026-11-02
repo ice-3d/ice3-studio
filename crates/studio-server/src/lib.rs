@@ -13,7 +13,6 @@ pub mod reference_asset;
 mod rpc;
 pub mod runtime_tileset;
 pub mod scene_session;
-pub mod toolchain;
 
 pub use events::ServerEvent;
 pub use rpc::{

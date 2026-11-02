@@ -7,7 +7,7 @@ use studio_import::{IfcImporter, SourceFormat};
 #[test]
 fn imports_ifc4x3_hierarchy_geometry_and_metadata() {
     let scene = IfcImporter::new()
-        .import_file(&toolchain_fixture("ifc/synthetic-plant.ifc"), "ifc-fixture")
+        .import_file(&source_fixture("ifc/synthetic-plant.ifc"), "ifc-fixture")
         .unwrap();
 
     assert_eq!(scene.source_format, SourceFormat::Ifc);
@@ -80,9 +80,9 @@ fn preserves_ifc_representation_map_instances() {
     }));
 }
 
-fn toolchain_fixture(relative: &str) -> PathBuf {
+fn source_fixture(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(relative)
 }
 

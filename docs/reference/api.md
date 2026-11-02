@@ -9,6 +9,10 @@
 Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
 路径；所有修改都必须进入事务或 ChangeSet。
 
+`API_VERSION` 当前保持 `1.0`。项目仍处于 pre-release，Phase 5B 已删除
+`system.capabilities.toolchain`，因此该形状变化不承诺向后兼容；客户端必须按当前
+generated schema 解析 capabilities，不能把 `1.0` 当作兼容性承诺。
+
 ## Transport
 
 - `GET /health`：无需认证的进程和 contract health。
@@ -16,7 +20,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 - `GET /ws?token=...`：revision 和 ChangeSet event stream。
 - `GET /schemas/studio-api.schema.json`：生成 JSON Schema。
 - `GET /schemas/studio-types.ts`：生成 TypeScript declaration。
-- `GET /previews/{revision}`：已提交 revision 的 GLB fallback。
+- `GET /previews/{revision}`：已提交 revision 的 Studio 原生 GLB preview。
 - `GET /preview-packets/{revision}`：host policy 开启时的 `ICE3PGP1` preview packet。
 - `GET /preview-packets/candidates/{digest}`：candidate preview packet。
 - `GET /reference-assets/{assetId}/tileset.json`：Reference Asset Tileset。
@@ -50,7 +54,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | 方法 | 写 | 参数 | 返回 |
 |---|---:|---|---|
 | `system.health` | 否 | 无 | API/schema version 和状态 |
-| `system.capabilities` | 否 | 无 | 方法、Toolchain、compute、权限与限制 |
+| `system.capabilities` | 否 | 无 | 方法、compute、权限与限制 |
 | `system.agentManifest` | 否 | 无 | Agent tools、authority 和 workflow |
 | `project.create` | 是 | `{ projectId }` | `{ opened: true }` |
 | `project.open` | 是 | `{ projectId }` | `{ opened: true }` |
@@ -272,9 +276,11 @@ content URI 均相对发布目录。完整 source GLB 只写入项目 `cache/pre
 `stage`。
 
 发布是失败关闭的：输出已存在时默认返回错误；`--force` 先完成全部 staging 写入，再把
-旧目录 rename 为 backup、staging rename 为目标目录。替换失败会恢复旧目录。当前 Toolchain
-仅用于 `scripts/compare-asset-pipelines.mjs` parity 对照，不在 `export tileset` 的生产
-调用图中。
+旧目录 rename 为 backup、staging rename 为目标目录。替换失败会恢复旧目录。
+`scripts/compare-asset-pipelines.mjs` 对连续两次 Studio 导出执行结构、Selection、
+Tileset bounds、相对 URI 和字节确定性检查，不进入 Studio runtime；JT Source Import
+由 Studio isolated worker 调用 host-owned converter 完成，不在 `export tileset`
+的生产调用图中。
 
 ## Event 与 Revision
 
@@ -296,4 +302,3 @@ content URI 均相对发布目录。完整 source GLB 只写入项目 `cache/pre
 - `ICE3-STUDIO-REF-001` — [能力清单](capabilities.md)
 - `ICE3-STUDIO-REF-003` — [ChangeSet 审阅](change-sets.md)
 - `ICE3-STUDIO-REF-004` — [Diagnostics](diagnostics.md)
-- `ICE3-STUDIO-REF-005` — [Toolchain Sidecar](toolchain-sidecar.md)

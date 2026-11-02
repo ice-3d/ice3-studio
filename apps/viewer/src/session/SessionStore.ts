@@ -7,7 +7,6 @@ import type {
   StudioReferenceBindingEntry,
   StudioReferenceBindingPage,
   StudioTransform,
-  ToolchainStatus,
 } from '../api/StudioClient';
 import { ExternalStore } from '../shared/ExternalStore';
 
@@ -45,7 +44,6 @@ export type SessionSnapshot = {
   selectionIds: string[];
   connection: 'connecting' | 'connected' | 'error';
   previewUrl: string | null;
-  toolchain: ToolchainStatus | null;
   compute: ComputeStatus | null;
   reference: StudioReferenceSession | null;
 };
@@ -62,7 +60,6 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
       selectionIds: [],
       connection: 'connecting',
       previewUrl: null,
-      toolchain: null,
       compute: null,
       reference: null,
     });
@@ -86,7 +83,6 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
         diagnostics,
         connection: 'connected',
         previewUrl: this.snapshot.previewUrl,
-        toolchain: capabilities?.toolchain ?? this.snapshot.toolchain,
         compute: capabilities?.compute ?? this.snapshot.compute,
         reference,
       });

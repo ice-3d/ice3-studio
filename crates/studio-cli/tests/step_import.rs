@@ -12,7 +12,7 @@ const MAX_TRIANGLES_ENV: &str = "ICE3_STUDIO_IMPORT_MAX_TRIANGLES";
 #[test]
 fn imports_step_through_the_internal_worker() {
     let result = run_import(
-        &toolchain_fixture("step/synthetic-skid.step"),
+        &source_fixture("step/synthetic-skid.step"),
         "step",
         "step-fixture",
         false,
@@ -34,7 +34,7 @@ fn imports_step_through_the_internal_worker() {
 #[test]
 fn auto_selects_step_from_the_source_extension() {
     let result = run_import(
-        &toolchain_fixture("step/synthetic-skid.step"),
+        &source_fixture("step/synthetic-skid.step"),
         "auto",
         "auto-step",
         false,
@@ -53,7 +53,7 @@ fn auto_selects_step_from_the_source_extension() {
 fn auto_selects_step_from_the_stp_extension() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("synthetic-skid.stp");
-    std::fs::copy(toolchain_fixture("step/synthetic-skid.step"), &source).unwrap();
+    std::fs::copy(source_fixture("step/synthetic-skid.step"), &source).unwrap();
     let output_path = root.path().join("step.glb");
 
     let output = run_import_at_path(&source, "auto", "auto-stp", &output_path, false)
@@ -76,7 +76,7 @@ fn truncated_step_does_not_replace_existing_output() {
     std::fs::write(&output_path, b"keep").unwrap();
 
     let result = run_import_at_path(
-        &toolchain_fixture("step/truncated.step"),
+        &source_fixture("step/truncated.step"),
         "step",
         "step-truncated",
         &output_path,
@@ -94,7 +94,7 @@ fn truncated_step_does_not_replace_existing_output() {
 fn non_ap242_step_is_rejected_with_a_stable_code() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("ap214.step");
-    let original = std::fs::read_to_string(toolchain_fixture("step/synthetic-skid.step")).unwrap();
+    let original = std::fs::read_to_string(source_fixture("step/synthetic-skid.step")).unwrap();
     std::fs::write(
         &source,
         original.replace(
@@ -123,7 +123,7 @@ fn limit_failure_code_crosses_the_worker_boundary() {
     let root = tempfile::tempdir().unwrap();
     let output_path = root.path().join("step.glb");
     let result = run_import_at_path(
-        &toolchain_fixture("step/synthetic-skid.step"),
+        &source_fixture("step/synthetic-skid.step"),
         "step",
         "step-limit",
         &output_path,
@@ -145,7 +145,7 @@ fn timeout_does_not_replace_existing_output() {
     let output_path = root.path().join("step.glb");
     std::fs::write(&output_path, b"keep").unwrap();
     let result = run_import_at_path(
-        &toolchain_fixture("step/synthetic-skid.step"),
+        &source_fixture("step/synthetic-skid.step"),
         "step",
         "step-timeout",
         &output_path,
@@ -201,9 +201,9 @@ fn studio_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_studio-cli"))
 }
 
-fn toolchain_fixture(name: &str) -> PathBuf {
+fn source_fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../ice3-toolchain/tests/fixtures")
+        .join("../../fixtures/source-import")
         .join(name)
 }
 

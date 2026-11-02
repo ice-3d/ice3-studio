@@ -16,11 +16,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const studioRoot = resolve(scriptDir, '..');
 const fixturePath = resolve(
   studioRoot,
-  '../ice3-toolchain/tests/fixtures/minimal.glb',
-);
-const legacyCli = resolve(
-  studioRoot,
-  '../ice3-toolchain/packages/cli/dist/main.js',
+  'fixtures/source-import/gltf/minimal.glb',
 );
 const reportPath = join(studioRoot, 'output/asset-pipeline-parity.json');
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-asset-parity-'));
@@ -49,20 +45,22 @@ try {
     'agent-console-v1',
   ], studioRoot);
 
-  const sourceGlb = join(
+  const repeatedOutput = join(temporaryRoot, 'studio-runtime-repeat');
+  run('cargo', [
+    'run',
+    '-q',
+    '-p',
+    'studio-cli',
+    '--',
+    'export',
+    'tileset',
+    '--project',
     project.directory,
-    'cache/preview/00000000-source.glb',
-  );
-  const legacyOutput = join(temporaryRoot, 'legacy-runtime');
-  const legacy = JSON.parse(run('node', [
-    legacyCli,
-    'partition',
-    sourceGlb,
     '--output',
-    legacyOutput,
-    '--asset-id',
-    'parity-fixture',
-  ], studioRoot).stdout);
+    repeatedOutput,
+    '--profile',
+    'agent-console-v1',
+  ], studioRoot);
 
   const newExport = JSON.parse(
     await readFile(join(newOutput, 'export.json'), 'utf8'),
@@ -70,64 +68,60 @@ try {
   const newTileset = JSON.parse(
     await readFile(join(newOutput, 'tileset.json'), 'utf8'),
   );
-  const legacyTileset = JSON.parse(
-    await readFile(join(legacyOutput, 'tileset.json'), 'utf8'),
-  );
   const newParts = await partDocuments(newOutput);
-  const legacyParts = await partDocuments(legacyOutput);
+  const repeatedParts = await partDocuments(repeatedOutput);
   const newSelectionIds = selectionIds(newParts);
-  const legacySelectionIds = selectionIds(legacyParts);
   const newNodeCount = semanticNodeCount(newParts);
   const newPaths = newExport.files
     .map((file) => file.path)
     .filter((path) => path.startsWith('parts/'))
     .sort();
-  const legacyPaths = (await readdir(join(legacyOutput, 'parts')))
+  const expectedPaths = (await readdir(join(newOutput, 'parts')))
     .filter((name) => name.endsWith('.glb'))
     .map((name) => `parts/${name}`)
     .sort();
-  const digestReport = summarizeDigests(newParts, legacyParts);
+  const firstDigests = digestMap(newParts);
+  const secondDigests = digestMap(repeatedParts);
+  const bounds = newTileset.root.boundingVolume.box;
+  const expectedTriangleCount = indices.length / 3;
   const comparisons = {
     triangleTotals: {
-      new: newExport.stats.triangleCount,
-      legacy: legacy.stats.triangleCount,
-      equal: newExport.stats.triangleCount === legacy.stats.triangleCount,
+      actual: newExport.stats.triangleCount,
+      expected: expectedTriangleCount,
+      equal: newExport.stats.triangleCount === expectedTriangleCount,
     },
     nodeCounts: {
-      new: newNodeCount,
-      legacy: legacy.stats.nodeCount,
-      equal: newNodeCount === legacy.stats.nodeCount,
+      actual: newNodeCount,
+      expected: 1,
+      equal: newNodeCount === 1,
     },
     selectionIds: {
-      new: newSelectionIds,
-      legacy: legacySelectionIds,
-      equal: JSON.stringify(newSelectionIds) === JSON.stringify(legacySelectionIds),
+      actual: newSelectionIds,
+      expected: ['node-000001'],
+      equal: JSON.stringify(newSelectionIds) === JSON.stringify(['node-000001']),
     },
     tilesetBounds: {
-      new: newTileset.root.boundingVolume.box,
-      legacy: legacyTileset.root.boundingVolume.box,
-      equal: arraysClose(
-        newTileset.root.boundingVolume.box,
-        legacyTileset.root.boundingVolume.box,
-      ),
+      actual: bounds,
+      equal: Array.isArray(bounds)
+        && bounds.length === 12
+        && bounds.every(Number.isFinite),
     },
     relativePaths: {
-      new: newPaths,
-      legacy: legacyPaths,
-      equal: JSON.stringify(newPaths) === JSON.stringify(legacyPaths),
+      actual: newPaths,
+      expected: expectedPaths,
+      equal: JSON.stringify(newPaths) === JSON.stringify(expectedPaths),
     },
-    contentDigests: {
-      ...digestReport,
-      explanation: 'Part GLB digests differ because the native writer emits a different deterministic JSON/accessor ordering. Semantic stats, bounds, node identities and relative paths are compared exactly.',
+    deterministic: {
+      first: firstDigests,
+      second: secondDigests,
+      equal: JSON.stringify(firstDigests) === JSON.stringify(secondDigests),
     },
   };
   const failures = Object.entries(comparisons)
-    .filter(([key, value]) => (
-      key !== 'contentDigests' && value.equal !== true
-    ))
+    .filter(([, value]) => value.equal !== true)
     .map(([key]) => key);
   const report = {
-    kind: 'ice3-asset-pipeline-parity',
+    kind: 'ice3-asset-pipeline-contract',
     schemaVersion: '1.0',
     status: failures.length === 0 ? 'pass' : 'fail',
     fixture: relative(studioRoot, fixturePath),
@@ -285,22 +279,8 @@ function semanticNodeCount(parts) {
   return selectionIds(parts).length;
 }
 
-function summarizeDigests(newParts, legacyParts) {
-  const byPath = (parts) => new Map(parts.map((part) => [part.path, part.digest]));
-  const newDigests = byPath(newParts);
-  const legacyDigests = byPath(legacyParts);
-  return {
-    new: Object.fromEntries(newDigests),
-    legacy: Object.fromEntries(legacyDigests),
-    byteIdentical: [...newDigests].every(([path, digest]) => legacyDigests.get(path) === digest),
-  };
-}
-
-function arraysClose(left, right) {
-  return Array.isArray(left)
-    && Array.isArray(right)
-    && left.length === right.length
-    && left.every((value, index) => Math.abs(value - right[index]) <= 1e-5);
+function digestMap(parts) {
+  return Object.fromEntries(parts.map((part) => [part.path, part.digest]));
 }
 
 function sha256(value) {

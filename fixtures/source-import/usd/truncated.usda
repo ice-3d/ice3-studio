@@ -1,0 +1,10 @@
+#usda 1.0
+(
+    defaultPrim = "Plant"
+)
+
+def Xform "Plant"
+{
+    def Mesh "Broken"
+    {
+        point3f[] points = [(0, 0, 0)

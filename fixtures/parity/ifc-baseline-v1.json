@@ -4,8 +4,9 @@
   "assetId": "parity-ifc",
   "fixtures": {
     "syntheticPlant": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc",
-      "sourceDigest": "2517ba5b269b3db9d500dc2a81f81adb9a387d90032454d41ee23a4f2cf5c008",
+      "fixture": "fixtures/source-import/ifc/synthetic-plant.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/synthetic-plant.ifc",
+      "sourceDigest": "8caa759266cd9cc45abcf04f378f25918bb868597183a74fec8e9209d8e11350",
       "tool": {
         "name": "ice3-toolchain",
         "version": "0.2.0"
@@ -241,8 +242,9 @@
       "warningCodes": []
     },
     "duplicateGlobalId": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/duplicate-global-id.ifc",
-      "sourceDigest": "a72e52eb042bcbb82b507087f406acac7d858b5f3a2bbcb6c3f808672552ba1a",
+      "fixture": "fixtures/source-import/ifc/duplicate-global-id.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/duplicate-global-id.ifc",
+      "sourceDigest": "a313a03a11dd533d64f57ace297fda373d92b7de1b555e93b923047f23d9d921",
       "tool": {
         "name": "ice3-toolchain",
         "version": "0.2.0"
@@ -482,8 +484,9 @@
       ]
     },
     "missingGlobalId": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/missing-global-id.ifc",
-      "sourceDigest": "d407ddf6579aba0c4c495cdfd565a3a3a8c6c1a290a119d54278d1212bd79422",
+      "fixture": "fixtures/source-import/ifc/missing-global-id.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/missing-global-id.ifc",
+      "sourceDigest": "4a9c731b3279b588790a5935ef442c709660dd495acf3d537a84519a2ad2f6a4",
       "tool": {
         "name": "ice3-toolchain",
         "version": "0.2.0"
@@ -719,8 +722,9 @@
       "warningCodes": []
     },
     "orphanProduct": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/orphan-product.ifc",
-      "sourceDigest": "045f50e904c61cb04a689445460aee00dd78861b7334419c8a3e6128663cdfb0",
+      "fixture": "fixtures/source-import/ifc/orphan-product.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/orphan-product.ifc",
+      "sourceDigest": "f9d6d1eef67d07b000b07715bd431c0ee4e67de9dc408a0df0414856a84427e5",
       "tool": {
         "name": "ice3-toolchain",
         "version": "0.2.0"
@@ -996,8 +1000,9 @@
       ]
     },
     "semanticOnlyProduct": {
-      "fixture": "../ice3-toolchain/tests/fixtures/ifc/semantic-only-product.ifc",
-      "sourceDigest": "25a10e7b200f2d630a195c7fca7b3f7c23dd85f9722c213f7db6bc06f296c2fd",
+      "fixture": "fixtures/source-import/ifc/semantic-only-product.ifc",
+      "retiredFixture": "../ice3-toolchain/tests/fixtures/ifc/semantic-only-product.ifc",
+      "sourceDigest": "4cb8cf40c6a0723c80ff8829e57885b9767c52a881964a46990e956d30571ced",
       "tool": {
         "name": "ice3-toolchain",
         "version": "0.2.0"

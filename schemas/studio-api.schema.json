@@ -2741,11 +2741,6 @@
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
             "ICE3_STUDIO_PERSISTENCE_FAILED",
-            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
-            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
-            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
-            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
-            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
             "ICE3_STUDIO_COMPONENT_INVALID",
             "ICE3_STUDIO_PARAMETER_INVALID",
             "ICE3_STUDIO_INSTANCE_INVALID",
@@ -3447,53 +3442,6 @@
             "phases"
           ],
           "type": "object"
-        },
-        "ToolchainState": {
-          "enum": [
-            "starting",
-            "ready",
-            "busy",
-            "unavailable",
-            "incompatible",
-            "failed"
-          ],
-          "type": "string"
-        },
-        "ToolchainStatus": {
-          "properties": {
-            "capabilities": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "contractVersion": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "packageVersion": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "reason": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "state": {
-              "$ref": "#/$defs/ToolchainState"
-            }
-          },
-          "required": [
-            "state",
-            "capabilities"
-          ],
-          "type": "object"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3520,16 +3468,12 @@
           "format": "uint32",
           "minimum": 0,
           "type": "integer"
-        },
-        "toolchain": {
-          "$ref": "#/$defs/ToolchainStatus"
         }
       },
       "required": [
         "apiVersion",
         "schemaVersion",
         "methods",
-        "toolchain",
         "compute",
         "access",
         "limits"
@@ -4013,11 +3957,6 @@
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
             "ICE3_STUDIO_PERSISTENCE_FAILED",
-            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
-            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
-            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
-            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
-            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
             "ICE3_STUDIO_COMPONENT_INVALID",
             "ICE3_STUDIO_PARAMETER_INVALID",
             "ICE3_STUDIO_INSTANCE_INVALID",
@@ -11775,11 +11714,6 @@
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
             "ICE3_STUDIO_PERSISTENCE_FAILED",
-            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
-            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
-            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
-            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
-            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
             "ICE3_STUDIO_COMPONENT_INVALID",
             "ICE3_STUDIO_PARAMETER_INVALID",
             "ICE3_STUDIO_INSTANCE_INVALID",
@@ -16366,11 +16300,6 @@
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
             "ICE3_STUDIO_PERSISTENCE_FAILED",
-            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
-            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
-            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
-            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
-            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
             "ICE3_STUDIO_COMPONENT_INVALID",
             "ICE3_STUDIO_PARAMETER_INVALID",
             "ICE3_STUDIO_INSTANCE_INVALID",
@@ -16761,11 +16690,6 @@
             "ICE3_STUDIO_EXPORT_FAILED",
             "ICE3_STUDIO_RUNTIME_PREVIEW_FAILED",
             "ICE3_STUDIO_PERSISTENCE_FAILED",
-            "ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE",
-            "ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE",
-            "ICE3_STUDIO_TOOLCHAIN_TIMEOUT",
-            "ICE3_STUDIO_TOOLCHAIN_PROTOCOL_INVALID",
-            "ICE3_STUDIO_TOOLCHAIN_JOB_FAILED",
             "ICE3_STUDIO_COMPONENT_INVALID",
             "ICE3_STUDIO_PARAMETER_INVALID",
             "ICE3_STUDIO_INSTANCE_INVALID",

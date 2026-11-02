@@ -1,4 +1,6 @@
 use std::path::{Path, PathBuf};
+#[cfg(feature = "jt")]
+use std::time::Duration;
 
 use serde::Serialize;
 use sha2::Digest;
@@ -8,11 +10,21 @@ use studio_assets::{AssetError, read_glb_bytes, validate_prepared_profile};
 use studio_import::FbxImporter;
 #[cfg(feature = "ifc")]
 use studio_import::IfcImporter;
+#[cfg(feature = "jt")]
+use studio_import::JtImporter;
 #[cfg(feature = "step")]
 use studio_import::StepImporter;
 #[cfg(feature = "usd")]
 use studio_import::UsdImporter;
-#[cfg(any(feature = "fbx", feature = "ifc", feature = "step", feature = "usd"))]
+#[cfg(feature = "jt")]
+use studio_import::jt::jt_timeout_from_environment;
+#[cfg(any(
+    feature = "fbx",
+    feature = "ifc",
+    feature = "jt",
+    feature = "step",
+    feature = "usd"
+))]
 use studio_import::run_isolated_import;
 use studio_import::{
     GltfImporter, ImportError, ImportRequest, ImportWarning, NativeImportLimits, ObjImporter,
@@ -78,6 +90,8 @@ pub fn source_importer_registry() -> Result<SourceImporterRegistry, ImportError>
     importers.push(Box::new(StepImporter::new()));
     #[cfg(feature = "ifc")]
     importers.push(Box::new(IfcImporter::new()));
+    #[cfg(feature = "jt")]
+    importers.push(Box::new(JtImporter::new()));
     SourceImporterRegistry::try_new(importers)
 }
 
@@ -162,6 +176,12 @@ pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportComma
         "step" => run_isolated_import(&StepImporter::new(), &request, options.limits)?,
         #[cfg(feature = "ifc")]
         "ifc" => run_isolated_import(&IfcImporter::new(), &request, options.limits)?,
+        #[cfg(feature = "jt")]
+        "jt" => {
+            let limits = jt_worker_limits(options.limits)?;
+            run_isolated_import(&JtImporter::new(), &request, limits)
+                .map_err(map_jt_worker_error)?
+        }
         _ => registry.import(&request)?,
     };
 
@@ -197,6 +217,33 @@ pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportComma
         source_digest,
         bytes: bytes.len(),
     })
+}
+
+#[cfg(feature = "jt")]
+fn jt_worker_limits(
+    mut limits: NativeImportLimits,
+) -> Result<NativeImportLimits, ImportCommandError> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os(DEBUG_WORKER_TIMEOUT_ENV).is_some() {
+        return Ok(limits);
+    }
+    limits.timeout = jt_timeout_from_environment()
+        .map_err(ImportCommandError::Import)?
+        .saturating_add(Duration::from_secs(5));
+    Ok(limits)
+}
+
+#[cfg(feature = "jt")]
+fn map_jt_worker_error(error: ImportError) -> ImportCommandError {
+    if matches!(error, ImportError::WorkerTimeout) {
+        ImportError::SourceDiagnostic {
+            code: "ICE3_STUDIO_IMPORT_JT_TIMEOUT".into(),
+            message: "JT import worker exceeded its timeout".into(),
+        }
+        .into()
+    } else {
+        error.into()
+    }
 }
 
 fn write_atomic_output(output: &Path, bytes: &[u8], force: bool) -> Result<(), ImportCommandError> {

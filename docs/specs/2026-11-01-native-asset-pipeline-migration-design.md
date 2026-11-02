@@ -2,12 +2,13 @@
 
 > Document ID: ICE3-STUDIO-SPEC-016
 >
-> Status: Approved
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
-> **Phase 状态：** Phase 1 至 Phase 4 已实现。后续 JT 和最终 Toolchain 退役仍未实现，
-> 因此整份迁移设计继续保持 `Approved`。
+> **Phase 状态：** Phase 1 至 Phase 5C 已实现。全部 Source Import、preview、
+> partition、LOD、Tileset 和 Studio publication 已迁入 Studio；旧 Toolchain
+> repository 已完成源码清理并成为归档候选。
 
 ## 1. 目标
 
@@ -207,6 +208,12 @@ conformance entry 已删除。
 - 删除 WASM adapter 和对应 Sidecar operation 依赖。
 
 ### Phase 5：JT 与 Toolchain 退役
+
+**状态：Implemented（2026-11-02）。**
+
+JT converter 调用、GLB validation、Selection/metadata、shared origin、隔离 worker、
+负向测试和 legacy parity 已迁入 Studio。Sidecar/client/UI/build 依赖已经删除，
+Toolchain repository 的 JT adapter、Sidecar、release surface 和当前文档入口也已清理。
 
 - 将 JT converter 调用迁入 Studio Import adapter。
 - 跑完整 parity corpus、release package 和负向测试。

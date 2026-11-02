@@ -1,7 +1,11 @@
 {
   "kind": "ice3-step-import-baseline",
   "schemaVersion": "1.0",
-  "fixture": "../ice3-toolchain/tests/fixtures/step/synthetic-skid.step",
+  "fixture": "fixtures/source-import/step/synthetic-skid.step",
+  "retiredBaseline": {
+    "tool": "ice3-toolchain",
+    "fixture": "../ice3-toolchain/tests/fixtures/step/synthetic-skid.step"
+  },
   "assetId": "parity-step",
   "sourceDigest": "424b52ab5afcc5a6452f1307aa443e7a1952e56cd4b97bb571a951b72c0dac59",
   "legacy": {

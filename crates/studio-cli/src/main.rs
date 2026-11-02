@@ -34,7 +34,7 @@ enum Command {
         #[arg(
             long,
             default_value = "auto",
-            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc"]
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
         )]
         adapter: String,
         #[arg(long)]
@@ -103,6 +103,11 @@ enum ExportCommand {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(feature = "jt")]
+    if studio_import::jt::run_jt_converter_supervisor(std::env::args_os().skip(1))? {
+        return Ok(());
+    }
+
     if let Some(request_path) = internal_worker_request()? {
         #[cfg(debug_assertions)]
         if std::env::var_os(TEST_WORKER_CRASH_ENV)
@@ -215,7 +220,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 token: None,
                 fixture,
                 port,
-                toolchain_cli: None,
                 approval_token: None,
                 write_mode,
                 viewer_dir: std::env::var_os("STUDIO_VIEWER_DIR").map(PathBuf::from),
@@ -330,7 +334,7 @@ mod tests {
 
     #[test]
     fn restricts_import_adapters_to_the_native_registry() {
-        for adapter in ["auto", "gltf", "obj", "fbx", "usd"] {
+        for adapter in ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"] {
             let cli = Cli::try_parse_from([
                 "ice3-studio",
                 "import",
