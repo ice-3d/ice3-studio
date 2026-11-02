@@ -2,6 +2,5 @@
 import type { AgentAccess } from "./AgentAccess";
 import type { AgentLimits } from "./AgentLimits";
 import type { ComputeStatus } from "./ComputeStatus";
-import type { ToolchainStatus } from "./ToolchainStatus";
 
-export type Capabilities = { api_version: string, schema_version: number, methods: Array<string>, toolchain: ToolchainStatus, compute: ComputeStatus, access: AgentAccess, limits: AgentLimits, };
+export type Capabilities = { api_version: string, schema_version: number, methods: Array<string>, compute: ComputeStatus, access: AgentAccess, limits: AgentLimits, };

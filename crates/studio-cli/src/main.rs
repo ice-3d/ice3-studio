@@ -215,7 +215,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 token: None,
                 fixture,
                 port,
-                toolchain_cli: None,
                 approval_token: None,
                 write_mode,
                 viewer_dir: std::env::var_os("STUDIO_VIEWER_DIR").map(PathBuf::from),

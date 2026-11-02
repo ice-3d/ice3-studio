@@ -4,6 +4,20 @@ use futures_util::StreamExt;
 use studio_server::{ServerConfig, start_test_server};
 
 #[tokio::test]
+async fn capabilities_do_not_expose_a_retired_asset_driver() {
+    let server = start_test_server(ServerConfig::for_tests("native-capabilities")).await;
+    let response = common::rpc(&server, "system.capabilities", serde_json::json!({})).await;
+
+    assert!(response["result"].get("toolchain").is_none());
+    assert!(
+        response["result"]["methods"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("export.runtimePreview"))
+    );
+}
+
+#[tokio::test]
 async fn health_reports_api_and_schema_versions() {
     let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;
     let body: serde_json::Value = reqwest::get(server.health_url())

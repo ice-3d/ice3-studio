@@ -6,7 +6,6 @@ members = [
     "crates/studio-pipeline",
     "crates/studio-server",
     "crates/studio-cli",
-    "crates/studio-toolchain-client",
     "crates/studio-gpu",
     "crates/studio-import",
 ]

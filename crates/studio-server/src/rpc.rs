@@ -48,8 +48,6 @@ use crate::preview_packet::PACKET_MEDIA_TYPE;
 use crate::scene_session::{
     SceneSourceIndex, build_full_scene_patch, build_scene_patch_with_scene,
 };
-use crate::toolchain::{ToolchainService, ToolchainStatus};
-
 const MAX_RPC_BODY_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone)]
@@ -59,7 +57,6 @@ pub struct ServerConfig {
     pub token: Option<String>,
     pub fixture: Option<PathBuf>,
     pub port: u16,
-    pub toolchain_cli: Option<PathBuf>,
     pub approval_token: Option<String>,
     pub write_mode: WriteMode,
     pub viewer_dir: Option<PathBuf>,
@@ -77,7 +74,6 @@ impl ServerConfig {
             token: Some("test-session-token".into()),
             fixture: None,
             port: 0,
-            toolchain_cli: None,
             approval_token: None,
             write_mode: WriteMode::Autonomous,
             viewer_dir: None,
@@ -144,7 +140,6 @@ pub struct Capabilities {
     pub api_version: String,
     pub schema_version: u32,
     pub methods: Vec<String>,
-    pub toolchain: ToolchainStatus,
     pub compute: ComputeStatus,
     pub access: AgentAccess,
     pub limits: AgentLimits,
@@ -177,8 +172,6 @@ pub(crate) struct Session {
     pub(crate) token: String,
     pub(crate) events: broadcast::Sender<ServerEvent>,
     pub(crate) closed: bool,
-    pub(crate) toolchain_cli: Option<PathBuf>,
-    pub(crate) toolchain: Arc<ToolchainService>,
     pub(crate) compute: Arc<ComputeService>,
     pub(crate) approval_token: String,
     pub(crate) write_mode: WriteMode,
@@ -268,12 +261,6 @@ impl TestServer {
             .subscribe()
     }
 
-    pub async fn set_toolchain_cli(&self, path: PathBuf) {
-        let mut session = self.state.session.lock().expect("session lock");
-        session.toolchain_cli = Some(path.clone());
-        session.toolchain.reconfigure(path);
-    }
-
     pub async fn stop(mut self) {
         self.task.abort();
         let _ = (&mut self.task).await;
@@ -352,7 +339,6 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
         },
         config.fixture.as_deref(),
         config.port,
-        config.toolchain_cli,
         ComputeOptions {
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
@@ -393,7 +379,6 @@ pub async fn start_test_server_at(root: &Path) -> TestServer {
         },
         None,
         config.port,
-        config.toolchain_cli,
         ComputeOptions {
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
@@ -429,9 +414,6 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
         .or_else(|| std::env::var("STUDIO_APPROVAL_TOKEN").ok())
         .unwrap_or_else(|| random_hex(32));
     let bootstrap_token = (config.write_mode == WriteMode::ReviewRequired).then(|| random_hex(32));
-    let toolchain_cli = config
-        .toolchain_cli
-        .or_else(|| std::env::var_os("STUDIO_TOOLCHAIN_CLI").map(PathBuf::from));
     let viewer_dir = config
         .viewer_dir
         .or_else(|| std::env::var_os("STUDIO_VIEWER_DIR").map(PathBuf::from));
@@ -446,7 +428,6 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
         },
         config.fixture.as_deref(),
         config.port,
-        toolchain_cli,
         ComputeOptions {
             mode: config.compute_mode,
             preview_packet_enabled: config.preview_packet_enabled,
@@ -473,7 +454,6 @@ async fn initialize_state(
     credentials: SessionCredentials,
     fixture: Option<&std::path::Path>,
     port: u16,
-    toolchain_cli: Option<PathBuf>,
     compute: ComputeOptions,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
@@ -498,11 +478,6 @@ async fn initialize_state(
         }
     }
     let (events, _) = broadcast::channel(64);
-    let toolchain = Arc::new(ToolchainService::new_with_launch_root(
-        store.project_dir(),
-        root,
-        toolchain_cli.clone(),
-    ));
     let gpu: Arc<dyn GeometryBackend> = Arc::new(NativeGpuBackend::new(GeometryBackendMode::Gpu));
     let compute = Arc::new(ComputeService::new(
         crate::compute::ComputePolicy {
@@ -530,8 +505,6 @@ async fn initialize_state(
             token: credentials.agent_token,
             events,
             closed: false,
-            toolchain_cli,
-            toolchain,
             compute,
             approval_token: credentials.approval_token,
             write_mode: credentials.write_mode,
@@ -971,7 +944,6 @@ fn dispatch(
                 "changeset.commit".into(),
                 "changeset.discard".into(),
             ],
-            toolchain: session.toolchain.status(),
             compute: session.compute.status(),
             access: agent_access(authority),
             limits: AgentLimits::default(),
@@ -1092,16 +1064,9 @@ fn dispatch(
                     )
                 },
             )?;
-            let project_dir = path.project_dir().to_path_buf();
             let store = ProjectStore::create(path).map_err(project_error)?;
             let document = Document::new(params.project_id.clone());
             store.write_snapshot(&document).map_err(project_error)?;
-            let toolchain = Arc::new(ToolchainService::new_with_launch_root(
-                &project_dir,
-                &session.workspace_root,
-                session.toolchain_cli.clone(),
-            ));
-            session.toolchain.shutdown();
             session.store.close();
             session.project_id = params.project_id;
             session.document = document;
@@ -1116,7 +1081,6 @@ fn dispatch(
                             None,
                         )
                     })?;
-            session.toolchain = toolchain;
             session.closed = false;
             reset_scene_session(session);
             Ok(serde_json::json!({ "opened": true }))
@@ -1135,22 +1099,15 @@ fn dispatch(
                 },
             )?;
             let same_project = session.store.project_dir() == path.project_dir();
-            let project_dir = path.project_dir().to_path_buf();
             if same_project {
                 session.store.close();
                 session.closed = true;
             }
             let store = ProjectStore::open(path).map_err(project_error)?;
             let document = store.load_current().map_err(project_error)?;
-            let toolchain = Arc::new(ToolchainService::new_with_launch_root(
-                &project_dir,
-                &session.workspace_root,
-                session.toolchain_cli.clone(),
-            ));
             if !same_project {
                 session.store.close();
             }
-            session.toolchain.shutdown();
             session.project_id = params.project_id;
             session.document = document;
             session.store = store;
@@ -1164,7 +1121,6 @@ fn dispatch(
                             None,
                         )
                     })?;
-            session.toolchain = toolchain;
             session.closed = false;
             reset_scene_session(session);
             Ok(serde_json::json!({ "opened": true }))

@@ -2801,26 +2801,12 @@ dependencies = [
  "studio-gpu",
  "studio-pipeline",
  "studio-project",
- "studio-toolchain-client",
  "tempfile",
  "thiserror",
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
  "tower-http",
- "ts-rs",
-]
-
-[[package]]
-name = "studio-toolchain-client"
-version = "0.1.0"
-dependencies = [
- "schemars",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "thiserror",
  "ts-rs",
 ]
 
