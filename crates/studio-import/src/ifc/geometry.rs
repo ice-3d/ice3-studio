@@ -177,7 +177,7 @@ pub fn project_ifc_scene(
             mesh = template_by_express
                 .get(&instance.template_express_id)
                 .copied();
-            local = row_major_to_y_up(instance.transform);
+            local = rebase_occurrence_matrix(row_major_to_y_up(instance.transform), source_origin);
             instance_group = Some(format!("ifc/instance/{}", instance.rep_identity));
         }
         let parent = spatial_parent_by_element
@@ -209,7 +209,7 @@ pub fn project_ifc_scene(
             id: product.selection_id.clone(),
             name: product.name.clone(),
             parent: Some(parent),
-            world: row_major_to_y_up(instance.transform),
+            world: rebase_occurrence_matrix(row_major_to_y_up(instance.transform), source_origin),
             mesh: template_by_express
                 .get(&instance.template_express_id)
                 .copied(),
@@ -636,6 +636,10 @@ fn row_major_to_y_up(values: [f32; 16]) -> DMat4 {
     to_y_up * matrix * to_y_up.inverse()
 }
 
+fn rebase_occurrence_matrix(matrix: DMat4, source_origin: DVec3) -> DMat4 {
+    DMat4::from_translation(-source_origin) * matrix * DMat4::from_translation(source_origin)
+}
+
 fn ifc_warning(code: &str, message: String) -> ImportWarning {
     ImportWarning {
         code: code.into(),
@@ -707,6 +711,25 @@ mod tests {
                 .iter()
                 .all(|position| { position.iter().all(|value| value.is_finite()) })
         );
+    }
+
+    #[test]
+    fn rebases_rotated_shared_instances_at_a_large_origin() {
+        let source_origin = DVec3::new(16_777_216.0, 0.0, 16_777_216.0);
+        let transform = DMat4::from_translation(DVec3::new(3.0, 0.0, 2.0))
+            * DMat4::from_rotation_y(std::f64::consts::FRAC_PI_2);
+        let rebased = rebase_occurrence_matrix(transform, source_origin);
+
+        let first_local = DVec3::ZERO;
+        let second_local = DVec3::X;
+        let first_world = rebased.transform_point3(first_local);
+        let second_world = rebased.transform_point3(second_local);
+        let expected_first = transform.transform_point3(source_origin) - source_origin;
+        let expected_second = transform.transform_point3(source_origin + DVec3::X) - source_origin;
+
+        assert!((first_world - expected_first).length() < 1e-9);
+        assert!((second_world - expected_second).length() < 1e-9);
+        assert!(((second_world - first_world).length() - 1.0).abs() < 1e-9);
     }
 
     #[test]
