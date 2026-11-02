@@ -14,7 +14,7 @@ FBXHeaderExtension: {
         Second: 48
         Millisecond: 404
     }
-    Creator: "Blender (stable FBX IO) - 5.2.3 LTS - 5.15.0"
+    Creator: "ICE3 (synthetic source) - ICE3 v1.0 - 5.15.0"
     SceneInfo: "GlobalInfo::SceneInfo","UserData" {
         Type: "UserData"
         Version: 100
@@ -31,14 +31,14 @@ FBXHeaderExtension: {
             P: "DocumentUrl","KString","Url","","/foobar.fbx"
             P: "SrcDocumentUrl","KString","Url","","/foobar.fbx"
             P: "Original","Compound","",""
-            P: "Original|ApplicationVendor","KString","","","Blender Foundation"
-            P: "Original|ApplicationName","KString","","","Blender (stable FBX IO)"
+            P: "Original|ApplicationVendor","KString","","","ICE3 SyntheticData"
+            P: "Original|ApplicationName","KString","","","ICE3 (synthetic source)"
             P: "Original|ApplicationVersion","KString","","","5.2.3 LTS"
             P: "Original|DateTime_GMT","DateTime","","","01/01/1970 00:00:00.000"
             P: "Original|FileName","KString","","","/foobar.fbx"
             P: "LastSaved","Compound","",""
-            P: "LastSaved|ApplicationVendor","KString","","","Blender Foundation"
-            P: "LastSaved|ApplicationName","KString","","","Blender (stable FBX IO)"
+            P: "LastSaved|ApplicationVendor","KString","","","ICE3 SyntheticData"
+            P: "LastSaved|ApplicationName","KString","","","ICE3 (synthetic source)"
             P: "LastSaved|ApplicationVersion","KString","","","5.2.3 LTS"
             P: "LastSaved|DateTime_GMT","DateTime","","","01/01/1970 00:00:00.000"
             P: "Original|ApplicationNativeFile","KString","","",""
@@ -47,7 +47,7 @@ FBXHeaderExtension: {
 }
 FileId: "(\u00b3*\u00eb\u00b6$\u00cc\u00c2\u00bf\u00c8\u00b0*\u00a9+\u00fc\u00f1"
 CreationTime: "1970-01-01 10:00:00:000"
-Creator: "Blender (stable FBX IO) - 5.2.3 LTS - 5.15.0"
+Creator: "ICE3 (synthetic source) - ICE3 v1.0 - 5.15.0"
 GlobalSettings: {
     Version: 1000
     Properties70: {

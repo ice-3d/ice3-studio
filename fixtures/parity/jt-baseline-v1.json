@@ -5,7 +5,36 @@
   "assetId": "parity-jt",
   "sourceDigest": "591d46743871fcbf6b9a02e9dd5b9ad3b21a6af72875e01fd4095adb71146637",
   "converter": "fixtures/source-import/jt/converter.mjs",
-  "legacyAdapter": "retired Toolchain JT canonicalizer",
+  "legacyAdapter": "retired Toolchain JT product adapter",
+  "legacyPrepared": {
+    "status": "pass",
+    "adapterId": "jt",
+    "contentDigest": "sha256:d631f82d02261ff59e4b14cd8e487cd96e322ee29c2d3b53c6c21f4a1a970559",
+    "sourceDigest": "sha256:591d46743871fcbf6b9a02e9dd5b9ad3b21a6af72875e01fd4095adb71146637",
+    "metrics": {
+      "nodeCount": 4,
+      "maxNodeDepth": 1,
+      "meshCount": 2,
+      "primitiveCount": 4,
+      "triangleCount": 24,
+      "edgeSegmentCount": 24,
+      "materialCount": 7,
+      "selectionGroupCount": 3,
+      "encodedBytes": 5632,
+      "jsonChunkBytes": 5172,
+      "binChunkBytes": 432
+    },
+    "output": {
+      "nodeCount": 4,
+      "meshCount": 2,
+      "selectionIds": [
+        "parity-jt/jt/node/0",
+        "parity-jt/jt/node/1",
+        "parity-jt/jt/node/2",
+        "parity-jt/jt/node/3"
+      ]
+    }
+  },
   "stats": {
     "nodeCount": 4,
     "meshCount": 2,
@@ -110,7 +139,7 @@
     "upAxis": "y",
     "linearUnit": "meter"
   },
-  "bounds": {
+  "sourceBounds": {
     "min": [
       -3,
       0,
@@ -120,6 +149,18 @@
       3,
       1,
       1
+    ]
+  },
+  "rebasedBounds": {
+    "min": [
+      0,
+      0,
+      0
+    ],
+    "max": [
+      6,
+      1,
+      5
     ]
   },
   "normalizationRules": [
