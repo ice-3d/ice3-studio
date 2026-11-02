@@ -12,6 +12,9 @@ use studio_server::capabilities::WriteMode;
 use studio_server::runtime_tileset::RuntimeTilesetExporter;
 use studio_server::{ServerConfig, serve};
 
+#[cfg(debug_assertions)]
+const TEST_WORKER_CRASH_ENV: &str = "ICE3_STUDIO_IMPORT_WORKER_CRASH";
+
 #[derive(Debug, Parser)]
 #[command(name = "ice3-studio")]
 struct Cli {
@@ -101,6 +104,12 @@ enum ExportCommand {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(request_path) = internal_worker_request()? {
+        #[cfg(debug_assertions)]
+        if std::env::var_os(TEST_WORKER_CRASH_ENV)
+            .is_some_and(|value| value == std::ffi::OsStr::new("1"))
+        {
+            std::process::abort();
+        }
         execute_internal_worker(&request_path).map_err(|error| CliFailure(error.to_string()))?;
         return Ok(());
     }

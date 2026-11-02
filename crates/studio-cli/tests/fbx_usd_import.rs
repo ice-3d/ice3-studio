@@ -4,6 +4,8 @@ use std::process::{Command, Output};
 use studio_assets::{read_glb, validate_prepared_profile};
 
 const WORKER_TIMEOUT_ENV: &str = "ICE3_STUDIO_IMPORT_WORKER_TIMEOUT_MS";
+#[cfg(debug_assertions)]
+const TEST_WORKER_CRASH_ENV: &str = "ICE3_STUDIO_IMPORT_WORKER_CRASH";
 
 #[test]
 fn imports_fbx_and_usd_through_the_internal_worker() {
@@ -88,6 +90,29 @@ fn worker_failure_does_not_replace_existing_output() {
         &output_path,
         true,
     )
+    .output()
+    .unwrap();
+
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("ICE3_STUDIO_IMPORT_WORKER_FAILED"));
+    assert_eq!(std::fs::read_to_string(output_path).unwrap(), "keep");
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn worker_crash_does_not_replace_existing_output() {
+    let root = tempfile::tempdir().unwrap();
+    let output_path = root.path().join("plant.glb");
+    std::fs::write(&output_path, "keep").unwrap();
+
+    let result = run_import_at_path(
+        &toolchain_fixture("usd/synthetic-plant.usda"),
+        "usd",
+        "crash-fixture",
+        &output_path,
+        true,
+    )
+    .env(TEST_WORKER_CRASH_ENV, "1")
     .output()
     .unwrap();
 

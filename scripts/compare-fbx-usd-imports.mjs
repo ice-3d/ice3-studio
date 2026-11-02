@@ -220,9 +220,10 @@ async function runNegativeCorpus() {
   const usdRoot = join(root, 'usd');
   const deepRoot = join(usdRoot, 'deep');
   await mkdir(deepRoot, { recursive: true });
+  const escapedDependencyPath = join(root, 'outside.usda');
   await writeFile(
-    join(usdRoot, 'outside.usda'),
-    '#usda 1.0\ndef Xform "Outside" {}\n',
+    escapedDependencyPath,
+    `#usda 1.0\ndef Xform "Outside"\n{\n${cubeBody()}\n}\n`,
   );
   await writeFile(
     join(usdRoot, 'unsafe.usda'),
@@ -264,6 +265,7 @@ async function runNegativeCorpus() {
       fixture: join(usdRoot, 'unsafe.usda'),
       adapter: 'usd',
       expectedCode: 'ICE3_STUDIO_IMPORT_WORKER_FAILED',
+      requiredExistingPath: escapedDependencyPath,
     }),
     deepComposition: await expectFailure('deep-composition', {
       fixture: join(deepRoot, 'layer-0.usda'),
@@ -281,10 +283,14 @@ async function runNegativeCorpus() {
       },
     }),
     workerCrash: await expectFailure('worker-crash', {
-      fixture: join(fixtureRoot, 'usd/truncated.usda'),
+      fixture: join(fixtureRoot, 'usd/synthetic-plant.usda'),
       adapter: 'usd',
       expectedCode: 'ICE3_STUDIO_IMPORT_WORKER_FAILED',
       preserveOutput: 'keep',
+      environment: {
+        ...process.env,
+        ICE3_STUDIO_IMPORT_WORKER_CRASH: '1',
+      },
     }),
   };
 }
@@ -315,6 +321,8 @@ async function expectFailure(name, options) {
   });
   const diagnosticPresent = `${result.stdout ?? ''}${result.stderr ?? ''}`
     .includes(options.expectedCode);
+  const requiredExistingPathExists = options.requiredExistingPath === undefined
+    || await exists(options.requiredExistingPath);
   const outputDisposition = preserveOutput === undefined
     ? (!(await exists(output)) ? 'absent' : 'published')
     : (await exists(output)
@@ -325,6 +333,7 @@ async function expectFailure(name, options) {
   const pass = (
     result.status !== 0
     && diagnosticPresent
+    && requiredExistingPathExists
     && ['absent', 'preserved'].includes(outputDisposition)
   );
   return {
@@ -332,6 +341,7 @@ async function expectFailure(name, options) {
     exitCode: result.status,
     expectedCode: options.expectedCode,
     diagnosticPresent,
+    requiredExistingPathExists,
     outputDisposition,
   };
 }
