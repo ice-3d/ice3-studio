@@ -619,6 +619,21 @@ fn maps_to_a_valid_prepared_glb() {
     let source = studio_assets::read_glb_bytes(&bytes, &std::env::temp_dir()).unwrap();
     let profile = studio_assets::validate_prepared_profile(&source).unwrap();
     assert_eq!(profile.asset_id, "usd-prepared");
+    let used_material_names = source.json["meshes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|mesh| mesh["primitives"].as_array().unwrap())
+        .filter_map(|primitive| primitive["material"].as_u64())
+        .map(|index| {
+            source.json["materials"][index as usize]["name"]
+                .as_str()
+                .unwrap()
+        })
+        .collect::<BTreeSet<_>>();
+    assert!(used_material_names.contains("PumpBlue"));
+    assert!(used_material_names.contains("TankTaupe"));
+    assert!(!used_material_names.contains("vertex colors"));
 }
 
 #[cfg(unix)]

@@ -415,11 +415,13 @@ fn write_mesh(
         {
             return Err(invalid("primitive material index is out of range"));
         }
-        let triangle_material = if primitive.colors.is_some() {
-            context.material_indices.vertex_colors
-        } else {
-            source_material.unwrap_or(context.material_indices.default)
-        };
+        let triangle_material = source_material.unwrap_or_else(|| {
+            if primitive.colors.is_some() {
+                context.material_indices.vertex_colors
+            } else {
+                context.material_indices.default
+            }
+        });
         let edge_material = source_material
             .and_then(|index| context.material_indices.edges[index])
             .unwrap_or(context.material_indices.default_edges);
