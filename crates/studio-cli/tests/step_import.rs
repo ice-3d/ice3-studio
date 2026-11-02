@@ -50,6 +50,26 @@ fn auto_selects_step_from_the_source_extension() {
 }
 
 #[test]
+fn auto_selects_step_from_the_stp_extension() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("synthetic-skid.stp");
+    std::fs::copy(toolchain_fixture("step/synthetic-skid.step"), &source).unwrap();
+    let output_path = root.path().join("step.glb");
+
+    let output = run_import_at_path(&source, "auto", "auto-stp", &output_path, false)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["adapter"], "step");
+}
+
+#[test]
 fn truncated_step_does_not_replace_existing_output() {
     let root = tempfile::tempdir().unwrap();
     let output_path = root.path().join("step.glb");

@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::mem::size_of;
 
 use glam::{DMat4, DVec3, DVec4};
 use oxideav_step::{Occurrence, Shape, StepModel};
@@ -6,10 +7,17 @@ use serde_json::{Map, Value, json};
 
 use crate::{
     ImportError, ImportWarning, NativeImportLimits, SourceFormat, SourceMaterial, SourceMesh,
-    SourceNode, SourcePrimitive, SourceScene,
+    SourceNode, SourcePrimitive, SourceScene, validate_scene_limits,
 };
 
 const DEFAULT_COLOR: [f32; 4] = [0.72, 0.74, 0.76, 1.0];
+const STEP_NODE_ESTIMATE_BYTES: usize = 512;
+const STEP_MESH_ESTIMATE_BYTES: usize = 1_024;
+const STEP_PRIMITIVE_ESTIMATE_BYTES: usize = 256;
+const STEP_MATERIAL_ESTIMATE_BYTES: usize = 384;
+const STEP_SHAPE_METADATA_ESTIMATE_BYTES: usize = 1_024;
+const STEP_WARNING_ESTIMATE_BYTES: usize = 512;
+const STEP_SCENE_ESTIMATE_BYTES: usize = size_of::<SourceScene>() + 4_096;
 
 struct Projection<'a> {
     model: &'a StepModel,
@@ -43,17 +51,7 @@ pub(super) fn project_model(
     asset_id: &str,
     limits: NativeImportLimits,
 ) -> Result<SourceScene, ImportError> {
-    if model.triangle_count() == 0 {
-        return Err(ImportError::EmptyGeometry);
-    }
-    let triangle_count = u64::try_from(model.triangle_count())
-        .map_err(|_| ImportError::LimitExceeded("STEP triangle count overflow".into()))?;
-    if triangle_count > limits.max_triangles {
-        return Err(ImportError::LimitExceeded(format!(
-            "STEP has {triangle_count} triangles; limit is {}",
-            limits.max_triangles
-        )));
-    }
+    preflight_model(model, limits)?;
 
     let mut projection = Projection {
         model,
@@ -119,7 +117,7 @@ pub(super) fn project_model(
         &projection.meshes,
         &projection.node_worlds,
     )?;
-    Ok(SourceScene {
+    let scene = SourceScene {
         asset_id: asset_id.into(),
         source_format: SourceFormat::Step,
         nodes: projection.nodes,
@@ -141,7 +139,173 @@ pub(super) fn project_model(
                 }
             }
         }),
-    })
+    };
+    validate_scene_limits(&scene, &limits)?;
+    Ok(scene)
+}
+
+fn preflight_model(model: &StepModel, limits: NativeImportLimits) -> Result<(), ImportError> {
+    let triangle_count = model.triangle_count();
+    if triangle_count == 0 {
+        return Err(ImportError::EmptyGeometry);
+    }
+    let triangle_count = u64::try_from(triangle_count)
+        .map_err(|_| ImportError::LimitExceeded("STEP triangle count overflow".into()))?;
+    if triangle_count > limits.max_triangles {
+        return Err(ImportError::LimitExceeded(format!(
+            "STEP has {triangle_count} triangles; limit is {}",
+            limits.max_triangles
+        )));
+    }
+
+    let mut preflight = StepPreflight::new(limits, model.warnings.len())?;
+    preflight.add_nodes(1)?;
+    let mut visited_parts = BTreeSet::new();
+    let mut visited_meshes = BTreeSet::new();
+    for occurrence in &model.roots {
+        preflight.walk_part(
+            model,
+            occurrence.part,
+            0,
+            &mut visited_parts,
+            &mut visited_meshes,
+        )?;
+    }
+    for part_index in 0..model.parts.len() {
+        if !visited_parts.contains(&part_index) {
+            preflight.walk_part(
+                model,
+                part_index,
+                0,
+                &mut visited_parts,
+                &mut visited_meshes,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+struct StepPreflight {
+    limits: NativeImportLimits,
+    nodes: usize,
+    estimated_bytes: usize,
+}
+
+impl StepPreflight {
+    fn new(limits: NativeImportLimits, warning_count: usize) -> Result<Self, ImportError> {
+        let mut estimated_bytes = STEP_SCENE_ESTIMATE_BYTES;
+        estimated_bytes = checked_add(
+            estimated_bytes,
+            warning_count
+                .checked_mul(STEP_WARNING_ESTIMATE_BYTES)
+                .ok_or_else(|| limit_error("STEP warning estimate overflowed"))?,
+        )?;
+        Ok(Self {
+            limits,
+            nodes: 0,
+            estimated_bytes,
+        })
+    }
+
+    fn walk_part(
+        &mut self,
+        model: &StepModel,
+        start_part: usize,
+        start_depth: usize,
+        visited_parts: &mut BTreeSet<usize>,
+        visited_meshes: &mut BTreeSet<usize>,
+    ) -> Result<(), ImportError> {
+        let mut stack = vec![(start_part, start_depth)];
+        while let Some((part_index, depth)) = stack.pop() {
+            if depth > model.parts.len() {
+                return Err(ImportError::InvalidSource(
+                    "STEP occurrence hierarchy is cyclic".into(),
+                ));
+            }
+            let part = model.parts.get(part_index).ok_or_else(|| {
+                ImportError::InvalidSource(format!("STEP part {part_index} is missing"))
+            })?;
+            self.add_nodes(1)?;
+            let has_mesh = part
+                .shapes
+                .iter()
+                .any(|shape| !shape.mesh.triangles.is_empty());
+            if has_mesh {
+                self.add_nodes(1)?;
+            }
+            if visited_meshes.insert(part_index) {
+                self.add_mesh(part)?;
+            }
+            visited_parts.insert(part_index);
+            for child in part.children.iter().rev() {
+                stack.push((child.part, depth + 1));
+            }
+        }
+        Ok(())
+    }
+
+    fn add_nodes(&mut self, count: usize) -> Result<(), ImportError> {
+        self.nodes = checked_add(self.nodes, count)?;
+        if self.nodes > self.limits.max_nodes {
+            return Err(limit_error(format!(
+                "STEP projects at least {} nodes; limit is {}",
+                self.nodes, self.limits.max_nodes
+            )));
+        }
+        self.add_bytes(
+            count
+                .checked_mul(STEP_NODE_ESTIMATE_BYTES)
+                .ok_or_else(|| limit_error("STEP node estimate overflowed"))?,
+        )
+    }
+
+    fn add_mesh(&mut self, part: &oxideav_step::Part) -> Result<(), ImportError> {
+        self.add_bytes(STEP_MESH_ESTIMATE_BYTES)?;
+        let mut part_triangles = 0_usize;
+        for shape in &part.shapes {
+            let triangles = shape.mesh.triangles.len();
+            part_triangles = checked_add(part_triangles, triangles)?;
+            self.add_bytes(
+                triangles
+                    .checked_mul(size_of::<SourcePrimitive>() + STEP_PRIMITIVE_ESTIMATE_BYTES)
+                    .ok_or_else(|| limit_error("STEP primitive estimate overflowed"))?,
+            )?;
+            self.add_bytes(STEP_SHAPE_METADATA_ESTIMATE_BYTES)?;
+        }
+        let corners = part_triangles
+            .checked_mul(3)
+            .ok_or_else(|| limit_error("STEP vertex estimate overflowed"))?;
+        self.add_bytes(
+            corners
+                .checked_mul(size_of::<[f32; 3]>() + size_of::<u32>())
+                .ok_or_else(|| limit_error("STEP geometry estimate overflowed"))?,
+        )?;
+        self.add_bytes(
+            part_triangles
+                .checked_mul(size_of::<SourceMaterial>() + STEP_MATERIAL_ESTIMATE_BYTES)
+                .ok_or_else(|| limit_error("STEP material estimate overflowed"))?,
+        )
+    }
+
+    fn add_bytes(&mut self, bytes: usize) -> Result<(), ImportError> {
+        self.estimated_bytes = checked_add(self.estimated_bytes, bytes)?;
+        if self.estimated_bytes > self.limits.max_memory_bytes {
+            return Err(limit_error(format!(
+                "STEP projects approximately {} bytes; limit is {}",
+                self.estimated_bytes, self.limits.max_memory_bytes
+            )));
+        }
+        Ok(())
+    }
+}
+
+fn checked_add(left: usize, right: usize) -> Result<usize, ImportError> {
+    left.checked_add(right)
+        .ok_or_else(|| limit_error("STEP import budget overflowed"))
+}
+
+fn limit_error(message: impl Into<String>) -> ImportError {
+    ImportError::LimitExceeded(message.into())
 }
 
 impl Projection<'_> {
@@ -640,6 +804,81 @@ mod tests {
             triangle_faces: vec![item],
             layers: Vec::new(),
         }
+    }
+
+    fn amplified_model(child_count: usize) -> StepModel {
+        let mut parent = Part {
+            name: Some("Root".into()),
+            product_id: Some("Root".into()),
+            ..Part::default()
+        };
+        parent.children = (0..child_count)
+            .map(|index| Occurrence {
+                part: 1,
+                id: Some(100 + index as u64),
+                name: Some(format!("Pump {index}")),
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            })
+            .collect();
+        let mut child = Part {
+            name: Some("Pump".into()),
+            product_id: Some("Pump".into()),
+            ..Part::default()
+        };
+        child
+            .shapes
+            .push(triangle_shape(1, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+        StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts: vec![parent, child],
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: Vec::new(),
+            warnings: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn preflight_rejects_low_node_budget_before_projection() {
+        let model = amplified_model(1);
+        let limits = NativeImportLimits {
+            max_nodes: 3,
+            ..NativeImportLimits::default()
+        };
+        let error = project_model(&model, "step-preflight", limits).unwrap_err();
+        assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+    }
+
+    #[test]
+    fn preflight_rejects_occurrence_amplification() {
+        let model = amplified_model(32);
+        let limits = NativeImportLimits {
+            max_nodes: 16,
+            ..NativeImportLimits::default()
+        };
+        let error = preflight_model(&model, limits).unwrap_err();
+        assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+        assert!(error.to_string().contains("projects at least"));
+    }
+
+    #[test]
+    fn preflight_rejects_low_memory_budget_before_projection() {
+        let model = amplified_model(1);
+        let limits = NativeImportLimits {
+            max_memory_bytes: STEP_SCENE_ESTIMATE_BYTES,
+            ..NativeImportLimits::default()
+        };
+        let error = preflight_model(&model, limits).unwrap_err();
+        assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+        assert!(error.to_string().contains("approximately"));
     }
 
     #[test]
