@@ -4,13 +4,18 @@
 
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, realpath, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 
 const execFileAsync = promisify(execFile);
+// NEGATIVE_RETIRED_NAME_ALLOWLIST: this verifier intentionally names retired
+// capabilities/cache paths to prove they are absent or remain unstubbed.
+const STUDIO_CLI_NAME = process.platform === 'win32'
+  ? 'studio-cli.exe'
+  : 'studio-cli';
+let resolvedCliPath;
 
 const checks = [];
 function record(name, ok, detail) {
@@ -18,12 +23,19 @@ function record(name, ok, detail) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
 }
 
-function cliPath() {
+async function resolveCliPath(root) {
   const configured = process.env.STUDIO_CLI_BIN;
   if (configured) return resolve(configured);
-  const release = resolve('target/release/studio-cli');
-  const debug = resolve('target/debug/studio-cli');
-  return existsSync(release) ? release : debug;
+  await execFileAsync('cargo', ['build', '-p', 'studio-cli'], {
+    cwd: root,
+    env: process.env,
+  });
+  return resolve('target/debug', STUDIO_CLI_NAME);
+}
+
+function cliPath() {
+  if (!resolvedCliPath) throw new Error('Studio CLI path was not resolved');
+  return resolvedCliPath;
 }
 
 async function runCli(args) {
@@ -59,6 +71,10 @@ function waitForServer(child) {
 
 async function main() {
   const root = resolve('.');
+  resolvedCliPath = await resolveCliPath(root);
+  if (basename(resolvedCliPath) !== STUDIO_CLI_NAME) {
+    throw new Error(`unexpected Studio CLI executable: ${resolvedCliPath}`);
+  }
   const workspace = await mkdtemp(join(tmpdir(), 'ice3-independence-'));
   // 明确清掉可能让 Studio 找到已退役外部进程的变量。
   const env = { ...process.env };

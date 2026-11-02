@@ -1,4 +1,10 @@
 import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+
+const studioCli = resolve(
+  'target/debug',
+  process.platform === 'win32' ? 'studio-cli.exe' : 'studio-cli',
+);
 
 const steps = [
   {
@@ -63,7 +69,7 @@ const steps = [
     label: 'Studio standalone',
     command: 'node',
     args: ['scripts/verify-studio-standalone.mjs'],
-    env: { STUDIO_CLI_BIN: 'target/debug/studio-cli' },
+    env: { STUDIO_CLI_BIN: studioCli },
   },
   {
     label: 'Generated schemas',
