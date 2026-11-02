@@ -26,72 +26,158 @@ const baselinePath = resolve(
   'fixtures/parity/jt-baseline-v1.json',
 );
 
-if (!process.argv.includes('--capture')) {
-  throw new Error('usage: compare-jt-imports --capture');
+if (process.argv.includes('--capture')) {
+  await captureBaseline();
+} else {
+  await compareNative();
 }
 
-const temporary = await mkdtemp(join(tmpdir(), 'ice3-jt-capture-'));
-try {
-  const raw = join(temporary, 'raw.glb');
-  const source = join(temporary, 'legacy-source.glb');
-  const prepared = join(temporary, 'legacy-prepared.glb');
-  const reportPath = join(temporary, 'legacy-prepared.report.json');
-  run(converter, ['--input', fixture, '--output', raw], studioRoot);
+async function captureBaseline() {
+  const temporary = await mkdtemp(join(tmpdir(), 'ice3-jt-capture-'));
+  try {
+    const raw = join(temporary, 'raw.glb');
+    const source = join(temporary, 'legacy-source.glb');
+    const prepared = join(temporary, 'legacy-prepared.glb');
+    const reportPath = join(temporary, 'legacy-prepared.report.json');
+    run(converter, ['--input', fixture, '--output', raw], studioRoot);
 
-  run(process.execPath, [
-    '--import',
-    'tsx',
-    'packages/cli/src/main.ts',
-    'import',
-    fixture,
-    '--output',
-    prepared,
-    '--report',
-    reportPath,
-    '--asset-id',
-    'parity-jt',
-    '--adapter',
-    'jt',
-    '--json',
-  ], toolchainRoot, {
-    ICE3_JT_CONVERTER: converter,
-  });
-  const legacyReport = JSON.parse(await readFile(reportPath, 'utf8'));
-  if (legacyReport.status !== 'pass') throw new Error('legacy import failed');
-  if (legacyReport.adapter?.id !== 'jt') throw new Error('legacy adapter missing');
+    run(process.execPath, [
+      '--import',
+      'tsx',
+      'packages/cli/src/main.ts',
+      'import',
+      fixture,
+      '--output',
+      prepared,
+      '--report',
+      reportPath,
+      '--asset-id',
+      'parity-jt',
+      '--adapter',
+      'jt',
+      '--json',
+    ], toolchainRoot, {
+      ICE3_JT_CONVERTER: converter,
+    });
+    const legacyReport = JSON.parse(await readFile(reportPath, 'utf8'));
+    if (legacyReport.status !== 'pass') throw new Error('legacy import failed');
+    if (legacyReport.adapter?.id !== 'jt') throw new Error('legacy adapter missing');
 
-  const canonicalizer = pathToFileURL(join(
-    toolchainRoot,
-    'packages/jt-importer/src/canonicalizeJtGlb.ts',
-  )).href;
-  run(process.execPath, [
-    '--import',
-    'tsx',
-    '--input-type=module',
-    '--eval',
-    `import { canonicalizeJtGlb } from ${JSON.stringify(canonicalizer)};
-     await canonicalizeJtGlb(${JSON.stringify(raw)}, ${JSON.stringify(source)}, {
-       assetId: 'parity-jt',
-     });`,
-  ], toolchainRoot);
+    const canonicalizer = pathToFileURL(join(
+      toolchainRoot,
+      'packages/jt-importer/src/canonicalizeJtGlb.ts',
+    )).href;
+    run(process.execPath, [
+      '--import',
+      'tsx',
+      '--input-type=module',
+      '--eval',
+      `import { canonicalizeJtGlb } from ${JSON.stringify(canonicalizer)};
+       await canonicalizeJtGlb(${JSON.stringify(raw)}, ${JSON.stringify(source)}, {
+         assetId: 'parity-jt',
+       });`,
+    ], toolchainRoot);
 
-  const fixtureBytes = await readFile(fixture);
-  const rawDocument = parseGlb(await readFile(raw));
-  const preparedDocument = parseGlb(await readFile(prepared));
-  const sourceDocument = parseGlb(await readFile(source));
-  const baseline = summarizeLegacy(
-    rawDocument,
-    sourceDocument,
-    preparedDocument,
-    legacyReport,
-    sha256(fixtureBytes),
-  );
-  assertBaseline(baseline);
-  await mkdir(dirname(baselinePath), { recursive: true });
-  await writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-  console.log(JSON.stringify(baseline, null, 2));
-} finally {
-  await rm(temporary, { recursive: true, force: true });
+    const fixtureBytes = await readFile(fixture);
+    const rawDocument = parseGlb(await readFile(raw));
+    const preparedDocument = parseGlb(await readFile(prepared));
+    const sourceDocument = parseGlb(await readFile(source));
+    const baseline = summarizeLegacy(
+      rawDocument,
+      sourceDocument,
+      preparedDocument,
+      legacyReport,
+      sha256(fixtureBytes),
+    );
+    assertBaseline(baseline);
+    await mkdir(dirname(baselinePath), { recursive: true });
+    await writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
+    console.log(JSON.stringify(baseline, null, 2));
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+async function compareNative() {
+  const temporary = await mkdtemp(join(tmpdir(), 'ice3-jt-parity-'));
+  try {
+    const firstPath = join(temporary, 'first.glb');
+    const secondPath = join(temporary, 'second.glb');
+    for (const output of [firstPath, secondPath]) {
+      run('cargo', [
+        'run',
+        '-q',
+        '-p',
+        'studio-cli',
+        '--',
+        'import',
+        fixture,
+        '--output',
+        output,
+        '--asset-id',
+        'parity-jt',
+        '--adapter',
+        'jt',
+      ], studioRoot, {
+        ICE3_JT_CONVERTER: converter,
+      });
+    }
+
+    const firstBytes = await readFile(firstPath);
+    const secondBytes = await readFile(secondPath);
+    const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
+    const firstDocument = parseGlb(firstBytes);
+    const secondDocument = parseGlb(secondBytes);
+    const native = summarizeNative(firstDocument);
+    const expected = normalizeBaseline(baseline);
+    const comparisons = {
+      stats: equal(native.stats, expected.stats),
+      nodeNames: equal(native.nodeNames, expected.nodeNames),
+      selectionIds: equal(native.selectionIds, expected.selectionIds),
+      businessNodes: equal(native.businessNodes, expected.businessNodes),
+      materials: equal(native.materials, expected.materials),
+      sourceOrigin: equal(native.sourceOrigin, expected.sourceOrigin),
+      coordinateSystem: equal(native.coordinateSystem, expected.coordinateSystem),
+      bounds: equal(native.bounds, expected.bounds),
+    };
+    const failures = Object.entries(comparisons)
+      .filter(([, passed]) => !passed)
+      .map(([name]) => name);
+    const normalizationRule = [
+      'Converter output is copied byte-for-byte from the synthetic raw GLB;',
+      'no geometric difference is permitted. Only Prepared GLB structural ordering',
+      'may differ from the legacy Prepared GLB, while source semantic counts and JT',
+      'extras remain exact.',
+    ].join(' ');
+    const report = {
+      kind: 'ice3-jt-import-parity',
+      schemaVersion: '1.0',
+      status: failures.length === 0 ? 'pass' : 'fail',
+      fixture: 'fixtures/source-import/jt/synthetic-contract.jt',
+      adapter: 'jt',
+      failures,
+      comparisons,
+      deterministic: {
+        byteEqual: firstBytes.equals(secondBytes),
+        firstDigest: sha256(firstBytes),
+        secondDigest: sha256(secondBytes),
+      },
+      baseline: expected,
+      native,
+      normalizationRule,
+    };
+    if (!report.deterministic.byteEqual && !failures.includes('determinism')) {
+      failures.push('determinism');
+      report.status = 'fail';
+    }
+    const reportPath = resolve(studioRoot, 'output/jt-import-parity.json');
+    await mkdir(dirname(reportPath), { recursive: true });
+    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    console.log(JSON.stringify(report, null, 2));
+    if (report.status !== 'pass') process.exitCode = 1;
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
 }
 
 function summarizeLegacy(
@@ -118,18 +204,12 @@ function summarizeLegacy(
   const expandedTriangles = nodes.reduce((total, node) => (
     node.mesh === undefined ? total : total + meshTriangles[node.mesh]
   ), 0);
-  const referencedPositionAccessors = new Set();
   const meshUseCounts = new Map();
   for (const node of nodes) {
     if (node.mesh === undefined) continue;
     meshUseCounts.set(node.mesh, (meshUseCounts.get(node.mesh) ?? 0) + 1);
-    for (const primitive of meshes[node.mesh].primitives ?? []) {
-      referencedPositionAccessors.add(primitive.attributes.POSITION);
-    }
   }
-  const vertexCount = [...referencedPositionAccessors].reduce((total, index) => (
-    total + document.json.accessors[index].count
-  ), 0);
+  const vertexCount = uniqueReferencedVertexCount(document, nodes, meshes);
   const instanceNodeCount = [...meshUseCounts.values()].reduce((total, uses) => (
     total + Math.max(0, uses - 1)
   ), 0);
@@ -190,6 +270,174 @@ function summarizeLegacy(
       'Source-level material values are compared before Prepared edge/default materials are added.',
     ],
   };
+}
+
+function summarizeNative(document) {
+  const nodes = document.json.nodes ?? [];
+  const meshes = document.json.meshes ?? [];
+  const meshTriangles = meshes.map((mesh) => (
+    (mesh.primitives ?? []).reduce((total, primitive) => (
+      total + document.json.accessors[primitive.indices].count / 3
+    ), 0)
+  ));
+  const triangles = meshTriangles.reduce((total, count) => total + count, 0);
+  const expandedTriangles = nodes.reduce((total, node) => (
+    node.mesh === undefined ? total : total + meshTriangles[node.mesh]
+  ), 0);
+  const meshUseCounts = new Map();
+  const usedMaterials = new Set();
+  const businessNodes = [];
+  for (const node of nodes) {
+    const metadata = node.extras?.ice3?.jt;
+    if (metadata) businessNodes.push(normalizeBusinessNode(metadata));
+    if (node.mesh === undefined) continue;
+    meshUseCounts.set(node.mesh, (meshUseCounts.get(node.mesh) ?? 0) + 1);
+    for (const primitive of meshes[node.mesh].primitives ?? []) {
+      if (primitive.material !== undefined) usedMaterials.add(primitive.material);
+    }
+  }
+  const vertexCount = uniqueReferencedVertexCount(document, nodes, meshes);
+  const instanceNodeCount = [...meshUseCounts.values()].reduce((total, uses) => (
+    total + Math.max(0, uses - 1)
+  ), 0);
+  const assetIce3 = document.json.asset?.extras?.ice3;
+  const bounds = assetIce3?.bounds;
+  return {
+    stats: {
+      nodeCount: nodes.length,
+      meshCount: meshes.length,
+      triangleCount: triangles,
+      expandedTriangleCount: expandedTriangles,
+      vertexCount,
+      instanceNodeCount,
+    },
+    nodeNames: nodes.map((node) => node.name).sort(),
+    businessNodes,
+    selectionIds: nodes
+      .map((node) => node.extras?.ice3?.selectionId)
+      .filter(Boolean)
+      .sort(),
+    materials: [...usedMaterials]
+      .map((index) => document.json.materials[index])
+      .map((material) => ({
+        name: material.name,
+        baseColorFactor: material.pbrMetallicRoughness.baseColorFactor
+          .map(roundColor),
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'en')),
+    sourceOrigin: assetIce3?.ice3?.jt?.sourceOrigin,
+    coordinateSystem: assetIce3?.ice3?.coordinateSystem,
+    bounds: bounds ? [...bounds.min, ...bounds.max] : undefined,
+  };
+}
+
+function normalizeBaseline(baseline) {
+  return {
+    stats: {
+      nodeCount: baseline.stats.nodeCount,
+      meshCount: baseline.stats.meshCount,
+      triangleCount: baseline.stats.triangleCount,
+      expandedTriangleCount: baseline.stats.expandedTriangleCount,
+      vertexCount: baseline.stats.vertexCount,
+      instanceNodeCount: baseline.stats.instanceNodeCount,
+    },
+    nodeNames: baseline.nodeNames,
+    businessNodes: baseline.nodeMetadata.map(normalizeBusinessNode),
+    selectionIds: baseline.selectionIds,
+    materials: baseline.materials.map((material) => ({
+      name: material.name,
+      baseColorFactor: material.baseColorFactor.map(roundColor),
+    })),
+    sourceOrigin: baseline.sourceOrigin,
+    coordinateSystem: baseline.coordinateSystem,
+    bounds: [
+      ...baseline.rebasedBounds.min,
+      ...baseline.rebasedBounds.max,
+    ],
+  };
+}
+
+function normalizeBusinessNode(metadata) {
+  return {
+    sourceName: metadata.sourceName,
+    objectType: metadata.objectType,
+    materialNames: [...metadata.materialNames],
+    ...(metadata.objectId ? { objectId: metadata.objectId } : {}),
+    ...(metadata.assemblyPath ? { assemblyPath: metadata.assemblyPath } : {}),
+    ...(metadata.instanceGroup ? { instanceGroup: metadata.instanceGroup } : {}),
+    ...(metadata.customProperties
+      ? { customProperties: metadata.customProperties }
+      : {}),
+  };
+}
+
+function roundColor(value) {
+  return Number(value.toFixed(5));
+}
+
+function equal(left, right) {
+  return JSON.stringify(canonicalValue(left)) === JSON.stringify(canonicalValue(right));
+}
+
+function canonicalValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonicalValue(value[key])]),
+    );
+  }
+  return value;
+}
+
+function uniqueReferencedVertexCount(document, nodes, meshes) {
+  const unique = new Map();
+  for (const node of nodes) {
+    if (node.mesh === undefined) continue;
+    for (const primitive of meshes[node.mesh].primitives ?? []) {
+      const accessorIndex = primitive.attributes.POSITION;
+      const accessor = document.json.accessors[accessorIndex];
+      const signature = accessorPayloadSignature(document, accessor);
+      unique.set(signature, accessor.count);
+    }
+  }
+  return [...unique.values()].reduce((total, count) => total + count, 0);
+}
+
+function accessorPayloadSignature(document, accessor) {
+  const view = document.json.bufferViews[accessor.bufferView];
+  const componentBytes = {
+    5120: 1,
+    5121: 1,
+    5122: 2,
+    5123: 2,
+    5125: 4,
+    5126: 4,
+  }[accessor.componentType];
+  const components = {
+    SCALAR: 1,
+    VEC2: 2,
+    VEC3: 3,
+    VEC4: 4,
+  }[accessor.type];
+  if (!componentBytes || !components || !document.binary) {
+    return JSON.stringify({ accessor, view });
+  }
+  const elementBytes = componentBytes * components;
+  const stride = view.byteStride ?? elementBytes;
+  const byteLength = accessor.count === 0
+    ? 0
+    : (accessor.count - 1) * stride + elementBytes;
+  const start = (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+  const bytes = document.binary.subarray(start, start + byteLength);
+  return [
+    accessor.count,
+    accessor.componentType,
+    accessor.type,
+    stride,
+    sha256(bytes),
+  ].join(':');
 }
 
 function boundsFor(document) {
@@ -335,6 +583,7 @@ function parseGlb(bytes) {
   }
   let offset = 12;
   let json;
+  let binary;
   while (offset < bytes.length) {
     const length = bytes.readUInt32LE(offset);
     const kind = bytes.readUInt32LE(offset + 4);
@@ -342,11 +591,13 @@ function parseGlb(bytes) {
       json = JSON.parse(
         bytes.subarray(offset + 8, offset + 8 + length).toString('utf8').trim(),
       );
+    } else if (kind === 0x004e4942) {
+      binary = bytes.subarray(offset + 8, offset + 8 + length);
     }
     offset += 8 + length;
   }
   if (!json) throw new Error('legacy GLB JSON chunk is missing');
-  return { json };
+  return { json, binary };
 }
 
 function sha256(value) {

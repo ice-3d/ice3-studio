@@ -6,16 +6,15 @@
 >
 > Owner: ICE3 Studio maintainers
 
-Studio diagnostics use stable machine-readable codes. A code identifies the failure category;
-the message provides human-readable context. Diagnostics never include credentials, stack
-traces, or paths outside the configured workspace.
+Studio Diagnostic 使用稳定的机器可读 code。code 标识失败类别，message 提供人类可读上下文。
+Diagnostic 永远不包含凭据、stack trace 或配置 workspace 之外的路径。
 
-JSON-RPC errors expose the code as `error.diagnosticCode`. Document validation results expose the
-same value as `code`.
+JSON-RPC error 通过 `error.diagnosticCode` 暴露该 code；Document validation 结果使用相同的
+`code` 字段。
 
-Agent-facing failures may also include `error.data` with `category`, `retryable`, operation/object
-location, expected/actual values, and short recovery suggestions. These fields are additive; the
-stable diagnostic code remains the primary machine contract.
+面向 Agent 的失败还可包含 `error.data`，其中提供 `category`、`retryable`、
+operation/object 位置、expected/actual 值和简短恢复建议。这些字段是附加信息，稳定的
+Diagnostic code 仍是主要机器契约。
 
 ## Diagnostic Fields
 
@@ -44,7 +43,7 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_CONSTRAINT_FAILED` | A relationship or spatial constraint is violated |
 | `ICE3_STUDIO_BUDGET_EXCEEDED` | A configured project budget is exceeded |
 | `ICE3_STUDIO_EXPORT_FAILED` | Source GLB export failed |
-| `ICE3_STUDIO_RUNTIME_PREVIEW_FAILED` | Toolchain preview processing failed |
+| `ICE3_STUDIO_RUNTIME_PREVIEW_FAILED` | Studio Runtime preview export failed |
 | `ICE3_STUDIO_PERSISTENCE_FAILED` | Atomic project persistence failed |
 | `ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE` | The managed Toolchain sidecar is not configured or cannot start |
 | `ICE3_STUDIO_TOOLCHAIN_INCOMPATIBLE` | The sidecar contract major does not match Studio |
@@ -99,27 +98,31 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_IMPORT_IFC_DUPLICATE_GLOBAL_ID` | IFC GlobalId 重复，Selection 使用 Express ID 消歧 |
 | `ICE3_STUDIO_IMPORT_IFC_UNSUPPORTED_RESOURCE` | IFC camera、light、skeleton、volume 或 texture 被跳过 |
 | `ICE3_STUDIO_IMPORT_IFC_METADATA_TRUNCATED` | IFC metadata 超出深度或数组上限而被省略 |
+| `ICE3_STUDIO_IMPORT_JT_CONVERTER_UNAVAILABLE` | JT converter 未配置、不是 regular file 或不可执行 |
+| `ICE3_STUDIO_IMPORT_JT_TIMEOUT` | JT converter 或 JT worker 超过硬 timeout |
+| `ICE3_STUDIO_IMPORT_JT_CONVERT_FAILED` | JT converter 启动/退出或进程组清理失败 |
+| `ICE3_STUDIO_IMPORT_JT_EXPORT_INVALID` | JT converter 输出不是合法 GLB |
+| `ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` | JT hierarchy、transform 或 bounds 无效 |
 
-## Recovery Rules
+## 恢复规则
 
-- Validation or operation failures leave the current revision unchanged.
-- A revision conflict requires re-reading the current revision before resubmitting.
-- A stale or mismatched Agent search cursor requires restarting `scene.search` without the cursor.
-- A blocked or stale `changeset.impact` request returns `scope: "unavailable"` with no candidate
-  digest and no partial geometry forecast; fix validation or restart from the current revision.
-- Agent context, search, and evaluation limit failures include the invalid JSON Pointer and whether
-  retrying with corrected parameters can succeed.
-- An idempotency key can be retried with the same semantic request; reusing it for different
-  content is rejected.
-- A runtime preview failure keeps the previous valid preview.
-- Reference export with authored overrides fails closed with
-  `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED`; remove/reset the overrides or export the source
-  baseline instead.
-- A persistence failure keeps the previous snapshot loadable.
-- An explicit GPU-only failure returns its stable GPU diagnostic; automatic mode retries eligible
-  work on the CPU and keeps the current revision unchanged.
-- A lost or failed GPU device is removed from scheduling until a later process restart or explicit
-  host reinitialization; cached CPU and GPU geometry remain separately keyed.
+- validation 或 operation 失败保持当前 revision 不变。
+- revision 冲突要求先重新读取当前 revision，再重新提交。
+- Agent search cursor 过期或不匹配时，必须去掉 cursor 后重启 `scene.search`。
+- blocked 或 stale 的 `changeset.impact` 返回 `scope: "unavailable"`，不提供 candidate
+  digest 或部分几何预测；修复 validation 或从当前 revision 重新开始。
+- Agent context、search 和 evaluation 限额失败会包含无效 JSON Pointer，以及修正参数后是否
+  可重试。
+- 相同语义请求可以使用同一 idempotency key 重试；不同内容复用该 key 会被拒绝。
+- Runtime preview 失败时保留上一份有效 preview。
+- 带 authored override 的 reference export 以
+  `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` 失败关闭；移除/重置 override，或导出 source
+  baseline。
+- persistence 失败时上一份 snapshot 仍可加载。
+- explicit GPU-only 失败返回稳定 GPU Diagnostic；automatic 模式会把可执行工作退回 CPU，
+  并保持当前 revision 不变。
+- GPU device 丢失或失败后不再进入调度，直到进程重启或 host 显式重新初始化；CPU/GPU
+  geometry cache 继续分别 keyed。
 
-ChangeSet version conflicts and stale approved digests use `ICE3_STUDIO_OPERATION_INVALID` with a
-specific message. A stale base revision uses `ICE3_STUDIO_REVISION_CONFLICT`.
+ChangeSet version 冲突和过期 approved digest 使用 `ICE3_STUDIO_OPERATION_INVALID` 返回具体
+message；base revision 过期使用 `ICE3_STUDIO_REVISION_CONFLICT`。

@@ -6,7 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **Phase 状态：** Phase 1 至 Phase 4 已实现。后续 JT 和最终 Toolchain 退役仍未实现，
+> **Phase 状态：** Phase 1 至 Phase 5A 已实现，JT Source Import 已迁入 Studio。
+> Sidecar、Studio standalone 和 Toolchain repository 最终退役仍在 Phase 5B/5C，
 > 因此整份迁移设计继续保持 `Approved`。
 
 ## 1. 目标
@@ -207,6 +208,12 @@ conformance entry 已删除。
 - 删除 WASM adapter 和对应 Sidecar operation 依赖。
 
 ### Phase 5：JT 与 Toolchain 退役
+
+**状态：Phase 5A JT Source Import Implemented（2026-11-02）；Phase 5B/5C 待完成。**
+
+JT converter 调用、GLB validation、Selection/metadata、shared origin、隔离 worker、
+负向测试和 legacy parity 已迁入 Studio。Sidecar 和 Toolchain repository 退役仍按
+Spec-018 后续阶段执行。
 
 - 将 JT converter 调用迁入 Studio Import adapter。
 - 跑完整 parity corpus、release package 和负向测试。

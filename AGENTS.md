@@ -35,11 +35,13 @@
 - Studio Server 只能通过 `studio-toolchain-client` 和版本化本地 Sidecar 使用 Toolchain；
   不得把 Node.js 或 Toolchain 私有源码引入建模 Kernel。
 - 标准 GLB 是互操作输出；Runtime GLB、LOD 和分区由 Studio 原生 crate 负责。
-- glTF/GLB、OBJ/MTL、FBX、USD、STEP 与 IFC Source Import 由 `studio-import` 负责。
-  FBX/USD/STEP/IFC 必须在
+- glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT Source Import 由 `studio-import`
+  负责。FBX/USD/STEP/IFC/JT 必须在
   自带隔离 worker 中解析，使用硬 timeout、进程崩溃隔离、response/stderr 上限、scene
   budgets、USD composition confinement 和 IFC resource/unit gates；不得恢复外部 DCC bridge，也不得启动
   Toolchain Sidecar、Node Asset runtime 或 Assimp。
+- JT 的唯一外部 exception 是 host-owned `ICE3_JT_CONVERTER`。Studio 只能使用固定参数、
+  受控进程树、输出上限和 GLB 校验调用它；请求不得提供 executable、参数或 shell。
 - 本地 API 默认只监听 loopback，并限制项目路径和 Operation 能力。
 - AI 提案和人工表单修改必须进入 ChangeSet；未批准候选不得修改当前 revision。
 
