@@ -103,6 +103,11 @@ enum ExportCommand {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(feature = "jt")]
+    if studio_import::jt::run_jt_converter_supervisor(std::env::args_os().skip(1))? {
+        return Ok(());
+    }
+
     if let Some(request_path) = internal_worker_request()? {
         #[cfg(debug_assertions)]
         if std::env::var_os(TEST_WORKER_CRASH_ENV)

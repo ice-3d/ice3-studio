@@ -155,6 +155,8 @@ Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、S
 、IFC4X3 和 JT。OBJ/MTL 资源限制在源文件同目录；FBX/USD/STEP/IFC/JT 解析在
 Studio 自带 worker 中运行，不需要安装外部 DCC。JT 的唯一例外是部署方通过
 `ICE3_JT_CONVERTER` 提供的组织批准 converter；Studio 固定调用参数并验证输出 GLB。
+Studio 通过 supervisor 握手在 converter 执行前登记可终止进程组；批准 converter 不得
+通过新 session、daemon 或等价方式主动脱离该进程组。
 worker 有硬超时、进程树清理、进程崩溃隔离、512 MiB response 上限和 1 MiB stderr 上限，
 默认预算为 1,000,000 nodes、20,000,000 triangles、512 MiB estimated decoded
 memory 和 120 秒。内存预算通过分配前预检和 post-decode scene accounting 执行，

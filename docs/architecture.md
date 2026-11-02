@@ -204,7 +204,8 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 - 项目和 Resource 限制在配置的 workspace。
 - Operation 不能提交路径、URL、shell command、脚本或任意表达式。
 - JT converter 只来自 host-owned `ICE3_JT_CONVERTER`；API 请求不能选择 executable、
-  参数、环境变量或 shell fragment。
+  参数、环境变量或 shell fragment。Studio 通过 supervisor 握手在 converter 执行前登记
+  process group；批准 converter 不得通过新 session、daemon 或等价方式主动逃逸 containment。
 - Diagnostic 不包含凭据或 workspace 外路径。
 
 这套边界是单用户本地工具的安全模型，不是多租户 remote deployment 模型。

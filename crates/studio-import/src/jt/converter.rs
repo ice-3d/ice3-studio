@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -21,6 +22,9 @@ const WAIT_POLL_INTERVAL: Duration = Duration::from_millis(10);
 pub struct JtConverterConfig {
     binary: PathBuf,
     timeout: Duration,
+    supervisor: PathBuf,
+    environment: Vec<(OsString, OsString)>,
+    rendezvous_path: Option<PathBuf>,
 }
 
 impl JtConverterConfig {
@@ -28,7 +32,32 @@ impl JtConverterConfig {
         Self {
             binary: binary.into(),
             timeout,
+            supervisor: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ice3-studio")),
+            environment: Vec::new(),
+            rendezvous_path: None,
         }
+    }
+
+    pub fn with_supervisor(mut self, supervisor: impl Into<PathBuf>) -> Self {
+        self.supervisor = supervisor.into();
+        self
+    }
+
+    pub fn with_environment<K, V>(mut self, environment: impl IntoIterator<Item = (K, V)>) -> Self
+    where
+        K: Into<OsString>,
+        V: Into<OsString>,
+    {
+        self.environment = environment
+            .into_iter()
+            .map(|(key, value)| (key.into(), value.into()))
+            .collect();
+        self
+    }
+
+    pub fn with_rendezvous_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.rendezvous_path = Some(path.into());
+        self
     }
 
     pub fn from_env() -> Result<Self, ImportError> {
@@ -44,7 +73,15 @@ impl JtConverterConfig {
             })?;
         let binary = validate_converter_binary(PathBuf::from(binary))?;
         let timeout = jt_timeout_from_environment()?;
-        Ok(Self { binary, timeout })
+        Ok(Self {
+            binary,
+            timeout,
+            supervisor: std::env::current_exe().map_err(|_| converter_failed())?,
+            environment: Vec::new(),
+            rendezvous_path: std::env::var_os(PGID_ENV)
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from),
+        })
     }
 
     pub const fn timeout(&self) -> Duration {
@@ -54,20 +91,22 @@ impl JtConverterConfig {
 
 pub fn jt_timeout_from_environment() -> Result<Duration, ImportError> {
     match std::env::var("ICE3_JT_TIMEOUT_MS") {
-        Ok(value) => {
-            let value = value.trim();
-            let millis = value
-                .bytes()
-                .all(|byte| byte.is_ascii_digit())
-                .then(|| value.parse::<u64>().ok())
-                .flatten()
-                .filter(|value| *value > 0)
-                .ok_or_else(converter_failed)?;
-            Ok(Duration::from_millis(millis))
-        }
+        Ok(value) => parse_timeout_millis(&value),
         Err(std::env::VarError::NotPresent) => Ok(DEFAULT_TIMEOUT),
         Err(std::env::VarError::NotUnicode(_)) => Err(converter_failed()),
     }
+}
+
+fn parse_timeout_millis(value: &str) -> Result<Duration, ImportError> {
+    let value = value.trim();
+    let millis = value
+        .bytes()
+        .all(|byte| byte.is_ascii_digit())
+        .then(|| value.parse::<u64>().ok())
+        .flatten()
+        .filter(|value| *value > 0)
+        .ok_or_else(converter_failed)?;
+    Ok(Duration::from_millis(millis))
 }
 
 pub fn run_jt_converter(
@@ -76,32 +115,49 @@ pub fn run_jt_converter(
     config: &JtConverterConfig,
 ) -> Result<(), ImportError> {
     let converter = validate_converter_binary(config.binary.clone())?;
+    let supervisor =
+        validate_converter_binary(config.supervisor.clone()).map_err(|_| converter_failed())?;
     let input = input
         .canonicalize()
         .map_err(|_| ImportError::InvalidSource("JT converter input is unavailable".into()))?;
     let output = absolute_output_path(output)?;
     remove_stale_output(&output)?;
 
-    let mut command = Command::new(converter);
+    let mut command = Command::new(supervisor);
     command
+        .arg("--internal-jt-converter-supervisor")
+        .arg("--converter")
+        .arg(&converter)
         .arg("--input")
         .arg(&input)
         .arg("--output")
         .arg(&output)
-        .stdin(Stdio::null())
+        .envs(config.environment.iter().map(|(key, value)| (key, value)))
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut group = command.group();
     #[cfg(windows)]
     group.kill_on_drop(true);
     let mut child = group.spawn().map_err(|_| converter_failed())?;
-    let mut rendezvous = match record_converter_group(child.id()) {
+    let mut start_pipe = child.inner().stdin.take().ok_or_else(converter_failed)?;
+    let mut rendezvous = match record_converter_group(config.rendezvous_path.as_deref(), child.id())
+    {
         Ok(rendezvous) => rendezvous,
         Err(error) => {
             let _ = terminate_converter(&mut child, &mut None);
             return Err(error);
         }
     };
+    if start_pipe
+        .write_all(b"start\n")
+        .and_then(|_| start_pipe.flush())
+        .is_err()
+    {
+        terminate_converter(&mut child, &mut rendezvous)?;
+        return Err(converter_failed());
+    }
+    drop(start_pipe);
     let stdout = match child.inner().stdout.take() {
         Some(stdout) => stdout,
         None => {
@@ -387,11 +443,14 @@ fn close_rendezvous(rendezvous: &mut Option<ConverterGroupRendezvous>) -> Result
     Ok(())
 }
 
-fn record_converter_group(pgid: u32) -> Result<Option<ConverterGroupRendezvous>, ImportError> {
-    let Some(path) = std::env::var_os(PGID_ENV).filter(|value| !value.is_empty()) else {
+fn record_converter_group(
+    path: Option<&Path>,
+    pgid: u32,
+) -> Result<Option<ConverterGroupRendezvous>, ImportError> {
+    let Some(path) = path else {
         return Ok(None);
     };
-    let path = PathBuf::from(path);
+    let path = path.to_path_buf();
     let parent = path.parent().ok_or_else(converter_failed)?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|_| converter_failed())?;
     temporary
@@ -489,5 +548,24 @@ fn diagnostic(code: &str, message: &str) -> ImportError {
     ImportError::SourceDiagnostic {
         code: code.into(),
         message: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_only_positive_integer_timeouts() {
+        assert_eq!(
+            parse_timeout_millis(" 2000 ").unwrap(),
+            Duration::from_millis(2_000)
+        );
+        for invalid in ["", "0", "-1", "1.5", "not-a-number"] {
+            assert_eq!(
+                parse_timeout_millis(invalid).unwrap_err().code(),
+                "ICE3_STUDIO_IMPORT_JT_CONVERT_FAILED"
+            );
+        }
     }
 }

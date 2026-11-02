@@ -41,7 +41,8 @@
   budgets、USD composition confinement 和 IFC resource/unit gates；不得恢复外部 DCC bridge，也不得启动
   Toolchain Sidecar、Node Asset runtime 或 Assimp。
 - JT 的唯一外部 exception 是 host-owned `ICE3_JT_CONVERTER`。Studio 只能使用固定参数、
-  受控进程树、输出上限和 GLB 校验调用它；请求不得提供 executable、参数或 shell。
+  supervisor 启动握手、受控进程树、输出上限和 GLB 校验调用它；请求不得提供 executable、
+  参数或 shell。批准 converter 不得通过新 session、daemon 或等价方式主动逃逸 containment。
 - 本地 API 默认只监听 loopback，并限制项目路径和 Operation 能力。
 - AI 提案和人工表单修改必须进入 ChangeSet；未批准候选不得修改当前 revision。
 

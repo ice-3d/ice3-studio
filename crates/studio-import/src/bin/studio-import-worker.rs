@@ -14,6 +14,16 @@ use studio_import::UsdImporter;
 use studio_import::{GltfImporter, ObjImporter, SourceImporterRegistry, execute_worker_request};
 
 fn main() -> ExitCode {
+    #[cfg(feature = "jt")]
+    match studio_import::jt::run_jt_converter_supervisor(std::env::args_os().skip(1)) {
+        Ok(true) => return ExitCode::SUCCESS,
+        Ok(false) => {}
+        Err(error) => {
+            eprintln!("{}: {}", error.code(), error);
+            return ExitCode::FAILURE;
+        }
+    }
+
     match worker_main(std::env::args_os().skip(1).map(PathBuf::from).collect()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

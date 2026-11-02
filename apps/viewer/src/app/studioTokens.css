@@ -596,7 +596,6 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.capability-list,
 .compute-panel__metrics {
   display: flex;
   flex-wrap: wrap;
@@ -604,7 +603,6 @@ h2 {
   margin-top: var(--space-3);
 }
 
-.capability-list span,
 .compute-panel__metrics span {
   padding: 3px 6px;
   border: 1px solid rgb(255 255 255 / 5%);

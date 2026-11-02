@@ -139,7 +139,11 @@ fn empty_converter_geometry_is_a_stable_empty_geometry_error() {
 }
 
 fn importer() -> JtImporter {
-    JtImporter::with_converter(fixture("converter.mjs"), Duration::from_secs(2))
+    JtImporter::with_converter_and_supervisor(
+        fixture("converter.mjs"),
+        PathBuf::from(env!("CARGO_BIN_EXE_studio-import-worker")),
+        Duration::from_secs(2),
+    )
 }
 
 fn fixture(name: &str) -> PathBuf {

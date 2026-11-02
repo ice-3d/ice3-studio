@@ -223,7 +223,9 @@ IFC 只接受 IFC4X3 和可解析的唯一长度单位，保留空间层级、Gl
 Pset/Qto/System、共享实例、材质和 shared source origin。
 JT 默认 converter timeout 为 300 秒，外层 worker 另有 5 秒清理宽限；输出上限 512 MiB，
 保留层级、共享实例、材质、object/assembly metadata、custom properties、稳定
-Selection 和 shared source origin。
+Selection 和 shared source origin。Converter 必须先经过 supervisor 握手，Studio 登记
+process group 后才开始执行；批准 converter 不得通过新 session、daemon 或等价方式主动
+逃逸进程组。违反该 host trust contract 的 converter 不受支持。
 
 `--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
 替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。

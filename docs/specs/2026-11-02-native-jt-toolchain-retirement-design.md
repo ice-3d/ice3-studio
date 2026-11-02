@@ -99,12 +99,13 @@ Document
 
 ### 5.1 Feature 与格式
 
-`studio-import` 增加 default-on、无第三方 Cargo dependency 的 `jt` feature：
+`studio-import` 增加 default-on 的 `jt` feature。该 feature 不依赖 JT parser；
+`command-group` 与 `libc` 只用于审计过的进程 containment：
 
 ```toml
 [features]
 default = ["fbx", "usd", "step", "ifc", "jt"]
-jt = []
+jt = ["dep:command-group", "dep:libc"]
 ```
 
 `studio-cli` 同名透传。Adapter 契约为：
@@ -122,7 +123,8 @@ jt = []
 - adapter 不出现在 registry；
 - `--adapter jt` 返回 `ICE3_STUDIO_IMPORT_ADAPTER_UNAVAILABLE`；
 - converter 环境变量和调用实现不进入产物；
-- `cargo tree` 不增加 JT 专用 parser 或 process dependency。
+- `cargo tree` 不包含 JT parser 或 `command-group`；JT feature 的 direct `libc`
+  dependency 不启用，其它 crate 通过共享基础库带入的 `libc` 不算 JT runtime。
 
 ### 5.2 Converter 配置
 
@@ -144,6 +146,10 @@ CONVERTER --input ABSOLUTE_SOURCE.jt --output ABSOLUTE_TEMP/raw.glb
 
 不经过 shell，不透传额外参数，不把 converter stdout/stderr 写入最终 report。stdout 和
 stderr 分别保留最多 64 KiB 的内部诊断窗口并持续 drain，避免子进程因 pipe 阻塞。
+
+组织批准的 converter 还必须遵守 host trust contract：不得调用 `setsid`、创建新的
+process group/session、以 daemon 方式脱离父进程，或采用其它方式主动逃逸 Studio 的
+containment。违反该 contract 的 converter 不属于受支持输入。
 
 ### 5.3 Converter 输出契约
 
@@ -255,7 +261,9 @@ worker 再启动 converter，形成受控的两级进程树。
 生产 CLI 的执行策略：
 
 - worker 是独立 process group/session leader；
-- converter 及其 descendants 属于同一可终止进程树；
+- worker 先启动等待握手的受控 supervisor，并在 converter 执行前登记可终止的 process
+  group；worker 在握手前退出时，converter 不会开始执行；
+- converter 及其留在受控 group 内的 descendants 属于同一可终止进程树；
 - JT worker deadline 为 `ICE3_JT_TIMEOUT_MS` 加 5 秒发布宽限；
 - 超时先向进程树发送 terminate，1 秒后仍未退出则 force terminate；
 - Windows 使用等价 Job Object containment；不得只终止直接 child；
@@ -453,7 +461,8 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 - converter shell 不执行，参数注入和请求控制路径被拒绝；
 - unavailable、timeout、crash、invalid GLB、oversized output 和 empty geometry
   fail closed；
-- timeout 后 worker、converter 和 descendants 均退出，没有遗留临时 output；
+- timeout 后 worker、converter 和留在批准 process group 内的 descendants 均退出，
+  没有遗留临时 output；违反 trust contract 并主动创建新 session 的进程不受支持；
 - default build 注册 `jt`，no-default build 返回
   `ICE3_STUDIO_IMPORT_ADAPTER_UNAVAILABLE`。
 
@@ -479,7 +488,7 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 
 | 风险 | 控制 |
 |---|---|
-| Converter 忽略 terminate 并产生孤儿进程 | 生产路径终止整个 process tree；1 秒后 force terminate |
+| Converter 忽略 terminate 并产生孤儿进程 | 先握手再启动 converter，终止批准 process group；1 秒后 force terminate；converter contract 禁止新 session/daemon 逃逸 |
 | Large-origin GLB 在 `f32` 转换后抖动 | 在 source JSON/world transform 阶段用 `f64` 计算并先应用 shared origin |
 | 删除 Sidecar 后 preview 性能回退 | 以 Studio native preview 建立新的 benchmark 基线，不用缺失外部进程掩盖结果 |
 | Fixtures 留在旧 repo 形成假独立 | 复制、hash、重写所有 test path，并在隐藏旧 repo 后执行 full verify |

@@ -1,20 +1,22 @@
 #![cfg(feature = "jt")]
 
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::process::{Command, Stdio};
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use studio_import::jt::{JtConverterConfig, run_jt_converter};
 
-static ENV_LOCK: Mutex<()> = Mutex::new(());
+static TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[test]
 fn passes_only_fixed_absolute_paths() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    let config = JtConverterConfig::new(fixture("capture-args.sh"), Duration::from_secs(2));
+    let config = config(fixture("capture-args.sh"), Duration::from_secs(2));
 
     run_jt_converter(&input, &output, &config).unwrap();
 
@@ -32,62 +34,14 @@ fn passes_only_fixed_absolute_paths() {
 }
 
 #[test]
-fn reads_fixed_environment_configuration() {
-    let _guard = ENV_LOCK.lock().unwrap();
-    let root = tempfile::tempdir().unwrap();
-    let input = root.path().join("assembly.jt");
-    let output = root.path().join("raw.glb");
-    std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    unsafe {
-        std::env::set_var("ICE3_JT_CONVERTER", fixture("capture-args.sh"));
-        std::env::set_var("ICE3_JT_TIMEOUT_MS", "2000");
-    }
-
-    let result =
-        JtConverterConfig::from_env().and_then(|config| run_jt_converter(&input, &output, &config));
-
-    unsafe {
-        std::env::remove_var("ICE3_JT_CONVERTER");
-        std::env::remove_var("ICE3_JT_TIMEOUT_MS");
-    }
-    result.unwrap();
-}
-
-#[test]
-fn rejects_invalid_environment_configuration() {
-    let _guard = ENV_LOCK.lock().unwrap();
-    unsafe {
-        std::env::remove_var("ICE3_JT_CONVERTER");
-        std::env::set_var("ICE3_JT_TIMEOUT_MS", "0");
-    }
-    assert_eq!(
-        JtConverterConfig::from_env().unwrap_err().code(),
-        "ICE3_STUDIO_IMPORT_JT_CONVERTER_UNAVAILABLE"
-    );
-
-    unsafe {
-        std::env::set_var("ICE3_JT_CONVERTER", fixture("capture-args.sh"));
-        std::env::set_var("ICE3_JT_TIMEOUT_MS", "not-a-number");
-    }
-    assert_eq!(
-        JtConverterConfig::from_env().unwrap_err().code(),
-        "ICE3_STUDIO_IMPORT_JT_CONVERT_FAILED"
-    );
-
-    unsafe {
-        std::env::remove_var("ICE3_JT_CONVERTER");
-        std::env::remove_var("ICE3_JT_TIMEOUT_MS");
-    }
-}
-
-#[test]
 fn reports_unavailable_and_non_zero_converter() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     std::fs::write(&input, "").unwrap();
 
-    let missing = JtConverterConfig::new(root.path().join("missing"), Duration::from_secs(1));
+    let missing = config(root.path().join("missing"), Duration::from_secs(1));
     assert_eq!(
         run_jt_converter(&input, &output, &missing)
             .unwrap_err()
@@ -95,7 +49,7 @@ fn reports_unavailable_and_non_zero_converter() {
         "ICE3_STUDIO_IMPORT_JT_CONVERTER_UNAVAILABLE"
     );
 
-    let failing = JtConverterConfig::new(fixture("failing-converter.sh"), Duration::from_secs(1));
+    let failing = config(fixture("failing-converter.sh"), Duration::from_secs(1));
     assert_eq!(
         run_jt_converter(&input, &output, &failing)
             .unwrap_err()
@@ -106,6 +60,7 @@ fn reports_unavailable_and_non_zero_converter() {
 
 #[test]
 fn validates_regular_glb_output() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     let invalid = root.path().join("invalid.glb");
     std::fs::write(&invalid, b"not-a-glb").unwrap();
@@ -123,6 +78,7 @@ fn validates_regular_glb_output() {
 
 #[test]
 fn rejects_oversized_symlink_and_directory_outputs() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     let oversized = root.path().join("oversized.glb");
     let file = std::fs::File::create(&oversized).unwrap();
@@ -157,11 +113,12 @@ fn rejects_oversized_symlink_and_directory_outputs() {
 
 #[test]
 fn drains_noisy_stdout_and_stderr_without_deadlock() {
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    let config = JtConverterConfig::new(fixture("noisy-converter.sh"), Duration::from_secs(2));
+    let config = config(fixture("noisy-converter.sh"), Duration::from_secs(2));
     let started = Instant::now();
 
     run_jt_converter(&input, &output, &config).unwrap();
@@ -173,22 +130,17 @@ fn drains_noisy_stdout_and_stderr_without_deadlock() {
 #[cfg(unix)]
 #[test]
 fn timeout_terminates_descendants() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     let marker = root.path().join("orphan");
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    unsafe {
-        std::env::set_var("ICE3_JT_ORPHAN_MARKER", &marker);
-    }
-    let config = JtConverterConfig::new(fixture("tree-converter.sh"), Duration::from_millis(50));
+    let config = config(fixture("tree-converter.sh"), Duration::from_millis(50))
+        .with_environment([("ICE3_JT_ORPHAN_MARKER", marker.as_os_str())]);
 
     let result = run_jt_converter(&input, &output, &config);
 
-    unsafe {
-        std::env::remove_var("ICE3_JT_ORPHAN_MARKER");
-    }
     assert_eq!(result.unwrap_err().code(), "ICE3_STUDIO_IMPORT_JT_TIMEOUT");
     std::thread::sleep(Duration::from_millis(2_500));
     assert!(!marker.exists());
@@ -197,25 +149,20 @@ fn timeout_terminates_descendants() {
 #[cfg(unix)]
 #[test]
 fn successful_parent_cannot_leave_background_descendants() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     let marker = root.path().join("orphan");
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    unsafe {
-        std::env::set_var("ICE3_JT_ORPHAN_MARKER", &marker);
-    }
-    let config = JtConverterConfig::new(
+    let config = config(
         fixture("exit-with-child-converter.sh"),
         Duration::from_secs(2),
-    );
+    )
+    .with_environment([("ICE3_JT_ORPHAN_MARKER", marker.as_os_str())]);
 
     let result = run_jt_converter(&input, &output, &config);
 
-    unsafe {
-        std::env::remove_var("ICE3_JT_ORPHAN_MARKER");
-    }
     result.unwrap();
     std::thread::sleep(Duration::from_millis(2_500));
     assert!(!marker.exists());
@@ -223,51 +170,70 @@ fn successful_parent_cannot_leave_background_descendants() {
 
 #[cfg(unix)]
 #[test]
-fn escaped_descendant_holding_pipes_cannot_extend_the_converter_timeout() {
-    let root = tempfile::tempdir().unwrap();
-    let input = root.path().join("assembly.jt");
-    let output = root.path().join("raw.glb");
-    std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    let config = JtConverterConfig::new(
-        fixture("escape-with-child-converter.py"),
-        Duration::from_secs(1),
-    );
-    let started = Instant::now();
-
-    run_jt_converter(&input, &output, &config).unwrap();
-
-    assert!(
-        started.elapsed() < Duration::from_millis(1_500),
-        "escaped pipe holder extended runtime to {:?}",
-        started.elapsed()
-    );
-    studio_import::jt::validate_jt_converter_output(&output).unwrap();
-}
-
-#[cfg(unix)]
-#[test]
 fn converter_group_rendezvous_is_removed_before_return() {
-    let _guard = ENV_LOCK.lock().unwrap();
+    let _serial = serial();
     let root = tempfile::tempdir().unwrap();
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     let rendezvous = root.path().join("converter.pgid");
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    unsafe {
-        std::env::set_var("ICE3_STUDIO_JT_CONVERTER_PGID_FILE", &rendezvous);
-    }
-    let config = JtConverterConfig::new(fixture("converter.mjs"), Duration::from_secs(2));
+    let config =
+        config(fixture("converter.mjs"), Duration::from_secs(2)).with_rendezvous_path(&rendezvous);
 
     let result = run_jt_converter(&input, &output, &config);
 
-    unsafe {
-        std::env::remove_var("ICE3_STUDIO_JT_CONVERTER_PGID_FILE");
-    }
     result.unwrap();
     assert!(
         !rendezvous.exists(),
         "converter PGID rendezvous survived through group reaping"
     );
+}
+
+#[test]
+fn supervisor_does_not_execute_converter_before_start() {
+    let _serial = serial();
+    let root = tempfile::tempdir().unwrap();
+    let marker = root.path().join("converter-started");
+    let output = root.path().join("raw.glb");
+    let input = root.path().join("assembly.jt");
+    std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_studio-import-worker"))
+        .arg("--internal-jt-converter-supervisor")
+        .arg("--converter")
+        .arg(fixture("start-marker-converter.sh"))
+        .arg("--input")
+        .arg(&input)
+        .arg("--output")
+        .arg(&output)
+        .env("ICE3_JT_START_MARKER", &marker)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+
+    std::thread::sleep(Duration::from_millis(150));
+    assert!(
+        !marker.exists(),
+        "converter executed before supervisor start handshake"
+    );
+    drop(child.stdin.take());
+    assert!(!child.wait().unwrap().success());
+    assert!(
+        !marker.exists(),
+        "converter executed after a failed handshake"
+    );
+}
+
+fn config(binary: impl Into<PathBuf>, timeout: Duration) -> JtConverterConfig {
+    JtConverterConfig::new(binary, timeout)
+        .with_supervisor(PathBuf::from(env!("CARGO_BIN_EXE_studio-import-worker")))
+}
+
+fn serial() -> MutexGuard<'static, ()> {
+    TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn fixture(name: &str) -> PathBuf {

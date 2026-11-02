@@ -374,12 +374,18 @@ fn finish_worker_cleanup(
     let worker_status = worker_cleanup.is_ok().then(|| worker_wait(child));
     let final_converter_cleanup = terminate_recorded_converter_group(converter_group_path);
 
-    first_converter_cleanup?;
-    worker_cleanup.map_err(ImportError::Io)?;
+    first_converter_cleanup.map_err(|error| {
+        ImportError::WorkerFailed(format!("pre-worker converter cleanup failed: {error}"))
+    })?;
+    worker_cleanup.map_err(|error| {
+        ImportError::WorkerFailed(format!("worker termination failed: {error}"))
+    })?;
     let status = worker_status
         .ok_or_else(|| ImportError::WorkerFailed("worker was not terminated".into()))?
-        .map_err(ImportError::Io)?;
-    final_converter_cleanup?;
+        .map_err(|error| ImportError::WorkerFailed(format!("worker wait failed: {error}")))?;
+    final_converter_cleanup.map_err(|error| {
+        ImportError::WorkerFailed(format!("final converter cleanup failed: {error}"))
+    })?;
     Ok(status)
 }
 
@@ -502,11 +508,16 @@ fn terminate_recorded_converter_group(path: &Path) -> Result<(), ImportError> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(ImportError::Io(error)),
     };
-    lock_rendezvous(&file)?;
+    lock_rendezvous(&file).map_err(|error| {
+        ImportError::WorkerFailed(format!("converter rendezvous lock failed: {error}"))
+    })?;
     let mut state = String::new();
-    file.seek(std::io::SeekFrom::Start(0))
-        .map_err(ImportError::Io)?;
-    file.read_to_string(&mut state).map_err(ImportError::Io)?;
+    file.seek(std::io::SeekFrom::Start(0)).map_err(|error| {
+        ImportError::WorkerFailed(format!("converter rendezvous seek failed: {error}"))
+    })?;
+    file.read_to_string(&mut state).map_err(|error| {
+        ImportError::WorkerFailed(format!("converter rendezvous read failed: {error}"))
+    })?;
     let cleanup = match state.trim() {
         "closed" => Ok(()),
         value => match value
@@ -515,9 +526,16 @@ fn terminate_recorded_converter_group(path: &Path) -> Result<(), ImportError> {
             .filter(|value| *value > 0)
         {
             Some(pgid) => {
-                let terminate = signal_process_group(-pgid, libc::SIGTERM);
+                let terminate =
+                    signal_process_group(-pgid, libc::SIGTERM, false).map_err(|error| {
+                        ImportError::WorkerFailed(format!(
+                            "converter group terminate failed: {error}"
+                        ))
+                    });
                 std::thread::sleep(WORKER_TERMINATE_GRACE);
-                let force = signal_process_group(-pgid, libc::SIGKILL);
+                let force = signal_process_group(-pgid, libc::SIGKILL, true).map_err(|error| {
+                    ImportError::WorkerFailed(format!("converter group kill failed: {error}"))
+                });
                 terminate.and(force)
             }
             None => Err(ImportError::WorkerFailed(
@@ -528,9 +546,13 @@ fn terminate_recorded_converter_group(path: &Path) -> Result<(), ImportError> {
     let removal = match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(ImportError::Io(error)),
+        Err(error) => Err(ImportError::WorkerFailed(format!(
+            "converter rendezvous removal failed: {error}"
+        ))),
     };
-    let unlock = unlock_rendezvous(&file);
+    let unlock = unlock_rendezvous(&file).map_err(|error| {
+        ImportError::WorkerFailed(format!("converter rendezvous unlock failed: {error}"))
+    });
     cleanup?;
     removal?;
     unlock
@@ -557,13 +579,19 @@ fn unlock_rendezvous(file: &std::fs::File) -> Result<(), ImportError> {
 }
 
 #[cfg(all(feature = "jt", unix))]
-fn signal_process_group(pgid: i32, signal: i32) -> Result<(), ImportError> {
+fn signal_process_group(
+    pgid: i32,
+    signal: i32,
+    eperm_means_no_live_members: bool,
+) -> Result<(), ImportError> {
     let result = unsafe { libc::kill(pgid, signal) };
     if result == 0 {
         return Ok(());
     }
     let error = std::io::Error::last_os_error();
-    if error.raw_os_error() == Some(libc::ESRCH) {
+    if error.raw_os_error() == Some(libc::ESRCH)
+        || (eperm_means_no_live_members && error.raw_os_error() == Some(libc::EPERM))
+    {
         Ok(())
     } else {
         Err(ImportError::Io(error))

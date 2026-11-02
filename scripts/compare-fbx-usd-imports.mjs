@@ -18,7 +18,11 @@ const fixtureRoot = resolve(
   studioRoot,
   'fixtures/source-import',
 );
-const nativeCli = join(studioRoot, 'target/debug/studio-cli');
+const nativeCli = join(
+  studioRoot,
+  'target/debug',
+  process.platform === 'win32' ? 'studio-cli.exe' : 'studio-cli',
+);
 const reportPath = join(studioRoot, 'output/fbx-usd-import-parity.json');
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-fbx-usd-parity-'));
 const allowedDifferenceKeys = new Set(['vertexCount', 'byteDigest']);

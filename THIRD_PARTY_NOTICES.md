@@ -12,6 +12,12 @@ Available under Apache-2.0 OR MIT; ICE3 selects the MIT license.
 
 Copyright (c) Félix Saparelli
 
+### libc 0.2.191
+
+Available under MIT OR Apache-2.0; ICE3 selects the MIT license.
+
+Copyright (c) The Rust Project Developers
+
 ## FBX Source Import
 
 ### fbx-rs 0.1.3

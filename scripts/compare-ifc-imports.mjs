@@ -20,7 +20,11 @@ const instanceFixturePath = join(
   'crates/studio-import/tests/fixtures/ifc/instanced.ifc',
 );
 const reportPath = join(studioRoot, 'output/ifc-import-parity.json');
-const nativeCli = join(studioRoot, 'target/debug/studio-cli');
+const nativeCli = join(
+  studioRoot,
+  'target/debug',
+  process.platform === 'win32' ? 'studio-cli.exe' : 'studio-cli',
+);
 const mode = process.argv[2] ?? '--compare';
 
 const fixtures = [

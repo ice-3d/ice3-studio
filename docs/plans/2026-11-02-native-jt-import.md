@@ -384,7 +384,7 @@ Expected: compile failure，`JtImporter`、`jt` feature 和 `SourceFormat::Jt` �
 ```toml
 [features]
 default = ["fbx", "usd", "step", "ifc", "jt"]
-jt = []
+jt = ["dep:command-group", "dep:libc"]
 ```
 
 `crates/studio-cli/Cargo.toml`：
@@ -394,6 +394,10 @@ jt = []
 default = ["fbx", "usd", "step", "ifc", "jt"]
 jt = ["studio-import/jt"]
 ```
+
+`jt` 不引入 JT parser；`command-group` 与直接 `libc` dependency 只用于审计过的进程
+containment，并在关闭 `jt` 时停用。其它 crate 通过共享基础库带入的 `libc` 不属于 JT
+runtime。
 
 `source.rs` 增加 `Jt`，`as_str()` 返回 `"jt"`。`jt/mod.rs` 先返回：
 
@@ -476,10 +480,12 @@ git commit -m "feat(studio-import): register feature-gated JT adapter"
 - Modify: `Cargo.toml`
 - Modify: `crates/studio-import/Cargo.toml`
 - Create: `crates/studio-import/src/jt/converter.rs`
+- Create: `crates/studio-import/src/jt/supervisor.rs`
 - Create: `crates/studio-import/tests/jt_converter.rs`
 - Create: `fixtures/source-import/jt/capture-args.sh`
 - Create: `fixtures/source-import/jt/tree-converter.sh`
 - Create: `fixtures/source-import/jt/noisy-converter.sh`
+- Create: `fixtures/source-import/jt/start-marker-converter.sh`
 
 **接口：**
 - Consumes: `ICE3_JT_CONVERTER`、`ICE3_JT_TIMEOUT_MS`、fixed input/output paths.
@@ -643,27 +649,34 @@ command-group = "5.0.1"
 `studio-import` dependency 仅在 `jt` feature 下启用：
 
 ```toml
-jt = ["dep:command-group"]
+jt = ["dep:command-group", "dep:libc"]
 command-group = { workspace = true, optional = true }
+libc = { workspace = true, optional = true }
 ```
 
 核心执行：
 
 ```rust
-let mut command = Command::new(&config.binary);
+let mut command = Command::new(&config.supervisor);
 command
+    .arg("--internal-jt-converter-supervisor")
+    .arg("--converter")
+    .arg(&config.binary)
     .arg("--input")
     .arg(input)
     .arg("--output")
     .arg(output)
-    .stdin(Stdio::null())
+    .stdin(Stdio::piped())
     .stdout(Stdio::piped())
     .stderr(Stdio::piped());
 let mut child = command.group_spawn().map_err(|_| converter_failed())?;
+record_converter_group(child.id())?;
+write_start_handshake(&mut child)?;
 ```
 
 `command-group` 在 Unix 创建 process group，在 Windows 创建 Job Object。stdout/stderr
-各用一个 collector thread 持续读取，只保留最后 65,536 bytes。
+各用一个 collector thread 持续读取，只保留最后 65,536 bytes。Supervisor 在收到
+start handshake 前不会执行 converter；worker 在登记前退出时 converter 不会启动。
 
 超时处理：
 
@@ -724,11 +737,11 @@ fn timeout_terminates_descendants() {
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     std::fs::write(&input, "").unwrap();
-    unsafe { std::env::set_var("ICE3_JT_ORPHAN_MARKER", &marker) };
     let config = JtConverterConfig::new(
         fixture("tree-converter.sh"),
         Duration::from_millis(50),
-    );
+    )
+    .with_environment([("ICE3_JT_ORPHAN_MARKER", marker.as_os_str())]);
     assert_eq!(
         run_jt_converter(&input, &output, &config).unwrap_err().code(),
         "ICE3_STUDIO_IMPORT_JT_TIMEOUT"
@@ -738,8 +751,9 @@ fn timeout_terminates_descendants() {
 }
 ```
 
-该测试使用进程级 env，必须与其它设 env 的 tests 串行；统一放入
-`crates/studio-import/tests/jt_converter.rs`，不跨 test target 并行修改环境。
+测试通过 `JtConverterConfig::with_environment` 注入 converter env，不修改进程级
+环境；`crates/studio-import/tests/jt_converter.rs` 的 process-spawning 测试用单一
+mutex 串行化时序敏感的 group 测试。
 
 `fixtures/source-import/jt/noisy-converter.sh`：
 

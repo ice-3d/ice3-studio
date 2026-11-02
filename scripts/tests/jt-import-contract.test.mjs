@@ -5,6 +5,17 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 test('native JT parity report passes every business gate', async () => {
+  const comparison = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL('../../scripts/compare-jt-imports.mjs', import.meta.url))],
+    { encoding: 'utf8' },
+  );
+  assert.equal(
+    comparison.status,
+    0,
+    `JT parity command failed:\n${comparison.stderr}\n${comparison.stdout}`,
+  );
+
   const report = JSON.parse(await readFile(
     new URL('../../output/jt-import-parity.json', import.meta.url),
     'utf8',

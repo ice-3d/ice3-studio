@@ -23,6 +23,16 @@ impl JtImporter {
         }
     }
 
+    pub fn with_converter_and_supervisor(
+        binary: impl Into<std::path::PathBuf>,
+        supervisor: impl Into<std::path::PathBuf>,
+        timeout: Duration,
+    ) -> Self {
+        Self {
+            converter: Some(JtConverterConfig::new(binary, timeout).with_supervisor(supervisor)),
+        }
+    }
+
     pub fn import_file(&self, path: &Path, asset_id: &str) -> Result<SourceScene, ImportError> {
         self.import(&ImportRequest {
             path: path.to_path_buf(),
