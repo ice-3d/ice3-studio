@@ -286,12 +286,14 @@ session。功能已交付，但性能门禁未过，默认关闭。
 静态资产导入、跨项目 GPU 缓冲持久化。清单与理由见
 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
-Runtime GLB、Asset Prepare、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、
-USD、STEP、IFC、JT Source Import 已由 Studio 原生实现。Studio 不再消费 Toolchain
-Source Import 生产路径；Sidecar、client、配置和 Viewer 状态面已经退役，
-committed/candidate preview 始终由 Studio 原生生成。相邻 Toolchain repository 的 JT
-adapter、Sidecar 和 release surface 已完成清理，Studio 不再包含旧 repository 的路径
-依赖；repository 归档仍需用户单独授权。
+Runtime GLB、Source Import、preview、partition、LOD 和 Tileset 已由 Studio 原生实现。
+Phase 6A 已补齐共享 Asset Prepare、render edges、metrics、budget/report 以及
+`build`/`inspect`；Phase 6B 的 partition/Runtime profile 和 Phase 6C 的 Engine/
+performance 验收仍在后续计划中。Studio 不再消费 Toolchain Source Import 生产路径；
+Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview 始终由
+Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和 release surface
+已完成清理，Studio 不再包含旧 repository 的路径依赖；repository 归档仍需用户单独
+授权。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。

@@ -3,6 +3,10 @@ import { rm, readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import {
+  comparePreparedCase,
+  normalizeLegacyReportKind,
+} from '../compare-prepare-imports.mjs';
 
 test('prepare baseline pins edges, metrics and budget', async () => {
   const baseline = JSON.parse(await readFile(
@@ -65,6 +69,13 @@ test('native Studio build parity report is generated and passes', async () => {
     report.deterministic.secondDigest,
   );
   assert.equal(report.comparisons.sourceDigest, true);
+  assert.equal(report.comparisons.reportKind, true);
+  assert.equal(report.comparisons.reportSchemaVersion, true);
+  assert.equal(report.comparisons.reportSourceDigest, true);
+  assert.equal(report.comparisons.reportContentDigest, true);
+  assert.equal(report.comparisons.contentDigestAgreement, true);
+  assert.equal(report.comparisons.profileSourceDigest, true);
+  assert.equal(report.comparisons.profileContentDigest, true);
   assert.deepEqual(report.native.stats, report.baseline.stats);
   assert.deepEqual(report.native.bounds, report.baseline.bounds);
   assert.deepEqual(
@@ -74,7 +85,19 @@ test('native Studio build parity report is generated and passes', async () => {
   assert.deepEqual(report.native.nodeNames, report.baseline.nodeNames);
   assert.deepEqual(report.native.selectionIds, report.baseline.selectionIds);
   assert.deepEqual(report.native.budget, report.baseline.budget);
-  assert.deepEqual(report.native.report, report.baseline.report);
+  assert.equal(report.native.report.kind, report.baseline.report.kind);
+  assert.equal(
+    report.native.report.schemaVersion,
+    report.baseline.report.schemaVersion,
+  );
+  assert.deepEqual(
+    report.native.report.stats,
+    report.baseline.report.stats,
+  );
+  assert.deepEqual(
+    report.native.report.budget,
+    report.baseline.report.budget,
+  );
   assert.equal(report.native.edgeRole, 'edges');
   assert.equal(report.native.edgeWidthPx, 3);
   assert.deepEqual(report.native.edgeColor, report.baseline.edgeColor);
@@ -87,4 +110,68 @@ test('native Studio build parity report is generated and passes', async () => {
     report.reportKindNormalization.studio,
     'ice3-asset-build-report',
   );
+  assert.equal(report.studioBinary, 'studio-cli');
+  assert.equal(
+    report.cases.skipEdges.status,
+    'pass',
+  );
+  assert.equal(
+    report.cases.crease90.status,
+    'pass',
+  );
+  assert.ok(report.native.businessNodeIdNormalization.length > 0);
+  assert.ok(
+    Object.hasOwn(
+      report.native.businessNodeIdNormalization[0],
+      'original',
+    ),
+  );
+});
+
+test('legacy report normalization never repairs a Studio report regression', () => {
+  const expected = {
+    sourceDigest: 'source',
+    edgesPrepared: true,
+    stats: { triangleCount: 12 },
+    budget: { profile: 'interactive-desktop-v1', status: 'pass' },
+    report: {
+      kind: normalizeLegacyReportKind('ice3-asset-report').studio,
+      schemaVersion: '1.0',
+      stats: { triangleCount: 12 },
+      budget: { profile: 'interactive-desktop-v1', status: 'pass' },
+    },
+    edgeRole: 'edges',
+    edgeWidthPx: 3,
+    edgeColor: [1, 1, 1, 1],
+    edgeMaterialName: 'steel edges',
+    businessNodeIds: ['prepare-cube/node/0'],
+    nodeNames: ['prepared-cube'],
+    selectionIds: ['prepare-cube/node/0'],
+    bounds: { min: [-1, -1, -1], max: [1, 1, 1] },
+  };
+  const native = {
+    ...expected,
+    profileSourceDigest: 'source',
+    profileContentDigest: 'glb',
+    report: {
+      ...expected.report,
+      kind: 'ice3-asset-report',
+      sourceDigest: 'source',
+      contentDigest: 'glb',
+    },
+  };
+  const comparisons = comparePreparedCase({
+    native,
+    expected,
+    firstDigest: 'glb',
+    secondDigest: 'glb',
+    binaryDigest: 'binary',
+    sourceFileDigest: 'source',
+  });
+
+  assert.equal(comparisons.reportKind, false);
+  assert.equal(comparisons.reportSchemaVersion, true);
+  assert.equal(comparisons.reportContentDigest, false);
+  assert.equal(comparisons.profileContentDigest, false);
+  assert.equal(comparisons.contentDigestAgreement, true);
 });
