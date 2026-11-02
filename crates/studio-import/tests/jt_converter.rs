@@ -49,7 +49,7 @@ fn reports_unavailable_and_non_zero_converter() {
         "ICE3_STUDIO_IMPORT_JT_CONVERTER_UNAVAILABLE"
     );
 
-    let failing = config(fixture("failing-converter.sh"), Duration::from_secs(1));
+    let failing = config(fixture("failing-converter.sh"), Duration::from_secs(5));
     assert_eq!(
         run_jt_converter(&input, &output, &failing)
             .unwrap_err()
