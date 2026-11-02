@@ -49,11 +49,14 @@ impl SourceImporter for GltfImporter {
     fn import(&self, request: &ImportRequest) -> Result<SourceScene, ImportError> {
         let source = read_glb(&request.path)
             .map_err(|error| ImportError::InvalidSource(error.to_string()))?;
-        import_source(&source, request.asset_id.trim())
+        import_source_glb(&source, request.asset_id.trim())
     }
 }
 
-fn import_source(source: &SourceGlb, asset_id: &str) -> Result<SourceScene, ImportError> {
+pub(crate) fn import_source_glb(
+    source: &SourceGlb,
+    asset_id: &str,
+) -> Result<SourceScene, ImportError> {
     if asset_id.is_empty() {
         return Err(ImportError::InvalidSource(
             "asset ID must not be empty".into(),
