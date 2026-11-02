@@ -64,6 +64,23 @@ fn applies_millimeter_units_and_shared_origin_once() {
     assert_world_bounds(&scene, [0.0, 0.0, 0.0], [2.01, 0.9, 0.95987]);
 }
 
+#[test]
+fn omits_absent_step_metadata_fields() {
+    let scene = StepImporter::new()
+        .import_file(&fixture("step/synthetic-skid.step"), "step-fixture")
+        .unwrap();
+    let root = scene
+        .nodes
+        .iter()
+        .find(|node| node.name == "SyntheticSkid")
+        .unwrap();
+    let metadata = root.extras["ice3"]["step"].as_object().unwrap();
+    assert!(!metadata.contains_key("occurrenceId"));
+    assert!(!metadata.contains_key("itemId"));
+    assert!(!metadata.contains_key("itemIds"));
+    assert!(!metadata.contains_key("layers"));
+}
+
 fn fixture(relative: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../ice3-toolchain/tests/fixtures")

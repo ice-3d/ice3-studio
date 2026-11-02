@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use glam::{DMat4, DVec3, DVec4};
 use oxideav_step::{Occurrence, Shape, StepModel};
-use serde_json::json;
+use serde_json::{Map, Value, json};
 
 use crate::{
     ImportError, ImportWarning, NativeImportLimits, SourceFormat, SourceMaterial, SourceMesh,
@@ -18,6 +18,7 @@ struct Projection<'a> {
     meshes: Vec<SourceMesh>,
     materials: Vec<SourceMaterial>,
     part_meshes: BTreeMap<usize, usize>,
+    node_worlds: BTreeMap<String, DMat4>,
     used_names: BTreeSet<String>,
     warnings: BTreeSet<ImportWarning>,
     visited_parts: BTreeSet<usize>,
@@ -47,6 +48,7 @@ pub(super) fn project_model(
         meshes: Vec::new(),
         materials: Vec::new(),
         part_meshes: BTreeMap::new(),
+        node_worlds: BTreeMap::new(),
         used_names: BTreeSet::new(),
         warnings: model
             .warnings
@@ -61,11 +63,11 @@ pub(super) fn project_model(
     };
 
     for occurrence in &model.roots {
-        projection.visit_occurrence(occurrence, None, 0)?;
+        projection.visit_occurrence(occurrence, None, None, 0)?;
     }
     for part_index in 0..model.parts.len() {
         if !projection.visited_parts.contains(&part_index) {
-            projection.visit_part(part_index, None, None, 0)?;
+            projection.visit_part(part_index, None, None, None, 0)?;
         }
     }
 
@@ -80,7 +82,11 @@ pub(super) fn project_model(
         return Err(ImportError::EmptyGeometry);
     }
 
-    let source_origin = apply_shared_origin(&mut projection.nodes, &projection.meshes)?;
+    let source_origin = apply_shared_origin(
+        &mut projection.nodes,
+        &projection.meshes,
+        &projection.node_worlds,
+    )?;
     Ok(SourceScene {
         asset_id: asset_id.into(),
         source_format: SourceFormat::Step,
@@ -111,6 +117,7 @@ impl Projection<'_> {
         &mut self,
         occurrence: &Occurrence,
         parent: Option<&str>,
+        parent_world: Option<DMat4>,
         depth: usize,
     ) -> Result<(), ImportError> {
         if depth > self.model.parts.len() {
@@ -118,7 +125,13 @@ impl Projection<'_> {
                 "STEP occurrence hierarchy is cyclic".into(),
             ));
         }
-        self.visit_part(occurrence.part, Some(occurrence), parent, depth)
+        self.visit_part(
+            occurrence.part,
+            Some(occurrence),
+            parent,
+            parent_world,
+            depth,
+        )
     }
 
     fn visit_part(
@@ -126,6 +139,7 @@ impl Projection<'_> {
         part_index: usize,
         occurrence: Option<&Occurrence>,
         parent: Option<&str>,
+        parent_world: Option<DMat4>,
         depth: usize,
     ) -> Result<(), ImportError> {
         let (raw_name, product_id, definition, representation, children, item_ids, layers) = {
@@ -158,9 +172,12 @@ impl Projection<'_> {
         let ordinal = self.nodes.len();
         let node_id = format!("{}/step/node/{ordinal}", self.asset_id);
         let mesh = self.ensure_part_mesh(part_index)?;
-        let matrix = occurrence.map_or_else(identity_matrix, |value| {
+        let local_world = occurrence.map_or(DMat4::IDENTITY, |value| {
             converted_transform(value, self.model.length_unit_metres)
         });
+        let world = parent_world.map_or(local_world, |parent| parent * local_world);
+        let matrix = local_world.to_cols_array().map(|value| value as f32);
+        self.node_worlds.insert(node_id.clone(), world);
         self.nodes.push(SourceNode {
             id: node_id.clone(),
             name,
@@ -168,24 +185,18 @@ impl Projection<'_> {
             matrix,
             mesh,
             material: None,
-            extras: json!({
-                "ice3": {
-                    "step": {
-                        "schema": "ap242",
-                        "productId": product_id,
-                        "definitionId": definition,
-                        "representationId": representation,
-                        "occurrenceId": occurrence.and_then(|value| value.id),
-                        "itemId": item_ids.first(),
-                        "itemIds": item_ids,
-                        "layers": layers
-                    }
-                }
-            }),
+            extras: step_node_extras(
+                product_id,
+                definition,
+                representation,
+                occurrence.and_then(|value| value.id),
+                &item_ids,
+                &layers,
+            ),
         });
         self.visited_parts.insert(part_index);
         for child in children {
-            self.visit_occurrence(&child, Some(&node_id), depth + 1)?;
+            self.visit_occurrence(&child, Some(&node_id), Some(world), depth + 1)?;
         }
         Ok(())
     }
@@ -207,10 +218,11 @@ impl Projection<'_> {
                 continue;
             }
             let positions = convert_positions(shape, self.model.length_unit_metres)?;
-            for (colour, indices) in grouped_triangles(shape)? {
+            for (colour, group_positions, indices) in grouped_triangle_positions(shape, &positions)?
+            {
                 let material = self.material_for(colour);
                 primitives.push(SourcePrimitive {
-                    positions: positions.clone(),
+                    positions: group_positions,
                     // The AP242 reader exposes no authored normal buffer. The
                     // canonical writer generates normals from the triangles.
                     normals: None,
@@ -219,11 +231,7 @@ impl Projection<'_> {
                     material: Some(material),
                 });
             }
-            shape_metadata.push(json!({
-                "itemId": shape.item,
-                "name": shape.name,
-                "layers": shape.layers
-            }));
+            shape_metadata.push(step_shape_metadata(shape));
         }
         if primitives.is_empty() {
             return Ok(None);
@@ -232,14 +240,7 @@ impl Projection<'_> {
         self.meshes.push(SourceMesh {
             id: format!("{}/step/mesh/{part_index}", self.asset_id),
             primitives,
-            extras: json!({
-                "ice3": {
-                    "step": {
-                        "representationId": part.representation,
-                        "shapes": shape_metadata
-                    }
-                }
-            }),
+            extras: step_mesh_extras(part.representation, shape_metadata),
         });
         self.part_meshes.insert(part_index, mesh_index);
         Ok(Some(mesh_index))
@@ -280,7 +281,7 @@ impl Projection<'_> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TriangleGroupKey([u32; 4]);
 
-type TriangleGroup = ([f32; 4], Vec<u32>);
+type CompactTriangleGroup = ([f32; 4], Vec<[f32; 3]>, Vec<u32>);
 
 impl From<[f32; 4]> for TriangleGroupKey {
     fn from(value: [f32; 4]) -> Self {
@@ -306,7 +307,10 @@ impl TriangleGroupKey {
     }
 }
 
-fn grouped_triangles(shape: &Shape) -> Result<Vec<TriangleGroup>, ImportError> {
+fn grouped_triangle_positions(
+    shape: &Shape,
+    positions: &[[f32; 3]],
+) -> Result<Vec<CompactTriangleGroup>, ImportError> {
     let mut groups = BTreeMap::<TriangleGroupKey, Vec<u32>>::new();
     let vertex_count = shape.mesh.positions.len();
     for (triangle_index, triangle) in shape.mesh.triangles.iter().enumerate() {
@@ -331,10 +335,24 @@ fn grouped_triangles(shape: &Shape) -> Result<Vec<TriangleGroup>, ImportError> {
             indices.push(*index);
         }
     }
-    Ok(groups
+    groups
         .into_iter()
-        .map(|(colour, indices)| (colour.rgba(), indices))
-        .collect())
+        .map(|(colour, indices)| {
+            let mut remap = BTreeMap::<u32, u32>::new();
+            let mut compact_positions = Vec::new();
+            let mut compact_indices = Vec::with_capacity(indices.len());
+            for index in indices {
+                let local = *remap.entry(index).or_insert_with(|| {
+                    let local = u32::try_from(compact_positions.len())
+                        .expect("STEP compact primitive index overflow");
+                    compact_positions.push(positions[index as usize]);
+                    local
+                });
+                compact_indices.push(local);
+            }
+            Ok((colour.rgba(), compact_positions, compact_indices))
+        })
+        .collect()
 }
 
 fn convert_positions(shape: &Shape, unit_scale: f64) -> Result<Vec<[f32; 3]>, ImportError> {
@@ -362,8 +380,8 @@ fn convert_positions(shape: &Shape, unit_scale: f64) -> Result<Vec<[f32; 3]>, Im
 fn apply_shared_origin(
     nodes: &mut [SourceNode],
     meshes: &[SourceMesh],
+    worlds: &BTreeMap<String, DMat4>,
 ) -> Result<[f64; 3], ImportError> {
-    let worlds = world_matrices(nodes)?;
     let mut min = DVec3::splat(f64::INFINITY);
     let mut max = DVec3::splat(f64::NEG_INFINITY);
     for node in nodes.iter() {
@@ -399,7 +417,10 @@ fn apply_shared_origin(
     let origin = [min.x, 0.0, min.z];
     let translation = DMat4::from_translation(DVec3::new(-origin[0], 0.0, -origin[2]));
     for node in nodes.iter_mut().filter(|node| node.parent.is_none()) {
-        let local = matrix_to_dmat4(node.matrix);
+        let local = worlds
+            .get(&node.id)
+            .copied()
+            .ok_or_else(|| ImportError::InvalidSource("STEP node world matrix missing".into()))?;
         node.matrix = (translation * local)
             .to_cols_array()
             .map(|value| value as f32);
@@ -407,29 +428,7 @@ fn apply_shared_origin(
     Ok(origin)
 }
 
-fn world_matrices(nodes: &[SourceNode]) -> Result<BTreeMap<String, DMat4>, ImportError> {
-    let mut worlds = BTreeMap::new();
-    for node in nodes {
-        let local = matrix_to_dmat4(node.matrix);
-        let world =
-            match node.parent.as_deref() {
-                Some(parent) => {
-                    worlds.get(parent).copied().ok_or_else(|| {
-                        ImportError::InvalidSource("STEP parent node missing".into())
-                    })? * local
-                }
-                None => local,
-            };
-        worlds.insert(node.id.clone(), world);
-    }
-    Ok(worlds)
-}
-
-fn matrix_to_dmat4(matrix: [f32; 16]) -> DMat4 {
-    DMat4::from_cols_array(&matrix.map(f64::from))
-}
-
-fn converted_transform(occurrence: &Occurrence, unit_scale: f64) -> [f32; 16] {
+fn converted_transform(occurrence: &Occurrence, unit_scale: f64) -> DMat4 {
     let transform = occurrence.transform;
     let direction = DMat4::from_cols(
         DVec4::new(1.0, 0.0, 0.0, 0.0),
@@ -463,15 +462,62 @@ fn converted_transform(occurrence: &Occurrence, unit_scale: f64) -> [f32; 16] {
             1.0,
         ),
     );
-    (direction * local * direction.transpose())
-        .to_cols_array()
-        .map(|value| value as f32)
+    direction * local * direction.transpose()
 }
 
-const fn identity_matrix() -> [f32; 16] {
-    [
-        1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-    ]
+fn step_node_extras(
+    product_id: Option<String>,
+    definition_id: Option<u64>,
+    representation_id: Option<u64>,
+    occurrence_id: Option<u64>,
+    item_ids: &[u64],
+    layers: &[String],
+) -> Value {
+    let mut metadata = Map::new();
+    metadata.insert("schema".into(), json!("ap242"));
+    if let Some(product_id) = product_id {
+        metadata.insert("productId".into(), json!(product_id));
+    }
+    if let Some(definition_id) = definition_id {
+        metadata.insert("definitionId".into(), json!(definition_id));
+    }
+    if let Some(representation_id) = representation_id {
+        metadata.insert("representationId".into(), json!(representation_id));
+    }
+    if let Some(occurrence_id) = occurrence_id {
+        metadata.insert("occurrenceId".into(), json!(occurrence_id));
+    }
+    if let Some(item_id) = item_ids.first() {
+        metadata.insert("itemId".into(), json!(item_id));
+        metadata.insert("itemIds".into(), json!(item_ids));
+    }
+    if !layers.is_empty() {
+        metadata.insert("layers".into(), json!(layers));
+    }
+    json!({ "ice3": { "step": Value::Object(metadata) } })
+}
+
+fn step_shape_metadata(shape: &Shape) -> Value {
+    let mut metadata = Map::new();
+    metadata.insert("itemId".into(), json!(shape.item));
+    if let Some(name) = &shape.name {
+        metadata.insert("name".into(), json!(name));
+    }
+    if !shape.layers.is_empty() {
+        metadata.insert("layers".into(), json!(shape.layers));
+    }
+    Value::Object(metadata)
+}
+
+fn step_mesh_extras(representation_id: Option<u64>, shapes: Vec<Value>) -> Value {
+    let mut metadata = Map::new();
+    if let Some(representation_id) = representation_id {
+        metadata.insert("representationId".into(), json!(representation_id));
+    }
+    if !shapes.is_empty() {
+        metadata.insert("shapes".into(), Value::Array(shapes));
+    }
+    json!({ "ice3": { "step": Value::Object(metadata) } })
 }
 
 #[cfg(test)]
@@ -479,6 +525,21 @@ mod tests {
     use oxideav_step::{ApSchema, Part, Shape, Transform, TriMesh};
 
     use super::*;
+
+    fn triangle_shape(item: u64, a: [f64; 3], b: [f64; 3]) -> Shape {
+        Shape {
+            item,
+            name: Some("Triangle".into()),
+            mesh: TriMesh {
+                positions: vec![a, b, [a[0], a[1], a[2] + 1.0]],
+                triangles: vec![[0, 1, 2]],
+            },
+            colour: Some([0.2, 0.4, 0.6, 1.0]),
+            triangle_colours: Vec::new(),
+            triangle_faces: vec![item],
+            layers: Vec::new(),
+        }
+    }
 
     #[test]
     fn repeated_occurrences_share_one_mesh() {
@@ -546,5 +607,96 @@ mod tests {
         assert_eq!(pump_nodes.len(), 2);
         assert_eq!(pump_nodes[0].mesh, pump_nodes[1].mesh);
         assert_eq!(scene.meshes.len(), 1);
+        assert!(
+            pump_nodes[0].extras["ice3"]["step"]
+                .get("representationId")
+                .is_none()
+        );
+        assert!(pump_nodes[0].extras["ice3"]["step"].get("layers").is_none());
+    }
+
+    #[test]
+    fn computes_large_origin_bounds_before_narrowing_transforms() {
+        let large_origin = 16_777_217.0;
+        let mut child = Part {
+            name: Some("Offsite Pump".into()),
+            product_id: Some("Offsite Pump".into()),
+            ..Part::default()
+        };
+        child
+            .shapes
+            .push(triangle_shape(1, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+        let mut root = Part {
+            name: Some("Root".into()),
+            children: vec![Occurrence {
+                part: 1,
+                id: Some(10),
+                name: Some("Offsite Pump".into()),
+                transform: Transform {
+                    cols: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                    translation: [large_origin, 0.0, 0.0],
+                },
+                placed_by: None,
+            }],
+            ..Part::default()
+        };
+        root.product_id = Some("Root".into());
+        let model = StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts: vec![root, child],
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: Vec::new(),
+            warnings: Vec::new(),
+        };
+
+        let scene =
+            project_model(&model, "step-large-origin", NativeImportLimits::default()).unwrap();
+        let origin = scene.asset_extras["ice3"]["step"]["sourceOrigin"]
+            .as_array()
+            .unwrap();
+        assert_eq!(origin[0], large_origin);
+        assert_eq!(origin[2], 0.0);
+    }
+
+    #[test]
+    fn compacts_positions_for_each_face_colour_group() {
+        let shape = Shape {
+            item: 1,
+            name: Some("Multicolour".into()),
+            mesh: TriMesh {
+                positions: vec![
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [10.0, 0.0, 0.0],
+                    [11.0, 0.0, 0.0],
+                    [10.0, 1.0, 0.0],
+                    [100.0, 0.0, 0.0],
+                ],
+                triangles: vec![[0, 1, 2], [3, 4, 5]],
+            },
+            colour: Some([0.2, 0.2, 0.2, 1.0]),
+            triangle_colours: vec![Some([1.0, 0.0, 0.0, 1.0]), Some([0.0, 1.0, 0.0, 1.0])],
+            triangle_faces: vec![10, 11],
+            layers: Vec::new(),
+        };
+        let positions = convert_positions(&shape, 1.0).unwrap();
+        let groups = grouped_triangle_positions(&shape, &positions).unwrap();
+
+        assert_eq!(groups.len(), 2);
+        assert!(groups.iter().all(|(_, positions, indices)| {
+            positions.len() == 3
+                && indices
+                    .iter()
+                    .all(|index| (*index as usize) < positions.len())
+        }));
     }
 }
