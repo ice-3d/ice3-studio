@@ -20,7 +20,7 @@ pub use fbx::FbxImporter;
 pub use gltf::GltfImporter;
 #[cfg(feature = "ifc")]
 pub use ifc::{
-    IfcMetadata, IfcNodeMetadata, IfcProductMetadata, IfcPropertySetMetadata,
+    IfcImporter, IfcMetadata, IfcNodeMetadata, IfcProductMetadata, IfcPropertySetMetadata,
     IfcQuantitySetMetadata, IfcSystemMetadata, IfcSystemReference, extract_ifc_metadata,
 };
 pub use limits::{NativeImportLimits, WorkerLimits, validate_scene_limits};

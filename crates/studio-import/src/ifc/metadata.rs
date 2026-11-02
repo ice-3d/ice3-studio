@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use ifc_lite_processing::data_model::{
     DataModel, EntityMetadata, Property, QuantitySet, Relationship, SpatialNode,
 };
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::{ImportError, ImportWarning, NativeImportLimits};
@@ -10,7 +11,8 @@ use crate::{ImportError, ImportWarning, NativeImportLimits};
 const MAX_METADATA_ARRAY_LENGTH: usize = 256;
 const ESTIMATED_BYTES_PER_IFC_ENTITY: usize = 2_048;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IfcMetadata {
     pub schema: String,
     pub project_id: u32,
@@ -20,7 +22,8 @@ pub struct IfcMetadata {
     pub warnings: Vec<ImportWarning>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IfcNodeMetadata {
     pub express_id: u32,
     pub parent_id: Option<u32>,
@@ -32,7 +35,8 @@ pub struct IfcNodeMetadata {
     pub elevation: Option<f64>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IfcProductMetadata {
     pub express_id: u32,
     pub ifc_type: String,
@@ -48,21 +52,24 @@ pub struct IfcProductMetadata {
     pub systems: Vec<IfcSystemReference>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IfcPropertySetMetadata {
     pub express_id: u32,
     pub name: String,
     pub properties: BTreeMap<String, Value>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IfcQuantitySetMetadata {
     pub express_id: u32,
     pub name: String,
     pub quantities: BTreeMap<String, f64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IfcSystemReference {
     pub express_id: u32,
     pub global_id: Option<String>,
@@ -70,7 +77,8 @@ pub struct IfcSystemReference {
     pub ifc_type: String,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct IfcSystemMetadata {
     pub reference: IfcSystemReference,
     pub members: Vec<String>,
