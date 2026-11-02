@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-029
 >
-> Status: Proposed
+> Status: Draft
 >
 > Owner: ICE3 Studio maintainers
 
@@ -47,19 +47,19 @@ Studio/Engine/Agent Console 测试命令。
 
 ### Task 1: 建立 Engine 与 Agent Console 消费契约
 
-**Files：**
+**文件：**
 - Create: `scripts/verify-prepare-engine.mjs`
 - Create: `scripts/tests/prepare-engine-contract.test.mjs`
 - Create: `fixtures/parity/prepare-engine-v1.json`
 - Modify: `scripts/verify.mjs`
 
-**Interfaces：**
-- Consumes:
+**接口：**
+- 消费：
   - Studio `build` binary；
   - Engine built `packages/assets/dist/index.js`；
   - Engine exports `readPreparedGLB`, `verifyPreparedGLBIntegrity`；
   - Runtime Tileset export fixture。
-- Produces: checked-in Engine contract baseline and verification report.
+- 产出：checked-in Engine contract baseline and verification report.
 
 - [ ] **Step 1: 加 Engine 构建到 verify**
 
@@ -140,8 +140,8 @@ node scripts/verify-prepare-engine.mjs
 node --test scripts/tests/prepare-engine-contract.test.mjs
 ```
 
-Plan-027/028 尚未完成时 Expected: FAIL due missing CLI/edges。完成后 Expected:
-PASS，`failures=[]`。
+Plan-027/028 尚未完成时预期因 CLI/edges 缺失而 FAIL；完成后预期 PASS，
+`failures=[]`。
 
 - [ ] **Step 6: 提交**
 
@@ -155,16 +155,16 @@ git commit -m "test(studio): verify engine consumption of prepared edges"
 
 ### Task 2: 建立 large-fixture 性能与资源基线
 
-**Files：**
+**文件：**
 - Create: `scripts/benchmark-prepare.mjs`
 - Create: `fixtures/parity/prepare-performance-v1.json`
 - Create: `scripts/tests/prepare-performance.test.mjs`
 - Modify: `package.json`
 - Modify: `scripts/verify.mjs`
 
-**Interfaces：**
-- Consumes: Studio `build` and `partition` on large-industrial fixture.
-- Produces:
+**接口：**
+- 消费：Studio `build` and `partition` on large-industrial fixture.
+- 产出：
   - machine-readable performance baseline；
   - edge-off/edge-on deltas；
   - peak memory and output bytes。
@@ -192,11 +192,11 @@ test('prepare performance remains inside the accepted envelope', async () => {
 
 用例：
 
-- `build` edges on；
-- `build` edges off；
-- `partition` no LOD edges on；
-- `partition` adaptive LOD semantic proxy edges on；
-- `partition` static batching edges on。
+- `build` 开启 edges；
+- `build` 关闭 edges；
+- `partition` 无 LOD、开启 edges；
+- `partition` adaptive LOD + semantic proxy + edges；
+- `partition` static batching + edges。
 
 每个用例：
 
@@ -223,7 +223,7 @@ node scripts/benchmark-prepare.mjs
 node --test scripts/tests/prepare-performance.test.mjs
 ```
 
-Expected: baseline 写出；重复 run p95 在 baseline budget 内；无 output digest drift。
+预期：baseline 写出；重复 run p95 在 baseline budget 内；无 output digest drift。
 
 - [ ] **Step 5: 加入 verify**
 
@@ -248,7 +248,7 @@ git commit -m "bench(studio): record asset prepare performance envelope"
 
 ### Task 3: 最终文档与能力表述
 
-**Files：**
+**文件：**
 - Modify: `README.md`
 - Modify: `AGENTS.md`
 - Modify: `docs/README.md`
@@ -263,9 +263,9 @@ git commit -m "bench(studio): record asset prepare performance envelope"
 - Modify: `docs/plans/2026-11-02-studio-partition-runtime-parity.md`
 - Modify: `docs/plans/2026-11-02-studio-prepare-engine-finalization.md`
 
-**Interfaces：**
-- Consumes: Engine and performance evidence
-- Produces: code-as-truth documentation and Phase 6 exit state
+**接口：**
+- 消费：Engine and performance evidence
+- 产出：code-as-truth documentation and Phase 6 exit state
 
 - [ ] **Step 1: 更新架构和能力清单**
 
@@ -311,7 +311,7 @@ node ../ice3-doc/scripts/check-docs.mjs --root . 2>&1 \
   | rg '2026-11-02-studio-(prepare|partition)|docs/README.md|README.md|architecture'
 ```
 
-Expected: 本次文档无 Diagnostic。
+预期：本次文档无 Diagnostic。
 
 - [ ] **Step 6: 提交**
 
@@ -324,13 +324,13 @@ git commit -m "docs(studio): complete asset prepare capability parity"
 
 ### Task 4: 最终全量验收与分支收口
 
-**Files：**
+**文件：**
 - Modify only if verification exposes a defect; otherwise no source edits.
 - Modify: phase plans/spec statuses and benchmark baseline for accepted final values.
 
-**Interfaces：**
-- Consumes: all Phase 6 deliverables
-- Produces: review-ready feature branch and complete evidence
+**接口：**
+- 消费：all Phase 6 deliverables
+- 产出：review-ready feature branch and complete evidence
 
 - [ ] **Step 1: 全量 Studio 验证**
 
@@ -348,7 +348,7 @@ node scripts/verify-prepare-engine.mjs
 node scripts/benchmark-prepare.mjs
 ```
 
-Expected:
+预期：
 
 - 所有 verify gates PASS；
 - Chrome E2E PASS；
@@ -365,7 +365,7 @@ Expected:
 PLAYWRIGHT_CHANNEL=chrome npm run verify
 ```
 
-Expected: 全部 PASS。不得通过 `node_modules` 或 test helper 读取 Toolchain/Blender。
+预期：全部 PASS。不得通过 `node_modules` 或 test helper 读取 Toolchain/Blender。
 
 - [ ] **Step 3: 依赖与命名审计**
 
@@ -375,14 +375,14 @@ rg -n -i "\bblender\b|\bbpy\b|BLENDER_BIN|@ice3/toolchain|ice3-toolchain" \
   --glob '!**/target/**' --glob '!**/node_modules/**' --glob '!**/dist/**'
 ```
 
-Expected: production/test/script scan 无输出；历史文档和明确负向断言可另行允许。
+预期：production/test/script scan 无输出；历史文档和明确负向断言可另行允许。
 
 ```bash
 cargo tree -p studio-cli --no-default-features
 npm audit --audit-level high
 ```
 
-Expected: no Toolchain/Blender dependency；0 vulnerability。
+预期：no Toolchain/Blender dependency；0 vulnerability。
 
 - [ ] **Step 4: 最终 self-review**
 
