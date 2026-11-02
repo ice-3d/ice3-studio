@@ -1,0 +1,159 @@
+{
+  "kind": "ice3-source-import-baseline",
+  "schemaVersion": "1.0",
+  "adapter": "usd",
+  "assetId": "parity-usd",
+  "provenance": {
+    "capturedAt": "2026-11-02",
+    "tool": "ice3-toolchain",
+    "version": "0.2.0",
+    "command": "ice3-tool import SOURCE --output OUTPUT --asset-id parity-usd --adapter usd --json",
+    "sourceRoot": "../ice3-toolchain/tests/fixtures/usd"
+  },
+  "canonical": {
+    "stats": {
+      "nodeCount": 5,
+      "meshCount": 2,
+      "triangleCount": 24,
+      "semanticMaterialCount": 2,
+      "instanceNodeCount": 2
+    },
+    "nodeNames": [
+      "BufferTank",
+      "Plant",
+      "PrimaryPump",
+      "PumpInstanceA",
+      "TreatmentLine"
+    ],
+    "selectionIds": [
+      "parity-usd/usd/node/0",
+      "parity-usd/usd/node/1",
+      "parity-usd/usd/node/2",
+      "parity-usd/usd/node/3",
+      "parity-usd/usd/node/4"
+    ],
+    "bounds": {
+      "min": [0, -3.2, 0],
+      "max": [6.4, 2.15, 3.6]
+    },
+    "materials": [
+      {
+        "name": "PumpBlue",
+        "baseColorFactor": [0.12, 0.38, 0.68, 1]
+      },
+      {
+        "name": "TankTaupe",
+        "baseColorFactor": [0.62, 0.55, 0.4, 1]
+      }
+    ],
+    "warningCodes": [],
+    "vertexCount": 32,
+    "semanticDigest": "06ae5f18d9e6a4c2b2a7dec9bd3252165f6830a61ce337d0665af478b2024bae"
+  },
+  "variants": {
+    "ascii": {
+      "fixture": "synthetic-plant.usda",
+      "sourceDigest": "3fc34c55b131d8a8c0a26930012037a2f9c6d946f4d2bb69cefb23d53665206d",
+      "glbDigest": "dead52fe74b67908970a8c689697bd7cd3aab6a3d1029a2b997b12f2c41ab498",
+      "contentDigest": "b113850d21bac06cd659612686825e3601e09d9dc99fbc7b05844b65cdcea161",
+      "stats": {
+        "nodeCount": 5,
+        "meshCount": 2,
+        "primitiveCount": 4,
+        "triangleCount": 24,
+        "vertexCount": 16,
+        "edgeSegmentCount": 24,
+        "materialCount": 7,
+        "semanticMaterialCount": 2,
+        "selectionGroupCount": 3,
+        "instanceNodeCount": 2
+      },
+      "selectionIds": [
+        "parity-usd/usd/node/0",
+        "parity-usd/usd/node/1",
+        "parity-usd/usd/node/2",
+        "parity-usd/usd/node/3",
+        "parity-usd/usd/node/4"
+      ],
+      "nodeNames": [
+        "BufferTank",
+        "Plant",
+        "PrimaryPump",
+        "PumpInstanceA",
+        "TreatmentLine"
+      ],
+      "bounds": {
+        "min": [0, -3.2, 0],
+        "max": [6.4, 2.15, 3.6]
+      },
+      "materials": [
+        {
+          "name": "PumpBlue",
+          "baseColorFactor": [0.381092, 0.649956, 0.843389, 1]
+        },
+        {
+          "name": "TankTaupe",
+          "baseColorFactor": [0.809468, 0.767376, 0.665185, 1]
+        }
+      ],
+      "warningCodes": [],
+      "semanticDigest": "06ae5f18d9e6a4c2b2a7dec9bd3252165f6830a61ce337d0665af478b2024bae"
+    },
+    "binary": {
+      "fixture": "synthetic-plant.usdc",
+      "sourceDigest": "09b4cbf870119556e4aa7b760415c1b9d5c9f175ee036ec5675007c5c7fddffd",
+      "glbDigest": "dead52fe74b67908970a8c689697bd7cd3aab6a3d1029a2b997b12f2c41ab498",
+      "contentDigest": "b113850d21bac06cd659612686825e3601e09d9dc99fbc7b05844b65cdcea161",
+      "stats": {
+        "nodeCount": 5,
+        "meshCount": 2,
+        "primitiveCount": 4,
+        "triangleCount": 24,
+        "vertexCount": 16,
+        "edgeSegmentCount": 24,
+        "materialCount": 7,
+        "semanticMaterialCount": 2,
+        "selectionGroupCount": 3,
+        "instanceNodeCount": 2
+      },
+      "selectionIds": [
+        "parity-usd/usd/node/0",
+        "parity-usd/usd/node/1",
+        "parity-usd/usd/node/2",
+        "parity-usd/usd/node/3",
+        "parity-usd/usd/node/4"
+      ],
+      "nodeNames": [
+        "BufferTank",
+        "Plant",
+        "PrimaryPump",
+        "PumpInstanceA",
+        "TreatmentLine"
+      ],
+      "bounds": {
+        "min": [0, -3.2, 0],
+        "max": [6.4, 2.15, 3.6]
+      },
+      "materials": [
+        {
+          "name": "PumpBlue",
+          "baseColorFactor": [0.381092, 0.649956, 0.843389, 1]
+        },
+        {
+          "name": "TankTaupe",
+          "baseColorFactor": [0.809468, 0.767376, 0.665185, 1]
+        }
+      ],
+      "warningCodes": [],
+      "semanticDigest": "06ae5f18d9e6a4c2b2a7dec9bd3252165f6830a61ce337d0665af478b2024bae"
+    }
+  },
+  "normalizationRules": [
+    "Prepared legacy baseColorFactor values are sRGB encoded. The baseline converts them back to source-linear RGBA for semantic comparison with the native SourceScene.",
+    "Node names are compared as a sorted business-identity set because legacy and native traversal orders differ."
+  ],
+  "allowedDifferences": [
+    "vertexCount may differ because the legacy preparation split vertices while native import expands indexed triangles for its source representation.",
+    "byteDigest may differ because preparer versions, accessor layout, generated edges, and traversal order differ."
+  ]
+}

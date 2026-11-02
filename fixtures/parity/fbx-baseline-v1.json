@@ -1,0 +1,189 @@
+{
+  "kind": "ice3-source-import-baseline",
+  "schemaVersion": "1.0",
+  "adapter": "fbx",
+  "assetId": "parity-fbx",
+  "provenance": {
+    "capturedAt": "2026-11-02",
+    "tool": "ice3-toolchain",
+    "version": "0.2.0",
+    "command": "ice3-tool import SOURCE --output OUTPUT --asset-id parity-fbx --adapter fbx --json",
+    "sourceRoot": "../ice3-toolchain/tests/fixtures/fbx"
+  },
+  "canonical": {
+    "stats": {
+      "nodeCount": 8,
+      "meshCount": 2,
+      "triangleCount": 24,
+      "semanticMaterialCount": 3,
+      "instanceNodeCount": 3
+    },
+    "nodeNames": [
+      "Buffer Tank",
+      "Equipment",
+      "FBX Root",
+      "Primary Pump",
+      "Pump Instance A",
+      "Pump Instance B",
+      "Root",
+      "TreatmentLine"
+    ],
+    "selectionIds": [
+      "parity-fbx/fbx/node/0",
+      "parity-fbx/fbx/node/1",
+      "parity-fbx/fbx/node/2",
+      "parity-fbx/fbx/node/3",
+      "parity-fbx/fbx/node/4",
+      "parity-fbx/fbx/node/5",
+      "parity-fbx/fbx/node/6",
+      "parity-fbx/fbx/node/7"
+    ],
+    "bounds": {
+      "min": [0, 0, 0],
+      "max": [7, 1.25, 2]
+    },
+    "materials": [
+      {
+        "name": "Pump Accent",
+        "baseColorFactor": [0.92, 0.46, 0.08, 1]
+      },
+      {
+        "name": "Pump Steel",
+        "baseColorFactor": [0.12, 0.42, 0.78, 1]
+      },
+      {
+        "name": "Tank Green",
+        "baseColorFactor": [0.18, 0.62, 0.32, 1]
+      }
+    ],
+    "warningCodes": [],
+    "vertexCount": 72,
+    "semanticDigest": "faf281a76b24f2f55a0f6bf54980087120ed13e5b751e2cc1dbc866e43ca2b87"
+  },
+  "variants": {
+    "ascii": {
+      "fixture": "synthetic-ascii.fbx",
+      "sourceDigest": "75e7b7e233949a406585692400508301155b0b7692084c055e2d27ba0284767b",
+      "glbDigest": "c127b04e0344887ae3cd1a868e0dad93b55c61f3e2b7b443731a487995cb524b",
+      "contentDigest": "c01f21f58677be3d64129c26d496d8e1644ad503c2a3b793aba08388ac0154f3",
+      "stats": {
+        "nodeCount": 8,
+        "meshCount": 2,
+        "primitiveCount": 6,
+        "triangleCount": 24,
+        "vertexCount": 72,
+        "edgeSegmentCount": 32,
+        "materialCount": 9,
+        "semanticMaterialCount": 3,
+        "selectionGroupCount": 4,
+        "instanceNodeCount": 3
+      },
+      "selectionIds": [
+        "parity-fbx/fbx/node/0",
+        "parity-fbx/fbx/node/1",
+        "parity-fbx/fbx/node/2",
+        "parity-fbx/fbx/node/3",
+        "parity-fbx/fbx/node/4",
+        "parity-fbx/fbx/node/5",
+        "parity-fbx/fbx/node/6",
+        "parity-fbx/fbx/node/7"
+      ],
+      "nodeNames": [
+        "Buffer Tank",
+        "Equipment",
+        "FBX Root",
+        "Primary Pump",
+        "Pump Instance A",
+        "Pump Instance B",
+        "Root",
+        "TreatmentLine"
+      ],
+      "bounds": {
+        "min": [0, -0.000024, 0],
+        "max": [700, 124.999976, 200.00002]
+      },
+      "materials": [
+        {
+          "name": "Pump Accent",
+          "baseColorFactor": [0.963976, 0.70837, 0.313304, 1]
+        },
+        {
+          "name": "Pump Steel",
+          "baseColorFactor": [0.381092, 0.679976, 0.896244, 1]
+        },
+        {
+          "name": "Tank Green",
+          "baseColorFactor": [0.461356, 0.809468, 0.601243, 1]
+        }
+      ],
+      "warningCodes": [],
+      "semanticDigest": "faf281a76b24f2f55a0f6bf54980087120ed13e5b751e2cc1dbc866e43ca2b87"
+    },
+    "binary": {
+      "fixture": "synthetic-binary.fbx",
+      "sourceDigest": "05841dcd57602e0fc8f8b399f3c187d7620570a02877e53ab5640d8dafd0501b",
+      "glbDigest": "c10a5307dd6f44bee4beb5883e2bb9d49e8a335e81332ad86e57fd0a01e18bc8",
+      "contentDigest": "c3e1944d7cff8cfff5bee7c4209bffbc050c7d166a39b5ef9bd94e253e2aebb9",
+      "stats": {
+        "nodeCount": 7,
+        "meshCount": 2,
+        "primitiveCount": 6,
+        "triangleCount": 24,
+        "vertexCount": 48,
+        "edgeSegmentCount": 32,
+        "materialCount": 9,
+        "semanticMaterialCount": 3,
+        "selectionGroupCount": 4,
+        "instanceNodeCount": 3
+      },
+      "selectionIds": [
+        "parity-fbx/fbx/node/0",
+        "parity-fbx/fbx/node/1",
+        "parity-fbx/fbx/node/2",
+        "parity-fbx/fbx/node/3",
+        "parity-fbx/fbx/node/4",
+        "parity-fbx/fbx/node/5",
+        "parity-fbx/fbx/node/6"
+      ],
+      "nodeNames": [
+        "Buffer Tank",
+        "Equipment",
+        "Primary Pump",
+        "Pump Instance A",
+        "Pump Instance B",
+        "Root",
+        "TreatmentLine"
+      ],
+      "bounds": {
+        "min": [0, 0, 0],
+        "max": [7, 1.25, 2]
+      },
+      "materials": [
+        {
+          "name": "Pump Accent",
+          "baseColorFactor": [0.963976, 0.70837, 0.313304, 1]
+        },
+        {
+          "name": "Pump Steel",
+          "baseColorFactor": [0.381092, 0.679976, 0.896244, 1]
+        },
+        {
+          "name": "Tank Green",
+          "baseColorFactor": [0.461356, 0.809468, 0.601243, 1]
+        }
+      ],
+      "warningCodes": [],
+      "semanticDigest": "faf281a76b24f2f55a0f6bf54980087120ed13e5b751e2cc1dbc866e43ca2b87"
+    }
+  },
+  "normalizationRules": [
+    "Canonical node and Selection identity retains one stable FBX root wrapper. The legacy ASCII path produced that wrapper while the legacy Binary path omitted it.",
+    "Canonical bounds use the Binary path's meter-scaled dimensions. The legacy ASCII path omitted UnitScaleFactor and produced values one hundred times too large.",
+    "Prepared legacy baseColorFactor values are sRGB encoded. The baseline converts them back to source-linear RGBA for semantic comparison with the native SourceScene.",
+    "Node names are compared as a sorted business-identity set because legacy and native traversal orders differ."
+  ],
+  "allowedDifferences": [
+    "vertexCount may differ because the legacy preparation split vertices while native import preserves authored topology.",
+    "byteDigest may differ because preparer versions, accessor layout, generated edges, and traversal order differ."
+  ]
+}
