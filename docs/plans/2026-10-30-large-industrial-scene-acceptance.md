@@ -305,7 +305,7 @@ test('catalogue keys are unique and industry-neutral at the API boundary', () =>
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 node --test scripts/tests/large-industrial-fixture.test.mjs
 ```
 
@@ -1038,7 +1038,7 @@ Add:
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm run fixture:large-industrial
 ```
 
@@ -1128,7 +1128,7 @@ Add a `Large industrial fixture` verification step after the existing AI fixture
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm run fixture:large-industrial
 npm run benchmark:large-industrial
 ```
@@ -1181,7 +1181,7 @@ Later GPU-scene and Toolchain integration plans delivered those capabilities; th
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm run verify
 npm run benchmark:large-industrial
 ```

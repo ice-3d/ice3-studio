@@ -1167,7 +1167,7 @@ be smaller than full packets.
 Run in the Studio worktree:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm run verify
 npm run benchmark
 npm run benchmark:large-industrial
@@ -1182,7 +1182,7 @@ otherwise the command exits nonzero and leaves Auto on CPU.
 Run in `../ice3-engine`:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm run verify
 npm run benchmark:renderers
 ```

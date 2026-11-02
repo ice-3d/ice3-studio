@@ -24,6 +24,19 @@ const baselinePath = resolve(
   studioRoot,
   'fixtures/parity/jt-baseline-v1.json',
 );
+const mode = process.argv[2] ?? '--compare';
+
+if (!['--compare', '--capture'].includes(mode)) {
+  console.error('usage: node scripts/compare-jt-imports.mjs [--compare|--capture]');
+  process.exit(2);
+}
+
+if (mode === '--capture') {
+  console.error(
+    'Baseline capture is retired; checked-in parity baseline is authoritative.',
+  );
+  process.exit(2);
+}
 
 await compareNative();
 

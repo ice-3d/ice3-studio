@@ -37,7 +37,7 @@ Sidecar, TypeScript/React Viewer, `ice3` tileset loader, esbuild, Node.js 24.22.
 - Do not use competitor or vendor names in code, comments, tests, documentation, or commits.
 - Git author and committer name is `damoqiongqiu`.
 - Root verification is
-  `PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
+  `PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 
 ## Review Focus
 
@@ -627,7 +627,7 @@ Run:
 
 ```bash
 cd apps/viewer
-PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm test
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm test
 ```
 
 Expected: compile/test failure because reference session fields and mapping do not exist.
@@ -651,9 +651,9 @@ Run:
 
 ```bash
 cd apps/viewer
-PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm test
-PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run typecheck
-PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run build
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm test
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run typecheck
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run build
 ```
 
 Expected: all pass.
@@ -711,8 +711,8 @@ test('uses negative polygon offset for selected semantic batches', async ({ page
 Run:
 
 ```bash
-(cd apps/viewer && PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm test)
-(cd apps/viewer && PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run test:e2e -- large-reference.spec.ts)
+(cd apps/viewer && PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm test)
+(cd apps/viewer && PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run test:e2e -- large-reference.spec.ts)
 ```
 
 Expected: framing tests pass; batched semantic selection does not set negative polygon offset.
@@ -731,8 +731,8 @@ Document the chosen camera clip range and verify the eight projected bounds corn
 Run:
 
 ```bash
-(cd apps/viewer && PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm test)
-(cd apps/viewer && PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run test:e2e -- large-reference.spec.ts)
+(cd apps/viewer && PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm test)
+(cd apps/viewer && PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run test:e2e -- large-reference.spec.ts)
 ```
 
 Expected: all pass.
@@ -799,7 +799,7 @@ test('accepts only a bounded reference project with complete equipment semantics
 Run:
 
 ```bash
-PATH=.nvm/versions/node/v24.22.1/bin:$PATH \
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH \
   node --test scripts/tests/large-reference-acceptance.test.mjs
 ```
 
@@ -829,11 +829,11 @@ Document regeneration and run commands.
 Run:
 
 ```bash
-PATH=.nvm/versions/node/v24.22.1/bin:$PATH \
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH \
   node --test scripts/tests/large-reference-acceptance.test.mjs
-PATH=.nvm/versions/node/v24.22.1/bin:$PATH \
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH \
   node scripts/run-large-reference-acceptance.mjs
-PATH=.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
+PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 ```
 
 Expected:

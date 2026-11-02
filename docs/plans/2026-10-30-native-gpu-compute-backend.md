@@ -728,7 +728,7 @@ Add:
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm --prefix apps/viewer test
 npm --prefix apps/viewer run typecheck
 npm run benchmark:gpu
@@ -777,7 +777,7 @@ Update the native GPU spec to `Implemented` only when all acceptance tests and G
 Run:
 
 ```bash
-source ~/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
+source $HOME/.nvm/nvm.sh && nvm use 24.22.1 >/dev/null
 npm run verify
 npm run benchmark
 npm run benchmark:large-industrial
