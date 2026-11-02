@@ -162,6 +162,69 @@ fn maps_distinct_point_instancer_prototypes() {
 }
 
 #[test]
+fn expands_every_mesh_in_a_point_instancer_prototype() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("multi-mesh-prototype.usda");
+    std::fs::write(
+        &root,
+        format!(
+            "#usda 1.0\n\
+             def Xform \"World\"\n{{\n\
+                 def PointInstancer \"Assemblies\"\n    {{\n\
+                     rel prototypes = </World/Prototypes/Assembly>\n\
+                     point3f[] positions = [(0, 0, 0), (5, 0, 0)]\n\
+                     int[] protoIndices = [0, 0]\n\
+                 }}\n\
+                 def Scope \"Prototypes\"\n    {{\n\
+                     def Xform \"Assembly\"\n        {{\n\
+                         def Mesh \"Pump\"\n            {{\n{}\n            }}\n\
+                         def Mesh \"Tank\"\n            {{\n{}\n            }}\n\
+                     }}\n\
+                 }}\n\
+             }}\n",
+            cube_body(),
+            cube_body()
+        ),
+    )
+    .unwrap();
+
+    let scene = UsdImporter::new()
+        .import_file(&root, "multi-mesh-prototype")
+        .unwrap();
+    let mesh_nodes = scene
+        .nodes
+        .iter()
+        .filter(|node| node.mesh.is_some())
+        .collect::<Vec<_>>();
+
+    assert_eq!(mesh_nodes.len(), 4, "{:#?}", scene.nodes);
+    assert_eq!(
+        mesh_nodes
+            .iter()
+            .filter_map(|node| node.mesh)
+            .collect::<BTreeSet<_>>()
+            .len(),
+        2
+    );
+    let group_sizes = mesh_nodes
+        .iter()
+        .filter_map(|node| {
+            node.extras["ice3"]["usd"]["instanceGroup"]
+                .as_str()
+                .map(str::to_owned)
+        })
+        .fold(BTreeMap::new(), |mut counts, group| {
+            *counts.entry(group).or_insert(0_usize) += 1;
+            counts
+        });
+    assert_eq!(group_sizes.len(), 2, "{group_sizes:#?}");
+    assert!(
+        group_sizes.values().all(|count| *count == 2),
+        "{group_sizes:#?}"
+    );
+}
+
+#[test]
 fn preserves_materials_display_colors_and_metadata() {
     let scene = UsdImporter::new()
         .import_file(
@@ -278,6 +341,68 @@ fn reports_unsupported_resources_deterministically() {
         "ICE3_STUDIO_IMPORT_USD_UNSUPPORTED_RESOURCE"
     );
     assert!(scene.warnings[0].message.contains("Camera"));
+}
+
+#[test]
+fn warns_for_every_unsupported_typed_prim() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path().join("unsupported-schema.usda");
+    std::fs::write(
+        &root,
+        format!(
+            "#usda 1.0\n\
+             def Xform \"Plant\"\n{{\n\
+                 def Sphere \"TankDome\" {{}}\n\
+                 def Mesh \"Pump\"\n    {{\n{}\n    }}\n\
+             }}\n",
+            cube_body()
+        ),
+    )
+    .unwrap();
+
+    let scene = UsdImporter::new()
+        .import_file(&root, "unsupported-schema")
+        .unwrap();
+    assert_eq!(
+        scene.warnings[0].code,
+        "ICE3_STUDIO_IMPORT_USD_UNSUPPORTED_RESOURCE"
+    );
+    assert!(
+        scene.warnings[0].message.contains("Sphere"),
+        "{:#?}",
+        scene.warnings
+    );
+}
+
+#[test]
+fn rejects_malformed_stage_coordinate_metadata() {
+    let directory = tempfile::tempdir().unwrap();
+    for (name, metadata) in [
+        ("bad-meter", "metersPerUnit = \"not-a-number\""),
+        ("bad-up-axis", "upAxis = 1"),
+        ("bad-handedness", "handedness = false"),
+    ] {
+        let root = directory.path().join(format!("{name}.usda"));
+        std::fs::write(
+            &root,
+            format!(
+                "#usda 1.0\n\
+                 (\n    {metadata}\n)\n\
+                 def Xform \"Plant\"\n{{\n\
+                     def Mesh \"Pump\"\n    {{\n{}\n    }}\n\
+                 }}\n",
+                cube_body()
+            ),
+        )
+        .unwrap();
+
+        let error = UsdImporter::new().import_file(&root, name).unwrap_err();
+        assert_eq!(
+            error.code(),
+            "ICE3_STUDIO_IMPORT_INVALID_SOURCE",
+            "{name}: {error}"
+        );
+    }
 }
 
 #[test]

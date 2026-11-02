@@ -443,14 +443,14 @@ fn import_stage(
     limits: NativeImportLimits,
     composition: &CompositionStats,
 ) -> Result<SourceScene, ImportError> {
-    let meters_per_unit = stage_number(stage, "metersPerUnit").unwrap_or(1.0);
+    let meters_per_unit = stage_number(stage, "metersPerUnit")?.unwrap_or(1.0);
     if !meters_per_unit.is_finite() || meters_per_unit <= 0.0 {
         return Err(ImportError::InvalidSource(
             "USD metersPerUnit must be finite and positive".into(),
         ));
     }
-    let up_axis = stage_token(stage, "upAxis").unwrap_or_else(|| "Y".into());
-    let handedness = stage_token(stage, "handedness").unwrap_or_else(|| "right".into());
+    let up_axis = stage_token(stage, "upAxis")?.unwrap_or_else(|| "Y".into());
+    let handedness = stage_token(stage, "handedness")?.unwrap_or_else(|| "right".into());
     let conversion = coordinate_conversion(meters_per_unit, &up_axis, &handedness)?;
 
     let materials = import_materials(stage, paths, asset_id)?;
@@ -1380,25 +1380,12 @@ fn expand_point_instancer(
     let prototypes = instancer
         .prototypes
         .iter()
-        .map(|prototype| {
-            let mesh_path = first_mesh_at_or_below(stage, prototype)?.ok_or_else(|| {
-                ImportError::InvalidSource(
-                    "USD PointInstancer prototype has no supported mesh".into(),
-                )
-            })?;
-            let prim = stage
-                .prim(mesh_path.clone())
-                .map_err(|error| ImportError::InvalidSource(error.to_string()))?;
-            let mesh_key = mesh_identity(&prim, &mesh_path)?;
-            let mesh_index = mesh_indices.get(&mesh_key).copied().ok_or_else(|| {
-                ImportError::InvalidSource(
-                    "USD PointInstancer prototype mesh is missing from the mesh index".into(),
-                )
-            })?;
-            Ok((prototype.clone(), mesh_key, mesh_index))
-        })
+        .map(|prototype| collect_prototype_meshes(stage, prototype, mesh_indices))
         .collect::<Result<Vec<_>, ImportError>>()?;
-    if prototypes.is_empty() {
+    if prototypes
+        .iter()
+        .all(|prototype| prototype.meshes.is_empty())
+    {
         return Err(ImportError::InvalidSource(
             "USD PointInstancer has no supported prototype mesh".into(),
         ));
@@ -1408,13 +1395,16 @@ fn expand_point_instancer(
         let selected = usize::try_from(proto_index)
             .ok()
             .and_then(|value| prototypes.get(value).map(|prototype| (value, prototype)));
-        let (prototype_index, (prototype_path, mesh_key, mesh_index)) =
-            selected.ok_or_else(|| {
-                ImportError::InvalidSource(
-                    "USD PointInstancer protoIndices points outside prototypes".into(),
-                )
-            })?;
-        let group = instance_groups.get(mesh_key).cloned();
+        let (prototype_index, prototype) = selected.ok_or_else(|| {
+            ImportError::InvalidSource(
+                "USD PointInstancer protoIndices points outside prototypes".into(),
+            )
+        })?;
+        if prototype.meshes.is_empty() {
+            return Err(ImportError::InvalidSource(
+                "USD PointInstancer prototype has no supported mesh".into(),
+            ));
+        }
         let orientation = instancer
             .orientations
             .get(index)
@@ -1427,7 +1417,7 @@ fn expand_point_instancer(
             f64::from(orientation.z),
             f64::from(orientation.w),
         );
-        let matrix = DMat4::from_translation(DVec3::new(
+        let instance_matrix = DMat4::from_translation(DVec3::new(
             f64::from(position[0]),
             f64::from(position[1]),
             f64::from(position[2]),
@@ -1437,53 +1427,92 @@ fn expand_point_instancer(
                 f64::from(scale[1]),
                 f64::from(scale[2]),
             ));
-        let key = format!("{}/__instances/{index:06}", instancer.path);
-        drafts.push(NodeDraft {
-            key,
-            name: format!(
-                "{} Instance {index}",
-                prototype_path.rsplit('/').next().unwrap_or("USD Prototype")
-            ),
-            parent_key: Some(instancer.path.clone()),
-            matrix,
-            mesh: Some(*mesh_index),
-            extras: json!({
-                "ice3": {
-                    "displayName": format!("Point Instance {index}"),
-                    "usd": {
-                        "objectType": "MESH",
-                        "meshData": mesh_key,
-                        "usdPrimPath": format!("{}/instance/{index}", instancer.path),
-                        "instanceGroup": group,
-                        "prototypeIndex": prototype_index
+        for (mesh_ordinal, mesh) in prototype.meshes.iter().enumerate() {
+            let group = instance_groups.get(&mesh.mesh_key).cloned();
+            let key = format!(
+                "{}/__instances/{index:06}/{mesh_ordinal:06}",
+                instancer.path
+            );
+            drafts.push(NodeDraft {
+                key,
+                name: format!(
+                    "{} Instance {index}",
+                    mesh.path.rsplit('/').next().unwrap_or("USD Prototype")
+                ),
+                parent_key: Some(instancer.path.clone()),
+                matrix: instance_matrix * mesh.transform,
+                mesh: Some(mesh.mesh_index),
+                extras: json!({
+                    "ice3": {
+                        "displayName": format!("Point Instance {index}.{mesh_ordinal}"),
+                        "usd": {
+                            "objectType": "MESH",
+                            "meshData": mesh.mesh_key,
+                            "usdPrimPath": format!(
+                                "{}/instance/{index}/{mesh_ordinal}",
+                                instancer.path
+                            ),
+                            "instanceGroup": group,
+                            "prototypeIndex": prototype_index,
+                            "prototypeMeshPath": mesh.path
+                        }
                     }
-                }
-            }),
-        });
+                }),
+            });
+        }
     }
     Ok(())
 }
 
-fn first_mesh_at_or_below(stage: &Stage, path: &str) -> Result<Option<sdf::Path>, ImportError> {
-    let prim = stage
+struct Prototype {
+    meshes: Vec<PrototypeMesh>,
+}
+
+struct PrototypeMesh {
+    path: String,
+    mesh_key: String,
+    mesh_index: usize,
+    transform: DMat4,
+}
+
+fn collect_prototype_meshes(
+    stage: &Stage,
+    path: &str,
+    mesh_indices: &BTreeMap<String, usize>,
+) -> Result<Prototype, ImportError> {
+    let root = stage
         .prim(path)
         .map_err(|error| ImportError::InvalidSource(error.to_string()))?;
-    if prim_type(stage, prim.path()).as_deref() == Some("Mesh") {
-        return Ok(Some(prim.path().clone()));
-    }
-    let mut pending = prim
-        .children()
-        .map_err(|error| ImportError::InvalidSource(error.to_string()))?;
-    while let Some(prim) = pending.pop() {
+    let root_transform = local_transform(&root)?.unwrap_or(DMat4::IDENTITY);
+    let mut meshes = Vec::new();
+    let mut pending = vec![(root, root_transform)];
+    while let Some((prim, transform)) = pending.pop() {
         if prim_type(stage, prim.path()).as_deref() == Some("Mesh") {
-            return Ok(Some(prim.path().clone()));
+            let mesh_path = prim.path().clone();
+            let mesh_key = mesh_identity(&prim, &mesh_path)?;
+            let mesh_index = mesh_indices.get(&mesh_key).copied().ok_or_else(|| {
+                ImportError::InvalidSource(
+                    "USD PointInstancer prototype mesh is missing from the mesh index".into(),
+                )
+            })?;
+            meshes.push(PrototypeMesh {
+                path: mesh_path.to_string(),
+                mesh_key,
+                mesh_index,
+                transform,
+            });
         }
-        pending.extend(
-            prim.children()
-                .map_err(|error| ImportError::InvalidSource(error.to_string()))?,
-        );
+        let mut children = prim
+            .children()
+            .map_err(|error| ImportError::InvalidSource(error.to_string()))?;
+        children.sort_by(|left, right| right.path().as_str().cmp(left.path().as_str()));
+        for child in children {
+            let child_transform = local_transform(&child)?.unwrap_or(DMat4::IDENTITY);
+            pending.push((child, transform * child_transform));
+        }
     }
-    Ok(None)
+    meshes.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(Prototype { meshes })
 }
 
 struct NodeDraft {
@@ -1526,17 +1555,7 @@ fn add_resource_warnings(
             continue;
         };
         let type_name = type_name.as_str();
-        if matches!(
-            type_name,
-            "Camera"
-                | "Skeleton"
-                | "SkelRoot"
-                | "Volume"
-                | "NurbsCurves"
-                | "NurbsPatch"
-                | "BasisCurves"
-        ) || type_name.contains("Light")
-        {
+        if !is_supported_prim_type(type_name) {
             categories.insert(type_name.to_owned());
         }
         for attribute in prim
@@ -1564,6 +1583,13 @@ fn add_resource_warnings(
     Ok(())
 }
 
+fn is_supported_prim_type(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "Mesh" | "Xform" | "PointInstancer" | "Material" | "Shader" | "Scope"
+    )
+}
+
 fn warning(code: &str, message: &str) -> ImportWarning {
     ImportWarning {
         code: code.into(),
@@ -1581,23 +1607,35 @@ fn prim_type(stage: &Stage, path: &sdf::Path) -> Option<String> {
         .map(|value| value.as_str().to_owned())
 }
 
-fn stage_number(stage: &Stage, field: &str) -> Option<f64> {
-    match stage.stage_metadata(field).ok()?? {
-        SdfValue::Float(value) => Some(f64::from(value)),
-        SdfValue::Double(value) => Some(value),
-        SdfValue::Int(value) => Some(f64::from(value)),
-        SdfValue::Int64(value) => Some(value as f64),
-        SdfValue::Half(value) => Some(f64::from(f32::from(value))),
-        _ => None,
+fn stage_number(stage: &Stage, field: &str) -> Result<Option<f64>, ImportError> {
+    match authored_stage_metadata(stage, field)? {
+        Some(SdfValue::Float(value)) => Ok(Some(f64::from(value))),
+        Some(SdfValue::Double(value)) => Ok(Some(value)),
+        Some(SdfValue::Int(value)) => Ok(Some(f64::from(value))),
+        Some(SdfValue::Int64(value)) => Ok(Some(value as f64)),
+        Some(SdfValue::Half(value)) => Ok(Some(f64::from(f32::from(value)))),
+        Some(_) => Err(ImportError::InvalidSource(format!(
+            "USD {field} must be numeric"
+        ))),
+        None => Ok(None),
     }
 }
 
-fn stage_token(stage: &Stage, field: &str) -> Option<String> {
-    match stage.stage_metadata(field).ok()?? {
-        SdfValue::Token(value) => Some(value.as_str().to_owned()),
-        SdfValue::String(value) => Some(value),
-        _ => None,
+fn stage_token(stage: &Stage, field: &str) -> Result<Option<String>, ImportError> {
+    match authored_stage_metadata(stage, field)? {
+        Some(SdfValue::Token(value)) => Ok(Some(value.as_str().to_owned())),
+        Some(SdfValue::String(value)) => Ok(Some(value)),
+        Some(_) => Err(ImportError::InvalidSource(format!(
+            "USD {field} must be a token or string"
+        ))),
+        None => Ok(None),
     }
+}
+
+fn authored_stage_metadata(stage: &Stage, field: &str) -> Result<Option<SdfValue>, ImportError> {
+    stage
+        .field(sdf::Path::abs_root(), field)
+        .map_err(|error| ImportError::InvalidSource(error.to_string()))
 }
 
 fn rebase_drafts(
