@@ -202,7 +202,7 @@ node scripts/compare-partition-imports.mjs
 node --test scripts/tests/partition-contract.test.mjs
 ```
 
-脚本连续执行两次 7 组 partition case，覆盖 direct、proportional/adaptive LOD、
+脚本连续执行两次 8 组 partition case，覆盖直接 glTF/GLB 与多对象 source、proportional/adaptive LOD、
 semantic proxy、static render batch、chunked coarse 和 skip-edges，并校验 URI、bounds、
 Selection、triangle/edge 数量、edge role/width/color、byte budget 和文件 digest。结果写入
 `output/partition-parity.json`。

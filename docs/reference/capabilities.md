@@ -291,6 +291,8 @@ embedded profile 的 metrics、preparation 和 budget。
 Fine、LOD、coarse、semantic proxy 和 render batch writer 均从各自最终几何生成真实
 edges；edge bytes 计入 part/chunk budget。输出先写入同父目录 staging，整个 Tileset
 通过 GLB/profile 校验后才 rename。默认拒绝已有目录；`--force` 失败时恢复旧目录。
+`--output` 必须指向可命名的目录，不能使用文件系统根目录或当前目录 `.`，避免 `--force`
+替换 workspace/root。
 
 Prepare CLI 的稳定失败码：
 `ICE3_STUDIO_ASSET_INVALID_OPTIONS`、`ICE3_STUDIO_ASSET_INVALID_BUDGET`、

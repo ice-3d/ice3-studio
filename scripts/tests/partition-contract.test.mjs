@@ -17,6 +17,7 @@ test('partition parity proves edge, LOD, batching and budget semantics', async (
 
   const names = new Set(report.cases.map((entry) => entry.name));
   for (const name of [
+    'direct-glb-no-lod',
     'direct-no-lod',
     'proportional-lod',
     'adaptive-lod',

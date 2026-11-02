@@ -56,42 +56,53 @@ async function runParity() {
     );
     const chunkBytes = Math.max(1, Math.floor(coarseRootBytes * 0.65));
     const definitions = [
-      ['direct-no-lod', []],
-      ['proportional-lod', [
+      {
+        name: 'direct-glb-no-lod',
+        source: resolve(
+          studioRoot,
+          'fixtures/source-import/gltf/prepare-cube.gltf',
+        ),
+        extraArgs: [],
+      },
+      { name: 'direct-no-lod', source, extraArgs: [] },
+      { name: 'proportional-lod', source, extraArgs: [
         '--lod',
         '--lod-allocation',
         'proportional',
-      ]],
-      ['adaptive-lod', [
+      ] },
+      { name: 'adaptive-lod', source, extraArgs: [
         '--lod',
         '--lod-allocation',
         'adaptive',
-      ]],
-      ['semantic-proxy-auto', [
+      ] },
+      { name: 'semantic-proxy-auto', source, extraArgs: [
         '--lod',
         '--lod-allocation',
         'adaptive',
         '--semantic-proxy',
         'auto',
-      ]],
-      ['static-render-batch', ['--render-batch', 'static']],
-      ['chunked-coarse', [
+      ] },
+      { name: 'static-render-batch', source, extraArgs: [
+        '--render-batch',
+        'static',
+      ] },
+      { name: 'chunked-coarse', source, extraArgs: [
         '--lod',
         '--lod-allocation',
         'adaptive',
         '--coarse-chunk-max-bytes',
         String(chunkBytes),
-      ]],
-      ['skip-edges', ['--skip-edges']],
+      ] },
+      { name: 'skip-edges', source, extraArgs: ['--skip-edges'] },
     ];
 
     const cases = [];
     const failures = [];
-    for (const [name, extraArgs] of definitions) {
+    for (const { name, source: caseSource, extraArgs } of definitions) {
       const first = await runCase(
         studioBinary,
         temporary,
-        source,
+        caseSource,
         baseOptions,
         name,
         'first',
@@ -100,7 +111,7 @@ async function runParity() {
       const second = await runCase(
         studioBinary,
         temporary,
-        source,
+        caseSource,
         baseOptions,
         name,
         'second',
@@ -116,6 +127,7 @@ async function runParity() {
         ));
       const expectsEdges = name !== 'skip-edges';
       const expectsCoarse = name !== 'direct-no-lod'
+        && name !== 'direct-glb-no-lod'
         && name !== 'static-render-batch'
         && name !== 'skip-edges';
       const caseFailures = [];

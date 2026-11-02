@@ -144,6 +144,8 @@ Diagnostic code 仍是主要机器契约。
   publish 任一步失败时不留下最终输出目录；临时 staging 会清理。
 - `partition --force` 替换失败时恢复上一份目录；若 rollback 自身失败，应检查错误中的
   primary failure 和 backup 位置。
+- `partition --output` 不能是文件系统根目录或当前目录 `.`；这防止 `--force` 替换
+  workspace/root。
 - `ICE3_STUDIO_ASSET_TILESET_INVALID` 表示 Tileset/part/coarse/profile 契约不完整，
   应修正参数、profile 或输出实现；不要发布部分目录。
 - explicit GPU-only 失败返回稳定 GPU Diagnostic；automatic 模式会把可执行工作退回 CPU，

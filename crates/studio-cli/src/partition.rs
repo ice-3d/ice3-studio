@@ -270,6 +270,11 @@ fn validate_options(options: &PartitionOptions) -> Result<(), PartitionError> {
             "asset ID must not be empty".into(),
         ));
     }
+    if options.output.file_name().is_none() {
+        return Err(PartitionError::InvalidOptions(
+            "output must name a directory, not a filesystem or current-directory root".into(),
+        ));
+    }
     validate_crease_angle(options.crease_angle_degrees)
         .map_err(|error| PartitionError::InvalidOptions(error.to_string()))?;
     let profile = profile_from_options(options);
@@ -472,5 +477,37 @@ mod tests {
             "keep"
         );
         assert!(!output.join("new.txt").exists());
+    }
+
+    #[test]
+    fn output_must_not_be_the_current_directory_or_a_filesystem_root() {
+        for output in [PathBuf::from("."), PathBuf::from("/")] {
+            let error = validate_options(&PartitionOptions {
+                source: PathBuf::from("plant.gltf"),
+                output,
+                asset_id: "plant".into(),
+                adapter: "auto".into(),
+                max_triangles: 500_000,
+                max_bytes: 33_554_432,
+                crease_angle_degrees: 30.0,
+                skip_edges: false,
+                budget: None,
+                render_batch: RenderBatchMode::Off,
+                lod_enabled: false,
+                lod_ratio: 0.15,
+                lod_allocation: LodAllocationMode::Proportional,
+                lod_max_triangles: 250_000,
+                lod_min_unit_triangles: 8,
+                lod_curve_samples: 8,
+                lod_max_memory_bytes: 67_108_864,
+                semantic_proxy: SemanticProxyMode::Off,
+                coarse_chunk_max_bytes: None,
+                warnings_as_errors: false,
+                force: true,
+                limits: NativeImportLimits::default(),
+            })
+            .unwrap_err();
+            assert_eq!(error.code(), "ICE3_STUDIO_ASSET_INVALID_OPTIONS");
+        }
     }
 }
