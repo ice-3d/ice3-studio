@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-021
 >
-> Status: Proposed
+> Status: Approved
 >
 > Owner: ICE3 Studio maintainers
 
