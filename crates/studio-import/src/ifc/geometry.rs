@@ -385,13 +385,15 @@ fn convert_normals(mesh: &MeshData) -> Option<Vec<[f32; 3]>> {
 }
 
 fn material_key(mesh: &MeshData) -> MaterialKey {
+    let material_name = mesh.material_name.clone().filter(|name| !name.is_empty());
+    let rgba = if material_name.is_some() {
+        mesh.color.map(normalized_colour_bits)
+    } else {
+        [0.5_f32, 0.5, 0.5, mesh.color[3]].map(normalized_colour_bits)
+    };
     MaterialKey {
-        name: mesh
-            .material_name
-            .clone()
-            .filter(|name| !name.is_empty())
-            .unwrap_or_else(|| format!("ifc/material/{}", mesh.express_id)),
-        rgba: mesh.color.map(normalized_colour_bits),
+        name: material_name.unwrap_or_else(|| format!("ifc/material/{}", mesh.express_id)),
+        rgba,
     }
 }
 

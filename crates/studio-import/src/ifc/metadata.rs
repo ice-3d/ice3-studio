@@ -109,6 +109,7 @@ pub fn extract_ifc_metadata(
             message: format!("unsupported IFC schema: {schema}"),
         });
     }
+    validate_ifc_length_unit(bytes)?;
     let entity_count = preflight_ifc_entities(bytes, limits)?;
     let data = ifc_lite_processing::data_model::extract_data_model(bytes);
     if data.entities.len() != entity_count {
@@ -119,6 +120,60 @@ pub fn extract_ifc_metadata(
         )));
     }
     build_metadata(data, schema, asset_id)
+}
+
+fn validate_ifc_length_unit(bytes: &[u8]) -> Result<(), ImportError> {
+    let project_ids = ifc_lite_core::find_project_ids(bytes);
+    if project_ids.len() != 1 {
+        return Err(unit_error("IFC must declare exactly one IfcProject"));
+    }
+    let project_id = project_ids[0];
+    let index = ifc_lite_core::build_entity_index(bytes);
+    let mut decoder = ifc_lite_core::EntityDecoder::with_index(bytes, index);
+    let project = decoder
+        .decode_by_id(project_id)
+        .map_err(|_| unit_error("IFC project unit context is unreadable"))?;
+    let assignment_id = project
+        .ref_at(ifc_lite_core::slot::IfcProject::UNITS_IN_CONTEXT)
+        .ok_or_else(|| unit_error("IFC project has no unit assignment"))?;
+    let assignment = decoder
+        .decode_by_id(assignment_id)
+        .map_err(|_| unit_error("IFC unit assignment is unreadable"))?;
+    let unit_refs = assignment
+        .get_list(ifc_lite_core::slot::IfcUnitAssignment::UNITS.index())
+        .ok_or_else(|| unit_error("IFC unit assignment has no units"))?
+        .iter()
+        .filter_map(|value| value.as_entity_ref())
+        .collect::<Vec<_>>();
+    let mut length_units = 0;
+    for unit_ref in unit_refs {
+        let unit = decoder
+            .decode_by_id(unit_ref)
+            .map_err(|_| unit_error("IFC unit entity is unreadable"))?;
+        if unit.enum_at(ifc_lite_core::slot::IfcNamedUnit::UNIT_TYPE) == Some("LENGTHUNIT") {
+            length_units += 1;
+        }
+    }
+    if length_units != 1 {
+        return Err(unit_error(format!(
+            "IFC must declare exactly one length unit; found {length_units}"
+        )));
+    }
+    let units = ifc_lite_core::ProjectUnits::resolve(&mut decoder, project_id);
+    let length = units
+        .resolved_for_unit_type("LENGTHUNIT")
+        .ok_or_else(|| unit_error("IFC length unit cannot be resolved"))?;
+    if !length.si_scale.is_finite() || length.si_scale <= 0.0 {
+        return Err(unit_error("IFC length unit scale is invalid"));
+    }
+    Ok(())
+}
+
+fn unit_error(message: impl Into<String>) -> ImportError {
+    ImportError::SourceDiagnostic {
+        code: "ICE3_STUDIO_IMPORT_IFC_UNIT_UNSUPPORTED".into(),
+        message: message.into(),
+    }
 }
 
 fn preflight_ifc_entities(bytes: &[u8], limits: NativeImportLimits) -> Result<usize, ImportError> {

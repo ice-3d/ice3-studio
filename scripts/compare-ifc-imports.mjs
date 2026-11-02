@@ -16,6 +16,12 @@ const studioRoot = resolve(scriptDir, '..');
 const toolchainRoot = resolve(studioRoot, '../ice3-toolchain');
 const fixtureRoot = join(toolchainRoot, 'tests/fixtures/ifc');
 const baselinePath = join(studioRoot, 'fixtures/parity/ifc-baseline-v1.json');
+const instanceFixturePath = join(
+  studioRoot,
+  'crates/studio-import/tests/fixtures/ifc/instanced.ifc',
+);
+const reportPath = join(studioRoot, 'output/ifc-import-parity.json');
+const nativeCli = join(studioRoot, 'target/debug/studio-cli');
 const mode = process.argv[2] ?? '--compare';
 
 const fixtures = [
@@ -34,8 +40,520 @@ if (!['--capture', '--compare'].includes(mode)) {
 if (mode === '--capture') {
   await captureBaseline();
 } else {
-  console.error('native IFC comparison is introduced by Phase 4B Task 4');
-  process.exit(2);
+  await compareNative();
+}
+
+async function compareNative() {
+  ensureNativeCli();
+  const temporaryRoot = await mkdtemp(join(tmpdir(), 'ice3-ifc-parity-'));
+  try {
+    const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
+    const fixtureResults = {};
+    const failures = [];
+    for (const [key, fixtureName, assetId] of fixtures) {
+      const result = await compareFixture(
+        temporaryRoot,
+        key,
+        fixtureName,
+        assetId,
+        baseline.fixtures[key],
+      );
+      fixtureResults[key] = result;
+      failures.push(...result.failures.map((failure) => `${key}.${failure}`));
+    }
+    const instanceCorpus = await compareInstanceCorpus(temporaryRoot);
+    failures.push(...instanceCorpus.failures.map((failure) => `instanceCorpus.${failure}`));
+    const negativeCorpus = await runNegativeCorpus(temporaryRoot);
+    failures.push(...Object.entries(negativeCorpus)
+      .filter(([, result]) => result.status !== 'pass')
+      .map(([name]) => `negativeCorpus.${name}`));
+    const report = {
+      kind: 'ice3-ifc-import-parity',
+      schemaVersion: '1.0',
+      status: failures.length === 0 ? 'pass' : 'fail',
+      failures: [...new Set(failures)].sort(),
+      fixtures: fixtureResults,
+      instanceCorpus,
+      negativeCorpus,
+      allowedDifferences: [
+        {
+          key: 'triangleCount',
+          reason: 'Tessellators may choose different triangle counts; normalized bounds, surface area, business identity and ratio bounds are enforced.',
+        },
+        {
+          key: 'vertexCount',
+          reason: 'Vertex welding and indexed layout differ while semantic counts and geometry bounds remain equivalent.',
+        },
+        {
+          key: 'byteDigest',
+          reason: 'Accessor layout, generated normals and preparation metadata differ deterministically.',
+        },
+      ],
+    };
+    await mkdir(dirname(reportPath), { recursive: true });
+    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+    console.log(JSON.stringify(report, null, 2));
+    if (report.status !== 'pass') process.exitCode = 1;
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+async function compareFixture(root, key, fixtureName, assetId, legacy) {
+  const fixturePath = join(fixtureRoot, fixtureName);
+  const outputPath = join(root, `${key}.native.glb`);
+  const command = runNativeImport({
+    fixture: fixturePath,
+    output: outputPath,
+    assetId,
+  });
+  const [sourceBytes, nativeBytes] = await Promise.all([
+    readFile(fixturePath),
+    readFile(outputPath),
+  ]);
+  const native = summarizeGlb(parseGlb(nativeBytes), assetId);
+  const triangleRatio = native.triangleCount / legacy.stats.triangleCount;
+  const normalizedLegacyBounds = normalizeLegacyIfcBounds(legacy.bounds);
+  const normalizedNativeBounds = normalizeNativeIfcBounds(nativeBytes);
+  const comparisons = {
+    sourceDigest: {
+      baseline: legacy.sourceDigest,
+      native: sha256(sourceBytes),
+      equal: legacy.sourceDigest === sha256(sourceBytes),
+    },
+    nodeCount: {
+      baseline: legacy.stats.nodeCount,
+      native: normalizedIfcNodeNames(native.nodeNames, native.selectionIds).count,
+      equal: normalizedIfcNodeNames(native.nodeNames, native.selectionIds).count
+        === normalizedIfcNodeNames(legacy.nodeNames, legacy.selectionIds).count,
+    },
+    nodeNames: {
+      baseline: normalizedIfcNodeNames(legacy.nodeNames, legacy.selectionIds).names,
+      native: normalizedIfcNodeNames(native.nodeNames, native.selectionIds).names,
+      equal: JSON.stringify(normalizedIfcNodeNames(legacy.nodeNames, legacy.selectionIds).names)
+        === JSON.stringify(normalizedIfcNodeNames(native.nodeNames, native.selectionIds).names),
+    },
+    selectionIds: {
+      baseline: normalizeIfcSelectionIds(legacy.selectionIds, key),
+      native: normalizeIfcSelectionIds(native.selectionIds, key),
+      equal: JSON.stringify(normalizeIfcSelectionIds(legacy.selectionIds, key))
+        === JSON.stringify(normalizeIfcSelectionIds(native.selectionIds, key)),
+    },
+    spatialPaths: {
+      baseline: normalizedSpatialPaths(legacy.spatialPaths),
+      native: normalizedSpatialPaths(native.spatialPaths),
+      equal: JSON.stringify(normalizedSpatialPaths(legacy.spatialPaths))
+        === JSON.stringify(normalizedSpatialPaths(native.spatialPaths)),
+    },
+    meshCount: {
+      baseline: legacy.stats.meshCount,
+      native: native.meshCount,
+      equal: legacy.stats.meshCount === native.meshCount,
+    },
+    instanceNodeCount: {
+      baseline: legacy.stats.instanceNodeCount,
+      native: native.instanceNodeCount,
+      equal: legacy.stats.instanceNodeCount === native.instanceNodeCount,
+    },
+    materialCount: {
+      baseline: legacy.stats.semanticMaterialCount,
+      native: native.materials.length,
+      equal: legacy.stats.semanticMaterialCount === native.materials.length,
+    },
+    materials: {
+      baseline: normalizeMaterialColours(legacy.materials, true),
+      native: normalizeMaterialColours(native.materials, false),
+      equal: normalizedMaterialColoursClose(legacy.materials, native.materials),
+    },
+    propertySets: {
+      baseline: normalizePropertySets(legacy.propertySets),
+      native: normalizePropertySets(native.propertySets),
+      equal: JSON.stringify(normalizePropertySets(legacy.propertySets))
+        === JSON.stringify(normalizePropertySets(native.propertySets)),
+    },
+    quantitySets: {
+      baseline: normalizeQuantitySets(legacy.quantitySets),
+      native: normalizeQuantitySets(native.quantitySets),
+      equal: JSON.stringify(normalizeQuantitySets(legacy.quantitySets))
+        === JSON.stringify(normalizeQuantitySets(native.quantitySets)),
+    },
+    systems: {
+      baseline: normalizeSystems(legacy.systems),
+      native: normalizeSystems(native.systems),
+      equal: JSON.stringify(normalizeSystems(legacy.systems))
+        === JSON.stringify(normalizeSystems(native.systems)),
+    },
+    bounds: {
+      baseline: normalizedLegacyBounds,
+      native: normalizedNativeBounds,
+      equal: normalizedBoundsClose(
+        normalizedLegacyBounds,
+        normalizedNativeBounds,
+      ),
+    },
+    surfaceArea: {
+      baseline: legacy.surfaceArea,
+      native: native.surfaceArea,
+      relativeError: relativeError(native.surfaceArea, legacy.surfaceArea),
+      equal: relativeError(native.surfaceArea, legacy.surfaceArea) <= 0.02,
+    },
+    triangleCount: {
+      baseline: legacy.stats.triangleCount,
+      native: native.triangleCount,
+      ratio: triangleRatio,
+      equal: triangleRatio >= 0.75 && triangleRatio <= 1.33,
+    },
+    warningCodes: {
+      baseline: normalizeWarningCodes(
+        legacy.warningCodes,
+        key === 'orphanProduct'
+          && native.nodeNames.includes('Orphan Pump'),
+      ),
+      native: normalizeWarningCodes(warningCodes(command.warnings)),
+      equal: JSON.stringify(normalizeWarningCodes(
+        legacy.warningCodes,
+        key === 'orphanProduct'
+          && native.nodeNames.includes('Orphan Pump'),
+      ))
+        === JSON.stringify(normalizeWarningCodes(warningCodes(command.warnings))),
+    },
+  };
+  const failures = Object.entries(comparisons)
+    .filter(([, value]) => value.equal !== true)
+    .map(([name]) => name);
+  return {
+    status: failures.length === 0 ? 'pass' : 'fail',
+    fixture: relative(studioRoot, fixturePath),
+    sourceDigest: comparisons.sourceDigest.native,
+    byteDigest: sha256(nativeBytes),
+    vertexCount: native.vertexCount,
+    comparisons,
+    failures,
+  };
+}
+
+async function compareInstanceCorpus(root) {
+  const outputPath = join(root, 'ifc-instances.glb');
+  const command = runNativeImport({
+    fixture: instanceFixturePath,
+    output: outputPath,
+    assetId: 'parity-ifc-instances',
+  });
+  const [sourceBytes, nativeBytes] = await Promise.all([
+    readFile(instanceFixturePath),
+    readFile(outputPath),
+  ]);
+  const native = summarizeGlb(parseGlb(nativeBytes), 'parity-ifc-instances');
+  const meshNodeSelections = native.nodeSelections.filter((pair) => (
+    pair.mesh !== undefined
+  ));
+  const comparisons = {
+    sharedMeshNodeCount: {
+      native: native.sharedMeshNodeCount,
+      equal: native.sharedMeshNodeCount >= 2,
+    },
+    instanceNodeCount: {
+      native: native.instanceNodeCount,
+      equal: native.instanceNodeCount >= 2,
+    },
+    distinctSelectionIds: {
+      native: meshNodeSelections.map((pair) => pair.selectionId),
+      equal: new Set(meshNodeSelections.map((pair) => pair.selectionId)).size
+        === meshNodeSelections.length,
+    },
+    warningCodes: {
+      native: normalizeWarningCodes(warningCodes(command.warnings)),
+      equal: normalizeWarningCodes(warningCodes(command.warnings)).length === 0,
+    },
+  };
+  const failures = Object.entries(comparisons)
+    .filter(([, value]) => value.equal !== true)
+    .map(([name]) => name);
+  return {
+    status: failures.length === 0 ? 'pass' : 'fail',
+    fixture: relative(studioRoot, instanceFixturePath),
+    sourceDigest: sha256(sourceBytes),
+    byteDigest: sha256(nativeBytes),
+    meshNodeCount: native.meshNodeCount,
+    comparisons,
+    failures,
+  };
+}
+
+async function runNegativeCorpus(root) {
+  const negativeRoot = join(root, 'negative');
+  await mkdir(negativeRoot, { recursive: true });
+  return {
+    unsupportedSchema: await expectFailure(negativeRoot, 'unsupported-schema', {
+      fixture: join(fixtureRoot, 'ifc4-legacy.ifc'),
+      expectedCode: 'ICE3_STUDIO_IMPORT_IFC_SCHEMA_UNSUPPORTED',
+    }),
+    unsupportedUnit: await expectFailure(negativeRoot, 'unsupported-unit', {
+      fixture: join(fixtureRoot, 'unsupported-unit.ifc'),
+      expectedCode: 'ICE3_STUDIO_IMPORT_IFC_UNIT_UNSUPPORTED',
+    }),
+    conflictingUnits: await expectFailure(negativeRoot, 'conflicting-units', {
+      fixture: join(fixtureRoot, 'conflicting-units.ifc'),
+      expectedCode: 'ICE3_STUDIO_IMPORT_IFC_UNIT_UNSUPPORTED',
+    }),
+    empty: await expectFailure(negativeRoot, 'empty', {
+      fixture: join(fixtureRoot, 'empty-model.ifc'),
+      expectedCode: 'ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY',
+    }),
+    truncated: await expectFailure(negativeRoot, 'truncated', {
+      fixture: join(fixtureRoot, 'truncated.ifc'),
+      expectedCode: 'ICE3_STUDIO_IMPORT_INVALID_SOURCE',
+    }),
+    limitExceeded: await expectFailure(negativeRoot, 'limit', {
+      fixture: join(fixtureRoot, 'synthetic-plant.ifc'),
+      expectedCode: 'ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED',
+      environment: {
+        ...process.env,
+        ICE3_STUDIO_IMPORT_MAX_TRIANGLES: '1',
+      },
+    }),
+    timeout: await expectFailure(negativeRoot, 'timeout', {
+      fixture: join(fixtureRoot, 'synthetic-plant.ifc'),
+      expectedCode: 'ICE3_STUDIO_IMPORT_TIMEOUT',
+      preserveOutput: 'keep',
+      force: true,
+      environment: {
+        ...process.env,
+        ICE3_STUDIO_IMPORT_WORKER_TIMEOUT_MS: '1',
+      },
+    }),
+  };
+}
+
+async function expectFailure(root, name, options) {
+  const output = join(root, `${name}.glb`);
+  if (options.preserveOutput !== undefined) {
+    await writeFile(output, options.preserveOutput);
+  }
+  const args = [
+    'import',
+    options.fixture,
+    '--output', output,
+    '--asset-id', `negative-${name}`,
+    '--adapter', 'ifc',
+  ];
+  if (options.force) args.push('--force');
+  const result = spawnSync(nativeCli, args, {
+    cwd: studioRoot,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    env: options.environment ?? process.env,
+  });
+  const outputDisposition = options.preserveOutput !== undefined
+    ? (await readFile(output, 'utf8')) === options.preserveOutput
+      ? 'preserved'
+      : 'changed'
+    : await readFile(output).then(() => 'present', () => 'absent');
+  const status = (
+    result.status !== 0
+    && result.stderr.includes(options.expectedCode)
+    && ['absent', 'preserved'].includes(outputDisposition)
+  ) ? 'pass' : 'fail';
+  return {
+    status,
+    exitCode: result.status,
+    expectedCode: options.expectedCode,
+    diagnosticPresent: result.stderr.includes(options.expectedCode),
+    outputDisposition,
+  };
+}
+
+function ensureNativeCli() {
+  const result = spawnSync('cargo', ['build', '--quiet', '-p', 'studio-cli'], {
+    cwd: studioRoot,
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    throw new Error(result.stderr || result.stdout || 'studio-cli build failed');
+  }
+}
+
+function runNativeImport({ fixture, output, assetId }) {
+  const result = spawnSync(nativeCli, [
+    'import',
+    fixture,
+    '--output', output,
+    '--asset-id', assetId,
+    '--adapter', 'ifc',
+  ], {
+    cwd: studioRoot,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (result.status !== 0) {
+    throw new Error(`native IFC import failed:\n${result.stderr}\n${result.stdout}`);
+  }
+  return JSON.parse(result.stdout);
+}
+
+function normalizePropertySets(sets) {
+  return (sets ?? [])
+    .map((set) => ({
+      name: set.name,
+      properties: sortedRecord(set.properties ?? {}),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'en'));
+}
+
+function normalizeQuantitySets(sets) {
+  return (sets ?? [])
+    .map((set) => ({
+      name: set.name,
+      properties: sortedRecord(set.quantities ?? set.properties ?? {}),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'en'));
+}
+
+function normalizeSystems(systems) {
+  return (systems ?? [])
+    .map((system) => ({
+      ...(system.globalId ? { globalId: system.globalId } : {}),
+      name: system.name,
+      ifcType: system.ifcType,
+    }))
+    .sort((left, right) => (
+      String(left.globalId ?? '').localeCompare(String(right.globalId ?? ''), 'en')
+      || left.name.localeCompare(right.name, 'en')
+    ));
+}
+
+function normalizeWarningCodes(codes, ignoreLegacyUnmapped = false) {
+  return [...new Set(codes.map((code) => (
+    String(code)
+      .replace(/^ICE3_STUDIO_IMPORT_/u, '')
+      .replace(/:\d+$/u, '')
+  )).filter((code) => (
+    !(ignoreLegacyUnmapped && code === 'IFC_UNMAPPED_GEOMETRY')
+  )))].sort();
+}
+
+function normalizeLegacyIfcBounds(bounds) {
+  const corners = [];
+  for (const x of [bounds.min[0], bounds.max[0]]) {
+    for (const y of [bounds.min[1], bounds.max[1]]) {
+      for (const z of [bounds.min[2], bounds.max[2]]) {
+        corners.push([x, z, -y]);
+      }
+    }
+  }
+  const min = [0, 1, 2].map((axis) => Math.min(...corners.map((corner) => corner[axis])));
+  const max = [0, 1, 2].map((axis) => Math.max(...corners.map((corner) => corner[axis])));
+  return normalizeBounds({ min, max });
+}
+
+function normalizeNativeIfcBounds(bytes) {
+  const glb = parseGlb(bytes);
+  const assetExtras = glb.json.asset?.extras?.ice3;
+  const metadata = assetExtras?.ice3?.ifc ?? assetExtras?.ifc;
+  const bounds = assetExtras?.bounds;
+  if (!metadata || !bounds) throw new Error('native IFC bounds metadata is missing');
+  return {
+    sourceOrigin: metadata.sourceOrigin,
+    min: bounds.min,
+    max: bounds.max,
+  };
+}
+
+function normalizeBounds(bounds) {
+  const sourceOrigin = [bounds.min[0], 0, bounds.min[2]];
+  return {
+    sourceOrigin,
+    min: [0, bounds.min[1], 0],
+    max: [
+      bounds.max[0] - sourceOrigin[0],
+      bounds.max[1],
+      bounds.max[2] - sourceOrigin[2],
+    ],
+  };
+}
+
+function normalizedBoundsClose(left, right) {
+  return ['min', 'max'].every((key) => (
+    [0, 1, 2].every((axis) => {
+      const extent = Math.abs(left.max[axis] - left.min[axis]);
+      const tolerance = Math.max(0.0001, extent * 0.00001);
+      return Math.abs(left[key][axis] - right[key][axis]) <= tolerance;
+    })
+  ));
+}
+
+function relativeError(value, reference) {
+  if (reference === 0) return value === 0 ? 0 : Infinity;
+  return Math.abs(value - reference) / Math.abs(reference);
+}
+
+function materialsClose(left, right) {
+  return left.length === right.length
+    && left.every((material, index) => (
+      material.baseColorFactor.every((value, component) => (
+        Math.abs(value - right[index].baseColorFactor[component]) <= 1e-5
+      ))
+    ));
+}
+
+function normalizedMaterialColoursClose(left, right) {
+  const baseline = normalizeMaterialColours(left, true);
+  const native = normalizeMaterialColours(right, false);
+  return baseline.length === native.length
+    && baseline.every((colour, index) => colour.every((value, component) => (
+      Math.abs(value - native[index][component]) <= 1e-5
+    )));
+}
+
+function normalizeMaterialColours(materials, fromSrgb) {
+  return [...materials]
+    .map((material) => material.baseColorFactor.map((component, index) => (
+      index === 3 || !fromSrgb
+        ? component
+        : srgbToLinear(component)
+    )))
+    .sort((left, right) => JSON.stringify(left).localeCompare(
+      JSON.stringify(right),
+      'en',
+    ));
+}
+
+function srgbToLinear(component) {
+  return component <= 0.04045
+    ? component / 12.92
+    : ((component + 0.055) / 1.055) ** 2.4;
+}
+
+function sortedRecord(value) {
+  return Object.fromEntries(
+    Object.entries(value).sort(([left], [right]) => left.localeCompare(right, 'en')),
+  );
+}
+
+function normalizedIfcNodeNames(names) {
+  const normalized = names
+    .filter((name) => name !== 'Unassigned IFC Products')
+    .sort((left, right) => left.localeCompare(right, 'en'));
+  return { names: normalized, count: normalized.length };
+}
+
+function normalizedSpatialPaths(paths) {
+  return [...new Set(paths
+    .map((path) => path.replace(/\/Unassigned IFC Products(?=\/|$)/u, ''))
+    .filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, 'en'));
+}
+
+function normalizeIfcSelectionIds(ids, fixtureKey) {
+  return ids
+    .filter((id) => !id.endsWith('/unassigned'))
+    .map((id) => (
+      fixtureKey === 'duplicateGlobalId'
+        ? id.replace(/\/express\/\d+$/u, '/express/<duplicate>')
+        : id
+    ))
+    .sort((left, right) => left.localeCompare(right, 'en'));
 }
 
 async function captureBaseline() {
@@ -249,12 +767,44 @@ function summarizeGlb(glb, assetId) {
       path: nodePath(index),
     }))
     .filter((entry) => entry.extras);
-  const allDefinitionSets = uniqueByName(
+  const propertySets = uniqueByName(
     ifcNodes.flatMap((entry) => entry.extras.propertySets ?? []),
   );
+  const quantitySets = uniqueByName(
+    ifcNodes.flatMap((entry) => entry.extras.quantitySets ?? []),
+  );
+  const meshNodes = nodes.filter((node) => Number.isInteger(node.mesh));
+  const sharedMeshNodeCount = nodes.filter((node) => (
+    Number.isInteger(node.mesh)
+    && (meshReferences.get(node.mesh) ?? 0) > 1
+  )).length;
+  const spatialTypes = new Set([
+    'IFCPROJECT',
+    'IFCSITE',
+    'IFCBUILDING',
+    'IFCBUILDINGSTOREY',
+    'IFCSPACE',
+    'IFCUNASSIGNED',
+    'IFCUNASSIGNEDPRODUCTS',
+  ]);
+  const nodeSelections = nodes
+    .map((node) => {
+      const ifc = node.extras?.ice3?.ifc;
+      return {
+        name: node.name ?? '',
+        mesh: node.mesh,
+        selectionId: node.extras?.ice3?.id
+          ?? node.extras?.ice3?.selectionId,
+        business: ifc !== undefined
+          && !spatialTypes.has(String(ifc.ifcType).toUpperCase()),
+      };
+    })
+    .filter((pair) => pair.selectionId !== undefined);
   return {
     nodeCount: nodes.length,
     meshCount: meshes.length,
+    meshNodeCount: meshNodes.length,
+    sharedMeshNodeCount,
     triangleCount,
     vertexCount: [...positionAccessors].reduce(
       (total, index) => total + glb.json.accessors[index].count,
@@ -262,22 +812,20 @@ function summarizeGlb(glb, assetId) {
     ),
     instanceNodeCount: nodes.filter((node) => (
       Number.isInteger(node.mesh)
-      && (meshReferences.get(node.mesh) ?? 0) > 1
+      && (node.extras?.ice3?.ifc?.instanceGroup
+        ?? node.extras?.ice3?.instanceGroup) !== undefined
     )).length,
     nodeNames: nodes.map((node) => node.name ?? '').filter(Boolean),
-    selectionIds: nodes
-      .map((node) => node.extras?.ice3?.selectionId)
-      .filter(Boolean)
+    selectionIds: nodeSelections
+      .filter((pair) => pair.business)
+      .map((pair) => pair.selectionId)
       .sort(),
+    nodeSelections,
     spatialPaths: [...new Set(
       nodes.map((_, index) => nodePath(index)),
     )].sort(),
-    propertySets: allDefinitionSets.filter(
-      (set) => !String(set.name).startsWith('Qto_'),
-    ),
-    quantitySets: allDefinitionSets.filter(
-      (set) => String(set.name).startsWith('Qto_'),
-    ),
+    propertySets,
+    quantitySets,
     systems: uniqueByName(
       ifcNodes.flatMap((entry) => entry.extras.systems ?? []),
     ),

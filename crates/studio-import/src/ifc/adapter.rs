@@ -50,6 +50,7 @@ impl IfcImporter {
             ));
         }
         let bytes = read_bounded_source(&request.path, limits.max_memory_bytes)?;
+        validate_step_physical_file(&bytes)?;
         let metadata = extract_ifc_metadata(&bytes, asset_id, limits)?;
         let result = process_geometry_with_budget(&bytes, limits)?;
         if result.metadata.schema_version != metadata.schema {
@@ -77,6 +78,18 @@ impl IfcImporter {
         }
         project_ifc_scene(&metadata, &result, asset_id, limits)
     }
+}
+
+fn validate_step_physical_file(bytes: &[u8]) -> Result<(), ImportError> {
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| ImportError::InvalidSource("IFC file is not valid UTF-8".into()))?;
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text).trim();
+    if !text.starts_with("ISO-10303-21;") || !text.ends_with("END-ISO-10303-21;") {
+        return Err(ImportError::InvalidSource(
+            "IFC file is truncated or is not an ISO 10303-21 physical file".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn process_geometry_with_budget(
