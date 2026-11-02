@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -19,7 +20,8 @@ const baselinePath = resolve(
   studioRoot,
   'fixtures/parity/prepare-baseline-v1.json',
 );
-const mode = process.argv[2] ?? '--capture';
+const parityReportPath = resolve(studioRoot, 'output/prepare-parity.json');
+const mode = process.argv[2] ?? '--compare';
 
 if (mode === '--capture') {
   await captureBaseline();
@@ -35,12 +37,302 @@ if (mode === '--capture') {
     status: 'pass',
     sourceDigest: baseline.sourceDigest,
   }, null, 2));
+} else if (mode === '--compare') {
+  await compareNative();
 } else {
   console.error(
     'usage: node scripts/compare-prepare-imports.mjs '
-      + '[--capture|--verify-baseline]',
+      + '[--compare|--capture|--verify-baseline]',
   );
   process.exit(2);
+}
+
+async function compareNative() {
+  let report;
+  try {
+    report = await buildNativeParityReport();
+  } catch (error) {
+    report = {
+      kind: 'ice3-prepare-parity',
+      schemaVersion: '1.0',
+      status: 'fail',
+      failures: ['execution'],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+  await mkdir(dirname(parityReportPath), { recursive: true });
+  await writeFile(parityReportPath, `${JSON.stringify(report, null, 2)}\n`);
+  console.log(JSON.stringify(report, null, 2));
+  if (report.status !== 'pass') process.exitCode = 1;
+}
+
+async function buildNativeParityReport() {
+  const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
+  assertBaseline(baseline);
+  const source = await sourceIdentity();
+  if (source.digest !== baseline.sourceDigest) {
+    throw new Error('baseline source digest does not match the fixture');
+  }
+
+  const studioBinary = resolveStudioBinary();
+  const temporary = await mkdtemp(join(tmpdir(), 'ice3-prepare-parity-'));
+  try {
+    const first = await buildStudioCase(studioBinary, temporary, 'first', baseline);
+    const second = await buildStudioCase(studioBinary, temporary, 'second', baseline);
+    const expected = summarizeBaseline(baseline);
+    const native = first.summary;
+    const reportKindNormalization = normalizeReportKind(
+      baseline.default.report.kind,
+    );
+    const comparisons = {
+      sourceDigest:
+        native.sourceDigest === baseline.sourceFiles['prepare-cube.gltf'],
+      stats: equal(native.stats, expected.stats),
+      bounds: equal(native.bounds, expected.bounds),
+      businessNodeIds: equal(
+        native.businessNodeIds,
+        expected.businessNodeIds,
+      ),
+      nodeNames: equal(native.nodeNames, expected.nodeNames),
+      selectionFallback: equal(
+        native.selectionIds,
+        expected.selectionIds,
+      ),
+      edgeRole: native.edgeRole === expected.edgeRole,
+      edgeWidthPx: native.edgeWidthPx === expected.edgeWidthPx,
+      edgeColor: equal(native.edgeColor, expected.edgeColor),
+      edgeMaterialName: native.edgeMaterialName === expected.edgeMaterialName,
+      edgesPrepared: native.edgesPrepared === expected.edgesPrepared,
+      budget: equal(native.budget, expected.budget),
+      reportKind: native.report.kind === reportKindNormalization.studio,
+      reportStats: equal(native.report.stats, expected.report.stats),
+      reportBudget: equal(native.report.budget, expected.report.budget),
+      determinism: first.digest === second.digest,
+    };
+    const failures = Object.entries(comparisons)
+      .filter(([, passed]) => !passed)
+      .map(([name]) => name);
+    return {
+      kind: 'ice3-prepare-parity',
+      schemaVersion: '1.0',
+      status: failures.length === 0 ? 'pass' : 'fail',
+      fixture: relative(studioRoot, fixture),
+      studioBinary,
+      failures,
+      comparisons,
+      deterministic: {
+        byteEqual: first.bytes.equals(second.bytes),
+        firstDigest: first.digest,
+        secondDigest: second.digest,
+      },
+      reportKindNormalization,
+      normalizationRules: {
+        selectionIdFallback: baseline.normalizationRules.selectionIdFallback,
+        studioGeneratedNodeId:
+          'A generated node-NNNNNN path segment is normalized to node/<ordinal> '
+          + 'before comparing legacy business and effective Selection IDs.',
+        colorPrecision: 6,
+      },
+      baseline: expected,
+      native,
+    };
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+async function buildStudioCase(studioBinary, temporary, name, baseline) {
+  const output = join(temporary, `${name}.glb`);
+  const reportPath = join(temporary, `${name}.report.json`);
+  const options = baseline.options.default;
+  const args = [
+    'build',
+    fixture,
+    '--output',
+    output,
+    '--report',
+    reportPath,
+    '--asset-id',
+    'prepare-cube',
+    '--budget',
+    options.budget,
+    '--crease-angle',
+    String(options.creaseAngleDegrees),
+    ...(options.edges ? [] : ['--skip-edges']),
+    '--json',
+  ];
+  run(studioBinary, args, studioRoot);
+  const bytes = await readFile(output);
+  const document = parseGlb(bytes);
+  const report = JSON.parse(await readFile(reportPath, 'utf8'));
+  return {
+    bytes,
+    digest: sha256(bytes),
+    summary: summarizeStudio(document, report, baseline),
+  };
+}
+
+function summarizeBaseline(baseline) {
+  const fallback = baseline.normalizationRules.selectionIdFallback;
+  const effectiveSelectionIds = baseline.default.selectionIds.length > 0
+    ? baseline.default.selectionIds
+    : fallback === 'ice3.id'
+      ? baseline.default.nodeBusinessIds
+      : [];
+  return {
+    sourceDigest: baseline.sourceDigest,
+    edgesPrepared: baseline.default.edgesPrepared,
+    stats: normalizeValue(baseline.default.stats),
+    budget: normalizeBudget(baseline.default.budget),
+    report: {
+      kind: normalizeReportKind(baseline.default.report.kind).studio,
+      schemaVersion: baseline.default.report.schemaVersion,
+      stats: normalizeValue(
+        baseline.default.report.stats ?? baseline.default.stats,
+      ),
+      budget: normalizeBudget(baseline.default.report.budget),
+    },
+    edgeRole: baseline.default.edgeRole,
+    edgeWidthPx: baseline.default.edgeWidthPx,
+    edgeColor: normalizeColor(baseline.default.edgeColor),
+    edgeMaterialName: baseline.default.edgeMaterialName,
+    businessNodeIds: normalizeNodeIds(baseline.default.nodeBusinessIds),
+    nodeNames: [...baseline.default.nodeNames],
+    selectionIds: normalizeNodeIds(effectiveSelectionIds),
+    bounds: normalizeValue(baseline.default.bounds),
+  };
+}
+
+function summarizeStudio(document, report, baseline) {
+  const profile = document.json.asset?.extras?.ice3;
+  if (!profile) throw new Error('Studio Prepared profile is missing');
+  const metricKeys = Object.keys(baseline.default.stats);
+  const nodes = document.json.nodes ?? [];
+  const nodeNames = nodes
+    .map((node) => node.name)
+    .filter((name) => typeof name === 'string' && name.length > 0);
+  const businessNodeIds = nodes
+    .map((node) => node.extras?.ice3?.selectionId ?? node.extras?.ice3?.id)
+    .filter(Boolean);
+  const selectionIds = nodes
+    .map((node) => node.extras?.ice3?.selectionId ?? node.extras?.ice3?.id)
+    .filter(Boolean);
+  const edgePrimitive = findEdgePrimitive(document.json);
+  const edgeMaterial = edgePrimitive
+    ? document.json.materials[edgePrimitive.material]
+    : undefined;
+  return {
+    sourceDigest: stripDigestLabel(
+      profile.sourceDigest ?? report.sourceDigest ?? '',
+    ),
+    edgesPrepared: profile.preparation?.edgesPrepared,
+    stats: pickFields(profile.stats, metricKeys),
+    budget: normalizeBudget(profile.budget),
+    report: {
+      kind: normalizeReportKind(report.kind).studio,
+      schemaVersion: report.schemaVersion,
+      stats: pickFields(report.metrics, metricKeys),
+      budget: normalizeBudget(report.budget),
+    },
+    edgeRole: edgePrimitive?.extras?.ice3?.role,
+    edgeWidthPx: edgePrimitive?.extras?.ice3?.widthPx,
+    edgeColor: normalizeColor(
+      edgeMaterial?.pbrMetallicRoughness?.baseColorFactor,
+    ),
+    edgeMaterialName: edgeMaterial?.name,
+    businessNodeIds: normalizeNodeIds(businessNodeIds),
+    nodeNames,
+    selectionIds: normalizeNodeIds(selectionIds),
+    bounds: normalizeValue(profile.bounds),
+  };
+}
+
+function normalizeReportKind(kind) {
+  if (kind === 'ice3-asset-report') {
+    return {
+      legacy: kind,
+      studio: 'ice3-asset-build-report',
+      applied: true,
+    };
+  }
+  return {
+    legacy: kind,
+    studio: kind,
+    applied: false,
+  };
+}
+
+function normalizeBudget(budget) {
+  return budget === undefined
+    ? undefined
+    : {
+        profile: budget.profile,
+        status: budget.status,
+        warningCount: budget.warningCount,
+        errorCount: budget.errorCount,
+      };
+}
+
+function normalizeNodeIds(values) {
+  return values.map((value) => {
+    const duplicateSegment = value.match(/^(.*\/node)\/node-(\d{6})$/);
+    if (duplicateSegment) {
+      return `${duplicateSegment[1]}/${Number(duplicateSegment[2])}`;
+    }
+    const assetSegment = value.match(/^(.*)\/node-(\d{6})$/);
+    if (assetSegment) {
+      return `${assetSegment[1]}/node/${Number(assetSegment[2])}`;
+    }
+    const bareSegment = value.match(/^node-(\d{6})$/);
+    if (bareSegment) return `node/${Number(bareSegment[1])}`;
+    return value;
+  });
+}
+
+function normalizeColor(color) {
+  return color?.map((value) => Number(value.toFixed(6)));
+}
+
+function normalizeValue(value) {
+  if (typeof value === 'number') return Number(value.toFixed(6));
+  if (Array.isArray(value)) return value.map(normalizeValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right, 'en'))
+        .map(([key, nested]) => [key, normalizeValue(nested)]),
+    );
+  }
+  return value;
+}
+
+function pickFields(value, keys) {
+  if (!value || typeof value !== 'object') return undefined;
+  return Object.fromEntries(keys.map((key) => [key, value[key]]));
+}
+
+function equal(left, right) {
+  return JSON.stringify(normalizeValue(left)) === JSON.stringify(
+    normalizeValue(right),
+  );
+}
+
+function stripDigestLabel(value) {
+  return value.startsWith('sha256:') ? value.slice('sha256:'.length) : value;
+}
+
+function resolveStudioBinary() {
+  const configured = process.env.ICE3_STUDIO_BIN?.trim();
+  if (configured) return resolve(studioRoot, configured);
+  run('cargo', ['build', '-p', 'studio-cli'], studioRoot);
+  const targetRoot = process.env.CARGO_TARGET_DIR
+    ? resolve(studioRoot, process.env.CARGO_TARGET_DIR)
+    : resolve(studioRoot, 'target');
+  return join(
+    targetRoot,
+    'debug',
+    process.platform === 'win32' ? 'studio-cli.exe' : 'studio-cli',
+  );
 }
 
 async function captureBaseline() {

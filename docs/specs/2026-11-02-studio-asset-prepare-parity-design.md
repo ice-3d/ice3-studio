@@ -6,9 +6,10 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **阶段状态：** Phase 1 至 Phase 5 已完成。Phase 6 是迁移后的产品能力收口，
-> 目标是在不恢复 Toolchain、Node Asset Runtime、外部 DCC 或 Blender 的前提下，让
-> Studio 具备原 Toolchain 的完整资产准备能力。
+> **阶段状态：** Phase 1 至 Phase 5 已完成，Phase 6A 已完成。Phase 6 是迁移后的
+> 产品能力收口，目标是在不恢复 Toolchain、Node Asset Runtime、外部 DCC 或 Blender
+> 的前提下，让 Studio 具备原 Toolchain 的完整资产准备能力。Phase 6B/6C 仍为 Approved，
+> 因此 Spec 019 总体尚未标记 Implemented。
 
 **目标：** 在 Studio 内建立唯一、共享的 Asset Prepare pipeline，覆盖确定性 render
 edges、crease angle、Prepared metrics、built-in/custom budget、版本化 report、
@@ -571,12 +572,16 @@ Studio 新 Diagnostic 使用：
 
 ## 15. 实施阶段
 
-### Phase 6A：共享 Prepare 与 build
+### Phase 6A：共享 Prepare 与 build（Implemented）
 
 - 实现 AssetMetrics、BudgetProfile、edges、report 和 PrepareArtifact。
 - 让 `import` 改走共享 Prepare，默认 edges 关闭。
 - 增加 `build` 和 `inspect`。
 - 使用旧 Toolchain baseline 完成 build/edge parity。
+
+Phase 6A 已由 Plan 027 交付。`node scripts/compare-prepare-imports.mjs` 连续构建两次
+Studio GLB，验证字节确定性，并比较 Toolchain baseline 的 stats、bounds、业务节点身份、
+Selection fallback、edge role/width/color、budget 和 report 语义。
 
 ### Phase 6B：Pipeline 与 Runtime Tileset
 

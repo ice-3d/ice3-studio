@@ -71,6 +71,14 @@ cache 和项目完整性检查。新 revision 只有在 snapshot 持久化完成
 base directory 内解析外部资源。Draco primitive 在读取阶段物化为普通 accessor；绝对
 路径、URI scheme、`..`、symlink escape、畸形 chunk 和越界 accessor 均失败关闭。
 
+`studio-assets::prepare` 是 SourceScene 到 PreparedArtifact 的唯一语义实现。它一次生成
+GLB bytes、真实 AssetMetrics、Preparation metadata、budget result 和 content digest；
+`import`、`build`、`inspect` 与后续 partition 入口不得各自重算这些字段。`import` 默认
+不生成 render edges；`build` 默认按 30° crease angle 生成 deterministic line edges。
+edge primitive 固定为 `mode=1`、`role="edges"`、`widthPx=3`，并引用独立 edge material。
+Hard budget、非法 options、无效 geometry、profile 校验或 report 序列化失败时，
+Studio 不发布新产物。
+
 ### `studio-import`
 
 定义格式无关的 `SourceImporter`、registry 和 `SourceScene`。当前 adapter：
@@ -132,8 +140,10 @@ committed preview 使用原子发布并返回文件 SHA-256。candidate source �
 ### `studio-cli`
 
 启动本地 Server，生成确定性的 JSON Schema/TypeScript declaration，提供 project pack
-和 unpack、Source Import/validate，并从 committed revision 发布
-`agent-console-v1` Runtime bundle。
+和 unpack、Source Import/validate、`build`、`inspect`，并从 committed revision 发布
+`agent-console-v1` Runtime bundle。`build` 支持 built-in/custom budget、versioned
+`ice3-asset-build-report`、warnings-as-errors 和 GLB/report 成对原子发布；`inspect`
+对 source 与 Prepared GLB 复用同一 metrics/preparation/budget 字段。
 
 ### Web Viewer
 
@@ -224,6 +234,9 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 
 Runtime LOD、空间 partition 和 GLB Runtime Asset 发布已由 Studio 原生 crate 实现。
 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT Source Import 已迁入 Studio。
+Phase 6A 的共享 Prepare、真实 render edges、budget/report、`build` 和 `inspect` 也已
+完成；Phase 6B/6C 的 partition edges、统一 Runtime profile、Engine 兼容和最终性能验收
+仍按 Spec 019 保持已批准但未完成状态。
 `studio-import` 的 JT adapter 在 isolated worker 中调用 host-owned converter，验证
 标准 GLB，并在 `f64` 共享原点转换后生成 `SourceScene`。Studio 不再消费 Toolchain
 Source Import 生产路径或外部 DCC bridge 服务。Sidecar/client/UI 已退役；相邻

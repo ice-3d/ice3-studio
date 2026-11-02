@@ -188,6 +188,14 @@ ice3-studio unpack <file.ice3> --into <dir>
 ice3-studio import SOURCE --output FILE --asset-id ID
                         [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
                         [--warnings-as-errors] [--force]
+ice3-studio build SOURCE --output FILE --asset-id ID
+                       [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
+                       [--crease-angle DEGREES] [--skip-edges]
+                       [--budget interactive-desktop-v1|unrestricted|FILE]
+                       [--report FILE] [--warnings-as-errors] [--force] [--json]
+ice3-studio inspect SOURCE [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
+                          [--crease-angle DEGREES] [--skip-edges]
+                          [--budget interactive-desktop-v1|unrestricted|FILE] [--json]
 ice3-studio validate FILE
 ice3-studio export tileset --project <dir> --output <dir>
                          [--profile agent-console-v1] [--force]
@@ -229,6 +237,35 @@ process group 后才开始执行；批准 converter 不得通过新 session、da
 
 `--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
 替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。
+
+### Asset Prepare
+
+`import` 使用共享 `PrepareArtifact` 生成 `ice3-prepared` GLB、真实 metrics、
+preparation metadata 和 budget，但默认 `edges=false`。已有 source import 入口行为不变，
+现有 preview 用户不会因为 edges 自动增加 line primitive。
+
+`build` 默认 `edges=true`、crease angle `30°`。edge generation 使用
+`round(position * 100000)` welding，并输出 boundary + crease edges。每个 edge primitive
+固定为 `mode=1`、`role="edges"`、`widthPx=3`，引用包含 `#e6f2ff` base color 的 edge
+material；material `edgeColor` 可覆盖默认色，`edges=false` 的 material 不生成对应边。
+`--skip-edges` 关闭 line primitive 和 edge segments，但保留已使用的 source materials。
+
+`build --budget` 接受 `interactive-desktop-v1`、`unrestricted` 或受控 JSON profile。
+Soft limit 产生 warning，hard limit 失败关闭；`--warnings-as-errors` 在发布前把 warning
+转为失败。`--report` 写出 `ice3-asset-build-report` schema `1.0`，包含 source/content
+digest、metrics、preparation、budget 和 warnings。
+
+GLB 与 report 使用 sibling temporary files 成对发布。无 `--force` 时任一目标已存在即失败；
+带 `--force` 时先保留 backup，任一 rename 失败会恢复上一份 GLB/report；成功后才清理
+backup。`inspect` 不发布文件，对 source 执行同一 Prepare，对 Prepared GLB 直接读取
+embedded profile 的 metrics、preparation 和 budget。
+
+Prepare CLI 的稳定失败码：
+`ICE3_STUDIO_ASSET_INVALID_OPTIONS`、`ICE3_STUDIO_ASSET_INVALID_BUDGET`、
+`ICE3_STUDIO_ASSET_BUDGET_WARNING`、`ICE3_STUDIO_ASSET_BUDGET_EXCEEDED`、
+`ICE3_STUDIO_ASSET_OUTPUT_EXISTS`、`ICE3_STUDIO_ASSET_INVALID_GEOMETRY`、
+`ICE3_STUDIO_ASSET_REPORT_WRITE_FAILED` 和 `ICE3_STUDIO_ASSET_IO`。
+完整恢复规则见 [Diagnostics](diagnostics.md)。
 
 `export tileset` 读取当前 committed revision，生成：
 

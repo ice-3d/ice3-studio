@@ -96,7 +96,7 @@ Viewer URL 并持续服务，`Ctrl+C` 停止。
 完整验证与基准：
 
 ```bash
-npm run verify      # 22 道门禁：fmt / clippy / test / schema / fixture / viewer / E2E / audit
+npm run verify      # 24 道门禁：fmt / clippy / test / prepare parity / schema / fixture / viewer / E2E / audit
 npm run benchmark
 npm run benchmark:gpu
 ```
@@ -149,6 +149,13 @@ ICE3_JT_CONVERTER=/path/to/approved-jt-converter \
     --adapter jt
 
 cargo run -p studio-cli -- validate plant.glb
+
+cargo run -p studio-cli -- build plant.glb \
+  --output plant-built.glb \
+  --asset-id plant-built \
+  --report plant-built.report.json
+
+cargo run -p studio-cli -- inspect plant-built.glb --json
 ```
 
 Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242
@@ -168,6 +175,16 @@ STEP 只接受 AP242，并保留产品层级、实例、颜色、Selection 和�
 GlobalId Selection。JT 保留层级、共享 mesh instances、材质、object/assembly
 metadata、custom properties、`<assetId>/jt/node/<ordinal>` Selection 和 shared
 source origin。
+
+`import` 使用共享 Prepare 语义生成 `ice3-prepared` profile、真实 metrics 和
+`interactive-desktop-v1` budget，但默认不生成 render edges。`build` 默认以 30° crease
+angle 生成 `mode=1`、`role="edges"`、`widthPx=3` 的 line primitive 和 `#e6f2ff`
+edge material；`--skip-edges` 可关闭。`build --report` 写出
+`ice3-asset-build-report`，支持 built-in/custom budget 和 `--warnings-as-errors`。
+GLB 与 report 在发布前完成校验；失败不会替换已有文件，`--force` 替换时任一发布步骤失败
+都会恢复上一对文件。`inspect` 对 source 或 Prepared GLB 输出同一套 metrics、
+preparation 和 budget 字段。资产准备失败使用 `ICE3_STUDIO_ASSET_*` Diagnostic，
+不调用 Toolchain、Node Asset runtime、Blender 或其它外部 DCC。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
@@ -269,12 +286,12 @@ session。功能已交付，但性能门禁未过，默认关闭。
 静态资产导入、跨项目 GPU 缓冲持久化。清单与理由见
 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
-Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC、
-JT Source Import 已由 Studio 原生实现。Studio 不再消费 Toolchain Source Import
-生产路径；Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview
-始终由 Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和
-release surface 已完成清理，Studio 不再包含旧 repository 的路径依赖；repository
-归档仍需用户单独授权。
+Runtime GLB、Asset Prepare、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、
+USD、STEP、IFC、JT Source Import 已由 Studio 原生实现。Studio 不再消费 Toolchain
+Source Import 生产路径；Sidecar、client、配置和 Viewer 状态面已经退役，
+committed/candidate preview 始终由 Studio 原生生成。相邻 Toolchain repository 的 JT
+adapter、Sidecar 和 release surface 已完成清理，Studio 不再包含旧 repository 的路径
+依赖；repository 归档仍需用户单独授权。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。

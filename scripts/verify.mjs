@@ -66,6 +66,17 @@ const steps = [
     args: ['build', '-p', 'studio-cli'],
   },
   {
+    label: 'Prepare baseline contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/prepare-baseline.test.mjs'],
+  },
+  {
+    label: 'Prepare native parity',
+    command: 'node',
+    args: ['scripts/compare-prepare-imports.mjs'],
+    env: { ICE3_STUDIO_BIN: studioCli },
+  },
+  {
     label: 'Studio standalone',
     command: 'node',
     args: ['scripts/verify-studio-standalone.mjs'],

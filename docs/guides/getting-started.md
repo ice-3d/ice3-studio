@@ -231,6 +231,67 @@ JT 使用部署方提供的 `ICE3_JT_CONVERTER`，默认 timeout 为 300 秒，�
 额外提供 5 秒清理宽限。Studio 固定 converter 参数、验证 512 MiB 上限内的 GLB，并保留
 层级、共享实例、材质、JT metadata、Selection 和 shared source origin。
 
+## Build 与 Inspect Prepared Asset
+
+`import` 使用共享 Prepare 生成 metrics、preparation 和 budget，但默认不生成 render
+edges。需要面向 Engine 预览的 line edges 时使用 `build`：
+
+```bash
+cargo run -p studio-cli -- build plant.ifc \
+  --output /tmp/plant-built.glb \
+  --asset-id plant \
+  --adapter ifc \
+  --report /tmp/plant-built.report.json
+
+cargo run -p studio-cli -- inspect /tmp/plant-built.glb --json
+```
+
+`build` 默认使用 30° crease angle，生成 `mode=1`、`role="edges"`、`widthPx=3` 的
+line primitive 和 `#e6f2ff` edge material。`--crease-angle` 必须在 `0..=180`；
+`--skip-edges` 关闭 line primitive 和 edge segments。material 的 `edgeColor` 可以覆盖
+默认颜色，material `edges=false` 会抑制对应边。
+
+默认 budget 是 `interactive-desktop-v1`。也可指定 `unrestricted` 或自定义 JSON profile：
+
+```json
+{
+  "id": "small-equipment-v1",
+  "limits": [
+    {
+      "id": "triangleCount",
+      "label": "Triangles",
+      "softLimit": 250000,
+      "hardLimit": 1000000
+    }
+  ]
+}
+```
+
+```bash
+cargo run -p studio-cli -- build plant.ifc \
+  --output /tmp/plant-built.glb \
+  --asset-id plant \
+  --budget ./small-equipment-v1.json \
+  --report /tmp/plant-built.report.json \
+  --warnings-as-errors
+```
+
+Soft limit 默认只产生 warning；hard limit 或 `--warnings-as-errors` 在发布前失败。
+`--report` 写出 `ice3-asset-build-report`，包含实际 metrics、preparation、budget 和
+warnings。GLB/report 成对发布，默认拒绝已有目标；`--force` 替换失败时恢复上一份文件。
+`inspect` 对 source 执行同一 Prepare，对 Prepared GLB 直接读取内嵌字段。
+
+Phase 6A 对应的原生 parity 门禁可单独运行：
+
+```bash
+node scripts/compare-prepare-imports.mjs
+node --test scripts/tests/prepare-baseline.test.mjs
+```
+
+脚本默认构建两次 Studio `build` 产物，校验字节确定性，并比较 stats、bounds、业务节点
+身份、Selection fallback、edge role/width/color、budget 和 report。结果写入
+`output/prepare-parity.json`。
+
 ## 停止与恢复
 
 使用 `Ctrl+C` 停止 Server。Revision snapshot 在事件发布前原子写入；写入过程中断时保留

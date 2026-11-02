@@ -99,6 +99,22 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` | JT 层级、transform、bounds 或 metadata 映射无效 |
 | `ICE3_STUDIO_IMPORT_JT_TIMEOUT` | JT converter/worker 超过配置期限并被终止 |
 
+## Asset Prepare CLI 代码
+
+这些码由 `ice3-studio import/build/inspect` 返回，或者作为 build warning 进入
+`ice3-asset-build-report`。它们不属于 JSON-RPC `DiagnosticCode` enum。
+
+| 代码 | 含义 |
+|---|---|
+| `ICE3_STUDIO_ASSET_INVALID_OPTIONS` | budget 路径、crease angle、inspect option 或 output/report 组合无效 |
+| `ICE3_STUDIO_ASSET_INVALID_BUDGET` | custom budget 无法读取、schema 无效或 limit 非法 |
+| `ICE3_STUDIO_ASSET_BUDGET_WARNING` | soft budget 或 warning 在 `--warnings-as-errors` 下被提升为失败 |
+| `ICE3_STUDIO_ASSET_BUDGET_EXCEEDED` | 一项 hard budget 越界，未发布 GLB/report |
+| `ICE3_STUDIO_ASSET_OUTPUT_EXISTS` | output 或 report 已存在且未指定 `--force` |
+| `ICE3_STUDIO_ASSET_INVALID_GEOMETRY` | primitive、index、edge generation 或 Prepared profile 几何无效 |
+| `ICE3_STUDIO_ASSET_REPORT_WRITE_FAILED` | report 序列化、temporary 写入或发布失败 |
+| `ICE3_STUDIO_ASSET_IO` | GLB/report 原子发布、rollback 或文件系统操作失败 |
+
 ## 恢复规则
 
 - validation 或 operation 失败保持当前 revision 不变。
@@ -114,6 +130,14 @@ Diagnostic code 仍是主要机器契约。
   `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` 失败关闭；移除/重置 override，或导出 source
   baseline。
 - persistence 失败时上一份 snapshot 仍可加载。
+- Asset Prepare 的 source import、edge generation、hard budget 或 profile 校验失败时不发布
+  GLB/report；无 `--force` 遇到已有目标时两者都保持不变。
+- `build --force` 发布失败会恢复上一份 GLB 和 report；若 rollback 本身失败，错误会列出
+  两个路径的恢复状态，调用方应先检查目标完整性再重试。
+- `ICE3_STUDIO_ASSET_INVALID_BUDGET` 要求修正 JSON schema 或 limit；空 profile、重复
+  metric、soft limit 大于 hard limit 或非法整数值都不会进入 Prepare。
+- Prepared GLB inspect 不允许 `--crease-angle`、`--skip-edges` 或 `--budget`；这些选项只
+  适用于重新准备 source。
 - explicit GPU-only 失败返回稳定 GPU Diagnostic；automatic 模式会把可执行工作退回 CPU，
   并保持当前 revision 不变。
 - GPU device 丢失或失败后不再进入调度，直到进程重启或 host 显式重新初始化；CPU/GPU
