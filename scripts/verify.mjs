@@ -82,6 +82,11 @@ const steps = [
     args: ['--test', 'scripts/tests/prepare-engine-contract.test.mjs'],
   },
   {
+    label: 'Prepare performance contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/prepare-performance.test.mjs'],
+  },
+  {
     label: 'Prepare baseline contract',
     command: 'node',
     args: ['--test', 'scripts/tests/prepare-baseline.test.mjs'],

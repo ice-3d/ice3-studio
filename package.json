@@ -10,6 +10,7 @@
     "dev": "node scripts/run-latest-project.mjs",
     "dev:mini": "STUDIO_VIEWER_DIR=apps/viewer/dist cargo run --release -p studio-cli -- serve --workspace . --project wastewater-mini --fixture fixtures/wastewater-mini --native-gpu cpu",
     "benchmark": "node benchmarks/studio-mvp.mjs",
+    "benchmark:prepare": "node scripts/benchmark-prepare.mjs",
     "benchmark:gpu": "node benchmarks/native-gpu.mjs",
     "benchmark:gpu-scene": "node benchmarks/gpu-scene-session.mjs",
     "benchmark:large-industrial": "node benchmarks/large-industrial-scene.mjs",

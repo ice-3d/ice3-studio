@@ -1,0 +1,161 @@
+{
+  "kind": "ice3-prepare-performance-baseline",
+  "schemaVersion": "1.0",
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "node": "v24.22.1",
+    "studioBinary": "release",
+    "legacyArtifactVersion": "0.2.0"
+  },
+  "sampling": {
+    "warmupRuns": 1,
+    "measuredRuns": 5,
+    "memoryLimitBytes": 536870912,
+    "legacyLimitMultiple": 2
+  },
+  "fixture": {
+    "projectId": "large-industrial-site",
+    "sourceGlbBytes": 7809800,
+    "sourceGlbSha256": "e330b93a79000527c19a86eae376c7087eab3054045b926b1ede67f5d00561d7",
+    "effectiveTriangles": 937428,
+    "uniqueMeshes": 1016
+  },
+  "cases": [
+    {
+      "name": "build-edges",
+      "command": "build",
+      "options": [
+        "--asset-id",
+        "large-industrial-prepare"
+      ],
+      "p50Ms": 322.3102920000001,
+      "p95Ms": 326.65308300000015,
+      "peakMemoryBytes": 222593024,
+      "outputBytes": 9354228,
+      "triangleCount": 192924,
+      "edgeSegmentCount": 70978,
+      "partitionCount": 0,
+      "renderBatchCount": 0,
+      "coarseCount": 0,
+      "digestStable": true,
+      "digest": "6aebc200efab06769e5c4e844d5a70bafb2ec136b9fc8edeffc42df37b885faa",
+      "legacyP95Ms": 622.2781250000007,
+      "legacySource": "archived local artifact (one-time capture)"
+    },
+    {
+      "name": "build-skip-edges",
+      "command": "build",
+      "options": [
+        "--asset-id",
+        "large-industrial-prepare",
+        "--skip-edges"
+      ],
+      "p50Ms": 276.96041700000023,
+      "p95Ms": 280.9454999999998,
+      "peakMemoryBytes": 212467712,
+      "outputBytes": 8814728,
+      "triangleCount": 192924,
+      "edgeSegmentCount": 0,
+      "partitionCount": 0,
+      "renderBatchCount": 0,
+      "coarseCount": 0,
+      "digestStable": true,
+      "digest": "27b6b864d4dfb02e2385ca77ca433acfae0a36ac5f5ba35508f6246bcc97ac93",
+      "legacyP95Ms": 620.1211660000008,
+      "legacySource": "archived local artifact (one-time capture)"
+    },
+    {
+      "name": "partition-direct",
+      "command": "partition",
+      "options": [
+        "--asset-id",
+        "large-industrial-prepare",
+        "--max-triangles",
+        "50000",
+        "--max-bytes",
+        "67108864"
+      ],
+      "p50Ms": 750.8839159999989,
+      "p95Ms": 764.1441670000022,
+      "peakMemoryBytes": 279085056,
+      "outputBytes": 9356300,
+      "triangleCount": 192924,
+      "edgeSegmentCount": 70978,
+      "partitionCount": 4,
+      "renderBatchCount": 0,
+      "coarseCount": 0,
+      "digestStable": true,
+      "digest": "78d324d4d10b1d8beb5475f98ea08fb36ddaf023bceca0a25a3acff1b7a07aeb",
+      "legacyP95Ms": 819.4265420000011,
+      "legacySource": "archived local artifact (one-time capture)"
+    },
+    {
+      "name": "partition-adaptive-proxy",
+      "command": "partition",
+      "options": [
+        "--asset-id",
+        "large-industrial-prepare",
+        "--max-triangles",
+        "50000",
+        "--max-bytes",
+        "67108864",
+        "--lod",
+        "--lod-allocation",
+        "adaptive",
+        "--lod-ratio",
+        "0.15",
+        "--lod-max-triangles",
+        "250000",
+        "--lod-min-unit-triangles",
+        "8",
+        "--lod-curve-samples",
+        "8",
+        "--lod-max-memory-bytes",
+        "67108864",
+        "--semantic-proxy",
+        "auto"
+      ],
+      "p50Ms": 1090.236499999999,
+      "p95Ms": 1106.9803329999995,
+      "peakMemoryBytes": 344293376,
+      "outputBytes": 18842487,
+      "triangleCount": 192924,
+      "edgeSegmentCount": 95423,
+      "partitionCount": 4,
+      "renderBatchCount": 0,
+      "coarseCount": 3,
+      "digestStable": true,
+      "digest": "b948000059443c882c1ea66931ed02a38a942ab34a2faae5f4cae17e007a8463",
+      "legacyP95Ms": 3046.4030829999974,
+      "legacySource": "archived local artifact (one-time capture)"
+    },
+    {
+      "name": "partition-static-batch",
+      "command": "partition",
+      "options": [
+        "--asset-id",
+        "large-industrial-prepare",
+        "--max-triangles",
+        "50000",
+        "--max-bytes",
+        "67108864",
+        "--render-batch",
+        "static"
+      ],
+      "p50Ms": 1407.3548749999973,
+      "p95Ms": 1415.7433329999985,
+      "peakMemoryBytes": 502104064,
+      "outputBytes": 43911868,
+      "triangleCount": 192924,
+      "edgeSegmentCount": 437354,
+      "partitionCount": 4,
+      "renderBatchCount": 31,
+      "coarseCount": 0,
+      "digestStable": true,
+      "digest": "39f10cda9886a5f3e731afbd5247080cf667881b2a3d208b3e8b5efc9358c327",
+      "legacyP95Ms": 2788.1956659999996,
+      "legacySource": "archived local artifact (one-time capture)"
+    }
+  ]
+}
