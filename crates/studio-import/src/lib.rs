@@ -6,7 +6,7 @@ mod gltf;
 #[cfg(feature = "ifc")]
 mod ifc;
 #[cfg(feature = "jt")]
-mod jt;
+pub mod jt;
 mod limits;
 pub mod obj;
 mod registry;

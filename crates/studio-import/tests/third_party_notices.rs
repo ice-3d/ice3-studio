@@ -12,6 +12,8 @@ fn declares_the_native_source_import_licenses() {
     .unwrap();
 
     for required in [
+        "command-group",
+        "Félix Saparelli",
         "fbx-rs",
         "MIT OR Apache-2.0",
         "ufbx",

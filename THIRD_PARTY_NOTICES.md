@@ -1,7 +1,16 @@
 # Third-Party Notices
 
 ICE3 Studio uses the following third-party components for native FBX, USD, STEP and
-IFC source import. ICE3 does not modify these components.
+IFC source import plus isolated JT converter process containment. ICE3 does not
+modify these components.
+
+## JT Converter Process Containment
+
+### command-group 5.0.1
+
+Available under Apache-2.0 OR MIT; ICE3 selects the MIT license.
+
+Copyright (c) Félix Saparelli
 
 ## FBX Source Import
 

@@ -9,12 +9,13 @@ rust-version.workspace = true
 default = ["fbx", "usd", "step", "ifc", "jt"]
 fbx = ["dep:fbx-rs"]
 ifc = ["dep:ifc-lite-core", "dep:ifc-lite-geometry", "dep:ifc-lite-processing"]
-jt = []
+jt = ["dep:command-group"]
 step = ["dep:oxideav-step"]
 usd = ["dep:openusd"]
 
 [dependencies]
 bincode.workspace = true
+command-group = { workspace = true, optional = true }
 fbx-rs = { workspace = true, optional = true }
 glam.workspace = true
 ifc-lite-core = { workspace = true, optional = true }
