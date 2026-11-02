@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const SENTINEL: &[u8] = b"keep-existing";
 
@@ -84,6 +84,7 @@ fn worker_timeout_terminates_converter_descendants() {
     let marker = root.path().join("orphan");
     std::fs::write(&output, SENTINEL).unwrap();
 
+    let started = Instant::now();
     let result = run_import(
         &root,
         &output,
@@ -98,6 +99,11 @@ fn worker_timeout_terminates_converter_descendants() {
         ],
     );
 
+    assert!(
+        started.elapsed() < Duration::from_secs(4),
+        "timeout cleanup exceeded its wall-time budget: {:?}",
+        started.elapsed()
+    );
     assert_failure(&result, &output, "ICE3_STUDIO_IMPORT_JT_TIMEOUT");
     std::thread::sleep(Duration::from_millis(2_500));
     assert!(!marker.exists(), "converter descendant survived timeout");

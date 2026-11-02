@@ -1,5 +1,5 @@
-use std::fs;
-use std::io::{Read, Write};
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -95,22 +95,34 @@ pub fn run_jt_converter(
     #[cfg(windows)]
     group.kill_on_drop(true);
     let mut child = group.spawn().map_err(|_| converter_failed())?;
-    let _pgid_file = match record_converter_group(child.id()) {
-        Ok(file) => file,
+    let mut rendezvous = match record_converter_group(child.id()) {
+        Ok(rendezvous) => rendezvous,
         Err(error) => {
-            let _ = terminate_converter(&mut child);
+            let _ = terminate_converter(&mut child, &mut None);
             return Err(error);
         }
     };
-    let stdout = child.inner().stdout.take().ok_or_else(converter_failed)?;
-    let stderr = child.inner().stderr.take().ok_or_else(converter_failed)?;
+    let stdout = match child.inner().stdout.take() {
+        Some(stdout) => stdout,
+        None => {
+            terminate_converter(&mut child, &mut rendezvous)?;
+            return Err(converter_failed());
+        }
+    };
+    let stderr = match child.inner().stderr.take() {
+        Some(stderr) => stderr,
+        None => {
+            terminate_converter(&mut child, &mut rendezvous)?;
+            return Err(converter_failed());
+        }
+    };
     let stdout = collect_stream(stdout);
     let stderr = collect_stream(stderr);
 
-    let outcome = match wait_for_converter(&mut child, config.timeout) {
+    let outcome = match wait_for_converter(&mut child, config.timeout, &mut rendezvous) {
         Ok(outcome) => outcome,
         Err(error) => {
-            let cleanup = terminate_converter(&mut child);
+            let cleanup = terminate_converter(&mut child, &mut rendezvous);
             let stream = check_stream_errors(&stdout, &stderr);
             let _ = fs::remove_file(&output);
             cleanup?;
@@ -180,6 +192,7 @@ enum ConverterOutcome {
 fn wait_for_converter(
     child: &mut command_group::GroupChild,
     timeout: Duration,
+    rendezvous: &mut Option<ConverterGroupRendezvous>,
 ) -> Result<ConverterOutcome, ImportError> {
     let started = Instant::now();
     loop {
@@ -187,13 +200,14 @@ fn wait_for_converter(
             // Keep the exited leader unreaped so its PID/PGID cannot be
             // reused, then kill any descendants that remain in its group.
             kill_group_if_present(child)?;
+            close_rendezvous(rendezvous)?;
             return child
                 .wait()
                 .map(ConverterOutcome::Exited)
                 .map_err(|_| converter_failed());
         }
         if started.elapsed() >= timeout {
-            terminate_converter(child)?;
+            terminate_converter(child, rendezvous)?;
             return Ok(ConverterOutcome::TimedOut);
         }
         thread::sleep(WAIT_POLL_INTERVAL);
@@ -204,6 +218,7 @@ fn wait_for_converter(
 fn wait_for_converter(
     child: &mut command_group::GroupChild,
     timeout: Duration,
+    rendezvous: &mut Option<ConverterGroupRendezvous>,
 ) -> Result<ConverterOutcome, ImportError> {
     let started = Instant::now();
     loop {
@@ -211,7 +226,7 @@ fn wait_for_converter(
             return Ok(ConverterOutcome::Exited(status));
         }
         if started.elapsed() >= timeout {
-            terminate_converter(child)?;
+            terminate_converter(child, rendezvous)?;
             return Ok(ConverterOutcome::TimedOut);
         }
         thread::sleep(WAIT_POLL_INTERVAL);
@@ -250,13 +265,17 @@ fn kill_group_if_present(child: &mut command_group::GroupChild) -> Result<(), Im
     }
 }
 
-fn terminate_converter(child: &mut command_group::GroupChild) -> Result<(), ImportError> {
+fn terminate_converter(
+    child: &mut command_group::GroupChild,
+    rendezvous: &mut Option<ConverterGroupRendezvous>,
+) -> Result<(), ImportError> {
     #[cfg(unix)]
     {
         use command_group::{Signal, UnixChildExt};
         if child.signal(Signal::SIGTERM).is_err() {
             if leader_has_exited(child)? {
                 kill_group_if_present(child)?;
+                close_rendezvous(rendezvous)?;
                 child.wait().map_err(|_| converter_failed())?;
                 return Ok(());
             }
@@ -266,6 +285,7 @@ fn terminate_converter(child: &mut command_group::GroupChild) -> Result<(), Impo
     #[cfg(windows)]
     {
         child.kill().map_err(|_| converter_failed())?;
+        close_rendezvous(rendezvous)?;
         return Ok(());
     }
 
@@ -275,12 +295,14 @@ fn terminate_converter(child: &mut command_group::GroupChild) -> Result<(), Impo
         while Instant::now() < grace_deadline {
             if leader_has_exited(child)? {
                 kill_group_if_present(child)?;
+                close_rendezvous(rendezvous)?;
                 child.wait().map_err(|_| converter_failed())?;
                 return Ok(());
             }
             thread::sleep(WAIT_POLL_INTERVAL);
         }
         kill_group_if_present(child)?;
+        close_rendezvous(rendezvous)?;
         child.wait().map_err(|_| converter_failed())?;
     }
     Ok(())
@@ -358,7 +380,14 @@ fn remove_stale_output(output: &Path) -> Result<(), ImportError> {
     }
 }
 
-fn record_converter_group(pgid: u32) -> Result<Option<RemoveOnDrop>, ImportError> {
+fn close_rendezvous(rendezvous: &mut Option<ConverterGroupRendezvous>) -> Result<(), ImportError> {
+    if let Some(value) = rendezvous {
+        value.mark_closed()?;
+    }
+    Ok(())
+}
+
+fn record_converter_group(pgid: u32) -> Result<Option<ConverterGroupRendezvous>, ImportError> {
     let Some(path) = std::env::var_os(PGID_ENV).filter(|value| !value.is_empty()) else {
         return Ok(None);
     };
@@ -366,7 +395,7 @@ fn record_converter_group(pgid: u32) -> Result<Option<RemoveOnDrop>, ImportError
     let parent = path.parent().ok_or_else(converter_failed)?;
     let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|_| converter_failed())?;
     temporary
-        .write_all(pgid.to_string().as_bytes())
+        .write_all(format!("active {pgid}\n").as_bytes())
         .map_err(|_| converter_failed())?;
     temporary
         .as_file()
@@ -375,16 +404,63 @@ fn record_converter_group(pgid: u32) -> Result<Option<RemoveOnDrop>, ImportError
     temporary
         .persist(&path)
         .map_err(|error| ImportError::Io(error.error))?;
-    Ok(Some(RemoveOnDrop { path }))
+    Ok(Some(ConverterGroupRendezvous { path }))
 }
 
-struct RemoveOnDrop {
+struct ConverterGroupRendezvous {
     path: PathBuf,
 }
 
-impl Drop for RemoveOnDrop {
+impl ConverterGroupRendezvous {
+    fn mark_closed(&self) -> Result<(), ImportError> {
+        #[cfg(unix)]
+        {
+            let mut file = match OpenOptions::new().read(true).write(true).open(&self.path) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                Err(error) => return Err(ImportError::Io(error)),
+            };
+            lock_rendezvous(&file)?;
+            let result = (|| {
+                file.set_len(0)?;
+                file.seek(SeekFrom::Start(0))?;
+                file.write_all(b"closed\n")?;
+                file.sync_all()
+            })()
+            .map_err(ImportError::Io);
+            unlock_rendezvous(&file)?;
+            result
+        }
+        #[cfg(not(unix))]
+        {
+            Ok(())
+        }
+    }
+}
+
+impl Drop for ConverterGroupRendezvous {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.path);
+    }
+}
+
+#[cfg(unix)]
+fn lock_rendezvous(file: &fs::File) -> Result<(), ImportError> {
+    use std::os::fd::AsRawFd;
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } == 0 {
+        Ok(())
+    } else {
+        Err(ImportError::Io(std::io::Error::last_os_error()))
+    }
+}
+
+#[cfg(unix)]
+fn unlock_rendezvous(file: &fs::File) -> Result<(), ImportError> {
+    use std::os::fd::AsRawFd;
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_UN) } == 0 {
+        Ok(())
+    } else {
+        Err(ImportError::Io(std::io::Error::last_os_error()))
     }
 }
 

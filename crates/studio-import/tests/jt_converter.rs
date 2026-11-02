@@ -244,6 +244,32 @@ fn escaped_descendant_holding_pipes_cannot_extend_the_converter_timeout() {
     studio_import::jt::validate_jt_converter_output(&output).unwrap();
 }
 
+#[cfg(unix)]
+#[test]
+fn converter_group_rendezvous_is_removed_before_return() {
+    let _guard = ENV_LOCK.lock().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let input = root.path().join("assembly.jt");
+    let output = root.path().join("raw.glb");
+    let rendezvous = root.path().join("converter.pgid");
+    std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
+    unsafe {
+        std::env::set_var("ICE3_STUDIO_JT_CONVERTER_PGID_FILE", &rendezvous);
+    }
+    let config = JtConverterConfig::new(fixture("converter.mjs"), Duration::from_secs(2));
+
+    let result = run_jt_converter(&input, &output, &config);
+
+    unsafe {
+        std::env::remove_var("ICE3_STUDIO_JT_CONVERTER_PGID_FILE");
+    }
+    result.unwrap();
+    assert!(
+        !rendezvous.exists(),
+        "converter PGID rendezvous survived through group reaping"
+    );
+}
+
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/source-import/jt")
