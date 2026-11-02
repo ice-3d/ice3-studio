@@ -55,14 +55,15 @@ const steps = [
     args: ['--test', 'scripts/tests/jt-import-contract.test.mjs'],
   },
   {
-    label: 'Toolchain bundle contract',
-    command: 'node',
-    args: ['--test', 'scripts/tests/toolchain-bundle.test.mjs'],
+    label: 'Studio CLI build',
+    command: 'cargo',
+    args: ['build', '-p', 'studio-cli'],
   },
   {
-    label: 'Toolchain independence',
+    label: 'Studio standalone',
     command: 'node',
-    args: ['scripts/verify-toolchain-independence.mjs'],
+    args: ['scripts/verify-studio-standalone.mjs'],
+    env: { STUDIO_CLI_BIN: 'target/debug/studio-cli' },
   },
   {
     label: 'Generated schemas',
@@ -146,11 +147,11 @@ const steps = [
   },
 ];
 
-function run(command, args) {
+function run(command, args, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: process.cwd(),
-      env: process.env,
+      env: { ...process.env, ...extraEnv },
       stdio: 'inherit',
     });
     child.once('error', reject);
@@ -167,7 +168,7 @@ function run(command, args) {
 for (const [index, step] of steps.entries()) {
   const started = performance.now();
   console.log(`\n[${index + 1}/${steps.length}] ${step.label}`);
-  await run(step.command, step.args);
+  await run(step.command, step.args, step.env);
   const seconds = ((performance.now() - started) / 1000).toFixed(2);
   console.log(`PASS ${step.label} (${seconds}s)`);
 }

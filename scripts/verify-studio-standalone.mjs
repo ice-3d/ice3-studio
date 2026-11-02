@@ -1,12 +1,11 @@
-// 验证 Studio 在完全没有 toolchain 的环境下仍能完成全部核心流程。
-// 用法：node scripts/verify-toolchain-independence.mjs
-//
-// 刻意不设置 STUDIO_APP_ROOT、STUDIO_TOOLCHAIN_* 等任何变量，也不传 --toolchain。
+// 验证 Studio 在没有 Toolchain、Sidecar 或相邻 Toolchain repository 的环境中
+// 仍能完成全部核心流程。
+// 用法：node scripts/verify-studio-standalone.mjs
 
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -20,6 +19,8 @@ function record(name, ok, detail) {
 }
 
 function cliPath() {
+  const configured = process.env.STUDIO_CLI_BIN;
+  if (configured) return resolve(configured);
   const release = resolve('target/release/studio-cli');
   const debug = resolve('target/debug/studio-cli');
   return existsSync(release) ? release : debug;
@@ -59,13 +60,14 @@ function waitForServer(child) {
 async function main() {
   const root = resolve('.');
   const workspace = await mkdtemp(join(tmpdir(), 'ice3-independence-'));
-  // 明确清掉可能让 Studio 找到 sidecar 的变量。
+  // 明确清掉可能让 Studio 找到已退役外部进程的变量。
   const env = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (key.startsWith('STUDIO_TOOLCHAIN') || key === 'STUDIO_APP_ROOT' || key === 'BLENDER_BIN') {
-      delete env[key];
-    }
-  }
+  for (const key of [
+    'STUDIO_TOOLCHAIN_CLI',
+    'ICE3_TOOLCHAIN_CLI',
+    'STUDIO_APP_ROOT',
+    'ICE3_JT_CONVERTER',
+  ]) delete env[key];
   env.STUDIO_SESSION_TOKEN = 'independence-check';
 
   const server = spawn(
@@ -88,13 +90,11 @@ async function main() {
       return envelope;
     };
 
-    // 1. toolchain 状态应当是 unavailable，且不影响后续能力
+    // 1. 已退役 asset driver 不再出现在 capability，核心方法继续可用
     const capabilities = await rpc('system.capabilities');
-    const state = capabilities.result?.toolchain?.state;
     record(
-      'toolchain 未配置',
-      state === 'unavailable',
-      `state=${state}`,
+      '已退役 asset driver 不在 capability 中',
+      capabilities.result && !('toolchain' in capabilities.result),
     );
     record(
       'export.runtimePreview 在能力清单中',
@@ -142,7 +142,7 @@ async function main() {
     });
     record('document.apply 成功', applied.result?.revision === 1, `revision=${applied.result?.revision}`);
 
-    // 3. 预览：无 toolchain 时必须由内核自己产出
+    // 3. 预览必须直接由 Studio 内核产出
     const preview = await rpc('export.runtimePreview', {});
     const previewPath = preview.result?.previewPath;
     let previewOk = false;
@@ -153,7 +153,20 @@ async function main() {
       const head = info ? (await readFile(previewPath)).subarray(0, 4).toString('binary') : '';
       previewOk = head === 'glTF' && previewBytes > 1000;
     }
-    record('预览由内核直接产出', previewOk, `${previewBytes} 字节`);
+    const expectedPreview = join(workspace, 'independence/cache/preview/00000001.glb');
+    const previewIsOwned = previewPath !== undefined
+      && await realpath(previewPath).then(
+        (actual) => realpath(expectedPreview).then((expected) => actual === expected),
+      ).catch(() => false);
+    record(
+      '预览由 Studio 内核直接产出',
+      previewOk && previewIsOwned,
+      `${previewBytes} 字节 · ${previewPath}`,
+    );
+    record(
+      '未创建已退役 toolchain cache',
+      !(await stat(join(workspace, 'independence/cache/toolchain')).catch(() => null)),
+    );
 
     // 4. 源 GLB 导出
     const source = await rpc('export.sourceGlb', {});
@@ -177,7 +190,7 @@ async function main() {
       `${stats.result?.effectiveTriangles} 三角形`,
     );
 
-    // 7. 候选预览：changeset 路径同样不依赖 toolchain
+    // 7. 候选预览：使用 Studio-owned candidate cache
     const created = await rpc('changeset.create', {
       baseRevision: 1,
       title: 'independence candidate',
@@ -200,21 +213,37 @@ async function main() {
       Boolean(changeSetId) && added.result?.id === changeSetId,
       `changeSet=${changeSetId}`,
     );
-    const candidate = await rpc('export.runtimePreview', {
-      candidateDigest: added.result?.digest ?? null,
+    const evaluated = await rpc('changeset.evaluate', {
+      changeSetId,
+      expectedVersion: added.result?.version,
+      includeCandidate: false,
     });
     record(
-      '候选预览不依赖 toolchain',
-      candidate.result !== undefined || candidate.error?.diagnosticCode !== 'ICE3_STUDIO_TOOLCHAIN_UNAVAILABLE',
-      candidate.error ? `error=${candidate.error.diagnosticCode}` : '成功',
+      '候选 ChangeSet 求值可用',
+      evaluated.result?.status === 'ready',
+      `digest=${evaluated.result?.candidateDigest}`,
+    );
+    const candidateDigest = evaluated.result?.candidateDigest;
+    const candidate = await rpc('export.runtimePreview', {
+      candidateDigest: candidateDigest ?? null,
+    });
+    const candidatePath = candidateDigest
+      ? join(workspace, 'independence/cache/preview/candidates', `${candidateDigest}.glb`)
+      : null;
+    record(
+      '候选预览写入 Studio-owned cache',
+      candidate.result !== undefined
+        && candidatePath !== null
+        && (await stat(candidatePath).catch(() => null))?.size > 1000,
+      candidate.error ? `error=${candidate.error.diagnosticCode}` : candidatePath ?? 'missing digest',
     );
 
-    // 8. 能力状态里 toolchain 保持 unavailable，但操作仍然可用
+    // 8. 全流程后仍不暴露已退役 driver
     const after = await rpc('system.capabilities');
     record(
-      '全流程后 toolchain 仍为 unavailable',
-      after.result?.toolchain?.state === 'unavailable',
-      '说明未隐式启动 sidecar',
+      '全流程后仍不暴露已退役 driver',
+      after.result && !('toolchain' in after.result),
+      '说明未隐式启动外部 asset process',
     );
 
     // 9. 容器往返：pack / unpack 不依赖外部进程

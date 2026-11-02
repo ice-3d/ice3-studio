@@ -1,23 +1,17 @@
 import { spawn } from 'node:child_process';
-import { copyFile, cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 const repositoryRoot = process.cwd();
 const workspace = await mkdtemp(join(tmpdir(), 'ice3-studio-viewer-e2e-'));
 const fixture = join(workspace, 'fixtures/wastewater-mini');
-const toolchain = join(workspace, 'scripts/preview-example.mjs');
 
 await mkdir(join(workspace, 'fixtures'), { recursive: true });
-await mkdir(join(workspace, 'scripts'), { recursive: true });
 await cp(
   join(repositoryRoot, 'fixtures/wastewater-mini'),
   fixture,
   { recursive: true },
-);
-await copyFile(
-  join(repositoryRoot, 'scripts/preview-example.mjs'),
-  toolchain,
 );
 
 let cleanedUp = false;
@@ -50,11 +44,7 @@ const server = spawn(
     env: {
       ...process.env,
       STUDIO_SESSION_TOKEN: 'studio-e2e',
-      STUDIO_TOOLCHAIN_CLI: toolchain,
       STUDIO_VIEWER_DIR: join(repositoryRoot, 'apps/viewer/dist'),
-      ICE3_TOOLCHAIN_CLI:
-        process.env.ICE3_TOOLCHAIN_CLI
-        ?? resolve(repositoryRoot, '../ice3-toolchain/packages/cli/dist/main.js'),
     },
     stdio: 'inherit',
   },

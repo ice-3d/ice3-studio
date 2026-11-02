@@ -1,6 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
 import {
-  copyFile,
   cp,
   mkdir,
   mkdtemp,
@@ -65,23 +64,16 @@ async function waitForServer(child) {
 }
 
 const fixtureSource = resolve('fixtures/wastewater-mini');
-const toolchainSource = resolve('scripts/preview-example.mjs');
-const toolchainCli = resolve('../ice3-toolchain/packages/cli/dist/main.js');
 const workspace = await mkdtemp(join(tmpdir(), 'ice3-studio-benchmark-'));
 const fixture = join(workspace, 'fixtures/wastewater-mini');
-const toolchainAdapter = join(workspace, 'scripts/preview-example.mjs');
 let server;
 
 try {
   const cliBuild = run('cargo', ['build', '--release', '-p', 'studio-cli']);
   if (cliBuild.status !== 0) throw new Error('release CLI build failed');
-  const toolchainBuild = run('npm', ['--prefix', '../ice3-toolchain', 'run', 'build']);
-  if (toolchainBuild.status !== 0) throw new Error('toolchain build failed');
 
   await mkdir(join(workspace, 'fixtures'), { recursive: true });
-  await mkdir(join(workspace, 'scripts'), { recursive: true });
   await cp(fixtureSource, fixture, { recursive: true });
-  await copyFile(toolchainSource, toolchainAdapter);
 
   const binary = resolve(
     'target/release',
@@ -108,8 +100,6 @@ try {
       env: {
         ...process.env,
         STUDIO_SESSION_TOKEN: 'studio-benchmark',
-        STUDIO_TOOLCHAIN_CLI: toolchainAdapter,
-        ICE3_TOOLCHAIN_CLI: process.env.ICE3_TOOLCHAIN_CLI ?? toolchainCli,
       },
       stdio: ['ignore', 'pipe', 'inherit'],
     },

@@ -460,12 +460,10 @@ async function main() {
     }
     const capabilities = await rpc('system.capabilities');
     const previewSamples = [];
-    if (capabilities.toolchain?.state === 'ready') {
-      for (let sample = 0; sample < 3; sample += 1) {
-        const started = performance.now();
-        await rpc('export.runtimePreview');
-        previewSamples.push(performance.now() - started);
-      }
+    for (let sample = 0; sample < 3; sample += 1) {
+      const started = performance.now();
+      await rpc('export.runtimePreview');
+      previewSamples.push(performance.now() - started);
     }
 
     const operationCount = plan.transactions.reduce(
@@ -476,7 +474,6 @@ async function main() {
       suite: 'large-industrial',
       computeMode: sceneSessions ? 'gpu' : 'cpu',
       compute: capabilities.compute,
-      toolchain: capabilities.toolchain,
       projectId: plan.projectId,
       revision: currentRevision,
       operationCount,
