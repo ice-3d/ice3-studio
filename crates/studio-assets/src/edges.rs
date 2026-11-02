@@ -26,9 +26,9 @@ pub fn generate_edge_indices(
     if positions.is_empty() {
         return Err(invalid_geometry("positions must not be empty"));
     }
-    if indices.is_empty() || !indices.len().is_multiple_of(3) {
+    if !indices.len().is_multiple_of(3) {
         return Err(invalid_geometry(
-            "triangle index count must be a non-zero multiple of 3",
+            "triangle index count must be a multiple of 3",
         ));
     }
     if !crease_angle_degrees.is_finite() {
@@ -47,6 +47,9 @@ pub fn generate_edge_indices(
             "source index is outside the position array",
         ));
     }
+    if indices.is_empty() {
+        return Ok(Vec::new());
+    }
 
     let welded = weld_vertices(positions)?;
     let mut edge_lookup = BTreeMap::<EdgeKey, usize>::new();
@@ -64,6 +67,15 @@ pub fn generate_edge_indices(
             welded[triangle[1] as usize],
             welded[triangle[2] as usize],
         ];
+        if normal.length_squared() <= f32::EPSILON
+            || welded_triangle[0] == welded_triangle[1]
+            || welded_triangle[1] == welded_triangle[2]
+            || welded_triangle[2] == welded_triangle[0]
+        {
+            return Err(invalid_geometry(
+                "triangle is degenerate after vertex welding",
+            ));
+        }
         for edge in 0..3 {
             let first = welded_triangle[edge];
             let second = welded_triangle[(edge + 1) % 3];
@@ -85,9 +97,7 @@ pub fn generate_edge_indices(
             };
             let record = &mut records[record_index];
             record.count += 1;
-            if normal.length_squared() > f32::EPSILON {
-                record.normals.push(normal.to_array());
-            }
+            record.normals.push(normal.to_array());
         }
     }
 

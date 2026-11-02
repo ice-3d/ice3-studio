@@ -354,7 +354,7 @@ fn emits_boundary_edges_for_one_triangle() {
 fn drops_coplanar_shared_edges_and_keeps_cube_boundaries() {
     let (positions, indices) = unit_quad();
     let edges = generate_edge_indices(&positions, &indices, 30.0).unwrap();
-    assert_eq!(edges, vec![0, 1, 1, 3, 3, 2, 2, 0]);
+  assert_eq!(edges, vec![0, 1, 0, 2, 1, 3, 2, 3]);
 }
 
 #[test]

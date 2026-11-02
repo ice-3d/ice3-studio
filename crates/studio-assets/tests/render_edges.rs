@@ -27,7 +27,7 @@ fn emits_cube_crease_edges_in_first_seen_order() {
 }
 
 #[test]
-fn zero_crease_emits_shared_hard_edges_but_flat_quad_stays_boundary_only() {
+fn zero_crease_uses_legacy_tolerance_for_shared_edges() {
     let (quad_positions, quad_indices) = unit_quad();
     assert_eq!(
         generate_edge_indices(&quad_positions, &quad_indices, 0.0)
@@ -43,6 +43,48 @@ fn zero_crease_emits_shared_hard_edges_but_flat_quad_stays_boundary_only() {
             .len(),
         36
     );
+}
+
+#[test]
+fn covers_spec_crease_angle_matrix() {
+    let (positions, indices) = unit_cube();
+    assert_eq!(
+        generate_edge_indices(&positions, &indices, 60.0)
+            .unwrap()
+            .len(),
+        24
+    );
+    assert_eq!(
+        generate_edge_indices(&positions, &indices, 90.0)
+            .unwrap()
+            .len(),
+        24
+    );
+    assert_eq!(
+        generate_edge_indices(&positions, &indices, 180.0)
+            .unwrap()
+            .len(),
+        0
+    );
+}
+
+#[test]
+fn accepts_empty_triangles_and_rejects_degenerate_triangles() {
+    let positions = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0]];
+    assert!(
+        generate_edge_indices(&positions, &[], 30.0)
+            .unwrap()
+            .is_empty()
+    );
+
+    for indices in [vec![0, 1, 2], vec![0, 0, 2], vec![0, 1, 1], vec![0, 1, 0]] {
+        assert_eq!(
+            generate_edge_indices(&positions, &indices, 30.0)
+                .unwrap_err()
+                .code(),
+            "ICE3_STUDIO_ASSET_INVALID_GEOMETRY"
+        );
+    }
 }
 
 #[test]
