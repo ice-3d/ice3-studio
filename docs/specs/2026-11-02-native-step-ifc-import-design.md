@@ -6,6 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
+> **Phase 状态：** Phase 4A STEP 已实现（2026-11-02）。Phase 4B IFC 尚未实现。
+
 **目标：** 在 Studio 内原生支持 STEP AP242 与 IFC4X3 Source Import，替换 Toolchain 的
 WASM adapter，同时保留层级、实例、颜色、单位、Selection identity、Pset/Qto/System
 metadata、资源预算、确定性输出和原子发布语义。
@@ -15,7 +17,7 @@ metadata、资源预算、确定性输出和原子发布语义。
 ## 1. 背景
 
 Phase 1 至 Phase 3 已把 glTF/GLB、OBJ/MTL、FBX 和 USD 的 Source Import 迁入
-Studio。Toolchain 当前只保留 STEP、IFC 和 JT 的迁移兼容能力。
+Studio。Phase 4A 后，Toolchain 只保留 IFC 和 JT 的迁移兼容能力。
 
 STEP 与 IFC 不能直接复用文本 parser 方案：
 
@@ -192,6 +194,10 @@ GlobalId 缺失时使用：
 - asset extras 记录原始单位、sourceOrigin 和坐标转换策略。
 
 ## 7. Phase 4A：STEP 设计
+
+**状态：Implemented（2026-11-02）。** Studio 原生读取 AP242，解析在 isolated
+worker 中运行；Toolchain STEP adapter、WASM 依赖和 conformance entry 已退役，
+synthetic fixtures 保留为 parity corpus。
 
 ### 7.1 Adapter
 

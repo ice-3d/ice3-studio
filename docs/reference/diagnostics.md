@@ -92,6 +92,8 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_IMPORT_RESOURCE_UNSUPPORTED` | glTF animation、skin、texture 等资源被跳过 |
 | `ICE3_STUDIO_IMPORT_FBX_*` | FBX animation、skin、camera、light、texture、NURBS 或 decoder warning |
 | `ICE3_STUDIO_IMPORT_USD_UNSUPPORTED_RESOURCE` | USD camera、light、skeleton、volume 等资源被跳过 |
+| `ICE3_STUDIO_IMPORT_STEP_SCHEMA_UNSUPPORTED` | STEP schema 不是 AP242 |
+| `ICE3_STUDIO_IMPORT_STEP_UNSUPPORTED_ENTITY` | STEP representation 或产品内容被跳过 |
 
 ## Recovery Rules
 

@@ -6,7 +6,7 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **Phase 状态：** Phase 1、Phase 2 与 Phase 3 已实现。后续 STEP、IFC、JT 和最终
+> **Phase 状态：** Phase 1、Phase 2、Phase 3 与 Phase 4A STEP 已实现。后续 IFC、JT 和最终
 > Toolchain 退役仍未实现，因此整份迁移设计继续保持 `Approved`。
 
 ## 1. 目标
@@ -197,6 +197,8 @@ conformance entry 已删除。
 - 删除外部 DCC 依赖和对应 npm/native bridge。
 
 ### Phase 4：STEP 与 IFC
+
+**状态：Phase 4A STEP Implemented（2026-11-02）；Phase 4B IFC 尚未实现。**
 
 详细设计见 `ICE3-STUDIO-SPEC-017` — [Studio 原生 STEP 与 IFC Source Import](2026-11-02-native-step-ifc-import-design.md)。
 

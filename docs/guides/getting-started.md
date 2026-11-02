@@ -193,6 +193,11 @@ cargo run -p studio-cli -- import plant.usdc \
   --asset-id plant-usd \
   --adapter usd
 
+cargo run -p studio-cli -- import skid.step \
+  --output /tmp/skid-step.glb \
+  --asset-id skid-step \
+  --adapter step
+
 cargo run -p studio-cli -- validate /tmp/plant.glb
 ```
 
@@ -200,13 +205,14 @@ OBJ 假定单位为米；`mtllib` 和纹理引用只能访问源文件同目录�
 `..` 和 symlink escape 不会读取。输出先完成 Prepared GLB 校验，再以 sibling temporary
 file 原子发布。失败、warning-as-error 或已有 output 且未指定 `--force` 时不会替换文件。
 
-FBX/USD 在 Studio 自带的隔离 worker 中解析，不需要安装外部 DCC。worker 硬超时会终止
+FBX/USD/STEP 在 Studio 自带的隔离 worker 中解析，不需要安装外部 DCC。worker 硬超时会终止
 进程；crash、协议污染、response/stderr 超限或 scene budget 越界都不会发布 output。
 默认预算为 1,000,000 nodes、20,000,000 triangles、512 MiB estimated decoded memory
 和 120 秒；内存值由分配前预检与 response 后记账共同执行，不等同于进程 RSS 上限。
-FBX/USD 默认由 Cargo features 启用，也可以关闭以构建 glTF/OBJ-only importer。
+FBX/USD/STEP 默认由 Cargo features 启用，也可以分别关闭。
 USD 的 references、sublayers 和 payloads 只能访问源文件目录，并受 composition depth
-与 layer 总数限制。
+与 layer 总数限制。STEP 只接受 AP242，并保留装配/产品层级、共享实例、面颜色、
+Selection、单位换算和源 origin。
 
 ## 停止与恢复
 

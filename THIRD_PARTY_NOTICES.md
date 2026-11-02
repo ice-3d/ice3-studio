@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-ICE3 Studio uses the following third-party components for native FBX and USD
+ICE3 Studio uses the following third-party components for native FBX, USD and STEP
 source import. ICE3 does not modify these components.
 
 ## FBX Source Import
@@ -15,6 +15,17 @@ This component documents that parts of its scene conversion derive operationally
 from ufbx 0.23.1. The incorporated ufbx work is used under the MIT license:
 
 Copyright (c) 2020 Samuli Raivio
+
+## STEP Source Import
+
+### oxideav-step 0.0.1
+
+Available under the MIT license.
+
+This component incorporates `oxideav-ifc 0.0.3`, also available under the MIT
+license.
+
+Copyright (c) 2026 Karpelès Lab Inc.
 
 ## USD Source Import
 

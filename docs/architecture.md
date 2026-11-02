@@ -117,7 +117,7 @@ Compute service 负责 GPU 内存、并发、优先级、取消、健康检查�
 修改 Document、ChangeSet、审批状态或 revision。
 
 新 `import` 和 `export tileset` 都不经过该客户端。Toolchain 只保留为 parity oracle，
-以及 STEP、IFC、JT Source Importer 的迁移兼容层。
+以及 IFC、JT Source Importer 的迁移兼容层。
 
 ### `studio-cli`
 
@@ -211,9 +211,9 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 - 跨项目持久 GPU buffer pool。
 
 Runtime LOD、空间 partition 和 GLB Runtime Asset 发布已由 Studio 原生 crate 实现。
-glTF/GLB、OBJ/MTL、FBX 与 USD Source Import 已迁入 Studio。STEP、IFC 和 JT 仍按
+glTF/GLB、OBJ/MTL、FBX、USD 与 STEP Source Import 已迁入 Studio。IFC 和 JT 仍按
 Spec-016 后续阶段迁移；在这些阶段完成前，Toolchain 仅作为迁移兼容层和 parity oracle
-保留。Toolchain 不再拥有 FBX/USD 生产 adapter 或外部 DCC bridge。
+保留。Toolchain 不再拥有 STEP/FBX/USD 生产 adapter 或外部 DCC bridge。
 
 ## 关联文档
 

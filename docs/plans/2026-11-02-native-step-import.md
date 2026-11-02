@@ -2,9 +2,16 @@
 
 > Document ID: ICE3-STUDIO-PLAN-022
 >
-> Status: Approved
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
+
+## Implementation Outcome
+
+Phase 4A 已实现。Studio 默认支持 STEP AP242，解析在 isolated worker 中运行；层级、
+共享实例、面颜色、单位、origin、Selection 和 metadata 已通过 legacy/native parity。
+Toolchain STEP adapter、WASM runtime、依赖和 conformance entry 已退役，synthetic
+fixtures 保留为 parity corpus。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or

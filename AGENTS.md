@@ -35,7 +35,8 @@
 - Studio Server 只能通过 `studio-toolchain-client` 和版本化本地 Sidecar 使用 Toolchain；
   不得把 Node.js 或 Toolchain 私有源码引入建模 Kernel。
 - 标准 GLB 是互操作输出；Runtime GLB、LOD 和分区由 Studio 原生 crate 负责。
-- glTF/GLB、OBJ/MTL、FBX 与 USD Source Import 由 `studio-import` 负责。FBX/USD 必须在
+- glTF/GLB、OBJ/MTL、FBX、USD 与 STEP Source Import 由 `studio-import` 负责。
+  FBX/USD/STEP 必须在
   自带隔离 worker 中解析，使用硬 timeout、进程崩溃隔离、response/stderr 上限、scene
   budgets 和 USD composition confinement；不得恢复外部 DCC bridge，也不得启动
   Toolchain Sidecar、Node Asset runtime 或 Assimp。
