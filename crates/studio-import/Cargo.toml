@@ -6,8 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["fbx", "usd"]
+default = ["fbx", "usd", "step"]
 fbx = ["dep:fbx-rs"]
+step = ["dep:oxideav-step"]
 usd = ["dep:openusd"]
 
 [dependencies]
@@ -15,6 +16,7 @@ bincode.workspace = true
 fbx-rs = { workspace = true, optional = true }
 glam.workspace = true
 openusd = { workspace = true, optional = true }
+oxideav-step = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 studio-assets = { path = "../studio-assets" }

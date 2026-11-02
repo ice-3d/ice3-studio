@@ -7,6 +7,8 @@ mod limits;
 pub mod obj;
 mod registry;
 mod source;
+#[cfg(feature = "step")]
+mod step;
 #[cfg(feature = "usd")]
 mod usd;
 mod worker;
@@ -21,6 +23,8 @@ pub use source::{
     ImportError, ImportRequest, ImportWarning, SourceCapabilities, SourceFormat, SourceImporter,
     SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceScene,
 };
+#[cfg(feature = "step")]
+pub use step::StepImporter;
 #[cfg(feature = "usd")]
 pub use usd::UsdImporter;
 pub use worker::{

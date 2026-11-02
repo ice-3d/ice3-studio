@@ -46,3 +46,4 @@ percent-encoding = "2"
 bincode = { version = "2", features = ["serde"] }
 fbx-rs = "0.1.3"
 openusd = "0.8.0"
+oxideav-step = { version = "=0.0.1", default-features = false }
