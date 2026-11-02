@@ -42,6 +42,75 @@ fn preserves_fbx_shared_mesh_instances() {
 }
 
 #[test]
+fn keeps_distinct_mesh_objects_with_duplicate_names_in_distinct_groups() {
+    let source = std::fs::read_to_string(toolchain_fixture("fbx/synthetic-ascii.fbx")).unwrap();
+    let duplicate_names = source.replace(
+        r#"Geometry: 288163325,"Cube::Geometry","Mesh""#,
+        r#"Geometry: 288163325,"Cube.001::Geometry","Mesh""#,
+    );
+    assert_ne!(source, duplicate_names);
+    let path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
+    std::fs::write(&path, duplicate_names).unwrap();
+
+    let scene = FbxImporter::new()
+        .import_file(&path, "duplicate-names")
+        .unwrap();
+    let buffer_tank = scene
+        .nodes
+        .iter()
+        .find(|node| node.name == "Buffer Tank")
+        .unwrap();
+    let primary_pump = scene
+        .nodes
+        .iter()
+        .find(|node| node.name == "Primary Pump")
+        .unwrap();
+
+    assert_ne!(
+        buffer_tank.extras["ice3"]["fbx"]["instanceGroup"],
+        primary_pump.extras["ice3"]["fbx"]["instanceGroup"]
+    );
+}
+
+#[test]
+fn converts_centimeter_fbx_to_meters_exactly_once() {
+    let centimeters = FbxImporter::new()
+        .import_file(&toolchain_fixture("fbx/synthetic-ascii.fbx"), "centimeters")
+        .unwrap();
+    assert_eq!(
+        centimeters.asset_extras["ice3"]["fbx"]["originalUnitMeters"],
+        0.01
+    );
+    assert_eq!(
+        centimeters.asset_extras["coordinateSystem"]["linearUnit"],
+        "meter"
+    );
+
+    let source = std::fs::read_to_string(toolchain_fixture("fbx/synthetic-ascii.fbx")).unwrap();
+    let meters = source
+        .replace(
+            r#"P: "UnitScaleFactor","double","Number","",1"#,
+            r#"P: "UnitScaleFactor","double","Number","",100"#,
+        )
+        .replace(
+            r#"P: "OriginalUnitScaleFactor","double","Number","",1"#,
+            r#"P: "OriginalUnitScaleFactor","double","Number","",100"#,
+        );
+    let path = tempfile::NamedTempFile::new().unwrap().into_temp_path();
+    std::fs::write(&path, meters).unwrap();
+    let meters = FbxImporter::new().import_file(&path, "meters").unwrap();
+    assert_eq!(
+        meters.asset_extras["ice3"]["fbx"]["originalUnitMeters"],
+        1.0
+    );
+
+    let centimeter_width = node_mesh_width(&centimeters, "Primary Pump");
+    let meter_width = node_mesh_width(&meters, "Primary Pump");
+    assert!((centimeter_width - 1.0).abs() < 1e-5, "{centimeter_width}");
+    assert!((meter_width - 100.0).abs() < 1e-3, "{meter_width}");
+}
+
+#[test]
 fn preserves_custom_properties_and_instance_metadata() {
     let scene = FbxImporter::new()
         .import_file(&toolchain_fixture("fbx/synthetic-binary.fbx"), "fbx")
@@ -263,6 +332,42 @@ fn world_bounds(scene: &SourceScene) -> Bounds {
         }
     }
     Bounds { min, max }
+}
+
+fn node_mesh_width(scene: &SourceScene, name: &str) -> f32 {
+    let indices = scene
+        .nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| (node.id.as_str(), index))
+        .collect::<BTreeMap<_, _>>();
+    let mut world_matrices = Vec::with_capacity(scene.nodes.len());
+    for node in &scene.nodes {
+        let local = Mat4::from_cols_array(&node.matrix);
+        let world = node
+            .parent
+            .as_deref()
+            .and_then(|parent| indices.get(parent))
+            .map_or(local, |parent| world_matrices[*parent] * local);
+        world_matrices.push(world);
+        if node.name != name {
+            continue;
+        }
+        let mesh = &scene.meshes[node.mesh.expect("named fixture node has a mesh")];
+        let mut min = f32::INFINITY;
+        let mut max = f32::NEG_INFINITY;
+        for position in mesh
+            .primitives
+            .iter()
+            .flat_map(|primitive| &primitive.positions)
+        {
+            let point = world.transform_point3(glam::Vec3::from_array(*position));
+            min = min.min(point.x);
+            max = max.max(point.x);
+        }
+        return max - min;
+    }
+    panic!("node {name} not found");
 }
 
 fn quantized_bounds(bounds: Bounds) -> [i64; 6] {

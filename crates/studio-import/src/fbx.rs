@@ -166,18 +166,17 @@ fn import_scene(
     let mut warnings = BTreeSet::new();
     add_resource_warnings(scene, &mut warnings);
 
-    let mut mesh_names = scene
+    let mut mesh_group_keys = scene
         .meshes()
         .iter()
-        .map(|mesh| clean_mesh_name(mesh.name()))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    mesh_names.sort();
-    let instance_groups = mesh_names
-        .iter()
         .enumerate()
-        .map(|(index, name)| (name.clone(), format!("fbx/mesh-data/{index}")))
+        .map(|(index, mesh)| (clean_mesh_name(mesh.name()), mesh.source_id(), index))
+        .collect::<Vec<_>>();
+    mesh_group_keys.sort();
+    let instance_groups = mesh_group_keys
+        .into_iter()
+        .enumerate()
+        .map(|(group, (_, _, mesh_index))| (mesh_index, format!("fbx/mesh-data/{group}")))
         .collect::<BTreeMap<_, _>>();
 
     let meshes = scene
@@ -264,9 +263,8 @@ fn import_scene(
             let mesh = node.mesh();
             let mesh_name =
                 mesh.map(|mesh_index| clean_mesh_name(scene.meshes()[mesh_index].name()));
-            let instance_group = mesh_name
-                .as_ref()
-                .and_then(|name| instance_groups.get(name))
+            let instance_group = mesh
+                .and_then(|mesh_index| instance_groups.get(&mesh_index))
                 .cloned();
             let object_type = if mesh.is_some() {
                 "MESH"
