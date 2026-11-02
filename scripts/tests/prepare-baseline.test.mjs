@@ -110,7 +110,10 @@ test('native Studio build parity report is generated and passes', async () => {
     report.reportKindNormalization.studio,
     'ice3-asset-build-report',
   );
-  assert.equal(report.studioBinary, 'studio-cli');
+  assert.ok(
+    ['studio-cli', 'studio-cli.exe'].includes(report.studioBinary),
+    `unexpected Studio executable basename: ${report.studioBinary}`,
+  );
   assert.equal(
     report.cases.skipEdges.status,
     'pass',
