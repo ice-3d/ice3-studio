@@ -41,7 +41,8 @@ STEP 与 IFC 不能直接复用文本 parser 方案：
 - STEP assembly/product 层级、实例、逐面颜色和单位与退役前语义一致。
 - IFC 空间层级、产品属性、Pset、Qto、System、GlobalId 和共享几何实例与退役前语义
   一致。
-- 两种格式都通过旧 Toolchain baseline、native parity、负向 corpus 和确定性测试。
+- 两种格式都通过旧 Toolchain baseline、业务语义 parity、几何偏差门禁、负向 corpus
+  和确定性测试。
 - Studio Core 不链接 STEP/IFC parser；解析只在 `studio-import` worker 子进程内执行。
 - Studio 默认开发构建支持两种格式，关闭 `step`/`ifc` feature 时依赖图不包含对应
   parser 或 geometry engine。
@@ -379,9 +380,25 @@ ice3-studio --internal-import-worker REQUEST_PATH
 - `cargo check` / `cargo test` / `cargo tree` 的 feature-isolation evidence；
 - Chrome E2E 和全仓 18 道 verification gates。
 
-允许的输出差异仅限 vertex welding、accessor layout、prepared edge generation 和
-byte digest；这些差异必须显式报告。层级、业务实体、实例、Selection、bounds、
-material 和 warning 语义必须一致。
+允许的输出差异包括 tessellation topology、vertex welding、accessor layout、
+prepared edge generation 和 byte digest；这些差异必须显式报告。
+
+阻断比较：
+
+- node/mesh count 和业务实体名称一致。
+- instance count、Selection IDs 和 material identity 一致。
+- bounds 每个分量的绝对误差不超过 `max(0.0001 m, 0.00001 × 该轴 extent)`。
+- native/legacy surface area 相对误差不超过 `2%`。
+- native/legacy triangle count ratio 必须位于 `0.75..=1.33`；ratio 只作为异常
+  tessellation 或几何丢失的护栏，不作为精确拓扑契约。
+- 任何设备、空间节点、实例、材质或 geometry-bearing entity 丢失都失败关闭。
+
+非阻断但必须报告：
+
+- triangle count 的具体差异和 ratio。
+- vertex count。
+- index/accessor ordering。
+- GLB byte digest。
 
 ## 12. 第三方与许可
 
