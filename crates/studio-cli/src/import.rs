@@ -71,31 +71,37 @@ pub fn execute_internal_worker(request_path: &Path) -> Result<(), ImportCommandE
 }
 
 pub fn import_limits_from_environment() -> Result<NativeImportLimits, ImportCommandError> {
-    let mut limits = NativeImportLimits::default();
     #[cfg(debug_assertions)]
-    if let Some(value) = std::env::var_os(DEBUG_WORKER_TIMEOUT_ENV) {
-        let value = value
-            .to_str()
-            .ok_or_else(|| ImportCommandError::InvalidLimit {
-                name: DEBUG_WORKER_TIMEOUT_ENV,
-                value: value.to_string_lossy().into_owned(),
-            })?;
-        let timeout_millis =
-            value
-                .parse::<u64>()
-                .map_err(|_| ImportCommandError::InvalidLimit {
+    {
+        let mut limits = NativeImportLimits::default();
+        if let Some(value) = std::env::var_os(DEBUG_WORKER_TIMEOUT_ENV) {
+            let value = value
+                .to_str()
+                .ok_or_else(|| ImportCommandError::InvalidLimit {
+                    name: DEBUG_WORKER_TIMEOUT_ENV,
+                    value: value.to_string_lossy().into_owned(),
+                })?;
+            let timeout_millis =
+                value
+                    .parse::<u64>()
+                    .map_err(|_| ImportCommandError::InvalidLimit {
+                        name: DEBUG_WORKER_TIMEOUT_ENV,
+                        value: value.into(),
+                    })?;
+            if timeout_millis == 0 {
+                return Err(ImportCommandError::InvalidLimit {
                     name: DEBUG_WORKER_TIMEOUT_ENV,
                     value: value.into(),
-                })?;
-        if timeout_millis == 0 {
-            return Err(ImportCommandError::InvalidLimit {
-                name: DEBUG_WORKER_TIMEOUT_ENV,
-                value: value.into(),
-            });
+                });
+            }
+            limits.timeout = std::time::Duration::from_millis(timeout_millis);
         }
-        limits.timeout = std::time::Duration::from_millis(timeout_millis);
+        Ok(limits)
     }
-    Ok(limits)
+    #[cfg(not(debug_assertions))]
+    {
+        Ok(NativeImportLimits::default())
+    }
 }
 
 pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportCommandError> {
