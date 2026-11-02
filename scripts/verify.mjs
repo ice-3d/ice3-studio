@@ -66,6 +66,22 @@ const steps = [
     args: ['build', '-p', 'studio-cli'],
   },
   {
+    label: 'Engine build for prepare contract',
+    command: 'npm',
+    args: ['--prefix', '../ice3-engine', 'run', 'build'],
+  },
+  {
+    label: 'Prepare Engine consumption',
+    command: 'node',
+    args: ['scripts/verify-prepare-engine.mjs'],
+    env: { STUDIO_CLI_BIN: studioCli },
+  },
+  {
+    label: 'Prepare Engine contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/prepare-engine-contract.test.mjs'],
+  },
+  {
     label: 'Prepare baseline contract',
     command: 'node',
     args: ['--test', 'scripts/tests/prepare-baseline.test.mjs'],

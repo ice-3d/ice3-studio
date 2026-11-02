@@ -1,0 +1,31 @@
+{
+  "kind": "ice3-prepare-engine-baseline",
+  "schemaVersion": "1.0",
+  "build": {
+    "assetId": "prepare-cube",
+    "stats": {
+      "nodeCount": 1,
+      "maxNodeDepth": 0,
+      "meshCount": 1,
+      "primitiveCount": 2,
+      "triangleCount": 12,
+      "edgeSegmentCount": 12,
+      "materialCount": 5,
+      "selectionGroupCount": 1
+    }
+  },
+  "engine": {
+    "integrity": true,
+    "contractStatus": "active",
+    "edgesPrepared": true,
+    "edgeCount": 12,
+    "edgeMaterialColor": "#e6f2ff",
+    "selectionId": "prepare-cube/node/0",
+    "rawSelectionId": "prepare-cube/node/node-000000"
+  },
+  "runtimeTileset": {
+    "minimumParts": 1,
+    "requiresEdges": true,
+    "requiredEdgeColor": "#e6f2ff"
+  }
+}
