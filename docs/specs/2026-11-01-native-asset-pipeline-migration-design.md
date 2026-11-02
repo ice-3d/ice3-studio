@@ -6,7 +6,7 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **Phase 状态：** Phase 1 与 Phase 2 已实现。后续 FBX、USD、STEP、IFC、JT 和最终
+> **Phase 状态：** Phase 1、Phase 2 与 Phase 3 已实现。后续 STEP、IFC、JT 和最终
 > Toolchain 退役仍未实现，因此整份迁移设计继续保持 `Approved`。
 
 ## 1. 目标
@@ -54,7 +54,7 @@ source model → Studio import → Studio assets
 - Toolchain Sidecar process 和 NDJSON contract。
 - Toolchain npm package。
 - Toolchain Node runtime 和 TypeScript source pipeline。
-- Blender authoring 与 Blender import bridge。
+- 外部 DCC authoring 与 import bridge。
 
 ## 3. 依赖策略
 
@@ -112,8 +112,8 @@ pub trait SourceImporter {
 |---|---|---|
 | glTF / GLB | Rust glTF reader + 现有 Prepared profile | 1 |
 | OBJ / MTL | Rust parser，保留安全 sidecar 与单位 warning | 2 |
-| FBX ASCII/Binary | 原生 FBX parser 或成熟 native library，替换 Blender | 3 |
-| USD ASCII/Binary | native USD library，替换 Blender | 3 |
+| FBX ASCII/Binary | Studio native parser，替换外部 DCC bridge | 3 |
+| USD ASCII/Binary | Studio native stage library，替换外部 DCC bridge | 3 |
 | STEP AP242 | native CAD geometry kernel，替换 WASM adapter | 4 |
 | IFC 4.3 | native IFC geometry engine，替换 WASM adapter | 4 |
 | JT | 可选受控 native converter adapter；如无可用 parser，保持外部 converter | 5 |
@@ -176,8 +176,8 @@ publication；`studio-pipeline` 负责 tile/LOD 计算。输出不包含完整 s
 ### Phase 2：glTF 与 OBJ
 
 **状态：Implemented（2026-11-02）。** glTF/GLB adapter、OBJ/MTL Rust parser、CLI
-`import`/`validate` 和 Toolchain OBJ adapter 退役已经交付。Toolchain 继续保留 FBX、
-USD、STEP、IFC、JT 的迁移兼容能力。
+`import`/`validate` 和 Toolchain OBJ adapter 退役已经交付。Toolchain 继续保留 STEP、
+IFC、JT 的迁移兼容能力。
 
 - 将 glTF/GLB importer 正式并入 `studio-import`。
 - 实现 OBJ/MTL native importer。
@@ -185,9 +185,16 @@ USD、STEP、IFC、JT 的迁移兼容能力。
 
 ### Phase 3：FBX 与 USD
 
-- 用 native library 替换 Blender bridge。
+**状态：Implemented（2026-11-02）。** `studio-import` 已提供 FBX ASCII/Binary 与 USD
+ASCII/Binary native adapter，解析在 Studio 自带 worker 中隔离运行。worker 实现硬
+timeout、崩溃隔离、协议和 response/stderr 上限、scene budgets 与确定性 Diagnostic；
+USD composition 限制在源目录内，并有递归深度和 layer 数量上限。CLI registry、parity
+baseline 与负向 corpus 已交付，Toolchain 的 FBX/USD adapter、runtime dependency 和
+conformance entry 已删除。
+
+- 用 Studio native worker 替换外部 DCC bridge。
 - 覆盖 ASCII/Binary、层级、实例、颜色、metadata、单位、timeout 和失败关闭。
-- 删除 Blender 依赖和对应 npm/WASM bridge。
+- 删除外部 DCC 依赖和对应 npm/native bridge。
 
 ### Phase 4：STEP 与 IFC
 

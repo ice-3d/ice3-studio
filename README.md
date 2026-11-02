@@ -112,7 +112,7 @@ cargo run -p studio-cli -- export tileset \
 
 该命令由 Rust 直接完成 GLB 读取、Prepared Profile 校验、partition、LOD、coarse
 chunk、Tileset 和 binding manifest 发布，不启动 Toolchain Sidecar、Node Asset runtime
-或 Blender。输出不包含完整 source GLB。
+或外部 DCC。输出不包含完整 source GLB。
 
 Source Import 也由 Studio 原生完成：
 
@@ -122,11 +122,24 @@ cargo run -p studio-cli -- import plant.obj \
   --asset-id plant \
   --adapter obj
 
+cargo run -p studio-cli -- import plant.fbx \
+  --output plant-fbx.glb \
+  --asset-id plant-fbx \
+  --adapter fbx
+
+cargo run -p studio-cli -- import plant.usdc \
+  --output plant-usd.glb \
+  --asset-id plant-usd \
+  --adapter usd
+
 cargo run -p studio-cli -- validate plant.glb
 ```
 
-Phase 2 支持 glTF/GLB 与 OBJ/MTL。OBJ 路径使用 Rust parser，MTL 与纹理引用限制在源文件
-同目录，不启动 Assimp、Node 或 Sidecar。
+Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary 和 USD ASCII/Binary。OBJ/MTL
+资源限制在源文件同目录；FBX/USD 解析在 Studio 自带 worker 中运行，不需要安装外部
+DCC。worker 有硬超时、进程崩溃隔离、512 MiB response/stderr 上限和默认 1,000,000
+nodes、20,000,000 triangles、512 MiB decoded memory、120 秒预算。USD composition
+限制在源文件目录，并限制递归深度和 layer 数量；失败不会替换已有输出。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
@@ -159,7 +172,7 @@ Studio Server ── 认证、单事务串行、持久化、revision 事件
       │
       ├── studio-core      Document、几何、事务、校验、GLB 导出（无 IO）
       ├── studio-assets    glTF/GLB 读取、Prepared Profile、accessor 与来源摘要
-      ├── studio-import    glTF/GLB、OBJ/MTL Source Import 与统一 SourceScene
+      ├── studio-import    glTF/GLB、OBJ/MTL、FBX、USD 与统一 SourceScene
       ├── studio-pipeline  partition、LOD、coarse chunk、Tileset 与 render batch
       ├── studio-project   路径、写锁、原子快照、变更集、几何缓存
       ├── studio-gpu       wgpu 几何内核、residency（实验）
@@ -229,8 +242,8 @@ session。功能已交付，但性能门禁未过，默认关闭。
 静态资产导入、跨项目 GPU 缓冲持久化。清单与理由见
 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
-Runtime GLB、partition、LOD、Tileset、glTF/GLB 和 OBJ/MTL Source Import 已由 Studio
-原生实现。Toolchain 只作为 parity oracle 和 FBX、USD、STEP、IFC、JT 的迁移兼容层保留。
+Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD Source Import
+已由 Studio 原生实现。Toolchain 只保留 STEP、IFC、JT 的迁移兼容能力与 parity 证据。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。

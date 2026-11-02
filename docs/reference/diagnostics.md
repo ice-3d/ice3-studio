@@ -77,6 +77,11 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_IMPORT_INVALID_SOURCE` | Source、OBJ face 或 MTL 内容无效 |
 | `ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY` | Source 不包含可导入三角形 |
 | `ICE3_STUDIO_IMPORT_RESOURCE_IGNORED` | 不安全或缺失资源被忽略 |
+| `ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED` | node、triangle 或 decoded-memory 预算越界 |
+| `ICE3_STUDIO_IMPORT_TIMEOUT` | native source worker 超过硬 timeout 并被终止 |
+| `ICE3_STUDIO_IMPORT_WORKER_PROTOCOL_INVALID` | worker response 版本、长度或 bincode 无效 |
+| `ICE3_STUDIO_IMPORT_WORKER_FAILED` | worker 异常退出或崩溃 |
+| `ICE3_STUDIO_IMPORT_WORKER_OUTPUT_TOO_LARGE` | response 或 stderr 超过上限 |
 | `ICE3_STUDIO_IMPORT_IO` | Source 或输出文件 I/O 失败 |
 | `ICE3_STUDIO_IMPORT_OBJ_UNIT_ASSUMED_METERS` | OBJ 没有单位信息，按米解释 |
 | `ICE3_STUDIO_IMPORT_OBJ_VERTEX_COLORS_UNSUPPORTED` | OBJ 顶点色未导入 |
@@ -85,6 +90,8 @@ stable diagnostic code remains the primary machine contract.
 | `ICE3_STUDIO_IMPORT_OBJ_MATERIAL_UNAVAILABLE` | 引用的 MTL 或 material 不可用 |
 | `ICE3_STUDIO_IMPORT_PRIMITIVE_UNSUPPORTED` | glTF 非三角形 primitive 被跳过 |
 | `ICE3_STUDIO_IMPORT_RESOURCE_UNSUPPORTED` | glTF animation、skin、texture 等资源被跳过 |
+| `ICE3_STUDIO_IMPORT_FBX_*` | FBX animation、skin、camera、light、texture、NURBS 或 decoder warning |
+| `ICE3_STUDIO_IMPORT_USD_UNSUPPORTED_RESOURCE` | USD camera、light、skeleton、volume 等资源被跳过 |
 
 ## Recovery Rules
 
