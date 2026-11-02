@@ -44,3 +44,4 @@ gltf = { version = "1.4.1", default-features = false, features = ["utils", "name
 base64 = "0.22"
 percent-encoding = "2"
 bincode = { version = "2", features = ["serde"] }
+fbx-rs = "0.1.3"

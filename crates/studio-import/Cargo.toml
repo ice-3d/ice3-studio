@@ -7,6 +7,7 @@ rust-version.workspace = true
 
 [dependencies]
 bincode.workspace = true
+fbx-rs.workspace = true
 glam.workspace = true
 serde.workspace = true
 serde_json.workspace = true

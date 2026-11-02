@@ -9,6 +9,7 @@ use thiserror::Error;
 pub enum SourceFormat {
     Gltf,
     Obj,
+    Fbx,
 }
 
 impl SourceFormat {
@@ -16,6 +17,7 @@ impl SourceFormat {
         match self {
             Self::Gltf => "gltf",
             Self::Obj => "obj",
+            Self::Fbx => "fbx",
         }
     }
 }

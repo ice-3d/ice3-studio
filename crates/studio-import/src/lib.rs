@@ -1,5 +1,6 @@
 //! Native source import registry and format-neutral source scene.
 
+mod fbx;
 mod gltf;
 mod limits;
 pub mod obj;
@@ -7,6 +8,7 @@ mod registry;
 mod source;
 mod worker;
 
+pub use fbx::FbxImporter;
 pub use gltf::GltfImporter;
 pub use limits::{NativeImportLimits, WorkerLimits, validate_scene_limits};
 pub use obj::ObjImporter;
