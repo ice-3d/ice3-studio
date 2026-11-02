@@ -176,8 +176,7 @@ fn face_normal(positions: &[[f32; 3]], triangle: [u32; 3]) -> Vec3 {
     if !normal.is_finite()
         || !scale_squared.is_finite()
         || scale_squared <= f32::MIN_POSITIVE
-        || normal.length_squared() / scale_squared
-            <= scale_squared * f32::EPSILON * f32::EPSILON
+        || normal.length_squared() / scale_squared <= scale_squared * f32::EPSILON * f32::EPSILON
     {
         Vec3::ZERO
     } else {
