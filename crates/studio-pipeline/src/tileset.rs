@@ -7,6 +7,7 @@ use sha2::Digest;
 use studio_core::geometry::Bounds;
 
 use crate::PipelineError;
+use crate::profile::{AssetProfile, RenderBatchMode};
 use studio_assets::{AccessorData, SourceGlb, read_accessor};
 
 use crate::partition::build::build_batched_leaf;
@@ -137,50 +138,12 @@ impl TilesetDocument {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RenderBatchMode {
-    Off,
-    Static,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AssetProfile {
-    pub id: String,
-    pub max_triangles: u64,
-    pub max_bytes: usize,
-    pub lod_ratio: f64,
-    pub lod_allocation: super::lod::LodAllocationMode,
-    pub lod_max_triangles: u64,
-    pub lod_min_unit_triangles: u64,
-    pub lod_max_memory_bytes: usize,
-    pub coarse_chunk_max_bytes: usize,
-    pub semantic_proxy: super::lod::SemanticProxyMode,
-    pub render_batch: RenderBatchMode,
-}
-
-impl AssetProfile {
-    pub fn agent_console_v1() -> Self {
-        Self {
-            id: "agent-console-v1".into(),
-            max_triangles: 60_000,
-            max_bytes: 67_108_864,
-            lod_ratio: 0.5,
-            lod_allocation: super::lod::LodAllocationMode::Adaptive,
-            lod_max_triangles: 120_000,
-            lod_min_unit_triangles: 8,
-            lod_max_memory_bytes: 536_870_912,
-            coarse_chunk_max_bytes: 4_194_304,
-            semantic_proxy: super::lod::SemanticProxyMode::Off,
-            render_batch: RenderBatchMode::Static,
-        }
-    }
-}
-
 pub fn build_with_profile(
     source: &studio_assets::SourceGlb,
     asset_id: &str,
     profile: &AssetProfile,
 ) -> Result<PartitionArtifact, PipelineError> {
+    profile.validate()?;
     let mut artifact = crate::build_artifact(
         source,
         &BuildOptions {
@@ -195,17 +158,19 @@ pub fn build_with_profile(
         0
     };
     let mut coarse_paths = BTreeMap::<String, Vec<String>>::new();
-    let partitions = collect_internal_partitions(&artifact.plan.root, "group-root");
-    for (partition_id, node) in partitions {
-        let files = build_coarse_files(source, asset_id, profile, &partition_id, &node.units)?;
-        coarse_paths.insert(
-            partition_id,
-            files
-                .iter()
-                .map(|file| file.relative_path.clone())
-                .collect(),
-        );
-        artifact.files.extend(files);
+    if profile.lod_enabled {
+        let partitions = collect_internal_partitions(&artifact.plan.root, "group-root");
+        for (partition_id, node) in partitions {
+            let files = build_coarse_files(source, asset_id, profile, &partition_id, &node.units)?;
+            coarse_paths.insert(
+                partition_id,
+                files
+                    .iter()
+                    .map(|file| file.relative_path.clone())
+                    .collect(),
+            );
+            artifact.files.extend(files);
+        }
     }
     attach_coarse_content(
         &mut artifact.tileset.root,

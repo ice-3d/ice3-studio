@@ -78,6 +78,141 @@ pub(crate) struct BuiltLeaf {
     pub(crate) selection_ids: BTreeSet<String>,
 }
 
+#[allow(clippy::too_many_arguments, dead_code)]
+pub(crate) fn append_edges_to_primitive(
+    json: &mut Value,
+    binary: &mut Vec<u8>,
+    positions_accessor: usize,
+    positions: &[[f32; 3]],
+    indices: &[u32],
+    material_index: usize,
+    edge_material_index: usize,
+    crease_angle_degrees: f32,
+) -> Result<u32, PipelineError> {
+    let materials = json
+        .get("materials")
+        .and_then(Value::as_array)
+        .ok_or_else(|| PipelineError::Tileset("part materials are missing".into()))?;
+    let source_extras = materials
+        .get(material_index)
+        .and_then(|material| material.get("extras"))
+        .ok_or_else(|| PipelineError::Tileset("edge source material is missing".into()))?
+        .clone();
+    if studio_assets::material_suppresses_edges(&source_extras) {
+        return Ok(0);
+    }
+    let edge_material = materials
+        .get(edge_material_index)
+        .ok_or_else(|| PipelineError::Tileset("edge material is missing".into()))?;
+    if !edge_material
+        .pointer("/extras/ice3/id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| id.ends_with("/edges"))
+    {
+        return Err(PipelineError::Tileset(
+            "edge primitive must use an edge material".into(),
+        ));
+    }
+    let edge_color = studio_assets::edge_color_from_material(&source_extras)?;
+    let edge_material = json
+        .get_mut("materials")
+        .and_then(Value::as_array_mut)
+        .and_then(|materials| materials.get_mut(edge_material_index))
+        .and_then(Value::as_object_mut)
+        .ok_or_else(|| PipelineError::Tileset("edge material is missing".into()))?;
+    edge_material.insert(
+        "pbrMetallicRoughness".into(),
+        json!({
+            "baseColorFactor": edge_color,
+            "metallicFactor": 0.0,
+            "roughnessFactor": 1.0
+        }),
+    );
+    edge_material.insert(
+        "alphaMode".into(),
+        Value::from(if edge_color[3] < 1.0 {
+            "BLEND"
+        } else {
+            "OPAQUE"
+        }),
+    );
+    let edge_indices =
+        studio_assets::generate_edge_indices(positions, indices, crease_angle_degrees)?;
+    if edge_indices.is_empty() {
+        return Ok(0);
+    }
+
+    while !binary.len().is_multiple_of(4) {
+        binary.push(0);
+    }
+    let edge_bytes = bytemuck::cast_slice(&edge_indices);
+    let buffer_views = json
+        .get_mut("bufferViews")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| PipelineError::Tileset("part bufferViews are missing".into()))?;
+    let buffer_view_index = buffer_views.len();
+    buffer_views.push(json!({
+        "buffer": 0,
+        "byteOffset": binary.len(),
+        "byteLength": edge_bytes.len(),
+        "target": 34963
+    }));
+    binary.extend_from_slice(edge_bytes);
+
+    let accessors = json
+        .get_mut("accessors")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| PipelineError::Tileset("part accessors are missing".into()))?;
+    let edge_accessor = accessors.len();
+    accessors.push(json!({
+        "bufferView": buffer_view_index,
+        "componentType": 5125,
+        "count": edge_indices.len(),
+        "type": "SCALAR"
+    }));
+
+    let meshes = json
+        .get_mut("meshes")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| PipelineError::Tileset("part meshes are missing".into()))?;
+    let target_mesh = meshes
+        .iter_mut()
+        .rev()
+        .find(|mesh| {
+            mesh.get("primitives")
+                .and_then(Value::as_array)
+                .is_some_and(|primitives| {
+                    primitives.iter().any(|primitive| {
+                        primitive
+                            .pointer("/attributes/POSITION")
+                            .and_then(Value::as_u64)
+                            == Some(positions_accessor as u64)
+                    })
+                })
+        })
+        .ok_or_else(|| PipelineError::Tileset("edge target primitive is missing".into()))?;
+    let primitives = target_mesh
+        .get_mut("primitives")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| PipelineError::Tileset("edge target primitives are missing".into()))?;
+    primitives.push(json!({
+        "attributes": {
+            "POSITION": positions_accessor
+        },
+        "indices": edge_accessor,
+        "mode": 1,
+        "material": edge_material_index,
+        "extras": {
+            "ice3": {
+                "role": "edges",
+                "widthPx": 3
+            }
+        }
+    }));
+    u32::try_from(edge_indices.len() / 2)
+        .map_err(|_| PipelineError::Tileset("edge segment count overflowed".into()))
+}
+
 pub(crate) fn build_leaf(
     source: &SourceGlb,
     asset_id: &str,

@@ -3,14 +3,16 @@
 pub mod batching;
 pub mod lod;
 mod partition;
+mod profile;
 mod tileset;
 
-pub use lod::LodAllocationMode;
+pub use lod::{LodAllocationMode, SemanticProxyMode};
 pub use partition::{
     PartitionError, PartitionLeaf, PartitionPlan, PartitionPlanNode, PartitionUnit, analyze_units,
     create_partition_plan, try_create_partition_plan,
 };
-pub use tileset::{AssetProfile, RenderBatchMode, build_with_profile};
+pub use profile::{AssetProfile, RenderBatchMode};
+pub use tileset::build_with_profile;
 pub use tileset::{BuildOptions, PartitionArtifact, PartitionFile, PartitionStats};
 
 use crate::partition::build::build_artifact as build_partition_artifact;
@@ -23,6 +25,8 @@ pub enum PipelineError {
     Partition(#[from] PartitionError),
     #[error("tileset is invalid: {0}")]
     Tileset(String),
+    #[error("asset profile is invalid: {0}")]
+    InvalidProfile(String),
     #[error("pipeline I/O failed")]
     Io(#[from] std::io::Error),
 }
@@ -33,6 +37,7 @@ impl PipelineError {
             Self::Asset(error) => error.code(),
             Self::Partition(error) => error.code(),
             Self::Tileset(_) => "ICE3_STUDIO_TILESET_INVALID",
+            Self::InvalidProfile(_) => "ICE3_STUDIO_ASSET_INVALID_PROFILE",
             Self::Io(_) => "ICE3_STUDIO_PIPELINE_IO",
         }
     }
