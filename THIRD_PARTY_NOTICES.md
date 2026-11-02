@@ -31,6 +31,8 @@ Copyright (c) 2026 Karpelès Lab Inc.
 
 ### ifc-lite-core 27.1.0
 
+### ifc-lite-geometry 27.1.0
+
 ### ifc-lite-processing 27.1.0
 
 Available under the Mozilla Public License Version 2.0.

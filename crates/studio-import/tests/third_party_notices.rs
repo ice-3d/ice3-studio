@@ -26,6 +26,7 @@ fn declares_the_native_source_import_licenses() {
         "Section 6 (\"Trademarks\")",
         "You must give any other recipients of the Work or",
         "ifc-lite-core",
+        "ifc-lite-geometry",
         "ifc-lite-processing",
         "Mozilla Public License Version 2.0",
     ] {
