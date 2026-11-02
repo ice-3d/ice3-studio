@@ -210,6 +210,7 @@ async function compareNative() {
   try {
     ensureNativeCli();
     assertBoundsComparatorRejectsTranslation();
+    assertNodeSelectionPairComparatorRejectsSwap();
     const baseline = JSON.parse(await readFile(baselinePath, 'utf8'));
     const outputPath = join(temporaryRoot, 'native-step.glb');
     const command = runNativeImport({
@@ -246,6 +247,18 @@ async function compareNative() {
         native: native.selectionIds,
         nativePrefix: `${assetId}/step/node/`,
         equal: selectionIdsEquivalent(legacy.selectionIds, native.selectionIds, assetId),
+      },
+      nodeSelectionPairs: {
+        baseline: normalizedNodeSelectionPairs(
+          legacySelectionPairs(legacy),
+          assetId,
+        ),
+        native: normalizedNodeSelectionPairs(native.nodeSelections, assetId),
+        equal: nodeSelectionPairsEquivalent(
+          legacySelectionPairs(legacy),
+          native.nodeSelections,
+          assetId,
+        ),
       },
       meshCount: {
         baseline: legacy.stats.meshCount,
@@ -482,6 +495,21 @@ async function compareInstanceCorpus(temporaryRoot) {
         instancedAssetId,
       ),
     },
+    nodeSelectionPairs: {
+      baseline: normalizedNodeSelectionPairs(
+        legacySelectionPairs(legacy),
+        instancedAssetId,
+      ),
+      native: normalizedNodeSelectionPairs(
+        native.nodeSelections,
+        instancedAssetId,
+      ),
+      equal: nodeSelectionPairsEquivalent(
+        legacySelectionPairs(legacy),
+        native.nodeSelections,
+        instancedAssetId,
+      ),
+    },
     sharedMeshInstances: {
       baseline: legacy.stats.sharedMeshNodeCount,
       native: native.sharedMeshNodeCount,
@@ -690,6 +718,58 @@ function selectionIdsEquivalent(baseline, native, sourceAssetId) {
   ));
 }
 
+function legacySelectionPairs(legacy) {
+  return legacy.nodeNames.map((name, index) => ({
+    name,
+    selectionId: legacy.selectionIds[index],
+  }));
+}
+
+function normalizedNodeSelectionPairs(pairs, sourceAssetId) {
+  return pairs
+    .map((pair) => ({
+      name: pair.name.replace(/\[\d+\]$/u, ''),
+      ordinal: selectionOrdinal(pair.selectionId, sourceAssetId),
+    }))
+    .sort((left, right) => (
+      left.name.localeCompare(right.name, 'en')
+      || left.ordinal - right.ordinal
+    ));
+}
+
+function nodeSelectionPairsEquivalent(baseline, native, sourceAssetId) {
+  if (baseline.length !== native.length) return false;
+  const left = normalizedNodeSelectionPairs(baseline, sourceAssetId);
+  const right = normalizedNodeSelectionPairs(native, sourceAssetId);
+  return left.every((pair, index) => (
+    Number.isInteger(pair.ordinal)
+    && pair.name === right[index].name
+    && pair.ordinal === right[index].ordinal
+  ));
+}
+
+function selectionOrdinal(id, sourceAssetId) {
+  if (typeof id !== 'string') return Number.NaN;
+  const match = id.match(new RegExp(
+    `^${escapeRegex(sourceAssetId)}/(?:step/)?node/(\\d+)$`,
+  ));
+  return match ? Number(match[1]) : Number.NaN;
+}
+
+function assertNodeSelectionPairComparatorRejectsSwap() {
+  const baseline = [
+    { name: 'PrimaryTank', selectionId: 'fixture/step/node/2' },
+    { name: 'TransferPump', selectionId: 'fixture/step/node/3' },
+  ];
+  const swapped = [
+    { name: 'PrimaryTank', selectionId: 'fixture/step/node/3' },
+    { name: 'TransferPump', selectionId: 'fixture/step/node/2' },
+  ];
+  if (nodeSelectionPairsEquivalent(baseline, swapped, 'fixture')) {
+    throw new Error('node/Selection pair comparator accepted a swap');
+  }
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
@@ -771,6 +851,12 @@ function summarizeGlb(glb) {
     .map((node) => node.extras?.ice3?.id)
     .filter(Boolean)
     .sort();
+  const nodeSelections = nodes
+    .map((node) => ({
+      name: node.name ?? '',
+      selectionId: node.extras?.ice3?.id,
+    }))
+    .filter((pair) => pair.selectionId !== undefined);
   const meshNodes = nodes.filter((node) => Number.isInteger(node.mesh));
   const meshReferenceCounts = new Map();
   for (const node of meshNodes) {
@@ -803,6 +889,7 @@ function summarizeGlb(glb) {
     surfaceArea,
     nodeNames,
     selectionIds,
+    nodeSelections,
     bounds,
     sourceOrigin: Array.isArray(sourceOrigin) && sourceOrigin.length === 3
       ? sourceOrigin

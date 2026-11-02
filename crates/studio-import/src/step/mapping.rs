@@ -18,6 +18,10 @@ const STEP_MATERIAL_ESTIMATE_BYTES: usize = 384;
 const STEP_SHAPE_METADATA_ESTIMATE_BYTES: usize = 1_024;
 const STEP_WARNING_ESTIMATE_BYTES: usize = 512;
 const STEP_SCENE_ESTIMATE_BYTES: usize = size_of::<SourceScene>() + 4_096;
+// AP242 assemblies in the supported plant workflow are shallow. Cap before
+// projection so pathological chains fail with a deterministic limit instead of
+// overflowing the worker thread stack.
+const MAX_STEP_HIERARCHY_DEPTH: usize = 128;
 
 type OccurrencePath = [u64; 2];
 type MeshVariantKey = (usize, Vec<(u64, TriangleGroupKey)>);
@@ -45,7 +49,7 @@ struct PendingMeshNode {
     definition_id: Option<u64>,
     representation_id: Option<u64>,
     occurrence_id: Option<u64>,
-    item_ids: Vec<u64>,
+    item_id: Option<u64>,
     layers: Vec<String>,
 }
 
@@ -87,7 +91,7 @@ pub(super) fn project_model(
         matrix: DMat4::IDENTITY.to_cols_array().map(|value| value as f32),
         mesh: None,
         material: None,
-        extras: step_node_extras(None, None, None, None, &[], &[]),
+        extras: step_node_extras(None, None, None, None, None, &[]),
     });
     projection
         .node_worlds
@@ -226,6 +230,12 @@ impl StepPreflight {
     ) -> Result<(), ImportError> {
         let mut stack = vec![(start_part, start_depth, start_path.to_vec())];
         while let Some((part_index, depth, path)) = stack.pop() {
+            if depth > MAX_STEP_HIERARCHY_DEPTH {
+                return Err(limit_error(format!(
+                    "STEP hierarchy depth {} exceeds limit {}",
+                    depth, MAX_STEP_HIERARCHY_DEPTH
+                )));
+            }
             if depth > model.parts.len() {
                 return Err(ImportError::InvalidSource(
                     "STEP occurrence hierarchy is cyclic".into(),
@@ -385,7 +395,7 @@ impl Projection<'_> {
         depth: usize,
         path: &[OccurrencePath],
     ) -> Result<(), ImportError> {
-        let (raw_name, product_id, definition, representation, children, item_ids, layers) = {
+        let (raw_name, product_id, definition, representation, children, item_id, layers) = {
             let part = self.model.parts.get(part_index).ok_or_else(|| {
                 ImportError::InvalidSource(format!("STEP part {part_index} is missing"))
             })?;
@@ -399,10 +409,7 @@ impl Projection<'_> {
                 part.definition,
                 part.representation,
                 part.children.clone(),
-                part.shapes
-                    .iter()
-                    .map(|shape| shape.item)
-                    .collect::<Vec<_>>(),
+                part.shapes.first().map(|shape| shape.item),
                 part.shapes
                     .iter()
                     .flat_map(|shape| shape.layers.iter().cloned())
@@ -433,7 +440,7 @@ impl Projection<'_> {
                 definition,
                 representation,
                 occurrence.and_then(|value| value.id),
-                &item_ids,
+                item_id,
                 &layers,
             ),
         });
@@ -449,7 +456,7 @@ impl Projection<'_> {
                 definition_id: definition,
                 representation_id: representation,
                 occurrence_id: occurrence.and_then(|value| value.id),
-                item_ids,
+                item_id,
                 layers,
             });
         }
@@ -476,7 +483,7 @@ impl Projection<'_> {
                     pending.definition_id,
                     pending.representation_id,
                     pending.occurrence_id,
-                    &pending.item_ids,
+                    pending.item_id,
                     &pending.layers,
                 ),
             });
@@ -916,7 +923,7 @@ fn step_node_extras(
     definition_id: Option<u64>,
     representation_id: Option<u64>,
     occurrence_id: Option<u64>,
-    item_ids: &[u64],
+    item_id: Option<u64>,
     layers: &[String],
 ) -> Value {
     let mut metadata = Map::new();
@@ -933,9 +940,8 @@ fn step_node_extras(
     if let Some(occurrence_id) = occurrence_id {
         metadata.insert("occurrenceId".into(), json!(occurrence_id));
     }
-    if let Some(item_id) = item_ids.first() {
+    if let Some(item_id) = item_id {
         metadata.insert("itemId".into(), json!(item_id));
-        metadata.insert("itemIds".into(), json!(item_ids));
     }
     if !layers.is_empty() {
         metadata.insert("layers".into(), json!(layers));
@@ -1558,5 +1564,116 @@ mod tests {
                     .iter()
                     .all(|index| (*index as usize) < positions.len())
         }));
+    }
+
+    #[test]
+    fn repeated_occurrences_do_not_copy_complete_item_id_arrays() {
+        let mut root = Part {
+            name: Some("Root".into()),
+            product_id: Some("Root".into()),
+            children: (0..64)
+                .map(|index| Occurrence {
+                    part: 1,
+                    id: Some(1_000 + index),
+                    name: Some(format!("Pump {index}")),
+                    transform: Transform::IDENTITY,
+                    placed_by: None,
+                })
+                .collect(),
+            ..Part::default()
+        };
+        root.product_id = Some("Root".into());
+        let mut child = Part {
+            name: Some("Pump".into()),
+            product_id: Some("Pump".into()),
+            ..Part::default()
+        };
+        child.shapes = (0..4_096)
+            .map(|item| {
+                let mut shape = triangle_shape(item, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+                if item != 0 {
+                    shape.mesh.triangles.clear();
+                }
+                shape
+            })
+            .collect();
+        let model = StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts: vec![root, child],
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: Vec::new(),
+            warnings: Vec::new(),
+        };
+
+        let scene =
+            project_model(&model, "step-item-metadata", NativeImportLimits::default()).unwrap();
+        let step_extras = scene
+            .nodes
+            .iter()
+            .filter_map(|node| node.extras.pointer("/ice3/step"))
+            .collect::<Vec<_>>();
+        assert!(
+            step_extras
+                .iter()
+                .any(|extras| extras.get("itemId").is_some())
+        );
+        assert!(
+            step_extras
+                .iter()
+                .all(|extras| extras.get("itemIds").is_none())
+        );
+    }
+
+    #[test]
+    fn rejects_excessively_deep_hierarchy_before_recursive_projection() {
+        let mut parts = (0..=MAX_STEP_HIERARCHY_DEPTH + 1)
+            .map(|index| Part {
+                name: Some(format!("Depth {index}")),
+                product_id: Some(format!("Depth {index}")),
+                ..Part::default()
+            })
+            .collect::<Vec<_>>();
+        for index in 0..parts.len() - 1 {
+            parts[index].children.push(Occurrence {
+                part: index + 1,
+                id: Some(index as u64 + 1),
+                name: Some(format!("Child {index}")),
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            });
+        }
+        parts
+            .last_mut()
+            .unwrap()
+            .shapes
+            .push(triangle_shape(1, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
+        let model = StepModel {
+            schema: ApSchema::Ap242,
+            header: Default::default(),
+            length_unit_metres: 1.0,
+            parts,
+            roots: vec![Occurrence {
+                part: 0,
+                id: None,
+                name: None,
+                transform: Transform::IDENTITY,
+                placed_by: None,
+            }],
+            occurrence_colours: Vec::new(),
+            warnings: Vec::new(),
+        };
+
+        let error = project_model(&model, "step-deep-hierarchy", NativeImportLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+        assert!(error.to_string().contains("hierarchy depth"));
     }
 }
