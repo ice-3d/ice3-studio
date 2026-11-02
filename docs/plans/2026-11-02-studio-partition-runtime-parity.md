@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-028
 >
-> Status: Draft
+> Status: Approved
 >
 > Owner: ICE3 Studio maintainers
 
