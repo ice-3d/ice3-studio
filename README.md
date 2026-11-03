@@ -258,9 +258,9 @@ Document 加操作历史是唯一真源，几何、bounds、诊断、GLB、预�
 
 ## 9. API
 
-静态 Schema 固化 37 个 JSON-RPC 方法；运行时能力清单另外暴露 2 个实验性 GPU scene
-方法，共 39 个，分 9 个域（`system`、`project`、`document`、`scene`、`validation`、
-`evaluation`、`export`、`changeset`、`referenceAsset`）。完整方法表、参数与返回见
+静态 Schema 固化 38 个 JSON-RPC 方法；运行时能力清单另外暴露 2 个实验性 GPU scene
+方法，共 40 个，分 10 个域（`system`、`project`、`document`、`scene`、`component`、
+`validation`、`evaluation`、`export`、`changeset`、`referenceAsset`）。完整方法表、参数与返回见
 [API Reference](docs/reference/api.md)，错误码见 [Diagnostics](docs/reference/diagnostics.md)。
 
 面向 Agent 的读接口：
@@ -268,6 +268,7 @@ Document 加操作历史是唯一真源，几何、bounds、诊断、GLB、预�
 - `system.agentManifest` — 可用工具、当前令牌权限、调用上限
 - `scene.context` — 固定大小项目摘要（大场景实测 860 字节）
 - `scene.search` — source/derived 节点分页，revision-bound cursor，支持字段投影
+- `component.get` — 单个组件定义的有界内省：参数 schema、端口清单与部件摘要
 - `evaluation.query` — 只对显式列出的最多 32 个派生节点返回摘要或按需几何负载
 
 稀疏 patch（`instance.patch`、`component.patch`、`connection.patch`、`material.patch`）

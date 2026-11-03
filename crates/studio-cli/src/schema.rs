@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 
 use schemars::schema_for;
 use studio_core::agent_contract::{
-    AgentManifest, EvaluationQueryRequest, EvaluationQueryResult, IterationImpact,
-    RuntimePreviewRequest, SceneContext, SceneSearchRequest, SceneSearchResult,
+    AgentManifest, ComponentGetParams, ComponentGetResult, EvaluationQueryRequest,
+    EvaluationQueryResult, IterationImpact, RuntimePreviewRequest, SceneContext,
+    SceneSearchRequest, SceneSearchResult,
 };
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
@@ -63,6 +64,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "scene.bounds",
             "scene.context",
             "scene.search",
+            "component.get",
             "validation.run",
             "referenceAsset.register",
             "referenceAsset.get",
@@ -107,8 +109,9 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "SceneSearchRequest": schema_for!(SceneSearchRequest),
             "SceneSearchResult": schema_for!(SceneSearchResult),
             "EvaluationQueryRequest": schema_for!(EvaluationQueryRequest),
-            "EvaluationQueryResult": schema_for!(EvaluationQueryResult)
-            ,
+            "EvaluationQueryResult": schema_for!(EvaluationQueryResult),
+            "ComponentGetParams": schema_for!(ComponentGetParams),
+            "ComponentGetResult": schema_for!(ComponentGetResult),
             "InstancePatch": schema_for!(InstancePatch),
             "ComponentPatch": schema_for!(ComponentPatch),
             "ConnectionPatch": schema_for!(ConnectionPatch),

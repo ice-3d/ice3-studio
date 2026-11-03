@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 
 use studio_core::agent_contract::{
-    AgentLimits, ChangeImpactCounts, EvaluationInclude, EvaluationQueryItem,
-    EvaluationQueryRequest, IterationImpact, IterationImpactReason, IterationImpactScope,
-    RuntimePreviewRequest, SceneSearchField, SceneSearchItem, SceneSearchRequest, SceneSearchScope,
+    AgentLimits, ChangeImpactCounts, ComponentDefinitionSummary, ComponentGetParams,
+    ComponentGetResult, ComponentPartKind, ComponentPartSummary, EvaluationInclude,
+    EvaluationQueryItem, EvaluationQueryRequest, IterationImpact, IterationImpactReason,
+    IterationImpactScope, MAX_PART_SUMMARIES, RuntimePreviewRequest, SceneSearchField,
+    SceneSearchItem, SceneSearchRequest, SceneSearchScope,
 };
 use ts_rs::TS;
 
@@ -94,4 +96,95 @@ fn iteration_impact_serializes_with_counts_and_snake_case_reasons() {
     assert_eq!(value["affectedSourceNodes"], 1);
     assert_eq!(value["generatedGeometry"], 0);
     assert_eq!(value["reasons"][0], "instance_parameters");
+}
+
+#[test]
+fn component_get_request_serializes_with_camel_case_and_rejects_unknown_fields() {
+    let request = ComponentGetParams {
+        component_id: "component-000001".into(),
+    };
+    let value = serde_json::to_value(&request).unwrap();
+    assert_eq!(value["componentId"], "component-000001");
+    assert!(value.get("component_id").is_none());
+
+    let rejected = serde_json::from_value::<ComponentGetParams>(serde_json::json!({
+        "componentId": "component-000001",
+        "includeParts": true
+    }));
+    assert!(rejected.is_err());
+
+    let empty = serde_json::from_value::<ComponentGetParams>(serde_json::json!({
+        "componentId": ""
+    }));
+    assert!(empty.is_ok());
+}
+
+#[test]
+fn component_get_result_serializes_summary_with_snake_case_part_kinds() {
+    let result = ComponentGetResult {
+        revision: 2,
+        component: ComponentDefinitionSummary {
+            id: "component-000001".into(),
+            name: "Pump station".into(),
+            parameters: vec![],
+            ports: vec![],
+            parts: vec![
+                ComponentPartSummary {
+                    id: "body".into(),
+                    parent_id: None,
+                    kind: ComponentPartKind::Box,
+                    referenced_definition_id: None,
+                    repeat: None,
+                    visible: true,
+                },
+                ComponentPartSummary {
+                    id: "cap".into(),
+                    parent_id: Some("body".into()),
+                    kind: ComponentPartKind::ComponentReference,
+                    referenced_definition_id: Some("component-000002".into()),
+                    repeat: Some(30),
+                    visible: true,
+                },
+            ],
+            part_count: 2,
+            parts_truncated: false,
+            instance_count: 4,
+            metadata: BTreeMap::new(),
+        },
+    };
+    let value = serde_json::to_value(&result).unwrap();
+
+    assert_eq!(value["revision"], 2);
+    let component = &value["component"];
+    assert_eq!(component["id"], "component-000001");
+    assert_eq!(component["partCount"], 2);
+    assert_eq!(component["partsTruncated"], false);
+    assert_eq!(component["instanceCount"], 4);
+    assert_eq!(component["metadata"], serde_json::json!({}));
+    assert_eq!(component["parts"][0]["kind"], "box");
+    assert_eq!(component["parts"][1]["kind"], "component_reference");
+    assert_eq!(
+        component["parts"][1]["referencedDefinitionId"],
+        "component-000002"
+    );
+    assert_eq!(component["parts"][1]["repeat"], 30);
+}
+
+#[test]
+fn component_get_typescript_marks_summary_fields_required() {
+    let params = ComponentGetParams::decl();
+    assert!(params.contains("componentId: string"));
+
+    let summary = ComponentDefinitionSummary::decl();
+    assert!(summary.contains("partCount: number"));
+    assert!(summary.contains("partsTruncated: boolean"));
+    assert!(summary.contains("instanceCount: number"));
+    assert!(summary.contains("parameters: Array<ComponentParameter>"));
+    assert!(summary.contains("ports: Array<ComponentPort>"));
+
+    let part_summary = ComponentPartSummary::decl();
+    assert!(part_summary.contains("kind: ComponentPartKind"));
+    assert!(part_summary.contains("referencedDefinitionId: ComponentId | null"));
+
+    assert_eq!(MAX_PART_SUMMARIES, 100);
 }

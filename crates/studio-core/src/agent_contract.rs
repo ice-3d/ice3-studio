@@ -310,6 +310,71 @@ pub struct EvaluationQueryResult {
     pub items: Vec<EvaluationQueryItem>,
 }
 
+pub const MAX_PART_SUMMARIES: usize = 100;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ComponentGetParams {
+    pub component_id: String,
+}
+
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema, TS,
+)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+#[ts(export)]
+pub enum ComponentPartKind {
+    Group,
+    Box,
+    Plane,
+    Cylinder,
+    Sphere,
+    CustomMesh,
+    Sweep,
+    ComponentReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ComponentPartSummary {
+    pub id: String,
+    pub parent_id: Option<String>,
+    pub kind: ComponentPartKind,
+    pub referenced_definition_id: Option<ComponentId>,
+    pub repeat: Option<u32>,
+    pub visible: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ComponentDefinitionSummary {
+    pub id: ComponentId,
+    pub name: String,
+    pub parameters: Vec<crate::large_scene::component::ComponentParameter>,
+    pub ports: Vec<crate::large_scene::component::ComponentPort>,
+    pub parts: Vec<ComponentPartSummary>,
+    pub part_count: usize,
+    pub parts_truncated: bool,
+    pub instance_count: usize,
+    pub metadata: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ComponentGetResult {
+    pub revision: u64,
+    pub component: ComponentDefinitionSummary,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]

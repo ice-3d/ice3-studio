@@ -19,6 +19,7 @@
     "scene.bounds",
     "scene.context",
     "scene.search",
+    "component.get",
     "validation.run",
     "referenceAsset.register",
     "referenceAsset.get",
@@ -16011,6 +16012,332 @@
       ],
       "title": "ChangeSetStatus",
       "type": "string"
+    },
+    "ComponentGetParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "componentId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "componentId"
+      ],
+      "title": "ComponentGetParams",
+      "type": "object"
+    },
+    "ComponentGetResult": {
+      "$defs": {
+        "ComponentDefinitionSummary": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "instanceCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "name": {
+              "type": "string"
+            },
+            "parameters": {
+              "items": {
+                "$ref": "#/$defs/ComponentParameter"
+              },
+              "type": "array"
+            },
+            "partCount": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "parts": {
+              "items": {
+                "$ref": "#/$defs/ComponentPartSummary"
+              },
+              "type": "array"
+            },
+            "partsTruncated": {
+              "type": "boolean"
+            },
+            "ports": {
+              "items": {
+                "$ref": "#/$defs/ComponentPort"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "parameters",
+            "ports",
+            "parts",
+            "partCount",
+            "partsTruncated",
+            "instanceCount",
+            "metadata"
+          ],
+          "type": "object"
+        },
+        "ComponentParameter": {
+          "additionalProperties": false,
+          "properties": {
+            "default": {
+              "$ref": "#/$defs/ParameterValue"
+            },
+            "name": {
+              "type": "string"
+            },
+            "unit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "valueType": {
+              "$ref": "#/$defs/ParameterType"
+            }
+          },
+          "required": [
+            "name",
+            "valueType",
+            "default"
+          ],
+          "type": "object"
+        },
+        "ComponentPartKind": {
+          "enum": [
+            "group",
+            "box",
+            "plane",
+            "cylinder",
+            "sphere",
+            "custom_mesh",
+            "sweep",
+            "component_reference"
+          ],
+          "type": "string"
+        },
+        "ComponentPartSummary": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "$ref": "#/$defs/ComponentPartKind"
+            },
+            "parentId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "referencedDefinitionId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repeat": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "visible": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "visible"
+          ],
+          "type": "object"
+        },
+        "ComponentPort": {
+          "additionalProperties": false,
+          "properties": {
+            "diameter": {
+              "format": "float",
+              "type": "number"
+            },
+            "direction": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "medium": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "partId": {
+              "type": "string"
+            },
+            "position": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "name",
+            "partId",
+            "position",
+            "direction",
+            "medium",
+            "diameter"
+          ],
+          "type": "object"
+        },
+        "ParameterType": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "number",
+                  "type": "string"
+                },
+                "maximum": {
+                  "format": "float",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "minimum": {
+                  "format": "float",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "vector3",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "color",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "enumeration",
+                  "type": "string"
+                },
+                "values": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "values"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "ParameterValue": {
+          "anyOf": [
+            {
+              "format": "float",
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/Vec3"
+            },
+            {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/ComponentDefinitionSummary"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "component"
+      ],
+      "title": "ComponentGetResult",
+      "type": "object"
     },
     "ComponentPatch": {
       "$defs": {

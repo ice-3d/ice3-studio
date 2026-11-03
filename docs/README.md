@@ -60,6 +60,7 @@
 | `ICE3-STUDIO-SPEC-017` | [Studio 原生 STEP 与 IFC Source Import](specs/2026-11-02-native-step-ifc-import-design.md) | Implemented | STEP、IFC、parity 与 Toolchain adapter 退役 |
 | `ICE3-STUDIO-SPEC-018` | [Studio 原生 JT Import 与 Toolchain 最终退役](specs/2026-11-02-native-jt-toolchain-retirement-design.md) | Implemented | JT converter bridge、原生 preview 和 Toolchain repository 退役 |
 | `ICE3-STUDIO-SPEC-019` | [Studio Asset Prepare 与 Toolchain 功能等价](specs/2026-11-02-studio-asset-prepare-parity-design.md) | Historical | Phase 6A/6B/6C 已完成设计记录；当前链路见 REF-005 |
+| `ICE3-STUDIO-SPEC-020` | [Agent 组件定义内省](specs/2026-11-03-agent-component-introspection-design.md) | Implemented | `component.get` 有界读：参数 schema、端口清单与部件摘要 |
 
 ## 5. 实施计划
 

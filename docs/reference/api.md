@@ -49,8 +49,8 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 
 ## 3. 方法清单
 
-静态 Schema 固化 37 个方法；运行中的 `system.capabilities` 另有两个实验性 GPU scene
-方法，共 39 个。
+静态 Schema 固化 38 个方法；运行中的 `system.capabilities` 另有两个实验性 GPU scene
+方法，共 40 个。
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:|---|---|
@@ -71,6 +71,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | `scene.query` | 否 | filters | 确定性顺序的 Node |
 | `scene.context` | 否 | 无 | 有界项目摘要 |
 | `scene.search` | 否 | `SceneSearchRequest` | revision-bound page |
+| `component.get` | 否 | `ComponentGetParams` | 单个组件定义的有界摘要 |
 | `scene.bounds` | 否 | 无 | 按 Node ID 的 world bounds |
 | `validation.run` | 否 | 无 | Diagnostic |
 | `referenceAsset.register` | 是 | 四个 workspace-relative path | asset ID 和 descriptor |
@@ -204,6 +205,14 @@ relation type 和当前权限，不返回完整 Node 或 Geometry 集合。
 
 `evaluation.query` 接受 1 至 32 个唯一派生 Node ID。默认返回 vertex/index count、world
 bounds 和 Geometry digest；只有显式请求时才返回 positions/indices。
+
+`component.get` 接受一个 `componentId`，返回该组件定义的有界摘要：参数
+（名称、类型、范围/枚举值、默认值、单位）、端口（名称、部件、位置、方向、介质、
+管径）、部件摘要（id、父部件、几何类别、repeat、可见性）与当前 revision 的实例计数。
+部件摘要至多 100 条，超出时返回 `partCount` 全量计数和 `partsTruncated: true`。未知
+`componentId` 返回 `ICE3_STUDIO_REFERENCE_INVALID` 结构化 not_found 错误。它是 Agent
+拿到 `componentDefinitionId` 后内省参数 schema 与端口清单的唯一有界通道，无需拉取完整
+Document。
 
 ## 9. ChangeSet
 

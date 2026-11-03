@@ -921,6 +921,7 @@ fn dispatch(
                 "scene.query".into(),
                 "scene.context".into(),
                 "scene.search".into(),
+                "component.get".into(),
                 "scene.bounds".into(),
                 "validation.run".into(),
                 "referenceAsset.register".into(),
@@ -1132,6 +1133,12 @@ fn dispatch(
             let request: studio_core::agent_contract::SceneSearchRequest =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
             serde_json::to_value(crate::agent::search(session, request)?).map_err(serialize_error)
+        }
+        "component.get" => {
+            let request: studio_core::agent_contract::ComponentGetParams =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            serde_json::to_value(crate::agent::component_get(session, request)?)
+                .map_err(serialize_error)
         }
         "scene.query" => {
             let query: SceneQuery =
