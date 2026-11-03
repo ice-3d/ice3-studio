@@ -22,7 +22,7 @@ Studio/Engine/Agent Console 测试命令。
 
 **Spec：** [Studio Asset Prepare 与 Toolchain 功能等价](../specs/2026-11-02-studio-asset-prepare-parity-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - 依赖 Plan-027 和 Plan-028 全部通过。
 - Engine/Agent Console 只消费 Prepared GLB/Tileset，不链接 Prepare 实现。
@@ -34,7 +34,7 @@ Studio/Engine/Agent Console 测试命令。
 - 最终文档必须准确表述 Toolchain 能力替代边界，不能重新写出当前不存在的依赖。
 - Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 2. Review Focus
 
 - Studio profile 统计通过但 Engine 读取失败，必须视为发布阻断。
 - 带 edges Accessor 的 byte alignment、accessor bounds、index type 和 material mapping
@@ -45,7 +45,7 @@ Studio/Engine/Agent Console 测试命令。
 
 ---
 
-### Task 1: 建立 Engine 与 Agent Console 消费契约
+### 2.1 Task 1: 建立 Engine 与 Agent Console 消费契约
 
 **文件：**
 - Create: `scripts/verify-prepare-engine.mjs`
@@ -153,7 +153,7 @@ git commit -m "test(studio): verify engine consumption of prepared edges"
 
 ---
 
-### Task 2: 建立 large-fixture 性能与资源基线
+### 2.2 Task 2: 建立 large-fixture 性能与资源基线
 
 **文件：**
 - Create: `scripts/benchmark-prepare.mjs`
@@ -246,7 +246,7 @@ git commit -m "bench(studio): record asset prepare performance envelope"
 
 ---
 
-### Task 3: 最终文档与能力表述
+### 2.3 Task 3: 最终文档与能力表述
 
 **文件：**
 - Modify: `README.md`
@@ -322,7 +322,7 @@ git commit -m "docs(studio): complete asset prepare capability parity"
 
 ---
 
-### Task 4: 最终全量验收与分支收口
+### 2.4 Task 4: 最终全量验收与分支收口
 
 **文件：**
 - Modify only if verification exposes a defect; otherwise no source edits.
@@ -411,7 +411,7 @@ Critical/Important 修复后做一次 scoped re-review；不得跳过。
 - 不 archive/delete 其它 repository；
 - 汇报 branch、HEAD、commits、测试证据和 deferred minors。
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
 - Spec coverage：Engine consumption、Agent Console/Tileset、performance、resource、
   docs、phase status、full verify 和 final review 均有 task。

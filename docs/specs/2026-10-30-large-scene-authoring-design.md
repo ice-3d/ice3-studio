@@ -10,7 +10,7 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-## Implementation Status
+## 1. Implementation Status
 
 M1 scale-out authoring and M2 large-scene acceptance are implemented: Document schema v2
 migration, validated parameterized components, explicit instances, deterministic instance sets,
@@ -23,7 +23,7 @@ an experimental, default-off execution path because its measured crossover does 
 default enablement; canonical CPU evaluation, GLB export and Toolchain-backed Runtime publication
 are active. The design is therefore implemented with the GPU path explicitly marked experimental.
 
-## 1. Summary
+## 2. Summary
 
 ICE3 Studio needs a scale-out authoring model for large industrial scenes rather than a larger
 collection of one-off modeling primitives. An AI client must be able to describe reusable
@@ -58,7 +58,7 @@ The example validates generic Studio capabilities. Wastewater terminology, equip
 process topology belong to fixture metadata and fixture authoring tools, not Core operation
 names.
 
-## 2. Goals
+## 3. Goals
 
 1. Let AI build large scenes with high-level typed Operations instead of raw mesh submission.
 2. Reuse component geometry across many instances without duplicating Document data.
@@ -72,7 +72,7 @@ names.
    and browser loading.
 10. Keep the modeling vocabulary generic across industries.
 
-## 3. Non-Goals
+## 4. Non-Goals
 
 - Industry-specific operation names or built-in process-plant semantics.
 - Arbitrary scripts, expressions, shader submission, or executable templates.
@@ -84,7 +84,7 @@ names.
 - Replacing Toolchain's LOD, partition, tileset, or render-batching implementation.
 - Loading the complete high-detail source asset before the browser can show useful content.
 
-## 4. Confirmed Decisions
+## 5. Confirmed Decisions
 
 - The first milestone targets scale-out authoring, not isolated GPU microbenchmarks.
 - The large-scene acceptance scale matches the existing large process-plant demonstration.
@@ -98,7 +98,7 @@ names.
 - Large scenes use Toolchain-generated Tilesets and the existing camera-driven Runtime loader.
 - WebGL2 remains the default browser renderer; WebGPU remains an explicit experimental choice.
 
-## 5. System Context
+## 6. System Context
 
 ```text
 External AI / deterministic fixture client
@@ -141,9 +141,9 @@ The dependency boundaries remain unchanged:
 - `studio-server` orchestrates CPU/GPU evaluation and the managed Toolchain sidecar.
 - Viewer uses public read APIs and artifact URLs only.
 
-## 6. Document Model
+## 7. Document Model
 
-### 6.1 Schema Version
+### 7.1 Schema Version
 
 The extended model introduces a new explicit Document schema version. The existing schema is
 read without reinterpretation and is migrated only through a validated revision transaction.
@@ -159,7 +159,7 @@ The migration must:
    reserialization at the new schema version, excluding the schema-version field.
 4. Reject unknown future schema versions rather than guessing.
 
-### 6.2 Component Definition
+### 7.2 Component Definition
 
 A `ComponentDefinition` is a reusable, parameterized DAG of local parts. It is source data, not
 a Web UI component and not an external modeling-application document.
@@ -210,7 +210,7 @@ First-version parameter bindings are references to typed instance values. Arbitr
 expressions, conditionals, loops, file access, URLs, scripts, and executable code are not
 supported.
 
-### 6.3 Component Instances
+### 7.3 Component Instances
 
 `SceneNode.content` gains a component-instance variant that references a ComponentDefinition.
 
@@ -242,7 +242,7 @@ Overrides are keyed by definition part ID and support only:
 An instance cannot replace the internal mesh of a shared part. A requirement for structurally
 different geometry produces a different ComponentDefinition or explicit custom-mesh Node.
 
-### 6.4 Instance Sets
+### 7.4 Instance Sets
 
 An `InstanceSet` is a SceneNode containing a deterministic placement rule:
 
@@ -270,7 +270,7 @@ Instance-set appearance identity is derived from the set ID and stable ordinal. 
 therefore changes the semantic identity of its items and must invalidate dependent connections.
 The API reports the concrete endpoint identities produced by a set.
 
-### 6.5 Connections
+### 7.5 Connections
 
 `SceneNode.content` gains a connection-intent variant:
 
@@ -311,7 +311,7 @@ Validation rejects:
 - routes that cannot meet minimum clearance;
 - unresolved instance-set ordinals.
 
-### 6.6 Stable Identity
+### 7.6 Stable Identity
 
 The source-of-truth identities are:
 
@@ -337,7 +337,7 @@ Component definitions and internal parts are not top-level selectable Runtime ob
 Selection resolves to the owning instance, InstanceSet item, connection, or explicitly declared
 selectable part.
 
-### 6.7 Ownership and Nested Components
+### 7.7 Ownership and Nested Components
 
 A ComponentDefinition may reference another definition, but ownership remains explicit:
 
@@ -347,13 +347,13 @@ A ComponentDefinition may reference another definition, but ownership remains ex
 - definition deletion is rejected while instances or nested references remain;
 - instance deletion is rejected while connections or required Relations still reference it.
 
-## 7. Public API
+## 8. Public API
 
 The API remains JSON-RPC over loopback HTTP with WebSocket events. All writes enter
 `document.apply`; dry-run, idempotency, revision conflict, schema validation, and ChangeSet
 approval semantics do not change.
 
-### 7.1 Operations
+### 8.1 Operations
 
 | Operation | Purpose |
 |---|---|
@@ -377,7 +377,7 @@ The API returns created identities, expanded counts, affected identities, and va
 diagnostics. Bulk high-level Operations are preferred for AI authoring, but no Operation accepts
 arbitrary scripts or merged binary payloads.
 
-### 7.2 Read Models
+### 8.2 Read Models
 
 The existing `scene.get`, `scene.query`, `scene.bounds`, `evaluation.evaluate`, and ChangeSet APIs
 gain generic projections for:
@@ -390,7 +390,7 @@ gain generic projections for:
 
 Derived projections must never mutate source Document data.
 
-### 7.3 Derived Asset Jobs
+### 8.3 Derived Asset Jobs
 
 Large Runtime publication uses asynchronous jobs:
 
@@ -430,7 +430,7 @@ DerivedAssetDescriptor
 The URL is a Studio-owned artifact URL. Absolute filesystem paths and Sidecar workspace paths do
 not cross the public boundary.
 
-### 7.4 Diagnostic Codes
+### 8.4 Diagnostic Codes
 
 New stable codes include:
 
@@ -451,9 +451,9 @@ New stable codes include:
 Diagnostics identify the operation, definition, instance, or connection and include JSON
 Pointers. They never expose credentials or out-of-project paths.
 
-## 8. Evaluation
+## 9. Evaluation
 
-### 8.1 Pipeline
+### 9.1 Pipeline
 
 Evaluation proceeds in a fixed order:
 
@@ -470,7 +470,7 @@ Evaluation proceeds in a fixed order:
 
 No derived result can be committed as Document truth.
 
-### 8.2 Shared Geometry
+### 9.2 Shared Geometry
 
 Instances with the same definition, parameter values, part state, and kernel identity share one
 mesh result. GLB export may reference the same mesh from multiple standard glTF Nodes.
@@ -479,7 +479,7 @@ Effective triangle count is the sum visible through instance placement. Unique g
 unique triangle count are reported separately, proving that repeated equipment reuses storage and
 computation.
 
-### 8.3 Cache Layers
+### 9.3 Cache Layers
 
 The evaluator uses these deterministic layers:
 
@@ -497,7 +497,7 @@ In-memory caches are process-scoped. Durable caches live under the project's
 quarantined and regenerated. Cached files are never included in Git or returned as authoritative
 Document data.
 
-### 8.4 Incremental Invalidation
+### 9.4 Incremental Invalidation
 
 | Change | Required invalidation |
 |---|---|
@@ -514,9 +514,9 @@ Document data.
 The implementation must prefer incremental caches but may perform a bounded full fallback after
 device loss or cache corruption. Fallback reason and work performed are reported as evidence.
 
-## 9. Native GPU Evaluation
+## 10. Native GPU Evaluation
 
-### 9.1 Boundary
+### 10.1 Boundary
 
 The native GPU is a backend for derived geometry. It does not own Documents, revisions,
 approvals, persistence, authorization, or canonical export semantics.
@@ -525,7 +525,7 @@ approvals, persistence, authorization, or canonical export semantics.
 implements execution, device lifecycle, memory accounting, and parity measurement. `studio-server`
 performs scheduling and evidence recording.
 
-### 9.2 Initial Kernels
+### 10.2 Initial Kernels
 
 The first GPU implementation supports:
 
@@ -540,7 +540,7 @@ The first GPU implementation supports:
 Component DAG validation, parameter validation, identity allocation, connection semantics, and
 canonical export rules remain on CPU.
 
-### 9.3 Scheduling
+### 10.3 Scheduling
 
 Host-selected modes are:
 
@@ -562,7 +562,7 @@ Interactive candidate work has priority over background publication. Oversized j
 chunked, use CPU fallback in `auto` mode, or fail with a budget diagnostic. GPU work never blocks
 health checks, reads, revision events, or ChangeSet approval.
 
-### 9.4 Correctness and Fallback
+### 10.4 Correctness and Fallback
 
 CPU reference geometry remains normative. GPU parity checks require:
 
@@ -574,7 +574,7 @@ CPU reference geometry remains normative. GPU parity checks require:
 Device loss invalidates GPU caches and fails in-flight jobs with a structured diagnostic.
 Committed revisions and disk data remain unchanged. `auto` mode may rerun failed work on CPU.
 
-### 9.5 Evidence
+### 10.5 Evidence
 
 Evaluation evidence includes:
 
@@ -586,9 +586,9 @@ Evaluation evidence includes:
 - estimated and peak GPU memory;
 - parity result.
 
-## 10. Publication and Streaming
+## 11. Publication and Streaming
 
-### 10.1 Publication Pipeline
+### 11.1 Publication Pipeline
 
 Large-scene publication proceeds through:
 
@@ -606,7 +606,7 @@ approved revision or candidate
 Toolchain remains the owner of Runtime LOD, spatial partitioning, coarse content, tileset
 generation, and static render batches.
 
-### 10.2 Small and Large Asset Selection
+### 11.2 Small and Large Asset Selection
 
 - Small scenes use the existing single GLB path.
 - Large scenes use a Toolchain Tileset and the existing camera-driven Runtime loader.
@@ -614,7 +614,7 @@ generation, and static render batches.
 - API callers receive the selected kind and evidence; they do not provide executable or Toolchain
   paths.
 
-### 10.3 Artifact Layout
+### 11.3 Artifact Layout
 
 The published package preserves Toolchain-relative structure:
 
@@ -630,7 +630,7 @@ Studio serves it through a read-only versioned artifact route. Requests containi
 parent traversal, or symlink escapes are rejected. Content types are explicit. Immutable assets
 may use content-digest caching headers.
 
-### 10.4 Job Scheduling and Cancellation
+### 11.4 Job Scheduling and Cancellation
 
 - Interactive candidate previews take priority over background full-scene publication.
 - At most one publication job for the same project and revision is active.
@@ -639,7 +639,7 @@ may use content-digest caching headers.
 - Previously ready assets remain available until replacement is complete.
 - Sidecar failure does not change the Document or remove the last valid artifact.
 
-### 10.5 Workbench Loading
+### 11.5 Workbench Loading
 
 The Workbench owns exactly one active asset handle:
 
@@ -659,7 +659,7 @@ tileset state, resident Tile count, GPU bytes, cache activity, LOD fallback, and
 WebGL2 remains the default. WebGPU can be selected only through the existing explicit
 experimental control and capability probe.
 
-## 11. Large Industrial Acceptance Scene
+## 12. Large Industrial Acceptance Scene
 
 The acceptance fixture is project-scoped and generic:
 
@@ -689,9 +689,9 @@ The deterministic AI fixture client must:
 6. evaluate, export, partition, reload, undo, and redo;
 7. prove stable identity across all stages.
 
-## 12. Performance and Verification
+## 13. Performance and Verification
 
-### 12.1 Benchmark Suites
+### 13.1 Benchmark Suites
 
 The existing small-scene benchmark remains. A new large-scene suite records:
 
@@ -709,7 +709,7 @@ The existing small-scene benchmark remains. A new large-scene suite records:
 Reports are machine-readable JSON. Device-identifying data, credentials, and absolute paths are
 excluded.
 
-### 12.2 Quantitative Gates
+### 13.2 Quantitative Gates
 
 The large-scene release gate requires:
 
@@ -736,7 +736,7 @@ Absolute time thresholds for the 5.5M to 7.5M scene are established from the fir
 release baseline rather than invented before implementation. Every revision to those thresholds
 is recorded with the benchmark result and hardware-neutral tier description.
 
-### 12.3 Correctness Evidence
+### 13.3 Correctness Evidence
 
 Before performance is accepted:
 
@@ -750,7 +750,7 @@ Before performance is accepted:
 - cancellation and failure never expose partial assets or mutate committed revisions;
 - the form and API schemas expose the same constrained parameter contract.
 
-## 13. Security
+## 14. Security
 
 - Component definitions are declarative data and cannot execute code.
 - Parameters are bounded by type, size, count, and numeric limits.
@@ -763,9 +763,9 @@ Before performance is accepted:
   persistence semantics.
 - Diagnostics do not expose credentials, Agent policy, or out-of-workspace paths.
 
-## 14. Testing Strategy
+## 15. Testing Strategy
 
-### 14.1 Core Unit Tests
+### 15.1 Core Unit Tests
 
 - Component schema, parameter types, overrides, and bounded validation.
 - DAG cycle detection and nested-reference invalidation.
@@ -775,7 +775,7 @@ Before performance is accepted:
 - Shared geometry keys and incremental invalidation.
 - Schema migration and canonical reserialization.
 
-### 14.2 API and Transaction Tests
+### 15.2 API and Transaction Tests
 
 - Every new Operation in a ChangeSet and direct `document.apply`.
 - Dry-run equivalence and idempotent retry.
@@ -784,7 +784,7 @@ Before performance is accepted:
 - Derived asset job state transitions, cancellation, and stale tasks.
 - Artifact URL containment and content headers.
 
-### 14.3 GPU Tests
+### 15.3 GPU Tests
 
 - Capability and device initialization.
 - Per-kernel CPU parity.
@@ -793,7 +793,7 @@ Before performance is accepted:
 - Memory admission, pressure, and CPU fallback.
 - Device loss and recovery without committed-state changes.
 
-### 14.4 Integration and E2E
+### 15.4 Integration and E2E
 
 - Deterministic AI client builds the large industrial fixture using high-level Operations.
 - Source export passes Toolchain validation and preparation.
@@ -803,38 +803,38 @@ Before performance is accepted:
 - Undo, redo, save, reopen, and replay produce the same stable identities.
 - Existing MVP and Toolchain sidecar suites show no regression.
 
-## 15. Delivery Milestones
+## 16. Delivery Milestones
 
 Each milestone has its own implementation plan and verification gate.
 
-### M1: Scale-Out Authoring Foundation
+### 16.1 M1: Scale-Out Authoring Foundation
 
 - Document schema and migration.
 - Component, instance, instance-set, and connection Operations.
 - CPU reference evaluator and persistent cache.
 - Public schemas and Workbench parameter forms.
 
-### M2: Large-Scene Acceptance
+### 16.2 M2: Large-Scene Acceptance
 
 - Generic large industrial fixture generated through Studio APIs.
 - Deterministic high-level AI client.
 - Source GLB, topology, identity, and incremental-cache verification.
 - Large-scene benchmark baseline.
 
-### M3: Native GPU Evaluation
+### 16.3 M3: Native GPU Evaluation
 
 - `studio-gpu` backend and initial kernels.
 - Scheduler, parity, memory controls, fallback, and evidence.
 - Measured CPU/GPU comparison and release gate.
 
-### M4: Large Runtime Publication
+### 16.4 M4: Large Runtime Publication
 
 - Asynchronous derived-asset jobs.
 - Toolchain preparation, partition, LOD, and render-batching orchestration.
 - Versioned artifact serving.
 - Workbench Tileset streaming, lifecycle, and evidence.
 
-## 16. Acceptance Criteria
+## 17. Acceptance Criteria
 
 This design is complete when:
 
@@ -851,7 +851,7 @@ This design is complete when:
 9. Existing MVP, ChangeSet, Toolchain, and WebGL2 workflows remain backward compatible.
 10. All new capabilities remain generic and industry-neutral at the Core and API boundary.
 
-## 17. Risks and Mitigations
+## 18. Risks and Mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -866,7 +866,7 @@ This design is complete when:
 | Partial publication becomes visible | Content-addressed staging, manifest verification, and atomic switch |
 | Migration changes old projects | Explicit schema migration, golden tests, and revision-safe writes |
 
-## 18. Reference Decisions
+## 19. Reference Decisions
 
 - [Document as Source of Truth](../decisions/0001-document-as-source-of-truth.md)
 - [Local API Boundary](../decisions/0002-local-api-boundary.md)

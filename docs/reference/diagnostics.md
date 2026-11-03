@@ -16,7 +16,7 @@ JSON-RPC error 通过 `error.diagnosticCode` 暴露该 code；Document validatio
 operation/object 位置、expected/actual 值和简短恢复建议。这些字段是附加信息，稳定的
 Diagnostic code 仍是主要机器契约。
 
-## Diagnostic Fields
+## 1. Diagnostic Fields
 
 | Field | Meaning |
 |---|---|
@@ -26,7 +26,7 @@ Diagnostic code 仍是主要机器契约。
 | `objectId` | Stable object or project identifier, when applicable |
 | `pointer` | RFC 6901 JSON Pointer to the invalid document field |
 
-## Code Inventory
+## 2. Code Inventory
 
 | Code | Meaning |
 |---|---|
@@ -58,7 +58,7 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_GPU_DEVICE_LOST` | The native GPU device was lost during derived-geometry evaluation |
 | `ICE3_STUDIO_GPU_PARITY_FAILED` | GPU output failed finite-value, topology, bounds, or CPU parity validation |
 
-## 源导入 CLI 代码
+## 3. 源导入 CLI 代码
 
 这些码由 `ice3-studio import` 返回或作为 warning 进入命令结果，不属于 JSON-RPC
 `DiagnosticCode` enum。
@@ -99,7 +99,7 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` | JT 层级、transform、bounds 或 metadata 映射无效 |
 | `ICE3_STUDIO_IMPORT_JT_TIMEOUT` | JT converter/worker 超过配置期限并被终止 |
 
-## Asset Prepare 与 Partition CLI 代码
+## 4. Asset Prepare 与 Partition CLI 代码
 
 这些码由 `ice3-studio import/build/inspect/partition` 返回，或者作为 build warning 进入
 `ice3-asset-build-report`。它们不属于 JSON-RPC `DiagnosticCode` enum。
@@ -117,7 +117,7 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_ASSET_REPORT_WRITE_FAILED` | report 序列化、temporary 写入或发布失败 |
 | `ICE3_STUDIO_ASSET_IO` | GLB/report 原子发布、rollback 或文件系统操作失败 |
 
-## 恢复规则
+## 5. 恢复规则
 
 - validation 或 operation 失败保持当前 revision 不变。
 - revision 冲突要求先重新读取当前 revision，再重新提交。

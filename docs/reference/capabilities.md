@@ -14,7 +14,7 @@
 不含 `toolchain`。capabilities 调用方必须按当前 generated schema 解析，不能把版本
 字符串视为兼容性承诺。
 
-## 传输与鉴权
+## 1. 传输与鉴权
 
 - JSON-RPC 2.0 over HTTP `POST /rpc`，另有 WebSocket 推送 revision 与 ChangeSet 事件。
 - 只监听 `127.0.0.1`。
@@ -23,13 +23,13 @@
 - `review-required` 模式下 Agent 令牌不能直接 `document.apply` 或 `changeset.commit`；
   `autonomous` 模式下允许直接写入。
 
-## JSON-RPC 方法（固化 37，运行时 39）
+## 2. JSON-RPC 方法（固化 37，运行时 39）
 
 `schemas/studio-api.schema.json` 固化 37 个方法。Server 的 `system.capabilities` 额外
 公布两个实验性 GPU scene 方法 `evaluation.waitScene` 和
 `evaluation.visibleInstances`，因此运行时能力清单共 39 个。
 
-### system（3）
+### 2.1 system（3）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -37,7 +37,7 @@
 | `system.capabilities` | 否 | 无 | 方法清单、compute 证据、写模式与限制 |
 | `system.agentManifest` | 否 | 无 | Agent 工具、当前令牌权限、调用上限、工作流提示 |
 
-### project（5）
+### 2.2 project（5）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -47,7 +47,7 @@
 | `project.save` | 是 | 无 | 当前已持久化 revision |
 | `project.close` | 是 | 无 | 释放写锁并关闭项目 |
 
-### document（5）
+### 2.3 document（5）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -57,7 +57,7 @@
 | `document.redo` | 是 | 无 | 同上 |
 | `document.history` | 否 | 无 | 操作历史 |
 
-### scene（5）
+### 2.4 scene（5）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -67,13 +67,13 @@
 | `scene.search` | 否 | `SceneSearchRequest` | revision 绑定的 source/derived 节点页 |
 | `scene.bounds` | 否 | 无 | 按 node ID 的世界空间 bounds |
 
-### validation（1）
+### 2.5 validation（1）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
 | `validation.run` | 否 | 无 | 诊断数组 |
 
-### evaluation（5）
+### 2.6 evaluation（5）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -83,14 +83,14 @@
 | `evaluation.waitScene` | 否 | `{ revision? }` | 实验性；已发布的 GPU 场景状态 |
 | `evaluation.visibleInstances` | 否 | `{ targetRevision, planes[6][4] }` | 实验性；可见实例索引与稳定 node ID |
 
-### export（2）
+### 2.7 export（2）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
 | `export.sourceGlb` | 是 | 无 | Source GLB 导出元数据 |
 | `export.runtimePreview` | 是 | `RuntimePreviewRequest` | 已提交或候选的预处理预览元数据 |
 
-### changeset（10）
+### 2.8 changeset（10）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -105,7 +105,7 @@
 | `changeset.list` | 否 | 无 | ChangeSet 列表 |
 | `changeset.discard` | 是 | `{ changeSetId }` | 丢弃结果 |
 
-### referenceAsset（3）
+### 2.9 referenceAsset（3）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -113,7 +113,7 @@
 | `referenceAsset.get` | 否 | `{ assetId }` | 描述符与流式资产 URL |
 | `referenceAsset.bindings` | 否 | `{ assetId, cursor?, limit? }` | 稳定设备绑定页（limit 1..=100） |
 
-## Operation 类型（29）
+## 3. Operation 类型（29）
 
 `document.apply` 与 `changeset.addOperations` 接受同一组操作。
 
@@ -138,7 +138,7 @@ Vector3 直接写 `{x,y,z}`，Color 直接写四元数组，Enumeration 直接�
 Material 的 `opacity < 1` 导出为 alpha blend；`shading` 可为 `directional`、`flat` 或
 `water`，省略时等价于 `directional`。
 
-## ChangeSet 状态（7）
+## 4. ChangeSet 状态（7）
 
 | 状态 | 含义 |
 |---|---|
@@ -152,7 +152,7 @@ Material 的 `opacity < 1` 导出为 alpha blend；`shading` 可为 `directional
 
 只有 `ready` 状态且提交时 digest 与审批时一致才会落为 revision。
 
-## 诊断码（27）
+## 5. 诊断码（27）
 
 全部以 `ICE3_STUDIO_` 为前缀，稳定且不复用。
 
@@ -180,7 +180,7 @@ JT 另有
 `ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` 和
 `ICE3_STUDIO_IMPORT_JT_TIMEOUT`。
 
-## CLI
+## 6. CLI
 
 ```
 ice3-studio schema --output <dir> [--check]
@@ -250,7 +250,7 @@ process group 后才开始执行；批准 converter 不得通过新 session、da
 `--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
 替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。
 
-### Asset Prepare
+### 6.1 Asset Prepare
 
 `import` 使用共享 `PrepareArtifact` 生成 `ice3-prepared` GLB、真实 metrics、
 preparation metadata 和 budget，但默认 `edges=false`。已有 source import 入口行为不变，
@@ -296,7 +296,7 @@ edges；edge bytes 计入 part/chunk budget。输出先写入同父目录 stagin
 替换 workspace/root。Static render batch 烘焙 node transform 时保留 `COLOR_0`，并继续
 通过 `_ICE3_SEMANTIC_INDEX` 映射原 Selection，不改变 fine geometry 的外观或业务身份。
 
-### Engine 消费
+### 6.2 Engine 消费
 
 Engine `@ice3/assets` 直接读取 Studio 产物，不链接 Studio Prepare 实现：
 
@@ -309,7 +309,7 @@ Engine `@ice3/assets` 直接读取 Studio 产物，不链接 Studio Prepare 实�
 `node scripts/verify-prepare-engine.mjs` 对 Studio `build` 和 direct partition 执行真实
 Engine reader contract，结果写入 `output/prepare-engine-contract.json`。
 
-### Prepare 性能基线
+### 6.3 Prepare 性能基线
 
 `npm run benchmark:prepare` 对 large-industrial fixture 的五个 case 执行 warmup 1 次 +
 测量 5 次：
@@ -354,7 +354,7 @@ revision。
 `plant/equipment/<tag>`；无 tag 的独立场景对象使用 source owner ID。`nodeSelectionIds`
 按稳定 ID 排序，bounds 使用 world-space union，`area` 优先取 `train`，否则取 `stage`。
 
-## 环境变量
+## 7. 环境变量
 
 | 变量 | 作用 |
 |---|---|
@@ -371,7 +371,7 @@ revision。
 `ICE3_JT_CONVERTER` 由 Studio import worker 直接解析。相对路径基于 Studio 进程工作
 目录，部署时推荐使用绝对路径。Studio Server 不再读取任何 Sidecar/Node runtime 配置。
 
-## 工程格式
+## 8. 工程格式
 
 工程是一个目录，语义层与几何层分离：
 
@@ -394,7 +394,7 @@ revision。
 - 默认排除 `cache/` 和 `references/`，因此容器通常只有几百 KB；引用资产需要单独分发。
 - `pack` 会生成 `resources/summary.json` 与 `resources/layout.svg`（按区域着色的俯视散点图），便于不开编辑器时判断工程内容。
 
-## 参考资产清单
+## 9. 参考资产清单
 
 资产发布方提供一份清单，Studio 只按结构读取，不解释任何行业字段：
 
@@ -429,7 +429,7 @@ revision。
 Viewer 按槽位取色、按 `hidden` 隐藏，不解析节点名、不做行业推断。早期清单用
 `equipment` 作为数组键，读取时兼容。
 
-## 原生预览
+## 10. 原生预览
 
 Studio Core 把文档求值成 GLB，committed preview 原子写入
 `cache/preview/<revision>.glb`，candidate preview 写入
@@ -439,7 +439,7 @@ Studio Core 把文档求值成 GLB，committed preview 原子写入
 Preview 不启动外部进程，也没有可选优化器 fallback。预览失败不会修改当前 revision 或
 已有有效 preview；`system.capabilities` 只报告 Studio 自身的能力。
 
-## Viewer 能力
+## 11. Viewer 能力
 
 `apps/viewer/src` 的实际模块：
 

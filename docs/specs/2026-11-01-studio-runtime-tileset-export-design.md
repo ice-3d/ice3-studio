@@ -93,7 +93,7 @@ output/
 不发布完整 source GLB。source GLB 和 Sidecar partition staging 只存在于 Studio project
 `cache/` 中；最终 Bundle 只保留流式 Tile、manifest 和 provenance。
 
-### `bindings.json`
+### 4.1 `bindings.json`
 
 ```json
 {
@@ -133,7 +133,7 @@ Binding 由 evaluated Scene Node metadata 聚合：
 - `area` 优先取 `metadata.train`，否则取 `metadata.stage`。
 - metadata 只保留可序列化字符串，不返回本地路径或凭据。
 
-### `export.json`
+### 4.2 `export.json`
 
 ```json
 {

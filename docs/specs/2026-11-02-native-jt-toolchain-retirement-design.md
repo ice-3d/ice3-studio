@@ -406,7 +406,7 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 
 ## 11. 实施阶段
 
-### Phase 5A：Native JT bridge 与 baseline
+### 11.1 Phase 5A：Native JT bridge 与 baseline
 
 - 增加 `jt` feature、`SourceFormat::Jt`、CLI adapter 和隔离 worker 路径。
 - 实现受控 converter 执行、GLB 校验、JT metadata、Selection、shared origin 和
@@ -416,7 +416,7 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 
 **退出条件：** Studio JT 正向、负向、确定性、资源上限和 parity 全部通过。
 
-### Phase 5B：Studio 切换为唯一生产路径
+### 11.2 Phase 5B：Studio 切换为唯一生产路径
 
 **状态：Implemented（2026-11-02）。**
 
@@ -429,7 +429,7 @@ Studio 不再引用 Toolchain 后，Toolchain repository 执行以下收口：
 
 **退出条件：** 不启动 Toolchain 的情况下 Studio 全功能验证通过。
 
-### Phase 5C：最终退役与归档准备
+### 11.3 Phase 5C：最终退役与归档准备
 
 **状态：Implemented（2026-11-02）。**
 

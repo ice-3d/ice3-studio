@@ -10,7 +10,7 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-## Implementation Outcome
+## 1. Implementation Outcome
 
 Phase 3 已实现。`studio-import` 提供原生 FBX ASCII/Binary 与 USD ASCII/Binary adapter，
 CLI 通过 `--adapter auto|gltf|obj|fbx|usd` 接入。FBX/USD 在 Studio 自带 worker 中解析，
@@ -36,7 +36,7 @@ Node.js 24.22.1（仅 Viewer、E2E 和 parity）。
 
 **Spec：** [Studio 原生 Asset Pipeline 迁移设计](../specs/2026-11-01-native-asset-pipeline-migration-design.md)
 
-## Global Constraints
+## 2. Global Constraints
 
 - Phase 3 只覆盖 FBX 与 USD；STEP、IFC、JT 和最终 Toolchain 退役留在后续阶段。
 - 新 import 路径不得启动外部 DCC 应用、Node、Toolchain Sidecar 或格式转换 executable。
@@ -50,7 +50,7 @@ Node.js 24.22.1（仅 Viewer、E2E 和 parity）。
 - 所有 warning、Diagnostic 和输出必须确定性排序。
 - Git author/committer 为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 3. Review Focus
 
 - Binary FBX property arrays、嵌套对象和共享 Geometry 不能在解析时越界或无限分配。
 - FBX 单位、旋转顺序、坐标手性和 local origin 必须只应用一次。
@@ -60,7 +60,7 @@ Node.js 24.22.1（仅 Viewer、E2E 和 parity）。
 
 ---
 
-### Task 1: 扩展 import 契约、限制和 worker 协议
+### 3.1 Task 1: 扩展 import 契约、限制和 worker 协议
 
 **文件：**
 - Create: `crates/studio-import/src/limits.rs`
@@ -189,7 +189,7 @@ git add Cargo.toml Cargo.lock crates/studio-import
 git commit -m "feat(studio): isolate native source import workers"
 ```
 
-### Task 2: 实现原生 FBX importer
+### 3.2 Task 2: 实现原生 FBX importer
 
 **文件：**
 - Create: `crates/studio-import/src/fbx.rs`
@@ -278,7 +278,7 @@ git add Cargo.toml Cargo.lock crates/studio-import
 git commit -m "feat(studio): import FBX with a native decoder"
 ```
 
-### Task 3: 实现原生 USD importer
+### 3.3 Task 3: 实现原生 USD importer
 
 **文件：**
 - Create: `crates/studio-import/src/usd.rs`
@@ -373,7 +373,7 @@ git add Cargo.toml Cargo.lock crates/studio-import
 git commit -m "feat(studio): import USD with a native stage"
 ```
 
-### Task 4: 接入 CLI registry 与 worker
+### 3.4 Task 4: 接入 CLI registry 与 worker
 
 **文件：**
 - Create: `crates/studio-cli/tests/fbx_usd_import.rs`
@@ -455,7 +455,7 @@ git add crates/studio-cli Cargo.lock
 git commit -m "feat(studio-cli): import FBX and USD without external bridges"
 ```
 
-### Task 5: parity 与失败关闭证据
+### 3.5 Task 5: parity 与失败关闭证据
 
 **文件：**
 - Create: `scripts/compare-fbx-usd-imports.mjs`
@@ -500,7 +500,7 @@ git add fixtures/parity scripts/compare-fbx-usd-imports.mjs
 git commit -m "test(studio): add native FBX and USD parity"
 ```
 
-### Task 6: 退役旧 FBX/USD bridge 与完整验证
+### 3.6 Task 6: 退役旧 FBX/USD bridge 与完整验证
 
 **文件：**
 - Modify outside Studio: `ice3-toolchain/packages/cli/src/commands.ts`

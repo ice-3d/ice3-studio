@@ -27,7 +27,7 @@ counts without transferring the full 5M-triangle payload to the benchmark.
 
 **Spec:** [`docs/specs/2026-10-30-large-scene-authoring-design.md`](../specs/2026-10-30-large-scene-authoring-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - Build the acceptance scene through typed public Operations; do not write project snapshots directly.
 - Keep Core and API vocabulary industry-neutral. Equipment names and areas belong to fixture metadata.
@@ -42,7 +42,7 @@ counts without transferring the full 5M-triangle payload to the benchmark.
 - Every behavior change follows RED-GREEN-REFACTOR and ends in a focused commit.
 - Root acceptance is `npm run verify`; the large benchmark is an additional release gate.
 
-## Review Focus
+## 2. Review Focus
 
 - A catalogue or layout change must not drift below 200 or above 240 primary objects, lose one of
   the four primary structures, vary from six process trains, or leave fewer than ten secondary
@@ -58,7 +58,7 @@ counts without transferring the full 5M-triangle payload to the benchmark.
 
 ---
 
-### Task 1: Add a lightweight evaluated-scene statistics API
+### 2.1 Task 1: Add a lightweight evaluated-scene statistics API
 
 **Files:**
 - Modify: `crates/studio-server/src/rpc.rs`
@@ -253,7 +253,7 @@ git commit -m "feat(studio-server): expose evaluated scene statistics"
 
 ---
 
-### Task 2: Define the generic fixture catalogue and scale invariants
+### 2.2 Task 2: Define the generic fixture catalogue and scale invariants
 
 **Files:**
 - Create: `fixtures/large-industrial-site/catalog.mjs`
@@ -415,7 +415,7 @@ git commit -m "test(studio-fixture): define large industrial scene catalogue"
 
 ---
 
-### Task 3: Build reusable detailed equipment templates
+### 2.3 Task 3: Build reusable detailed equipment templates
 
 **Files:**
 - Create: `fixtures/large-industrial-site/templates.mjs`
@@ -590,7 +590,7 @@ git commit -m "feat(studio-fixture): build reusable industrial equipment templat
 
 ---
 
-### Task 4: Generate the factory layout and high-level Operation plan
+### 2.4 Task 4: Generate the factory layout and high-level Operation plan
 
 **Files:**
 - Create: `fixtures/large-industrial-site/layout.mjs`
@@ -839,7 +839,7 @@ git commit -m "feat(studio-fixture): generate large industrial layout operations
 
 ---
 
-### Task 5: Add ports, process topology, and routed connections
+### 2.5 Task 5: Add ports, process topology, and routed connections
 
 **Files:**
 - Create: `fixtures/large-industrial-site/topology.mjs`
@@ -948,7 +948,7 @@ git commit -m "feat(studio-fixture): connect large industrial process topology"
 
 ---
 
-### Task 6: Run the plan through the public API and verify evaluated scale
+### 2.6 Task 6: Run the plan through the public API and verify evaluated scale
 
 **Files:**
 - Create: `scripts/run-large-industrial-fixture.mjs`
@@ -1059,7 +1059,7 @@ git commit -m "test(studio-fixture): verify large industrial scene through publi
 
 ---
 
-### Task 7: Add quantified incremental and rendering-preparation benchmarks
+### 2.7 Task 7: Add quantified incremental and rendering-preparation benchmarks
 
 **Files:**
 - Create: `benchmarks/large-industrial-scene.mjs`
@@ -1149,7 +1149,7 @@ git commit -m "perf(studio-fixture): benchmark large industrial authoring"
 
 ---
 
-### Task 8: Document the fixture and run the final repository gate
+### 2.8 Task 8: Document the fixture and run the final repository gate
 
 **Files:**
 - Create: `docs/guides/large-industrial-fixture.md`
@@ -1211,9 +1211,9 @@ not staged.
 
 ---
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
-### Spec Coverage
+### 3.1 Spec Coverage
 
 | Spec requirement | Plan task |
 |---|---|
@@ -1230,7 +1230,7 @@ not staged.
 | Machine-readable quantitative evidence | 1, 6, 7 |
 | Documentation and full regression | 8 |
 
-### Type Consistency
+### 3.2 Type Consistency
 
 - `EQUIPMENT_GROUPS` is the shared source for definitions and counts.
 - Definitions are named by generic `kind`; display names and industry labels live in metadata.
@@ -1239,7 +1239,7 @@ not staged.
 - Connection endpoint objects use M1's `{ kind: "instance", node_id, port }` schema.
 - Monetary or sector-specific terminology does not enter Core or public Operation names.
 
-### Scope Check
+### 3.3 Scope Check
 
 This plan produces a working, independently testable M2 authoring and benchmark milestone. Native
 GPU execution and Toolchain Tileset publication remain in M3 and M4.

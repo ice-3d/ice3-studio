@@ -26,7 +26,7 @@ React Viewer、WebGL2、Playwright、Google Chrome
 
 **Spec:** `docs/specs/2026-11-01-realistic-wastewater-plant-asset-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - 使用 Node.js 24.22.1 LTS 和 npm 11 或更高版本。
 - 工程必须保持原创；参考照片不得复制进仓库、测试夹具、截图或发布物。
@@ -39,7 +39,7 @@ React Viewer、WebGL2、Playwright、Google Chrome
 - 临时截图和浏览器状态必须在交付前清理；验收截图只写现有 `output/`。
 - 有效三角形目标为 300,000 至 500,000，唯一三角形不超过 150,000。
 
-## Review Focus
+## 2. Review Focus
 
 - 管线端点引用未知实例、未知端口或介质不匹配时，必须在创建 revision 前失败，而不是发布
   部分场景。
@@ -50,9 +50,9 @@ React Viewer、WebGL2、Playwright、Google Chrome
 
 ---
 
-## File Structure
+## 3. File Structure
 
-### New files
+### 3.1 New files
 
 - `scripts/wastewater-plant/model-kit.mjs`：创建 Builder、工程细节组件和确定性几何辅助。
 - `scripts/wastewater-plant/components.mjs`：所有处理构筑物、设备和通用工程组件。
@@ -60,14 +60,14 @@ React Viewer、WebGL2、Playwright、Google Chrome
 - `scripts/wastewater-plant/validate.mjs`：拓扑、净距、ID、预算和发布前校验。
 - `scripts/tests/wastewater-plant-model.test.mjs`：资产计划、拓扑、性能和命名契约。
 
-### Modified files
+### 3.2 Modified files
 
 - `scripts/build-wastewater-model.mjs`：保留 CLI 入口和 `buildPlan` 兼容导出。
 - `scripts/verify.mjs`：加入污水处理厂资产契约测试。
 - `projects/README.md`：更新工艺、规模、视角和已知限制。
 - `docs/README.md`：计划完成后将 SPEC-012 与 PLAN-015 状态同步为 Implemented。
 
-### Generated files
+### 3.3 Generated files
 
 - `projects/wastewater-plant/**`：由生成器重建的工程真源。
 - `output/wwtp-after-optimization.png`：最终总览验收截图。
@@ -75,7 +75,7 @@ React Viewer、WebGL2、Playwright、Google Chrome
 
 ---
 
-### Task 1: Split the Generator Without Changing Output
+### 3.4 Task 1: Split the Generator Without Changing Output
 
 **Files:**
 - Create: `scripts/wastewater-plant/model-kit.mjs`
@@ -200,7 +200,7 @@ git commit -m "refactor(wwtp): split asset generator into modules"
 
 ---
 
-### Task 2: Add Engineering Validation and Budget Gates
+### 3.5 Task 2: Add Engineering Validation and Budget Gates
 
 **Files:**
 - Create: `scripts/wastewater-plant/validate.mjs`
@@ -402,7 +402,7 @@ git commit -m "test(wwtp): enforce asset topology and budget contracts"
 
 ---
 
-### Task 3: Add Reusable Engineering Detail Primitives
+### 3.6 Task 3: Add Reusable Engineering Detail Primitives
 
 **Files:**
 - Modify: `scripts/wastewater-plant/model-kit.mjs`
@@ -515,7 +515,7 @@ git commit -m "feat(wwtp): add engineering detail primitives"
 
 ---
 
-### Task 4: Rebuild Circular Clarifiers and Biological Basins
+### 3.7 Task 4: Rebuild Circular Clarifiers and Biological Basins
 
 **Files:**
 - Modify: `scripts/wastewater-plant/components.mjs`
@@ -615,7 +615,7 @@ git commit -m "feat(wwtp): rebuild clarifiers and biological basins"
 
 ---
 
-### Task 5: Add Recognizable Process Equipment and Building Detail
+### 3.8 Task 5: Add Recognizable Process Equipment and Building Detail
 
 **Files:**
 - Modify: `scripts/wastewater-plant/model-kit.mjs`
@@ -710,7 +710,7 @@ git commit -m "feat(wwtp): add process equipment and building detail"
 
 ---
 
-## Task 6: Reorganize the Site, Roads and Readable Names
+## 4. Task 6: Reorganize the Site, Roads and Readable Names
 
 **Files:**
 - Modify: `scripts/wastewater-plant/site-plan.mjs`
@@ -822,7 +822,7 @@ git commit -m "feat(wwtp): rebuild plant circulation and site details"
 
 ---
 
-### Task 7: Complete Pipe Routing, Fittings and Supports
+### 4.1 Task 7: Complete Pipe Routing, Fittings and Supports
 
 **Files:**
 - Modify: `scripts/wastewater-plant/model-kit.mjs`
@@ -942,7 +942,7 @@ git commit -m "feat(wwtp): complete pipe fittings and supports"
 
 ---
 
-## Task 8: Add Material and Surface Depth
+## 5. Task 8: Add Material and Surface Depth
 
 **Files:**
 - Modify: `scripts/wastewater-plant/site-plan.mjs`
@@ -1028,7 +1028,7 @@ git commit -m "feat(wwtp): add realistic material and surface detail"
 
 ---
 
-## Task 9: Integrate Asset Verification into the Project Gate
+## 6. Task 9: Integrate Asset Verification into the Project Gate
 
 **Files:**
 - Modify: `scripts/verify.mjs:25-85`
@@ -1113,7 +1113,7 @@ git commit -m "test(wwtp): gate asset generation and verification"
 
 ---
 
-## Task 10: Regenerate, Inspect and Clean Up
+## 7. Task 10: Regenerate, Inspect and Clean Up
 
 **Files:**
 - Modify: `projects/wastewater-plant/**`

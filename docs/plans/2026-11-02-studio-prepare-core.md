@@ -23,7 +23,7 @@ Prepare 实现，但默认关闭 edges；新增 `build` 默认开启 edges。
 
 **Spec：** [Studio Asset Prepare 与 Toolchain 功能等价](../specs/2026-11-02-studio-asset-prepare-parity-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - 不恢复 Toolchain、Node Asset Runtime、外部 DCC、Blender、`bpy` 或 shell bridge。
 - Prepared GLB 只能由 `studio-assets::prepare` 语义路径生成。
@@ -38,7 +38,7 @@ Prepare 实现，但默认关闭 edges；新增 `build` 默认开启 edges。
 - Legacy Toolchain 只允许在一次性 baseline capture 中读取，普通测试不得依赖它。
 - Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 2. Review Focus
 
 - 共面三角形不能被错误生成 face diagonal；开放边界、硬边和共享顶点必须稳定。
 - Edge material、line primitive 和 index accessor 必须能被 Engine 实际读取，而不只是
@@ -51,7 +51,7 @@ Prepare 实现，但默认关闭 edges；新增 `build` 默认开启 edges。
 
 ---
 
-### Task 1: 固化 legacy Prepare baseline
+### 2.1 Task 1: 固化 legacy Prepare baseline
 
 **文件：**
 - Create: `fixtures/source-import/gltf/prepare-cube.gltf`
@@ -158,7 +158,7 @@ git commit -m "test(studio): capture legacy asset prepare baseline"
 
 ---
 
-### Task 2: 建立 AssetMetrics、Budget 与 Report 类型
+### 2.2 Task 2: 建立 AssetMetrics、Budget 与 Report 类型
 
 **文件：**
 - Create: `crates/studio-assets/src/metrics.rs`
@@ -323,7 +323,7 @@ git commit -m "feat(studio-assets): define metrics budget and reports"
 
 ---
 
-### Task 3: 实现确定性 render edges
+### 2.3 Task 3: 实现确定性 render edges
 
 **文件：**
 - Create: `crates/studio-assets/src/edges.rs`
@@ -454,7 +454,7 @@ git commit -m "feat(studio-assets): generate deterministic render edges"
 
 ---
 
-### Task 4: 引入 PrepareArtifact 并让 canonical writer 输出真实 edges
+### 2.4 Task 4: 引入 PrepareArtifact 并让 canonical writer 输出真实 edges
 
 **文件：**
 - Create: `crates/studio-assets/src/prepare.rs`
@@ -582,7 +582,7 @@ git commit -m "feat(studio-assets): emit prepared artifacts with render edges"
 
 ---
 
-### Task 5: 让 import 使用共享 Prepare 并增加 build/inspect CLI
+### 2.5 Task 5: 让 import 使用共享 Prepare 并增加 build/inspect CLI
 
 **文件：**
 - Modify: `crates/studio-cli/src/import.rs`
@@ -729,7 +729,7 @@ git commit -m "feat(studio-cli): build and inspect prepared assets"
 
 ---
 
-### Task 6: 完成 Prepare parity 和 Phase 6A 文档
+### 2.6 Task 6: 完成 Prepare parity 和 Phase 6A 文档
 
 **文件：**
 - Modify: `scripts/compare-prepare-imports.mjs`
@@ -807,7 +807,7 @@ git add README.md docs scripts/verify.mjs scripts/compare-prepare-imports.mjs \
 git commit -m "test(studio): prove native asset prepare parity"
 ```
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
 - Spec coverage：shared Prepare、edges、metrics、budget、report、build、inspect、
   import integration、parity、diagnostics 和文档均有 task。

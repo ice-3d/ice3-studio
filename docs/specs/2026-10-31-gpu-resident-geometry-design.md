@@ -78,7 +78,7 @@ lifecycle and data movement, not only shader instruction count.
 CPU code resolves parameters, validates structure, assigns identities, controls revisions and
 approval, chooses canonical export input, and decides whether a GPU failure is recoverable.
 
-### Implementation status
+### 5.2 Implementation status
 
 The resident backend, explicit snapshots, server scheduler and packet endpoints, `ICE3PGP1`
 transport, browser parser, stable geometry identity, WebGL2/WebGPU range uploads, and Workbench
@@ -89,29 +89,29 @@ resident handle timing is below timer resolution and is cache-hit evidence, not 
 claim. Cold and warm paths remain slower, so native residency and preview packets remain
 host-opt-in and `auto` stays on CPU.
 
-### 5.2 Runtime resources are long-lived
+### 5.3 Runtime resources are long-lived
 
 Pipelines and topology-specific resources are created once per compatible device and input
 generation, then reused until invalidation, budget pressure, device loss, or shutdown.
 
-### 5.3 Derived data may remain GPU-resident
+### 5.4 Derived data may remain GPU-resident
 
 Internal operations that consume GPU outputs can continue on GPU. A CPU mesh is a projection
 created only at an explicit snapshot, export, persistence, or compatibility boundary.
 
-### 5.4 Measured modes
+### 5.5 Measured modes
 
 Cold execution, warm-topology execution, resident execution, preview synchronization, and CPU
 snapshot each have independent performance evidence. A fast resident path does not justify
 selecting GPU for cold work that remains slower.
 
-### 5.5 Atomic visibility
+### 5.6 Atomic visibility
 
 A revision or candidate becomes visible only after all required GPU work and parity checks finish.
 Partial GPU writes, failed uploads, or device loss leave the previous complete representation
 active.
 
-### 5.6 Stable identities survive transport
+### 5.7 Stable identities survive transport
 
 Geometry IDs, node IDs, topology digests, and revision relationships remain stable across the
 native-to-browser boundary. Cache identity is independent of memory addresses and process-local

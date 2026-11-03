@@ -26,7 +26,7 @@ Studio JSON-RPC、React Viewer、Playwright、Google Chrome
 
 **Spec:** `docs/specs/2026-11-01-wastewater-process-piping-correction-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - Studio Core 不增加污水处理业务术语或案例专用类型。
 - Document 和 operation history 是唯一真源；GLB、route mesh 和材质结果都是派生值。
@@ -42,7 +42,7 @@ Studio JSON-RPC、React Viewer、Playwright、Google Chrome
 > **Implementation note:** 最终验收配色覆盖了 Task 1 初稿：普通水线由黄色改为亮银色，
 > 化学药剂由紫色改为黄色；下方 Task 1 保留原始 TDD 记录。
 
-## Review Focus
+## 2. Review Focus
 
 - 任意两个相邻路径点重合、弯曲采样为零或方向反转时，必须失败，不能生成断裂网格。
 - 弯头处相邻截面的对应顶点不能翻转，也不能出现明显的麻花状扭曲。
@@ -52,9 +52,9 @@ Studio JSON-RPC、React Viewer、Playwright、Google Chrome
 
 ---
 
-## File Structure
+## 3. File Structure
 
-### Modified files
+### 3.1 Modified files
 
 - `crates/studio-core/src/large_scene/route.rs`：生成带圆滑弯头的连续路径点。
 - `crates/studio-core/src/geometry/sweep.rs`：采用平行传输截面坐标系。
@@ -66,14 +66,14 @@ Studio JSON-RPC、React Viewer、Playwright、Google Chrome
 - `projects/README.md`：管线颜色和阶段二状态。
 - `docs/README.md`：阶段二计划完成后的状态。
 
-### Output files
+### 3.2 Output files
 
 - `output/wwtp-pipe-colors-overview.png`
 - `output/wwtp-pipe-colors-close.png`
 
 ---
 
-### Task 1: Apply Functional Pipe Colors
+### 3.3 Task 1: Apply Functional Pipe Colors
 
 **Files:**
 - Modify: `scripts/wastewater-plant/site-plan.mjs`
@@ -184,7 +184,7 @@ git commit -m "feat(wwtp): apply functional pipe colors"
 
 ---
 
-### Task 2: Generate Continuous Rounded Route Curves
+### 3.4 Task 2: Generate Continuous Rounded Route Curves
 
 **Files:**
 - Modify: `crates/studio-core/src/large_scene/route.rs`
@@ -349,7 +349,7 @@ git commit -m "feat(core): round orthogonal pipe bends"
 
 ---
 
-### Task 3: Keep Pipe Cross-Sections Parallel Along Bends
+### 3.5 Task 3: Keep Pipe Cross-Sections Parallel Along Bends
 
 **Files:**
 - Modify: `crates/studio-core/src/geometry/sweep.rs`
@@ -448,7 +448,7 @@ git commit -m "fix(core): keep pipe sweeps from twisting"
 
 ---
 
-### Task 4: Rebuild and Verify Colored Rounded Pipes
+### 3.6 Task 4: Rebuild and Verify Colored Rounded Pipes
 
 **Files:**
 - Generated: `projects/wastewater-plant/**`
@@ -527,7 +527,7 @@ git commit -m "feat(wwtp): render rounded functional pipe network"
 
 ---
 
-## Stage 2B Handoff
+## 4. Stage 2B Handoff
 
 本计划交付连续管线几何和功能配色。完成后再写独立的碰撞与支吊架计划，覆盖：
 

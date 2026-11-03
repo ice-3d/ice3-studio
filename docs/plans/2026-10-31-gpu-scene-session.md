@@ -27,7 +27,7 @@ Playwright, and the repository's native test and benchmark scripts.
 
 **Spec:** `docs/specs/2026-10-31-gpu-scene-session-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - CPU always owns Document, revision, validation, approval, persistence, and canonical GLB output.
 - GPU scene state is derived, process-local, and disposable.
@@ -47,7 +47,7 @@ Playwright, and the repository's native test and benchmark scripts.
 - Update machine-readable performance output whenever behavior or report semantics change.
 - Root verification is `PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 
-## Review Focus
+## 2. Review Focus
 
 - A transform arrives while an earlier attribute update is still pending; the target revision must
   not overtake, mix with, or publish partial output from the earlier patch.
@@ -62,7 +62,7 @@ Playwright, and the repository's native test and benchmark scripts.
 
 ---
 
-## File Structure
+## 3. File Structure
 
 - `crates/studio-project/src/layered_geometry_cache.rs`: memory-first cache wrapper over the durable
   disk cache.
@@ -88,7 +88,7 @@ Playwright, and the repository's native test and benchmark scripts.
 - `README.md`, `docs/architecture.md`, `docs/reference/api.md`, `docs/README.md`: implemented
   behavior, flag, status, and evidence.
 
-## Task 1: Retain CPU Scene Geometry In Memory
+## 4. Task 1: Retain CPU Scene Geometry In Memory
 
 **Files:**
 - Create: `crates/studio-project/src/layered_geometry_cache.rs`
@@ -256,7 +256,7 @@ git add crates/studio-project/src/lib.rs \
 git commit -m "perf(studio-server): retain scene geometry in memory"
 ```
 
-## Task 2: Define Scene Patch And Dirty-Range Contracts
+## 5. Task 2: Define Scene Patch And Dirty-Range Contracts
 
 **Files:**
 - Create: `crates/studio-core/src/scene_contract.rs`
@@ -457,7 +457,7 @@ git add crates/studio-core/src/lib.rs \
 git commit -m "feat(studio-core): define revision scene patches"
 ```
 
-## Task 3: Evaluate Only Affected Scene Sources
+## 6. Task 3: Evaluate Only Affected Scene Sources
 
 **Files:**
 - Modify: `crates/studio-core/src/large_scene/evaluate.rs`
@@ -560,7 +560,7 @@ git add crates/studio-core/src/large_scene/evaluate.rs \
 git commit -m "feat(studio-core): evaluate selected scene sources"
 ```
 
-## Task 4: Plan Server Scene Patches From Revision Diffs
+## 7. Task 4: Plan Server Scene Patches From Revision Diffs
 
 **Files:**
 - Create: `crates/studio-server/src/scene_session.rs`
@@ -911,7 +911,7 @@ git add crates/studio-server/src/lib.rs \
 git commit -m "feat(studio-server): plan scene patches from revisions"
 ```
 
-## Task 5: Split Shared Topology From Replaceable Attributes
+## 8. Task 5: Split Shared Topology From Replaceable Attributes
 
 **Files:**
 - Create: `crates/studio-gpu/src/residency/resources.rs`
@@ -1066,7 +1066,7 @@ git add crates/studio-gpu/src/device.rs \
 git commit -m "feat(studio-gpu): update resident attributes incrementally"
 ```
 
-## Task 6: Add A SoA Instance Table
+## 9. Task 6: Add A SoA Instance Table
 
 **Files:**
 - Create: `crates/studio-gpu/src/scene/instances.rs`
@@ -1178,7 +1178,7 @@ git add crates/studio-gpu/src/lib.rs \
 git commit -m "feat(studio-gpu): track scene instances in SoA storage"
 ```
 
-## Task 7: Implement Ordered GPU Scene Sessions
+## 10. Task 7: Implement Ordered GPU Scene Sessions
 
 **Files:**
 - Create: `crates/studio-gpu/src/scene/queue.rs`
@@ -1331,7 +1331,7 @@ git add crates/studio-gpu/src/device.rs \
 git commit -m "feat(studio-gpu): keep revision scenes resident"
 ```
 
-## Task 8: Expose Scene Sessions Through ComputeService
+## 11. Task 8: Expose Scene Sessions Through ComputeService
 
 **Files:**
 - Modify: `crates/studio-server/src/compute.rs`
@@ -1476,7 +1476,7 @@ git add crates/studio-server/src/compute.rs \
 git commit -m "feat(studio-server): expose experimental scene sessions"
 ```
 
-## Task 9: Wire Scene Sessions Into Project And Revision Lifecycles
+## 12. Task 9: Wire Scene Sessions Into Project And Revision Lifecycles
 
 **Files:**
 - Modify: `crates/studio-server/src/rpc.rs`
@@ -1640,7 +1640,7 @@ git add crates/studio-server/src/rpc.rs \
 git commit -m "feat(studio-server): schedule scene revisions"
 ```
 
-## Task 10: Consume Dirty Scene Geometry At Preview Boundaries
+## 13. Task 10: Consume Dirty Scene Geometry At Preview Boundaries
 
 **Files:**
 - Modify: `crates/studio-core/src/scene_contract.rs`
@@ -1887,7 +1887,7 @@ git add crates/studio-core/src/scene_contract.rs \
 git commit -m "feat(studio-server): stream scene preview deltas"
 ```
 
-## Task 11: Report Scene State In The Viewer
+## 14. Task 11: Report Scene State In The Viewer
 
 **Files:**
 - Modify: `apps/viewer/src/api/StudioClient.ts`
@@ -2029,7 +2029,7 @@ git add apps/viewer/src/api/StudioClient.ts \
 git commit -m "feat(viewer): show pending scene revisions"
 ```
 
-## Task 12: Add The Large-Scene Revision Benchmark And Gates
+## 15. Task 12: Add The Large-Scene Revision Benchmark And Gates
 
 **Files:**
 - Create: `benchmarks/gpu-scene-session.mjs`
@@ -2199,7 +2199,7 @@ git add benchmarks/gpu-scene-session.mjs \
 git commit -m "perf(studio): measure revision scene residency"
 ```
 
-## Final Verification
+## 16. Final Verification
 
 - [ ] Run the complete Rust format and lint gate:
 

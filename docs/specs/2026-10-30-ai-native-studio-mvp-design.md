@@ -557,31 +557,31 @@ Diagnostic 不包含堆栈、凭据或工作区外路径。
 
 ## 18. MVP 里程碑
 
-### M0：工程与 API 骨架
+### 18.1 M0：工程与 API 骨架
 
 - Rust workspace 和 crate 边界。
 - JSON-RPC server 生命周期。
 - Schema 生成和 API integration harness。
 
-### M1：Document 与通用几何
+### 18.2 M1：Document 与通用几何
 
 - 稳定 ID、单位、Node、Material、Relation。
 - Box、Plane、Cylinder、Sphere、TriangleMesh 和 Sweep。
 - 参数化求值和基础空间验证。
 
-### M2：事务与持久化
+### 18.3 M2：事务与持久化
 
 - `document.apply`、`dryRun`、undo/redo。
 - revision、operation history 和原子项目目录。
 - 冲突、幂等和恢复测试。
 
-### M3：导出与 Viewer
+### 18.4 M3：导出与 Viewer
 
 - source GLB 导出。
 - Toolchain preview adapter。
 - TypeScript Viewer 展示 revision、结构、选择和诊断。
 
-### M4：AI 驱动验收
+### 18.5 M4：AI 驱动验收
 
 - `wastewater-mini` 确定性 AI 客户端。
 - 错误修复、并发冲突、reload 和性能测试。

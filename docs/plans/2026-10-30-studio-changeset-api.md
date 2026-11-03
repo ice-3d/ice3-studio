@@ -27,7 +27,7 @@ protocol fixtures.
 
 **Spec:** [`ICE3-STUDIO-SPEC-002`](../specs/2026-10-30-studio-web-workbench-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - Studio Core remains Rust; Node.js must not own mutation, validation, persistence, or revision
   semantics.
@@ -45,7 +45,7 @@ protocol fixtures.
 - Every behavior change begins with a failing test and ends with the complete relevant suite.
 - Git author and committer must be `damoqiongqiu <damoqiongqiu@126.com>`.
 
-## Review Focus
+## 2. Review Focus
 
 - A stale or modified candidate is approved after its reviewed preview: commit must reject unless
   the freshly evaluated digest equals `approvedDigest`.
@@ -60,7 +60,7 @@ protocol fixtures.
 
 ---
 
-### Task 1: Evaluate Ordered Operations Without Mutating the Base
+### 2.1 Task 1: Evaluate Ordered Operations Without Mutating the Base
 
 **Files:**
 
@@ -209,7 +209,7 @@ git commit -m "feat(studio-core): evaluate candidate change sets"
 
 ---
 
-### Task 2: Define and Persist the ChangeSet Domain
+### 2.2 Task 2: Define and Persist the ChangeSet Domain
 
 **Files:**
 
@@ -356,7 +356,7 @@ git commit -m "feat(studio-project): persist candidate change sets"
 
 ---
 
-### Task 3: Expose the ChangeSet Lifecycle Through JSON-RPC
+### 2.3 Task 3: Expose the ChangeSet Lifecycle Through JSON-RPC
 
 **Files:**
 
@@ -564,7 +564,7 @@ git commit -m "feat(studio-server): expose change set review api"
 
 ---
 
-### Task 4: Generate and Cache Candidate Previews
+### 2.4 Task 4: Generate and Cache Candidate Previews
 
 **Files:**
 
@@ -681,7 +681,7 @@ git commit -m "feat(studio-server): preview exact change set candidates"
 
 ---
 
-### Task 5: Enforce Proposal and Approval Capabilities
+### 2.5 Task 5: Enforce Proposal and Approval Capabilities
 
 **Files:**
 
@@ -864,7 +864,7 @@ git commit -m "feat(studio-server): separate propose and approve capabilities"
 
 ---
 
-### Task 6: Prove Recovery, Concurrency, and Performance
+### 2.6 Task 6: Prove Recovery, Concurrency, and Performance
 
 **Files:**
 
@@ -962,7 +962,7 @@ git add benchmarks docs README.md AGENTS.md crates/studio-server/tests \
 git commit -m "docs(studio): verify change set review workflow"
 ```
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
 - Spec coverage: candidate evaluation, ChangeSet identity/version/status, persistence, exact
   approval digest, ordered events, candidate preview, write modes, restart, concurrency, security,

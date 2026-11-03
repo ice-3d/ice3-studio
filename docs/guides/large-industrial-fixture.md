@@ -9,7 +9,7 @@
 `large-industrial-site` 是一个完全虚构、可确定性重建的大型工业场景。它用于验证 Studio
 能否通过公共 API 构建大型模型，而不是绑定污水处理或其他单一业务。
 
-## 规模基线
+## 1. 规模基线
 
 - 厂区约 `1000 x 550 m`。
 - 208 个主要可选组件实例，其中 10 个是功能建筑。
@@ -29,13 +29,13 @@
 
 设备名称和区域只存在于 fixture metadata。Core 和公开 Operation 保持通用。
 
-## 当前默认场景
+## 2. 当前默认场景
 
 程序化 fixture 只用于 API、拓扑和共享几何回归。`npm run dev` 默认打开 `projects/`
 中修改时间最新的工程，当前为 `wastewater-plant`；需要单独运行本 fixture 时使用
 `npm run fixture:large-industrial`。
 
-### 配色依据
+### 2.1 配色依据
 
 - 真实厂区航拍中，主体通常是浅灰或米灰混凝土、深灰沥青、蓝绿水体、银灰钢构件，
   艳色只出现在设备外壳、防护件和管道识别中。
@@ -58,7 +58,7 @@
 55 个 `node.update` 组成一个可校验、可提交的 ChangeSet，不调用 Blender 或其他外部
 建模应用。
 
-## 通过公共 API 生成
+## 3. 通过公共 API 生成
 
 ```bash
 source $HOME/.nvm/nvm.sh
@@ -78,7 +78,7 @@ npm run fixture:large-industrial
 
 生成物只用于本地验收，不进入 Git。
 
-## 性能基准
+## 4. 性能基准
 
 ```bash
 npm run benchmark:large-industrial
@@ -121,7 +121,7 @@ node --test scripts/tests/prepare-performance.test.mjs
 这些数字是本机基线，不是跨设备绝对承诺。共享 CI 验证规模、正确性和门禁，不绑定固定硬件
 耗时。
 
-## 验收边界
+## 5. 验收边界
 
 - Studio 负责确定性文档、几何求值、连接路由、Source GLB、Prepared GLB、Runtime LOD、
   空间分区、render batching 和 Tileset。

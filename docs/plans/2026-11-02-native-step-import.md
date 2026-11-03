@@ -10,7 +10,7 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-## Implementation Outcome
+## 1. Implementation Outcome
 
 Phase 4A 已实现。Studio 默认支持 STEP AP242，解析在 isolated worker 中运行；层级、
 共享实例、面颜色、单位、origin、Selection 和 metadata 已通过 legacy/native parity。
@@ -34,7 +34,7 @@ Node.js 24.22.1（仅 parity 与 E2E）。
 
 **Spec：** [Studio 原生 STEP 与 IFC Source Import](../specs/2026-11-02-native-step-ifc-import-design.md)
 
-## Global Constraints
+## 2. Global Constraints
 
 - 只承诺 STEP AP242；扩展名固定为 `.step`、`.stp`。
 - 新 import 路径不得启动外部 DCC、Node、Toolchain Sidecar 或转换 executable。
@@ -50,7 +50,7 @@ Node.js 24.22.1（仅 parity 与 E2E）。
 - `step` feature 关闭时不得注册 adapter，也不得链接 `oxideav-step`。
 - Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 3. Review Focus
 
 - assembly 中同一 part 被多个 occurrence 引用时，必须共享 mesh 而不复制几何。
 - root assembly 只有子 part、自身无 shape 时，不能生成空 mesh 或破坏层级。
@@ -62,7 +62,7 @@ Node.js 24.22.1（仅 parity 与 E2E）。
 
 ---
 
-### Task 1: 固化 STEP baseline
+### 3.1 Task 1: 固化 STEP baseline
 
 **Files：**
 - Create: `scripts/compare-step-imports.mjs`
@@ -144,7 +144,7 @@ git commit -m "test(studio): capture native STEP import baseline"
 
 ---
 
-### Task 2: 添加 feature-gated STEP adapter
+### 3.2 Task 2: 添加 feature-gated STEP adapter
 
 **Files：**
 - Modify: `Cargo.toml`
@@ -352,7 +352,7 @@ git commit -m "feat(studio): import STEP with a native AP242 reader"
 
 ---
 
-### Task 3: 完成 STEP 实例、颜色、origin 和 metadata 语义
+### 3.3 Task 3: 完成 STEP 实例、颜色、origin 和 metadata 语义
 
 **Files：**
 - Modify: `crates/studio-import/src/step/adapter.rs`
@@ -517,7 +517,7 @@ git commit -m "feat(studio): preserve STEP assembly semantics"
 
 ---
 
-### Task 4: 接入 CLI worker 与 STEP 失败关闭
+### 3.4 Task 4: 接入 CLI worker 与 STEP 失败关闭
 
 **Files：**
 - Modify: `crates/studio-cli/Cargo.toml`
@@ -663,7 +663,7 @@ git commit -m "feat(studio-cli): import STEP without external bridges"
 
 ---
 
-### Task 5: 退役 Toolchain STEP bridge 并完成验证
+### 3.5 Task 5: 退役 Toolchain STEP bridge 并完成验证
 
 **Files：**
 - Modify outside Studio: `ice3-toolchain/packages/cli/src/commands.ts`
@@ -759,7 +759,7 @@ git add -A
 git commit -m "refactor(toolchain): retire the STEP source bridge"
 ```
 
-## Plan Self-Review
+## 4. Plan Self-Review
 
 - Spec coverage：层级、实例、颜色、单位、origin、Selection、metadata、worker、
   feature gate、parity 和退役都有对应 task。

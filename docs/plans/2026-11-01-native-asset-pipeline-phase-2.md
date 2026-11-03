@@ -6,7 +6,7 @@
 >
 > Owner: ICE3 Studio maintainers
 
-## Implementation Outcome
+## 1. Implementation Outcome
 
 Phase 2 已实现。Studio 新增 `studio-import`、Prepared GLB canonical writer、原生
 glTF/GLB 与 OBJ/MTL importer，以及 CLI `import`/`validate`。OBJ parity fixture 的
@@ -25,7 +25,7 @@ reader；OBJ/MTL 使用 Rust parser，资源解析限制在源文件目录内。
 
 **Spec：** [Studio 原生 Asset Pipeline 迁移设计](../specs/2026-11-01-native-asset-pipeline-migration-design.md)
 
-## Global Constraints
+## 2. Global Constraints
 
 - Phase 2 只覆盖 glTF/GLB 和 OBJ/MTL；FBX、USD、STEP、IFC、JT 留在后续阶段。
 - `studio-import` 不读取 Project、HTTP、ChangeSet 或审批状态。
@@ -37,7 +37,7 @@ reader；OBJ/MTL 使用 Rust parser，资源解析限制在源文件目录内。
 - Prepared Profile 固定为 `profile=ice3-prepared`、`profileVersion=1.0`。
 - Git author/committer 为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 3. Review Focus
 
 - OBJ 的绝对路径、URI scheme、`..`、symlink escape 和缺失 MTL 必须失败关闭或产生稳定
   warning，不能越出源目录。
@@ -48,7 +48,7 @@ reader；OBJ/MTL 使用 Rust parser，资源解析限制在源文件目录内。
 
 ---
 
-### Task 1: 建立 `studio-import` 契约与 registry
+### 3.1 Task 1: 建立 `studio-import` 契约与 registry
 
 **文件：**
 - Create: `crates/studio-import/Cargo.toml`
@@ -219,7 +219,7 @@ git add Cargo.toml Cargo.lock crates/studio-import
 git commit -m "feat(studio): define native source importer registry"
 ```
 
-### Task 2: 实现通用 SourceScene → Prepared GLB writer
+### 3.2 Task 2: 实现通用 SourceScene → Prepared GLB writer
 
 **文件：**
 - Create: `crates/studio-assets/src/canonical.rs`
@@ -303,7 +303,7 @@ git add crates/studio-assets
 git commit -m "feat(studio): write canonical prepared GLBs"
 ```
 
-### Task 3: 实现原生 glTF/GLB importer
+### 3.3 Task 3: 实现原生 glTF/GLB importer
 
 **文件：**
 - Create: `crates/studio-import/src/gltf.rs`
@@ -373,7 +373,7 @@ git add crates/studio-import
 git commit -m "feat(studio): import glTF through the native registry"
 ```
 
-### Task 4: 实现 OBJ 资源与 MTL parser
+### 3.4 Task 4: 实现 OBJ 资源与 MTL parser
 
 **文件：**
 - Create: `crates/studio-import/src/obj/mod.rs`
@@ -441,7 +441,7 @@ git add crates/studio-import
 git commit -m "feat(studio): parse bounded OBJ material resources"
 ```
 
-### Task 5: 实现 OBJ geometry、层级与 canonical metadata
+### 3.5 Task 5: 实现 OBJ geometry、层级与 canonical metadata
 
 **文件：**
 - Create: `crates/studio-import/src/obj/parser.rs`
@@ -540,7 +540,7 @@ git add crates/studio-import
 git commit -m "feat(studio): import OBJ geometry in Rust"
 ```
 
-### Task 6: CLI `import` 与 `validate`
+### 3.6 Task 6: CLI `import` 与 `validate`
 
 **文件：**
 - Create: `crates/studio-cli/tests/import.rs`
@@ -624,7 +624,7 @@ git add Cargo.toml Cargo.lock crates/studio-cli crates/studio-import crates/stud
 git commit -m "feat(studio-cli): import and validate native sources"
 ```
 
-### Task 7: parity、Toolchain OBJ 退役与完整验证
+### 3.7 Task 7: parity、Toolchain OBJ 退役与完整验证
 
 **文件：**
 - Create: `scripts/compare-source-imports.mjs`

@@ -6,7 +6,7 @@
 >
 > Owner: ICE3 Studio maintainers
 
-## Implementation Outcome
+## 1. Implementation Outcome
 
 Phase 1 已实现。Studio 新增 `studio-assets`、`studio-pipeline` 和
 `studio-server::runtime_tileset`，CLI 提供 `export tileset`。真实
@@ -31,7 +31,7 @@ Studio Core evaluated Scene、Node.js 24.22.1（仅 Viewer 构建和 E2E）。
 
 **Spec:** [Studio 原生 Asset Pipeline 迁移设计](../specs/2026-11-01-native-asset-pipeline-migration-design.md)
 
-## Global Constraints
+## 2. Global Constraints
 
 - Phase 1 不修改 Agent Console。
 - 新 `export tileset` 不启动 Node、Blender 或 Toolchain Sidecar。
@@ -46,7 +46,7 @@ Studio Core evaluated Scene、Node.js 24.22.1（仅 Viewer 构建和 E2E）。
 - 任何失败都不得留下 partial output 或替换上一个成功 Bundle。
 - Rust 1.98；Git author/committer 为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 3. Review Focus
 
 - Studio 导出的 Prepared GLB 必须被 Rust reader 接受，且 SHA-256 与 source provenance 一致。
 - 共享 Mesh 的 Node 必须保持在同一 atomic partition unit，不能拆断 Selection。
@@ -54,7 +54,7 @@ Studio Core evaluated Scene、Node.js 24.22.1（仅 Viewer 构建和 E2E）。
 - Tileset URI 必须相对且不能逃逸 output directory。
 - 原子发布失败时必须恢复 previous output，旧 Bundle 字节不变。
 
-## File Structure
+## 4. File Structure
 
 新增：
 
@@ -105,7 +105,7 @@ docs/specs/2026-11-01-native-asset-pipeline-migration-design.md
 
 ---
 
-### Task 1: 建立 `studio-assets` Rust GLB layer
+### 4.1 Task 1: 建立 `studio-assets` Rust GLB layer
 
 **Files:**
 
@@ -203,7 +203,7 @@ git add Cargo.toml Cargo.lock crates/studio-assets
 git commit -m "feat(studio): add Rust GLB asset reader"
 ```
 
-### Task 2: 迁移 partition unit analysis 与 deterministic plan
+### 4.2 Task 2: 迁移 partition unit analysis 与 deterministic plan
 
 **Files:**
 
@@ -291,7 +291,7 @@ git add Cargo.toml Cargo.lock crates/studio-pipeline
 git commit -m "feat(studio): add Rust partition planner"
 ```
 
-### Task 3: 生成 partition GLB 与 Tileset
+### 4.3 Task 3: 生成 partition GLB 与 Tileset
 
 **Files:**
 
@@ -369,7 +369,7 @@ git add crates/studio-pipeline
 git commit -m "feat(studio): write partitioned GLBs and tilesets"
 ```
 
-### Task 4: 实现 Rust LOD、semantic proxy、coarse chunk 和 static batching
+### 4.4 Task 4: 实现 Rust LOD、semantic proxy、coarse chunk 和 static batching
 
 **Files:**
 
@@ -474,7 +474,7 @@ git add Cargo.toml Cargo.lock crates/studio-pipeline
 git commit -m "feat(studio): add native LOD and batching"
 ```
 
-### Task 5: Studio serialization 与 atomic Runtime bundle
+### 4.5 Task 5: Studio serialization 与 atomic Runtime bundle
 
 **Files:**
 
@@ -572,7 +572,7 @@ git add crates/studio-server
 git commit -m "feat(studio): publish native runtime tilesets"
 ```
 
-### Task 6: Studio CLI 导出 Tileset
+### 4.6 Task 6: Studio CLI 导出 Tileset
 
 **Files:**
 
@@ -663,7 +663,7 @@ git add crates/studio-cli
 git commit -m "feat(studio-cli): export runtime tilesets"
 ```
 
-### Task 7: Parity、文档和完整验证
+### 4.7 Task 7: Parity、文档和完整验证
 
 **Files:**
 

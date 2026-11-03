@@ -6,7 +6,7 @@
 >
 > Owner: ICE3 Studio maintainers
 
-## 从这里开始
+## 1. 从这里开始
 
 | ID | 标题 | Status | 用途 |
 |---|---|---|---|
@@ -15,7 +15,7 @@
 | `ICE3-STUDIO-IDX-002` | [架构决策索引](decisions/README.md) | Implemented | ADR 索引 |
 | `ICE3-STUDIO-POL-001` | [仓库规则](../AGENTS.md) | Implemented | 架构、交付、界面和命名边界 |
 
-## 指南
+## 2. 指南
 
 | ID | 标题 | Status | 用途 |
 |---|---|---|---|
@@ -24,7 +24,7 @@
 | `ICE3-STUDIO-GUIDE-003` | [污水处理厂工程](../projects/README.md) | Implemented | 默认开发工程、总平面、工艺拓扑、统计与扩展方式 |
 | `ICE3-STUDIO-GUIDE-004` | [本地入门](guides/getting-started.md) | Implemented | 本地启动、API、Source Import、Prepare、partition、导出和验证 |
 
-## 参考与决策
+## 3. 参考与决策
 
 | ID | 标题 | Status | 用途 |
 |---|---|---|---|
@@ -37,7 +37,7 @@
 | `ICE3-STUDIO-ADR-002` | [本地 API 边界](decisions/0002-local-api-boundary.md) | Implemented | 本地 API 与 Viewer 边界决策 |
 | `ICE3-STUDIO-NOTICE-001` | [第三方声明](../THIRD_PARTY_NOTICES.md) | Active | Source Import、converter containment 与许可证披露 |
 
-## 设计规格
+## 4. 设计规格
 
 | ID | 标题 | Status | 用途 |
 |---|---|---|---|
@@ -61,7 +61,7 @@
 | `ICE3-STUDIO-SPEC-018` | [Studio 原生 JT Import 与 Toolchain 最终退役](specs/2026-11-02-native-jt-toolchain-retirement-design.md) | Implemented | JT converter bridge、原生 preview 和 Toolchain repository 退役 |
 | `ICE3-STUDIO-SPEC-019` | [Studio Asset Prepare 与 Toolchain 功能等价](specs/2026-11-02-studio-asset-prepare-parity-design.md) | Historical | Phase 6A/6B/6C 已完成设计记录；当前链路见 REF-005 |
 
-## 实施计划
+## 5. 实施计划
 
 | ID | 标题 | Status | 用途 |
 |---|---|---|---|
@@ -94,14 +94,14 @@
 | `ICE3-STUDIO-PLAN-028` | [Studio Partition 与 Runtime Tileset 功能等价](plans/2026-11-02-studio-partition-runtime-parity.md) | Implemented | Phase 6B 统一 AssetProfile、direct partition 和 parity |
 | `ICE3-STUDIO-PLAN-029` | [Studio Prepare Engine 集成与最终验收](plans/2026-11-02-studio-prepare-engine-finalization.md) | Implemented | Phase 6C Engine 消费、性能、文档和最终门禁 |
 
-## 状态说明
+## 6. 状态说明
 
 - `Approved`：设计已批准，仍存在明确未交付项。
 - `Implemented`：能力、测试和用户入口已交付；实验能力会在正文标记。
 - `Historical`：保留已完成或已退役实施过程的审计记录，不代表当前生产依赖。
 - `Deprecated`：已由当前方案替代，仅供迁移追溯。
 
-## 关联文档
+## 7. 关联文档
 
 - `ICE3-DOC-ARC-001` — [ICE3 家族架构](https://github.com/ice-3d/ice3-doc/blob/main/docs/architecture.md)
 - `ICE3-DOC-CTR-001` — [Asset Preparation Contract v1](https://github.com/ice-3d/ice3-doc/blob/main/docs/contracts/asset-preparation-contract-v1.md)

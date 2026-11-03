@@ -23,7 +23,7 @@
 
 **Spec：** [Studio Asset Prepare 与 Toolchain 功能等价](../specs/2026-11-02-studio-asset-prepare-parity-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - 依赖 Plan-027 的共享 edge generator、metrics、budget 和 PrepareArtifact。
 - `partition` 接受任意已注册 Studio source adapter。
@@ -39,7 +39,7 @@
 - 不依赖 Blender、Toolchain、Node Asset Runtime 或外部 DCC。
 - Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 2. Review Focus
 
 - 共享 mesh 的多个 node 必须保持同一 atomic partition unit，edges 不能改变该规则。
 - LOD/coarse 简化后 edges 必须基于简化几何生成，不能沿用 source edge indices。
@@ -50,7 +50,7 @@
 
 ---
 
-### Task 1: 扩展 AssetProfile 并接入共享 edge generator
+### 2.1 Task 1: 扩展 AssetProfile 并接入共享 edge generator
 
 **文件：**
 - Create: `crates/studio-pipeline/src/profile.rs`
@@ -165,7 +165,7 @@ git commit -m "feat(studio-pipeline): unify asset profiles and edge config"
 
 ---
 
-### Task 2: 在 fine、LOD、coarse part GLB 中生成真实 edges
+### 2.2 Task 2: 在 fine、LOD、coarse part GLB 中生成真实 edges
 
 **文件：**
 - Modify: `crates/studio-pipeline/src/partition/build.rs`
@@ -277,7 +277,7 @@ git commit -m "feat(studio-pipeline): emit render edges in partition outputs"
 
 ---
 
-### Task 3: 实现任意 Source 的直接 partition orchestration
+### 2.3 Task 3: 实现任意 Source 的直接 partition orchestration
 
 **文件：**
 - Create: `crates/studio-cli/src/partition.rs`
@@ -387,7 +387,7 @@ git commit -m "feat(studio-cli): partition arbitrary Studio sources"
 
 ---
 
-### Task 4: 让 export tileset 使用统一 Profile
+### 2.4 Task 4: 让 export tileset 使用统一 Profile
 
 **文件：**
 - Modify: `crates/studio-server/src/runtime_tileset.rs`
@@ -460,7 +460,7 @@ git commit -m "feat(studio-server): include edges in runtime tilesets"
 
 ---
 
-### Task 5: CLI/partition parity 与 Phase 6B 文档
+### 2.5 Task 5: CLI/partition parity 与 Phase 6B 文档
 
 **文件：**
 - Create: `scripts/compare-partition-imports.mjs`
@@ -552,7 +552,7 @@ git add README.md docs scripts crates
 git commit -m "test(studio): complete partition runtime parity"
 ```
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
 - Spec coverage：AssetProfile、所有 partition 参数、fine/LOD/coarse edges、budget、
   direct partition、export tileset、atomic force 和文档均有 task。

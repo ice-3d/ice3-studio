@@ -76,14 +76,14 @@ JT 编译器。
 
 ## 4. 新 crate 边界
 
-### `studio-assets`
+### 4.1 `studio-assets`
 
 负责 glTF/GLB 读取、Prepared Profile、accessor、mesh、material、node、metadata、
 validation、canonical writing 和 source digest。
 
 不负责空间 partition、LOD 或业务审批。
 
-### `studio-pipeline`
+### 4.2 `studio-pipeline`
 
 负责 partition unit analysis、spatial tree、triangle/byte budgets、LOD allocation、
 geometry simplification、coarse chunks、semantic proxy、render batching、Tileset
@@ -91,7 +91,7 @@ document 和 artifact validation。
 
 不读取 project lock、不修改 Document、不处理 HTTP。
 
-### `studio-import`
+### 4.3 `studio-import`
 
 定义：
 
@@ -122,7 +122,7 @@ pub trait SourceImporter {
 允许 feature-gated dependency。默认桌面开发构建至少启用 Studio GLB、glTF 和 OBJ；
 工业格式 feature 在对应阶段交付。
 
-### 格式等价要求
+### 5.1 格式等价要求
 
 - 保留原有 extension 选择与显式 adapter 选择。
 - 保留层级、实例、基础颜色、Selection ID 和可序列化 metadata。
@@ -163,7 +163,7 @@ publication；`studio-pipeline` 负责 tile/LOD 计算。输出不包含完整 s
 
 ## 8. 迁移阶段
 
-### Phase 1：Native GLB 与 Tileset pipeline
+### 8.1 Phase 1：Native GLB 与 Tileset pipeline
 
 **状态：Implemented（2026-11-01）。**
 
@@ -174,7 +174,7 @@ publication；`studio-pipeline` 负责 tile/LOD 计算。输出不包含完整 s
 - Agent Console 可以消费 Studio 导出的 Tileset。
 - 不删除 Toolchain，先用 parity tests 做双跑比较。
 
-### Phase 2：glTF 与 OBJ
+### 8.2 Phase 2：glTF 与 OBJ
 
 **状态：Implemented（2026-11-02）。** glTF/GLB adapter、OBJ/MTL Rust parser、CLI
 `import`/`validate` 和 Toolchain OBJ adapter 退役已经交付。Toolchain 继续保留 STEP、
@@ -184,7 +184,7 @@ IFC、JT 的迁移兼容能力。
 - 实现 OBJ/MTL native importer。
 - 删除对应 Toolchain adapter 和 Sidecar operation 依赖。
 
-### Phase 3：FBX 与 USD
+### 8.3 Phase 3：FBX 与 USD
 
 **状态：Implemented（2026-11-02）。** `studio-import` 已提供 FBX ASCII/Binary 与 USD
 ASCII/Binary native adapter，解析在 Studio 自带 worker 中隔离运行。worker 实现硬
@@ -197,7 +197,7 @@ conformance entry 已删除。
 - 覆盖 ASCII/Binary、层级、实例、颜色、metadata、单位、timeout 和失败关闭。
 - 删除外部 DCC 依赖和对应 npm/native bridge。
 
-### Phase 4：STEP 与 IFC
+### 8.4 Phase 4：STEP 与 IFC
 
 **状态：Phase 4A STEP 与 Phase 4B IFC Implemented（2026-11-02）。**
 
@@ -207,7 +207,7 @@ conformance entry 已删除。
 - 对齐层级、颜色、单位、Selection identity、Pset/Qto/System metadata。
 - 删除 WASM adapter 和对应 Sidecar operation 依赖。
 
-### Phase 5：JT 与 Toolchain 退役
+### 8.5 Phase 5：JT 与 Toolchain 退役
 
 **状态：Implemented（2026-11-02）。**
 

@@ -29,7 +29,7 @@ Serde、bincode 2、Cargo test、Node.js 24.22.1（仅 parity 与 E2E）。
 
 **Spec：** [Studio 原生 STEP 与 IFC Source Import](../specs/2026-11-02-native-step-ifc-import-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - 只承诺 IFC4X3；扩展名固定为 `.ifc`。
 - 新 import 路径不得启动外部 DCC、Node、Toolchain Sidecar 或转换 executable。
@@ -47,7 +47,7 @@ Serde、bincode 2、Cargo test、Node.js 24.22.1（仅 parity 与 E2E）。
 - `ifc` feature 关闭时不得注册 adapter，也不得链接 IFC parser/geometry engine。
 - Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 2. Review Focus
 
 - IFC metadata 与 geometry 两次读取必须按 Express ID 正确关联，不能因重复名称丢设备。
 - spatial aggregate/containment 顺序必须稳定，未归属 geometry 产品不能消失。
@@ -59,7 +59,7 @@ Serde、bincode 2、Cargo test、Node.js 24.22.1（仅 parity 与 E2E）。
 
 ---
 
-### Task 1: 固化 IFC baseline
+### 2.1 Task 1: 固化 IFC baseline
 
 **Files：**
 - Create: `scripts/compare-ifc-imports.mjs`
@@ -160,7 +160,7 @@ git commit -m "test(studio): capture native IFC import baseline"
 
 ---
 
-### Task 2: 添加 IFC feature 与 metadata extractor
+### 2.2 Task 2: 添加 IFC feature 与 metadata extractor
 
 **Files：**
 - Modify: `Cargo.toml`
@@ -357,7 +357,7 @@ git commit -m "feat(studio): extract native IFC business metadata"
 
 ---
 
-### Task 3: 实现 IFC geometry、实例和 Importer
+### 2.3 Task 3: 实现 IFC geometry、实例和 Importer
 
 **Files：**
 - Create: `crates/studio-import/src/ifc/geometry.rs`
@@ -540,7 +540,7 @@ git commit -m "feat(studio): import IFC with native geometry"
 
 ---
 
-### Task 4: 接入 CLI worker 与 IFC 失败关闭
+### 2.4 Task 4: 接入 CLI worker 与 IFC 失败关闭
 
 **Files：**
 - Modify: `crates/studio-cli/Cargo.toml`
@@ -679,7 +679,7 @@ git commit -m "feat(studio-cli): import IFC without external bridges"
 
 ---
 
-### Task 5: 退役 Toolchain IFC bridge 并完成验证
+### 2.5 Task 5: 退役 Toolchain IFC bridge 并完成验证
 
 **Files：**
 - Modify outside Studio: `ice3-toolchain/packages/cli/src/commands.ts`
@@ -774,7 +774,7 @@ git add -A
 git commit -m "refactor(toolchain): retire the IFC source bridge"
 ```
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
 - Spec coverage：IFC4X3 schema、spatial hierarchy、products、Pset/Qto/System、
   instances、material、worker、feature gate、parity 和 Toolchain 退役都有对应 task。

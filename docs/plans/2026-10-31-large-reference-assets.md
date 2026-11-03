@@ -27,7 +27,7 @@ Sidecar, TypeScript/React Viewer, `ice3` tileset loader, esbuild, Node.js 24.22.
 
 **Spec:** `docs/specs/2026-10-31-large-reference-assets-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - Preserve Document and operation history as the source of truth for authored edits.
 - Keep imported geometry outside Document and normal JSON-RPC responses.
@@ -43,7 +43,7 @@ Sidecar, TypeScript/React Viewer, `ice3` tileset loader, esbuild, Node.js 24.22.
 - Root verification is
   `PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 
-## Review Focus
+## 2. Review Focus
 
 - A 5.75M-triangle asset must not appear in `document.get`; any regression must fail the
   bounded-document test rather than reaching `ERR_STRING_TOO_LONG`.
@@ -56,7 +56,7 @@ Sidecar, TypeScript/React Viewer, `ice3` tileset loader, esbuild, Node.js 24.22.
 
 ---
 
-## File Structure
+## 3. File Structure
 
 - `crates/studio-core/src/reference_asset.rs`: backend-neutral descriptor, stats, binding, and
   reference-instance contracts.
@@ -79,7 +79,7 @@ Sidecar, TypeScript/React Viewer, `ice3` tileset loader, esbuild, Node.js 24.22.
   status.
 - `scripts/run-large-reference-acceptance.mjs`: real-asset acceptance report.
 
-### Task 1: Define Reference Contracts
+### 3.1 Task 1: Define Reference Contracts
 
 **Files:**
 - Create: `crates/studio-core/src/reference_asset.rs`
@@ -235,7 +235,7 @@ git add crates/studio-core
 git commit -m "feat(studio-core): define reference asset contracts"
 ```
 
-### Task 2: Register Immutable Reference Assets
+### 3.2 Task 2: Register Immutable Reference Assets
 
 **Files:**
 - Create: `crates/studio-project/src/reference_asset_store.rs`
@@ -341,7 +341,7 @@ git add crates/studio-project
 git commit -m "feat(studio-project): store large reference assets"
 ```
 
-### Task 3: Expose Bounded Reference APIs
+### 3.3 Task 3: Expose Bounded Reference APIs
 
 **Files:**
 - Create: `crates/studio-server/src/reference_asset.rs`
@@ -478,7 +478,7 @@ git add crates/studio-server crates/studio-cli schemas
 git commit -m "feat(studio-server): expose bounded reference asset APIs"
 ```
 
-### Task 4: Edit Reference Bindings Through ChangeSets
+### 3.4 Task 4: Edit Reference Bindings Through ChangeSets
 
 **Files:**
 - Modify: `crates/studio-server/src/rpc.rs`
@@ -583,7 +583,7 @@ git add crates/studio-core/src/validation.rs crates/studio-server
 git commit -m "feat(studio-server): edit reference bindings through changesets"
 ```
 
-### Task 5: Stream Reference Assets In The Viewer
+### 3.5 Task 5: Stream Reference Assets In The Viewer
 
 **Files:**
 - Modify: `apps/viewer/src/api/StudioClient.ts`
@@ -669,7 +669,7 @@ git add apps/viewer
 git commit -m "feat(studio-viewer): stream reference assets"
 ```
 
-### Task 6: Stabilize Camera And Selection Rendering
+### 3.6 Task 6: Stabilize Camera And Selection Rendering
 
 **Files:**
 - Modify: `apps/viewer/src/viewport/cameraFraming.ts`
@@ -753,7 +753,7 @@ git add apps/viewer/e2e/large-reference.spec.ts apps/viewer
 git commit -m "test(studio-viewer): verify stable reference camera framing"
 ```
 
-### Task 7: Real Asset Acceptance And Documentation
+### 3.7 Task 7: Real Asset Acceptance And Documentation
 
 **Files:**
 - Create: `scripts/run-large-reference-acceptance.mjs`
@@ -860,7 +860,7 @@ git add docs scripts/run-large-reference-acceptance.mjs \
 git commit -m "docs(studio): mark large reference assets implemented"
 ```
 
-## Self-Review
+## 4. Self-Review
 
 - Spec coverage: Tasks 1-3 cover contracts, immutable storage, path safety, RPCs, asset routes,
   authorization, and bounded discovery. Task 4 covers binding edits, stats, impact, and export.

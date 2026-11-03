@@ -24,13 +24,13 @@ Studio standalone gate、Git 审计。
 
 **Spec：** [Studio 原生 JT Import 与 Toolchain 最终退役](../specs/2026-11-02-native-jt-toolchain-retirement-design.md)
 
-## Implementation Outcome
+## 1. Implementation Outcome
 
 Phase 5C 已实现。Toolchain repository 的 JT adapter、Sidecar、Studio release
 surface 和当前文档入口已清理；Studio 在相邻 repository 不可发现时通过全部验证，
 旧 Toolchain repository 已进入显式归档授权门禁。归档/删除尚未执行。
 
-## Global Constraints
+## 2. Global Constraints
 
 - 必须先完成 Plan-024 和 Plan-025，并保存两者通过记录。
 - Toolchain 不得再含 JT production adapter、Sidecar executable 或 Studio package
@@ -44,7 +44,7 @@ surface 和当前文档入口已清理；Studio 在相邻 repository 不可发�
 - Repository archive/delete 必须在本计划全部门禁后单独获得用户确认。
 - Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 3. Review Focus
 
 - 删除 npm package 后 `package-lock.json`、workspace、tsconfig references 和 release
   scripts 必须同步，不能留下可被 `npm ci` 安装的 stale dependency。
@@ -57,7 +57,7 @@ surface 和当前文档入口已清理；Studio 在相邻 repository 不可发�
 
 ---
 
-### Task 1: 删除 Toolchain JT production adapter
+### 3.1 Task 1: 删除 Toolchain JT production adapter
 
 **文件：**
 - 修改： `tests/architecture/layout.test.ts`
@@ -198,7 +198,7 @@ git commit -m "refactor(toolchain): retire the JT source adapter"
 
 ---
 
-### Task 2: 删除 Toolchain Sidecar executable 和 contract
+### 3.2 Task 2: 删除 Toolchain Sidecar executable 和 contract
 
 **文件：**
 - 修改： `tests/architecture/layout.test.ts`
@@ -331,7 +331,7 @@ git commit -m "refactor(toolchain): remove the Studio sidecar server"
 
 ---
 
-### Task 3: 停止 Toolchain Studio release 入口
+### 3.3 Task 3: 停止 Toolchain Studio release 入口
 
 **文件：**
 - 修改： `package.json`
@@ -436,7 +436,7 @@ git commit -m "build(toolchain): stop Studio release publication"
 
 ---
 
-### Task 4: 文档、AGENTS 和 dependency graph 收口
+### 3.4 Task 4: 文档、AGENTS 和 dependency graph 收口
 
 **文件：**
 - 修改： `AGENTS.md`
@@ -536,7 +536,7 @@ git commit -m "docs(toolchain): record final Studio migration"
 
 ---
 
-### Task 5: 跨仓库最终审计和归档候选
+### 3.5 Task 5: 跨仓库最终审计和归档候选
 
 **文件：**
 - 修改： `docs/retirement-checklist.md`
@@ -663,7 +663,7 @@ git commit -m "docs(toolchain): mark the Studio migration complete"
 - 可恢复 tag/snapshot 建议；
 - 明确询问是否执行 repository archive/delete。
 
-## Plan Self-Review
+## 4. Plan Self-Review
 
 - Spec coverage：JT adapter、Sidecar、package export、release scripts、fixtures、
   docs、AGENTS、cross-repo audit、Phase 5 status 和 archive confirmation 均有 task。

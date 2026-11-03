@@ -576,7 +576,7 @@ Studio 新 Diagnostic 使用：
 
 ## 15. 实施阶段
 
-### Phase 6A：共享 Prepare 与 build（Implemented）
+### 15.1 Phase 6A：共享 Prepare 与 build（Implemented）
 
 - 实现 AssetMetrics、BudgetProfile、edges、report 和 PrepareArtifact。
 - 让 `import` 改走共享 Prepare，默认 edges 关闭。
@@ -587,7 +587,7 @@ Phase 6A 已由 Plan 027 交付。`node scripts/compare-prepare-imports.mjs` 连
 Studio GLB，验证字节确定性，并比较 Toolchain baseline 的 stats、bounds、业务节点身份、
 Selection fallback、edge role/width/color、budget 和 report 语义。
 
-### Phase 6B：Pipeline 与 Runtime Tileset（Implemented）
+### 15.2 Phase 6B：Pipeline 与 Runtime Tileset（Implemented）
 
 - 扩展 AssetProfile。
 - fine/LOD/coarse 生成真实 edges、metrics 和 budget。
@@ -603,7 +603,7 @@ edge bytes 计入 part/chunk budget。Runtime Tileset 与 direct partition 共�
 batching、coarse chunk 和 skip-edges case，并校验确定性、URI、bounds、Selection、
 edge material、统计和 byte budget。
 
-### Phase 6C：文档、性能与最终验收（Implemented）
+### 15.3 Phase 6C：文档、性能与最终验收（Implemented）
 
 - Engine 兼容测试。
 - large-industrial 性能和资源基线。

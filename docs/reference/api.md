@@ -14,7 +14,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 不含 `toolchain`，客户端必须按当前 generated schema 解析 capabilities。该形状变化
 不承诺向后兼容，不能把 `1.0` 当作兼容性承诺。
 
-## Transport
+## 1. Transport
 
 - `GET /health`：无需认证的进程和 contract health。
 - `POST /rpc`：JSON-RPC 2.0。
@@ -32,7 +32,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 默认 origin 是 `http://127.0.0.1:8120`。写入需要
 `Authorization: Bearer <token>`；ChangeSet commit 还需要审批 Cookie。
 
-## JSON-RPC envelope
+## 2. JSON-RPC envelope
 
 ```json
 {
@@ -47,7 +47,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 `error.diagnosticCode` 和可选 `error.data`。解析错误使用 `-32700`，未知方法使用
 `-32601`。
 
-## 方法清单
+## 3. 方法清单
 
 静态 Schema 固化 37 个方法；运行中的 `system.capabilities` 另有两个实验性 GPU scene
 方法，共 39 个。
@@ -96,7 +96,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 
 实验方法必须先从 `system.capabilities.methods` 确认，再由调用方准备 CPU fallback。
 
-## Transaction
+## 4. Transaction
 
 ```json
 {
@@ -113,7 +113,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 - 一个 Operation 无效会拒绝整批修改。
 - 成功事务只增加一个 revision；失败事务和 dry run 不发布 event。
 
-## Operation
+## 5. Operation
 
 当前有 29 种 Operation：
 
@@ -132,7 +132,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 Operation variant 顶层字段使用 snake_case（例如 `node_id`、`material_id`）；`*.patch`
 payload 和返回的 Document 使用 camelCase（例如 `nodeId`、`setParameters`）。
 
-## Component 与参数
+## 6. Component 与参数
 
 Component Parameter 支持 Number、Vector3、Color 和 Enumeration。API wire format 是
 untagged：
@@ -165,7 +165,7 @@ Part scalar 和 vector 字面量同样直接写值：
 实例、实例集、嵌套组件的安全上限由 server 校验：16 层组件引用、单组件 4096 parts、
 单实例集 100,000 items。
 
-## Material
+## 7. Material
 
 ```json
 {
@@ -182,7 +182,7 @@ Part scalar 和 vector 字面量同样直接写值：
 `opacity < 1` 导出为 glTF alpha blend。`shading` 允许 `directional`、`flat` 和 `water`；
 省略时等价于 `directional`。`material.patch` 使用显式 `clearEdgeColor` 清除边缘色。
 
-## Agent context 与搜索
+## 8. Agent context 与搜索
 
 `system.agentManifest` 返回 Agent tools、当前 token authority、limits 和 inspection、
 proposal、review、commit、recovery workflow。manifest 只描述能力，实际权限仍由 RPC
@@ -205,7 +205,7 @@ relation type 和当前权限，不返回完整 Node 或 Geometry 集合。
 `evaluation.query` 接受 1 至 32 个唯一派生 Node ID。默认返回 vertex/index count、world
 bounds 和 Geometry digest；只有显式请求时才返回 positions/indices。
 
-## ChangeSet
+## 9. ChangeSet
 
 AI 提案和人工表单修改使用
 [ChangeSet Review](change-sets.md) 中的生命周期。`changeset.impact` 返回 candidate
@@ -219,7 +219,7 @@ Commit 要求：
 - 调用方拥有审批权限。
 - `idempotencyKey` 唯一，或重试与原请求完全一致。
 
-## Reference Asset
+## 10. Reference Asset
 
 `referenceAsset.register` 把 source GLB、可选 Prepared GLB、Tileset 和 binding manifest
 复制到活动项目并作为不可变文件发布。路径相对 workspace；绝对路径、`..`、symlink escape、
@@ -240,7 +240,7 @@ Binding transform、visibility、material 和 metadata 修改使用普通 `node.
 `material.assign`、`node.delete` 和 ChangeSet。带 authored override 的 baseline export
 返回 `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED`，不会静默丢弃 overlay。
 
-## Runtime Asset 导出
+## 11. Runtime Asset 导出
 
 Runtime Asset 是 CLI 产品入口，不是额外的 HTTP 写入方法：
 
@@ -290,7 +290,7 @@ Engine/Agent Console 的消费契约由 `scripts/verify-prepare-engine.mjs` 单�
 并逐 part 验证 Prepared profile。Engine 不通过 API 请求 Studio 重算几何，也不链接
 Studio Rust crate。
 
-## Event 与 Revision
+## 12. Event 与 Revision
 
 认证 WebSocket 按顺序发送 ChangeSet 和 revision event，例如：
 
@@ -304,7 +304,7 @@ Studio Rust crate。
 客户端收到 revision event 后重新读取 Document 和 preview。Document 刷新不要求替换 canvas
 或 Engine instance。
 
-## 关联文档
+## 13. 关联文档
 
 - `ICE3-STUDIO-ARC-001` — [Studio 架构](../architecture.md)
 - `ICE3-STUDIO-REF-001` — [能力清单](capabilities.md)

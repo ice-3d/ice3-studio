@@ -27,7 +27,7 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 
 **Spec:** [`ICE3-STUDIO-SPEC-004`](../specs/2026-10-30-studio-toolchain-sidecar-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - `studio-core` must not depend on Toolchain, Engine, Viewer, or Node.js.
 - The Studio product ships a pinned Toolchain sidecar; production does not depend on
@@ -46,7 +46,7 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 - Both repositories keep their configured Git identity and use dedicated feature branches.
 - Existing unrelated worktree changes must remain unstaged.
 
-## Review Focus
+## 2. Review Focus
 
 - An incompatible sidecar contract must disable only Toolchain-backed features, not project
   editing or revision operations.
@@ -61,9 +61,9 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 
 ---
 
-## Cross-Repository File Map
+## 3. Cross-Repository File Map
 
-## Execution Setup
+## 4. Execution Setup
 
 - Use branch `feat/toolchain-sidecar-contract` in `ice3-doc`.
 - Use `ice3-toolchain`'s committed `d4a4796` baseline and create branch `feat/studio-sidecar` in
@@ -73,7 +73,7 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 - Stage only files named by the active task; never use repository-wide staging from the shared
   parent workspace.
 
-### `ice3-doc`
+### 4.1 `ice3-doc`
 
 - Create `docs/contracts/toolchain-sidecar-contract-v1.md`: authority for protocol semantics,
   versions, safety, and asset result fields.
@@ -86,7 +86,7 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 - Modify `docs/README.md`: links `ICE3-DOC-CTR-002`.
 - Modify `package.json`: includes the new contract test.
 
-### `ice3-toolchain`
+### 4.2 `ice3-toolchain`
 
 - Create `packages/cli/src/sidecar/protocol.ts`: message types, size limits, NDJSON parser.
 - Create `packages/cli/src/sidecar/workspacePaths.ts`: canonical workspace-relative path
@@ -101,7 +101,7 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 - Modify `packages/cli/package.json`: export the sidecar module and describe the command.
 - Modify `packages/cli/README.md`: development command and stdout contract.
 
-### `ice3-studio`
+### 4.3 `ice3-studio`
 
 - Create `crates/studio-toolchain-client/Cargo.toml`: adapter crate manifest.
 - Create `crates/studio-toolchain-client/src/lib.rs`: public exports.
@@ -132,7 +132,7 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 
 ---
 
-### Task 1: Freeze the Shared Contract and Examples
+### 4.4 Task 1: Freeze the Shared Contract and Examples
 
 **Files:**
 
@@ -297,7 +297,7 @@ git commit -m "docs: define toolchain sidecar contract"
 
 ---
 
-### Task 2: Implement Toolchain Sidecar Protocol and Capabilities
+### 4.5 Task 2: Implement Toolchain Sidecar Protocol and Capabilities
 
 **Files:**
 
@@ -439,7 +439,7 @@ git commit -m "feat(toolchain): add sidecar protocol"
 
 ---
 
-### Task 3: Implement Sidecar Asset Operations and Safety
+### 4.6 Task 3: Implement Sidecar Asset Operations and Safety
 
 **Files:**
 
@@ -561,7 +561,7 @@ git commit -m "feat(toolchain): execute sidecar asset jobs"
 
 ---
 
-### Task 4: Add the Rust Toolchain Client
+### 4.7 Task 4: Add the Rust Toolchain Client
 
 **Files:**
 
@@ -722,7 +722,7 @@ git commit -m "feat(studio-toolchain): add sidecar client"
 
 ---
 
-### Task 5: Migrate Server Preview and Publish Toolchain Status
+### 4.8 Task 5: Migrate Server Preview and Publish Toolchain Status
 
 **Files:**
 
@@ -832,7 +832,7 @@ git commit -m "feat(studio-server): integrate toolchain sidecar"
 
 ---
 
-### Task 6: Add Managed Sidecar Discovery and Release Verification
+### 4.9 Task 6: Add Managed Sidecar Discovery and Release Verification
 
 **Files:**
 
@@ -931,7 +931,7 @@ git commit -m "build(studio): bundle toolchain sidecar"
 
 ---
 
-### Task 7: Add Workbench Status, Cross-Repository Conformance, and Release Docs
+### 4.10 Task 7: Add Workbench Status, Cross-Repository Conformance, and Release Docs
 
 **Files:**
 
@@ -1056,7 +1056,7 @@ git commit -m "feat(studio): integrate managed toolchain sidecar"
 
 ---
 
-## Plan Self-Review
+## 5. Plan Self-Review
 
 - Spec coverage: shared contract, Toolchain framing/security/jobs, managed packaging, Rust
   lifecycle, Server preview, capabilities, Workbench evidence, tests, and cross-repository docs

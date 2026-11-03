@@ -28,7 +28,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 
 **Spec:** `docs/specs/2026-10-31-agent-friendly-modeling-api-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - The Document remains the only durable modeling source of truth.
 - CPU owns validation, revisions, approval, persistence, and canonical GLB export.
@@ -46,7 +46,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 - Root verification is `PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 - Use TDD for every production behavior change and commit each completed task.
 
-## Review Focus
+## 2. Review Focus
 
 - A cursor from an older revision or a different normalized query must fail closed instead of
   returning a mixed page; Task 5 tests both cases.
@@ -59,7 +59,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 - Context and default search must remain bounded on a 1,938-node scene; Task 7 records byte
   ceilings and fails the benchmark when exceeded.
 
-## File Structure
+## 3. File Structure
 
 - `crates/studio-core/src/agent_contract.rs`: Agent-facing read, manifest, search, evaluation,
   access, limit, and structured-error contracts.
@@ -81,7 +81,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 
 ---
 
-### Task 1: Define Agent-Facing Contracts
+### 3.1 Task 1: Define Agent-Facing Contracts
 
 **Files:**
 - Create: `crates/studio-core/src/agent_contract.rs`
@@ -289,7 +289,7 @@ git commit -m "feat(studio-core): define agent modeling contracts"
 
 ---
 
-### Task 2: Add Sparse Instance And Material Patches
+### 3.2 Task 2: Add Sparse Instance And Material Patches
 
 **Files:**
 - Create: `crates/studio-core/src/patch.rs`
@@ -478,7 +478,7 @@ git commit -m "feat(studio-core): patch instances and materials sparsely"
 
 ---
 
-### Task 3: Add Sparse Component And Connection Patches
+### 3.3 Task 3: Add Sparse Component And Connection Patches
 
 **Files:**
 - Modify: `crates/studio-core/src/patch.rs`
@@ -575,7 +575,7 @@ git commit -m "feat(studio-core): patch components and connections sparsely"
 
 ---
 
-### Task 4: Add Request Authority And Agent Manifest
+### 3.4 Task 4: Add Request Authority And Agent Manifest
 
 **Files:**
 - Modify: `crates/studio-server/src/capabilities.rs`
@@ -771,7 +771,7 @@ git commit -m "feat(studio-server): advertise agent capabilities"
 
 ---
 
-### Task 5: Implement Context And Source Search
+### 3.5 Task 5: Implement Context And Source Search
 
 **Files:**
 - Modify: `crates/studio-server/src/agent.rs`
@@ -916,7 +916,7 @@ git commit -m "feat(studio-server): expose bounded agent scene context"
 
 ---
 
-### Task 6: Add Derived Search And Evaluated Geometry Query
+### 3.6 Task 6: Add Derived Search And Evaluated Geometry Query
 
 **Files:**
 - Modify: `crates/studio-server/src/agent.rs`
@@ -1040,7 +1040,7 @@ git commit -m "feat(studio-server): query derived agent scene data"
 
 ---
 
-### Task 7: Add Agent Workflow And Large-Scene Evidence
+### 3.7 Task 7: Add Agent Workflow And Large-Scene Evidence
 
 **Files:**
 - Create: `crates/studio-server/tests/agent_workflow.rs`
@@ -1212,7 +1212,7 @@ git add crates/studio-server/tests/agent_workflow.rs \
 git commit -m "test(studio): verify agent modeling workflow"
 ```
 
-## Plan Self-Review
+## 4. Plan Self-Review
 
 - Spec coverage: Tasks 1-6 cover contracts, four patches, manifest, access,
   context, source/derived search, cursors, and explicit geometry query. Task 7

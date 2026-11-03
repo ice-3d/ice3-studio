@@ -27,7 +27,7 @@ and esbuild; JSON-RPC; Node.js 24.22.1.
 
 **Spec:** [`docs/specs/2026-10-30-large-scene-authoring-design.md`](../specs/2026-10-30-large-scene-authoring-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - Studio Core must remain independent of Server, Viewer, Toolchain, Engine, and native GPU code.
 - Modeling vocabularies must stay generic; no wastewater-specific Operation names or Core types.
@@ -44,7 +44,7 @@ and esbuild; JSON-RPC; Node.js 24.22.1.
 - Every behavior change follows RED-GREEN-REFACTOR and ends with a focused commit.
 - Root acceptance is `npm run verify`.
 
-## Review Focus
+## 2. Review Focus
 
 - A missing definition, missing part, or cyclic component reference must be rejected before
   evaluation; it must never recurse indefinitely or produce partial geometry.
@@ -59,7 +59,7 @@ and esbuild; JSON-RPC; Node.js 24.22.1.
 
 ---
 
-### Task 1: Extend the Document schema and migrate version 1 projects
+### 2.1 Task 1: Extend the Document schema and migrate version 1 projects
 
 **Files:**
 - Modify: `crates/studio-core/src/ids.rs`
@@ -576,7 +576,7 @@ git commit -m "feat(studio-core): add large-scene document schema"
 
 ---
 
-### Task 2: Validate component definitions and bounded parameters
+### 2.2 Task 2: Validate component definitions and bounded parameters
 
 **Files:**
 - Create: `crates/studio-core/src/large_scene/validate.rs`
@@ -827,7 +827,7 @@ git commit -m "feat(studio-core): validate parameterized components"
 
 ---
 
-### Task 3: Expand explicit component instances with stable derived identities
+### 2.3 Task 3: Expand explicit component instances with stable derived identities
 
 **Files:**
 - Create: `crates/studio-core/src/large_scene/evaluate.rs`
@@ -1058,7 +1058,7 @@ git commit -m "feat(studio-core): expand shared component instances"
 
 ---
 
-### Task 4: Expand deterministic instance-set layouts
+### 2.4 Task 4: Expand deterministic instance-set layouts
 
 **Files:**
 - Modify: `crates/studio-core/src/large_scene/evaluate.rs`
@@ -1291,7 +1291,7 @@ git commit -m "feat(studio-core): expand deterministic instance sets"
 
 ---
 
-### Task 5: Resolve ports and generate routed connection sweeps
+### 2.5 Task 5: Resolve ports and generate routed connection sweeps
 
 **Files:**
 - Create: `crates/studio-core/src/large_scene/route.rs`
@@ -1463,7 +1463,7 @@ git commit -m "feat(studio-core): route typed equipment connections"
 
 ---
 
-### Task 6: Add component, instance, instance-set, and connection Operations
+### 2.6 Task 6: Add component, instance, instance-set, and connection Operations
 
 **Files:**
 - Modify: `crates/studio-core/src/operation.rs`
@@ -1660,7 +1660,7 @@ git commit -m "feat(studio-core): add large-scene authoring operations"
 
 ---
 
-### Task 7: Add the CPU reference evaluator and persistent mesh cache
+### 2.7 Task 7: Add the CPU reference evaluator and persistent mesh cache
 
 **Files:**
 - Create: `crates/studio-core/src/large_scene/cache.rs`
@@ -1834,7 +1834,7 @@ git commit -m "feat(studio-core): reuse evaluated component geometry"
 
 ---
 
-### Task 8: Export shared meshes and expose evaluated large scenes through the API
+### 2.8 Task 8: Export shared meshes and expose evaluated large scenes through the API
 
 **Files:**
 - Modify: `crates/studio-core/src/export/glb.rs`
@@ -1960,7 +1960,7 @@ git commit -m "feat(studio-server): expose shared large-scene geometry"
 
 ---
 
-### Task 9: Add generated parameter forms to the Workbench
+### 2.9 Task 9: Add generated parameter forms to the Workbench
 
 **Files:**
 - Modify: `apps/viewer/src/api/StudioClient.ts`
@@ -2103,7 +2103,7 @@ git commit -m "feat(studio-workbench): edit typed component parameters"
 
 ---
 
-### Task 10: Generate contracts, document the capability, and run the complete gate
+### 2.10 Task 10: Generate contracts, document the capability, and run the complete gate
 
 **Files:**
 - Modify: `schemas/studio-api.schema.json`
@@ -2181,9 +2181,9 @@ credential, absolute path, or customer asset is staged.
 
 ---
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
-### Spec Coverage
+### 3.1 Spec Coverage
 
 | Spec area | Plan tasks |
 |---|---|
@@ -2201,7 +2201,7 @@ credential, absolute path, or customer asset is staged.
 | Toolchain partition and Viewer streaming | Separate M4 plan after M1 acceptance |
 | Large industrial 5.5M–7.5M triangle fixture | Separate M2 plan after M1 acceptance |
 
-### Type Consistency
+### 3.2 Type Consistency
 
 - `ComponentId` is introduced in Task 1 and used unchanged thereafter.
 - `ComponentInstance` is stored in `NodeContent::ComponentInstance` and updated through
@@ -2212,7 +2212,7 @@ credential, absolute path, or customer asset is staged.
 - `ParameterError`, `LayoutError`, `ConnectionError`, and `LargeSceneError` have one owner each
   and are re-exported through the task that defines them.
 
-### Scope Check
+### 3.3 Scope Check
 
 This plan produces independently usable scale-out CPU authoring. It deliberately excludes the
 large fixture, GPU kernels, Toolchain publication, and Tileset streaming so each later plan can

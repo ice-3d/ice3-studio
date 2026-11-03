@@ -20,7 +20,7 @@
 
 **Spec:** [`ICE3-STUDIO-SPEC-001`](../specs/2026-10-30-ai-native-studio-mvp-design.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - Studio Core is Rust. Node.js must not own document mutation, geometry evaluation, validation, persistence, or export.
 - The public API is the product boundary; the Web Viewer uses the same API and has no private mutation path.
@@ -37,7 +37,7 @@
 - Every behavior change starts with a failing test and ends with the complete relevant suite passing.
 - Git author and committer must be `damoqiongqiu <damoqiongqiu@126.com>`.
 
-## Review Focus
+## 2. Review Focus
 
 - Invalid geometry: non-finite coordinates, reversed or out-of-range indices, zero dimensions, and singular transforms must fail before persistence.
 - Revision conflict and duplicate submission: stale revisions must leave the project unchanged; the same idempotency key must not create multiple revisions.
@@ -47,7 +47,7 @@
 
 ---
 
-### Task 1: Bootstrap the Rust Workspace
+### 2.1 Task 1: Bootstrap the Rust Workspace
 
 **Files:**
 - Create: `Cargo.toml`
@@ -153,7 +153,7 @@ git commit -m "build(studio): bootstrap rust workspace"
 
 ---
 
-### Task 2: Define Stable IDs, Units, and the Document Model
+### 2.2 Task 2: Define Stable IDs, Units, and the Document Model
 
 **Files:**
 - Create: `crates/studio-core/src/ids.rs`
@@ -282,7 +282,7 @@ git commit -m "feat(studio-core): define stable document model"
 
 ---
 
-### Task 3: Implement Primitive Geometry and Sweep Generation
+### 2.3 Task 3: Implement Primitive Geometry and Sweep Generation
 
 **Files:**
 - Create: `crates/studio-core/src/geometry/mod.rs`
@@ -406,7 +406,7 @@ git commit -m "feat(studio-core): evaluate modeling primitives"
 
 ---
 
-### Task 4: Add Atomic Document Operations and Validation
+### 2.4 Task 4: Add Atomic Document Operations and Validation
 
 **Files:**
 - Create: `crates/studio-core/src/operation.rs`
@@ -597,7 +597,7 @@ git commit -m "feat(studio-core): apply atomic modeling transactions"
 
 ---
 
-### Task 5: Persist Projects, Revisions, and History
+### 2.5 Task 5: Persist Projects, Revisions, and History
 
 **Files:**
 - Create: `crates/studio-project/Cargo.toml`
@@ -710,7 +710,7 @@ git commit -m "feat(studio-project): persist revisions atomically"
 
 ---
 
-### Task 6: Expose the Local JSON-RPC API and Generated Schemas
+### 2.6 Task 6: Expose the Local JSON-RPC API and Generated Schemas
 
 **Files:**
 - Create: `crates/studio-server/Cargo.toml`
@@ -870,7 +870,7 @@ git commit -m "feat(studio-server): expose local ai modeling api"
 
 ---
 
-### Task 7: Export Standard GLB and Orchestrate Runtime Preview
+### 2.7 Task 7: Export Standard GLB and Orchestrate Runtime Preview
 
 **Files:**
 - Create: `crates/studio-core/src/export/glb.rs`
@@ -954,7 +954,7 @@ git commit -m "feat(studio): export previewable glb assets"
 
 ---
 
-### Task 8: Add the Minimal Wastewater Fixture and Deterministic AI Client
+### 2.8 Task 8: Add the Minimal Wastewater Fixture and Deterministic AI Client
 
 **Files:**
 - Create: `fixtures/wastewater-mini/project.json`
@@ -1018,7 +1018,7 @@ git commit -m "test(studio): prove ai-driven wastewater modeling"
 
 ---
 
-### Task 9: Build the Thin TypeScript Viewer
+### 2.9 Task 9: Build the Thin TypeScript Viewer
 
 **Files:**
 - Create: `apps/viewer/package.json`
@@ -1144,7 +1144,7 @@ git commit -m "feat(studio-viewer): display api-driven models"
 
 ---
 
-### Task 10: Complete Verification, Performance Evidence, and Documentation
+### 2.10 Task 10: Complete Verification, Performance Evidence, and Documentation
 
 **Files:**
 - Create: `scripts/verify.mjs`
@@ -1221,7 +1221,7 @@ git commit -m "docs(studio): verify ai-native mvp workflow"
 
 ---
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
 - Spec coverage: Rust Core, generic primitives, materials, relations, constraints, atomic
   revisions, local persistence, JSON-RPC, schema generation, GLB export, Toolchain preview,

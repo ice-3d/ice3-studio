@@ -26,7 +26,7 @@ JSON-RPC、React Viewer、Playwright、Google Chrome
 
 **Spec:** `docs/specs/2026-11-01-wastewater-process-piping-correction-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - 使用 Node.js 24.22.1 LTS 和 npm 11 或更高版本。
 - Studio Core 不增加污水处理业务术语或案例专用类型。
@@ -41,7 +41,7 @@ JSON-RPC、React Viewer、Playwright、Google Chrome
 - 不增加 Studio Core、Viewer 或 Toolchain 的运行时依赖。
 - 截图只写现有 `output/`，临时浏览器状态在交付前清理。
 
-## Review Focus
+## 2. Review Focus
 
 - 工艺图缺少 RAS、初沉污泥或沼气链路时，构建必须失败，不能发布“看起来完整”的厂区。
 - 同一普通端口被多条连接复用、端口介质不匹配或连接直径失衡时，必须产生具体诊断。
@@ -52,15 +52,15 @@ JSON-RPC、React Viewer、Playwright、Google Chrome
 
 ---
 
-## File Structure
+## 3. File Structure
 
-### New files
+### 3.1 New files
 
 - `scripts/wastewater-plant/process-nodes.mjs`：分流井、集泥井、RAS 泵站、气体节点、
   火炬和泥饼输送机的参数化几何。
 - `docs/plans/2026-11-01-wastewater-process-topology-correction.md`：本实施计划。
 
-### Modified files
+### 3.2 Modified files
 
 - `scripts/wastewater-plant/components.mjs`：按厌氧、缺氧、好氧模式生成生化池设备。
 - `scripts/wastewater-plant/site-plan.mjs`：组件定义、端口、站点节点和完整连接图。
@@ -74,7 +74,7 @@ JSON-RPC、React Viewer、Playwright、Google Chrome
 
 ---
 
-### Task 1: Add Generic Process Reachability Validation
+### 3.3 Task 1: Add Generic Process Reachability Validation
 
 **Files:**
 - Modify: `scripts/wastewater-plant/validate.mjs`
@@ -227,7 +227,7 @@ git commit -m "test(wwtp): validate process media reachability"
 
 ---
 
-### Task 2: Split Anaerobic, Anoxic, and Aerobic Basin Components
+### 3.4 Task 2: Split Anaerobic, Anoxic, and Aerobic Basin Components
 
 **Files:**
 - Modify: `scripts/wastewater-plant/components.mjs`
@@ -380,7 +380,7 @@ git commit -m "refactor(wwtp): separate biological basin modes"
 
 ---
 
-### Task 3: Add Process Nodes and Complete Port Graph
+### 3.5 Task 3: Add Process Nodes and Complete Port Graph
 
 **Files:**
 - Create: `scripts/wastewater-plant/process-nodes.mjs`
@@ -615,7 +615,7 @@ git commit -m "feat(wwtp): complete process topology"
 
 ---
 
-### Task 4: Correct Material Semantics and Port Usage
+### 3.6 Task 4: Correct Material Semantics and Port Usage
 
 **Files:**
 - Modify: `scripts/wastewater-plant/model-kit.mjs`
@@ -800,7 +800,7 @@ git commit -m "fix(wwtp): validate media and port usage"
 
 ---
 
-### Task 5: Rebuild Through Studio API and Visually Verify
+### 3.7 Task 5: Rebuild Through Studio API and Visually Verify
 
 **Files:**
 - Generated: `projects/wastewater-plant/**`
@@ -888,7 +888,7 @@ git commit -m "feat(wwtp): rebuild correct process topology"
 
 ---
 
-### Task 6: Final Review of Process Semantics
+### 3.8 Task 6: Final Review of Process Semantics
 
 **Files:**
 - Read: `scripts/wastewater-plant/**`
@@ -947,7 +947,7 @@ create an empty review commit.
 
 ---
 
-## Stage 2 交接
+## 4. Stage 2 交接
 
 本计划只交付 SPEC-013 的阶段一。阶段二另写独立实施计划，覆盖 Core 连续弯头、路径
 碰撞、支吊架和配件对齐。阶段一全部验收通过前，不开始阶段二。

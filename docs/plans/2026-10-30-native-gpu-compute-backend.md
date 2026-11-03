@@ -30,7 +30,7 @@ schemars, ts-rs, Tokio; Node.js 24.22.1 benchmarks.
 performance gate fails on the current integrated Metal GPU; automatic selection therefore remains
 on CPU until a measured crossover is established.
 
-## Global Constraints
+## 1. Global Constraints
 
 - GPU output is derived geometry and never owns Document, validation, approval, or revision state.
 - CPU evaluation remains the canonical reference and required fallback.
@@ -46,7 +46,7 @@ on CPU until a measured crossover is established.
 - Root acceptance is `npm run verify`; performance acceptance additionally runs both benchmark
   suites.
 
-## Review Focus
+## 2. Review Focus
 
 - Systems without an adapter, with incompatible limits, or with a lost device must continue through
   CPU evaluation and preserve the last committed revision; tests must force each path.
@@ -61,7 +61,7 @@ on CPU until a measured crossover is established.
 
 ---
 
-### Task 1: Define backend-neutral GPU contracts in Studio Core
+### 2.1 Task 1: Define backend-neutral GPU contracts in Studio Core
 
 **Files:**
 - Create: `crates/studio-core/src/gpu_contract.rs`
@@ -225,7 +225,7 @@ git commit -m "feat(studio-core): define native GPU geometry contract"
 
 ---
 
-### Task 2: Add the native GPU crate and device lifecycle
+### 2.2 Task 2: Add the native GPU crate and device lifecycle
 
 **Files:**
 - Modify: `Cargo.toml`
@@ -345,7 +345,7 @@ git commit -m "feat(studio-gpu): add bounded native device lifecycle"
 
 ---
 
-### Task 3: Implement box and plane compute kernels with CPU parity
+### 2.3 Task 3: Implement box and plane compute kernels with CPU parity
 
 **Files:**
 - Create: `crates/studio-gpu/src/kernels/mod.rs`
@@ -432,7 +432,7 @@ git commit -m "feat(studio-gpu): compute boxes and planes natively"
 
 ---
 
-### Task 4: Implement cylinder, sphere, and sweep kernels
+### 2.4 Task 4: Implement cylinder, sphere, and sweep kernels
 
 **Files:**
 - Create: `crates/studio-gpu/src/kernels/radial.wgsl`
@@ -506,7 +506,7 @@ git commit -m "feat(studio-gpu): compute radial primitives and sweeps"
 
 ---
 
-### Task 5: Accelerate normals and bounds for custom triangle meshes
+### 2.5 Task 5: Accelerate normals and bounds for custom triangle meshes
 
 **Files:**
 - Create: `crates/studio-gpu/src/kernels/mesh.wgsl`
@@ -572,7 +572,7 @@ git commit -m "feat(studio-gpu): accelerate mesh normals and bounds"
 
 ---
 
-### Task 6: Integrate measured CPU/GPU scheduling and safe fallback
+### 2.6 Task 6: Integrate measured CPU/GPU scheduling and safe fallback
 
 **Files:**
 - Create: `crates/studio-server/src/compute.rs`
@@ -663,7 +663,7 @@ git commit -m "feat(studio-server): schedule native GPU geometry work"
 
 ---
 
-### Task 7: Expose compute evidence and benchmarks
+### 2.7 Task 7: Expose compute evidence and benchmarks
 
 **Files:**
 - Create: `benchmarks/native-gpu.mjs`
@@ -752,7 +752,7 @@ git commit -m "feat(studio-workbench): expose native GPU evidence"
 
 ---
 
-### Task 8: Update documentation and run the release gate
+### 2.8 Task 8: Update documentation and run the release gate
 
 **Files:**
 - Modify: `docs/specs/2026-10-30-native-gpu-compute-design.md`
@@ -806,9 +806,9 @@ is staged.
 
 ---
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
-### Spec Coverage
+### 3.1 Spec Coverage
 
 | Spec area | Plan task |
 |---|---|
@@ -823,14 +823,14 @@ is staged.
 | 50k, 500k, 2M and incremental benchmarks | 7 |
 | Security and host-owned policy | 1, 2, 6 |
 
-### Type Consistency
+### 3.2 Type Consistency
 
 - `GeometryBackendKind`, `GeometryBackendMode`, and batch types are introduced once in Task 1.
 - Every later task uses `EvaluatedMesh` and `Diagnostic` from Core.
 - Cache APIs remain in `studio-project`; Core continues to define backend-neutral types.
 - `ComputeService` is the only Server-side scheduler and does not leak into Core.
 
-### Scope Check
+### 3.3 Scope Check
 
 This plan ends with independently usable native GPU compute, fallback, evidence, and performance
 gates. Runtime Tileset publication remains M4.

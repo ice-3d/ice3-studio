@@ -20,7 +20,7 @@
 
 **Spec:** `docs/specs/2026-10-31-gpu-hot-path-redesign-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - Node.js is `24.22.1`; do not use Vite or Vitest.
 - Use native execution; do not dispatch subagents.
@@ -33,7 +33,7 @@
 - Keep CPU parity tolerance at `1e-5` for positions, normals, and bounds.
 - Do not push, merge, or release as part of this plan unless explicitly requested.
 
-## Review Focus
+## 2. Review Focus
 
 - A stale or evicted handle must never return geometry from a previous device generation.
 - A digest collision or dependency mismatch must force CPU fallback rather than stale reuse.
@@ -43,7 +43,7 @@
 
 ---
 
-### Task 1: Add Digest and Resident Handle Contracts
+### 2.1 Task 1: Add Digest and Resident Handle Contracts
 
 **Files:**
 - Modify: `crates/studio-core/src/gpu_contract.rs`
@@ -172,7 +172,7 @@ git commit -m "feat(studio-core): define resident geometry handles"
 
 ---
 
-### Task 2: Resolve Resident Hot Paths by Precomputed Digests
+### 2.2 Task 2: Resolve Resident Hot Paths by Precomputed Digests
 
 **Files:**
 - Modify: `crates/studio-gpu/src/residency/key.rs`
@@ -284,7 +284,7 @@ git commit -m "feat(studio-gpu): resolve resident work by stable handles"
 
 ---
 
-### Task 3: Record Phase-Specific Evidence
+### 2.3 Task 3: Record Phase-Specific Evidence
 
 **Files:**
 - Modify: `crates/studio-gpu/src/device.rs`
@@ -357,7 +357,7 @@ git commit -m "feat(studio-gpu): attribute resident GPU latency"
 
 ---
 
-### Task 4: Encode Heterogeneous Compatible Nodes in One Submission
+### 2.4 Task 4: Encode Heterogeneous Compatible Nodes in One Submission
 
 **Files:**
 - Modify: `crates/studio-gpu/src/residency/batch.rs`
@@ -448,7 +448,7 @@ git commit -m "feat(studio-gpu): batch heterogeneous resident nodes"
 
 ---
 
-### Task 5: Use Stable Handles in ComputeService
+### 2.5 Task 5: Use Stable Handles in ComputeService
 
 **Files:**
 - Modify: `crates/studio-server/src/compute.rs`
@@ -541,7 +541,7 @@ git commit -m "feat(studio-server): evaluate resident geometry handles"
 
 ---
 
-### Task 6: Route Preview Source Views Through Resident Handles
+### 2.6 Task 6: Route Preview Source Views Through Resident Handles
 
 **Files:**
 - Modify: `crates/studio-server/src/preview.rs`
@@ -639,7 +639,7 @@ git commit -m "feat(studio-server): build previews from resident source views"
 
 ---
 
-### Task 7: Re-run Mode-Specific Gates and Document Results
+### 2.7 Task 7: Re-run Mode-Specific Gates and Document Results
 
 **Files:**
 - Modify: `crates/studio-gpu/tests/native_gpu_benchmark.rs`
@@ -714,7 +714,7 @@ git add crates/studio-gpu/tests/native_gpu_benchmark.rs benchmarks/native-gpu.mj
 git commit -m "docs(studio): record resident hot-path evidence"
 ```
 
-## Self-Review
+## 3. Self-Review
 
 - Spec coverage: digest/handle contract in Task 1; no-hash lookup in Task 2; phase evidence in Task 3;
   batching/completion in Task 4; server integration in Task 5; source-only preview transport in Task

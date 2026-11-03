@@ -10,7 +10,7 @@
 完成一次 ChangeSet 审阅。Rust 负责 Document、Operation、校验、revision、持久化和 GLB
 导出；浏览器 Viewer 只通过公开 API 读取和显示。
 
-## 前置条件
+## 1. 前置条件
 
 - Rust 1.98 与 Cargo。
 - Node.js 24.22.1、npm 11 或更高版本。
@@ -22,7 +22,7 @@
 npm --prefix apps/viewer ci
 ```
 
-## 启动默认工程
+## 2. 启动默认工程
 
 `npm run dev` 扫描 `projects/*/project.json`，选择修改时间最新的工程；时间相同时选择
 `currentRevision` 更高的工程。当前默认工程是 `projects/wastewater-plant`。
@@ -36,7 +36,7 @@ npm run dev
 运行，直到按下 `Ctrl+C`。可用 `STUDIO_PROJECTS_DIR` 更换 projects root，或用
 `STUDIO_PORT` 更换端口。
 
-## Workbench
+## 3. Workbench
 
 Workbench 保留 Objects、3D Scene 和 Review dock 三栏：
 
@@ -48,7 +48,7 @@ Workbench 保留 Objects、3D Scene 和 Review dock 三栏：
 Agent Gateway 离线时仍可使用对象搜索、属性检查、ChangeSet review 和人工提交。界面不会
 伪造已连接状态。
 
-## 小型契约 fixture
+## 4. 小型契约 fixture
 
 `wastewater-mini` 是一个 11 节点、约 16 KB 的确定性 fixture，用于快速 API、E2E 和
 benchmark 验证，不是默认展示 Asset：
@@ -60,7 +60,7 @@ npm run dev:mini
 服务只绑定 `127.0.0.1`，默认端口 `8120`。`--native-gpu cpu` 是 release 默认值；
 `auto` 和强制 `gpu` 只应在目标设备通过 GPU benchmark 后实验。
 
-## 前端 watch
+## 5. 前端 watch
 
 保持 Server 运行，在另一个 terminal 构建 Viewer：
 
@@ -71,7 +71,7 @@ npm --prefix apps/viewer run dev
 watch build 更新 `apps/viewer/dist`，重新加载浏览器 tab 后生效。Revision event 会触发
 Document 和 preview 刷新，但不会替换 canvas，因此 Selection 和 camera 状态可以保留。
 
-## 通过 API 修改模型
+## 6. 通过 API 修改模型
 
 模型写入使用 `POST /rpc` 和 JSON-RPC 2.0。写请求需要 bearer token、`expectedRevision`
 和幂等键：
@@ -114,7 +114,7 @@ Document 和 preview 刷新，但不会替换 canvas，因此 Selection 和 came
 `dryRun: true` 执行同样的校验、求值和 diff，但不持久化。一个无效 Operation 会拒绝整批
 修改，不会留下部分 revision。
 
-## Review ChangeSet
+## 7. Review ChangeSet
 
 AI proposal 和人工表单修改都进入 ChangeSet。默认 `review-required` 模式下，Agent token
 可以创建、编辑和求值候选，但不能提交：
@@ -128,7 +128,7 @@ AI proposal 和人工表单修改都进入 ChangeSet。默认 `review-required` 
 Commit 必须携带审批 Cookie，并且 `approvedDigest` 必须与重新求值得到的 candidate digest
 一致。ChangeSet 不是 `ready`、基线 revision 已变化或只提供 Agent token 时，提交失败。
 
-## 验证
+## 8. 验证
 
 ```bash
 npm run verify
@@ -145,7 +145,7 @@ npm run benchmark
 
 结果写入 `output/studio-mvp-benchmark.json`；超过设计上限会使 command 失败。
 
-## 导出 Runtime Tileset
+## 9. 导出 Runtime Tileset
 
 Studio 直接从 committed revision 生成 Agent Console Runtime Asset：
 
@@ -230,7 +230,7 @@ Large-industrial 五个 case 使用 warmup 1 次、采样 5 次，检查 p95、5
 output bytes、triangle/edge/batch/coarse counts 和 digest 稳定性。同参数的 legacy
 时间只在一次性捕获时使用；日常门禁不启动 Toolchain。
 
-## 导入 Source Asset
+## 10. 导入 Source Asset
 
 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT 由 Studio 原生导入：
 
@@ -287,7 +287,7 @@ JT 使用部署方提供的 `ICE3_JT_CONVERTER`，默认 timeout 为 300 秒，�
 额外提供 5 秒清理宽限。Studio 固定 converter 参数、验证 512 MiB 上限内的 GLB，并保留
 层级、共享实例、材质、JT metadata、Selection 和 shared source origin。
 
-## Build 与 Inspect Prepared Asset
+## 11. Build 与 Inspect Prepared Asset
 
 `import` 使用共享 Prepare 生成 metrics、preparation 和 budget，但默认不生成 render
 edges。需要面向 Engine 预览的 line edges 时使用 `build`：
@@ -348,12 +348,12 @@ node --test scripts/tests/prepare-baseline.test.mjs
 身份、Selection fallback、edge role/width/color、budget 和 report。结果写入
 `output/prepare-parity.json`。
 
-## 停止与恢复
+## 12. 停止与恢复
 
 使用 `Ctrl+C` 停止 Server。Revision snapshot 在事件发布前原子写入；写入过程中断时保留
 上一个可加载 revision。死进程遗留的 project lock 会在下一次 open 时恢复。
 
-## 关联文档
+## 13. 关联文档
 
 - `ICE3-STUDIO-RM-001` — [Studio README](../../README.md)
 - `ICE3-STUDIO-ARC-001` — [Studio 架构](../architecture.md)

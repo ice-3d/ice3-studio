@@ -24,14 +24,14 @@ Toolchain transport、配置或状态；测试与 benchmark 删除 Sidecar fake�
 
 **Spec：** [Studio 原生 JT Import 与 Toolchain 最终退役](../specs/2026-11-02-native-jt-toolchain-retirement-design.md)
 
-## Implementation Outcome
+## 1. Implementation Outcome
 
 Phase 5B 已实现。committed/candidate preview 只使用 Studio 原生求值和原子发布；
 `studio-toolchain-client`、Server 配置/状态、Viewer 面板、构建脚本、benchmark 注入和
 Sidecar reference 均已删除。Studio 的 22 道验证门禁、Chrome E2E 和 legacy parity
 全部通过。Toolchain repository 的源码清理与归档准备仍由 Plan-026 执行。
 
-## Global Constraints
+## 2. Global Constraints
 
 - 本计划以 `ICE3-STUDIO-PLAN-024` 先完成 JT 迁移为前提。
 - Studio Server 不得启动、探测、配置或报告 Toolchain/Sidecar。
@@ -46,7 +46,7 @@ Sidecar reference 均已删除。Studio 的 22 道验证门禁、Chrome E2E 和 
 - Viewer E2E 必须使用用户安装的 Google Chrome，并复用已有窗口/tab。
 - Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 3. Review Focus
 
 - committed preview 与 candidate preview 必须具有可重算 SHA-256，不能返回旧 Sidecar
   asset ID 或指向不存在文件。
@@ -58,7 +58,7 @@ Sidecar reference 均已删除。Studio 的 22 道验证门禁、Chrome E2E 和 
 
 ---
 
-### Task 1: 把 committed 与 candidate preview 固化为原生路径
+### 3.1 Task 1: 把 committed 与 candidate preview 固化为原生路径
 
 **文件：**
 - Modify: `crates/studio-server/src/preview.rs`
@@ -307,7 +307,7 @@ git commit -m "refactor(studio-server): make native preview the only path"
 
 ---
 
-### Task 2: 删除 Server Toolchain client、配置和 capability
+### 3.2 Task 2: 删除 Server Toolchain client、配置和 capability
 
 **文件：**
 - Modify: `Cargo.toml`
@@ -468,7 +468,7 @@ git commit -m "refactor(studio-server): remove the toolchain sidecar contract"
 
 ---
 
-### Task 3: 删除 Viewer Toolchain 状态面
+### 3.3 Task 3: 删除 Viewer Toolchain 状态面
 
 **文件：**
 - Modify: `apps/viewer/src/api/StudioClient.ts`
@@ -605,7 +605,7 @@ git commit -m "refactor(viewer): remove toolchain status surface"
 
 ---
 
-### Task 4: 删除 Sidecar build/staging/benchmark 注入
+### 3.4 Task 4: 删除 Sidecar build/staging/benchmark 注入
 
 **文件：**
 - Modify: `package.json`
@@ -768,7 +768,7 @@ git commit -m "build(studio): remove toolchain sidecar packaging"
 
 ---
 
-### Task 5: 更新文档并执行 Studio standalone 全门禁
+### 3.5 Task 5: 更新文档并执行 Studio standalone 全门禁
 
 **文件：**
 - Modify: `README.md`
@@ -904,7 +904,7 @@ git add README.md AGENTS.md docs package.json apps/viewer scripts benchmarks
 git commit -m "docs(studio): complete native asset pipeline phase 5b"
 ```
 
-## Plan Self-Review
+## 4. Plan Self-Review
 
 - Spec coverage：原生 preview、cache path、Sidecar client/config/status/UI/build/
   benchmark/test/docs 删除与 standalone 验收均有 task。

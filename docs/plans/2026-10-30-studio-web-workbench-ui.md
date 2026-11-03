@@ -29,7 +29,7 @@ Toolchain.
 
 **Prerequisite plan:** [`ICE3-STUDIO-PLAN-002`](2026-10-30-studio-changeset-api.md)
 
-## Global Constraints
+## 1. Global Constraints
 
 - The viewport is read-only and contains no transform controls or modeling tools.
 - Every model mutation is a typed Operation submitted through the public API.
@@ -47,7 +47,7 @@ Toolchain.
   state signal.
 - Git author and committer must be `damoqiongqiu <damoqiongqiu@126.com>`.
 
-## Review Focus
+## 2. Review Focus
 
 - A domain-neutral project renders with no wastewater labels: navigation, forms, and empty states
   must be generated only from generic project data.
@@ -62,7 +62,7 @@ Toolchain.
 
 ---
 
-### Task 1: Replace the Viewer Toolchain and Serve One Same-Origin App
+### 2.1 Task 1: Replace the Viewer Toolchain and Serve One Same-Origin App
 
 **Files:**
 
@@ -233,7 +233,7 @@ git commit -m "build(studio): serve react workbench with esbuild"
 
 ---
 
-### Task 2: Build the Workbench Shell and Session Store
+### 2.2 Task 2: Build the Workbench Shell and Session Store
 
 **Files:**
 
@@ -345,7 +345,7 @@ git commit -m "feat(studio-workbench): add react application shell"
 
 ---
 
-### Task 3: Add Generic Navigation and the Persistent Read-Only Viewport
+### 2.3 Task 3: Add Generic Navigation and the Persistent Read-Only Viewport
 
 **Files:**
 
@@ -440,7 +440,7 @@ git commit -m "feat(studio-workbench): add generic navigation and read-only view
 
 ---
 
-### Task 4: Compile Generic Forms into Operations
+### 2.4 Task 4: Compile Generic Forms into Operations
 
 **Files:**
 
@@ -554,7 +554,7 @@ git commit -m "feat(studio-workbench): compile generic forms into operations"
 
 ---
 
-### Task 5: Add ChangeSet Review, Proposal Preview, and Evidence
+### 2.5 Task 5: Add ChangeSet Review, Proposal Preview, and Evidence
 
 **Files:**
 
@@ -683,7 +683,7 @@ git commit -m "feat(studio-workbench): review change sets and evidence"
 
 ---
 
-### Task 6: Add the Agent Session Boundary and Offline State
+### 2.6 Task 6: Add the Agent Session Boundary and Offline State
 
 **Files:**
 
@@ -798,7 +798,7 @@ git commit -m "feat(studio-workbench): integrate generic agent sessions"
 
 ---
 
-### Task 7: Complete Approval, Accessibility, and End-to-End Evidence
+### 2.7 Task 7: Complete Approval, Accessibility, and End-to-End Evidence
 
 **Files:**
 
@@ -912,7 +912,7 @@ git add apps/viewer scripts docs README.md AGENTS.md
 git commit -m "feat(studio-workbench): deliver ai-native review workflow"
 ```
 
-## Plan Self-Review
+## 3. Plan Self-Review
 
 - Spec coverage: shell, generic navigation, read-only viewport, change modes, all generic form
   types, ChangeSet review, candidate evidence, Agent boundary/offline state, approval, responsive

@@ -23,7 +23,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 
 **Spec:** `docs/specs/2026-10-31-agent-iteration-impact-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - `changeset.impact` never mutates the committed Document or advances its revision.
 - Existing `changeset.evaluate`, `changeset.commit`, and public response shapes remain unchanged.
@@ -43,7 +43,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
   `PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify`.
 - Use TDD for every production behavior change and commit each completed task.
 
-## Review Focus
+## 2. Review Focus
 
 - A caller can evaluate a candidate, alter the ChangeSet, then request impact with a stale version;
   the request must fail instead of mixing versions.
@@ -55,7 +55,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 
 ---
 
-## File Structure
+## 3. File Structure
 
 - `crates/studio-core/src/agent_contract.rs`: backend-neutral impact enums and result structures.
 - `crates/studio-core/tests/agent_contract.rs`: serialization and generated TypeScript checks.
@@ -74,7 +74,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
 - `docs/reference/api.md`, `docs/reference/change-sets.md`, `docs/reference/diagnostics.md`,
   `docs/README.md`: public behavior and workflow documentation.
 
-### Task 1: Define Impact Contracts
+### 3.1 Task 1: Define Impact Contracts
 
 **Files:**
 - Modify: `crates/studio-core/src/agent_contract.rs`
@@ -206,7 +206,7 @@ git add crates/studio-core/src/agent_contract.rs \
 git commit -m "feat(studio-core): define agent iteration impact contracts"
 ```
 
-### Task 2: Analyze Scene Impact
+### 3.2 Task 2: Analyze Scene Impact
 
 **Files:**
 - Create: `crates/studio-server/src/iteration_impact.rs`
@@ -432,7 +432,7 @@ git add crates/studio-server/src/iteration_impact.rs \
 git commit -m "feat(studio-server): analyze incremental scene impact"
 ```
 
-### Task 3: Expose `changeset.impact`
+### 3.3 Task 3: Expose `changeset.impact`
 
 **Files:**
 - Modify: `crates/studio-server/src/changeset.rs`
@@ -646,7 +646,7 @@ git add crates/studio-server/src/changeset.rs \
 git commit -m "feat(studio-server): expose agent iteration impact"
 ```
 
-### Task 4: Generate Contracts And Documentation
+### 3.4 Task 4: Generate Contracts And Documentation
 
 **Files:**
 - Modify: `crates/studio-cli/src/schema.rs`
@@ -741,7 +741,7 @@ git add crates/studio-cli/src/schema.rs \
 git commit -m "docs(studio): document agent iteration impact"
 ```
 
-### Task 5: Current Agent Acceptance
+### 3.5 Task 5: Current Agent Acceptance
 
 **Files:**
 - Create: `scripts/agent-iteration-impact-check.mjs`
@@ -914,7 +914,7 @@ git add scripts/agent-iteration-impact-check.mjs \
 git commit -m "test(studio): verify local agent iteration impact"
 ```
 
-### Task 6: Final Verification And Handoff
+### 3.6 Task 6: Final Verification And Handoff
 
 **Files:**
 - Modify: `docs/specs/2026-10-31-agent-iteration-impact-design.md`
@@ -970,7 +970,7 @@ Run:
 Expected: a review package is written under the active plan workspace. Complete one final review
 before merge.
 
-## Self-Review
+## 4. Self-Review
 
 - Spec coverage: Tasks 1-4 cover contracts, scene analysis, RPC authorization, manifest, schemas,
   documentation, blocked/stale behavior, cache evidence, and compatibility.

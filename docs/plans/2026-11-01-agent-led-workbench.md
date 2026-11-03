@@ -11,7 +11,7 @@
 
 **设计：** [Agent 主导的 Studio 工作台设计](../specs/2026-11-01-agent-led-workbench-design.md)
 
-## 实施结果
+## 1. 实施结果
 
 - [x] 将 Review dock 默认 tab 从 `Inspect` 改为 `Agent`。
 - [x] 在 Agent 面板显示 project、revision、焦点 object 和 Gateway 状态。
@@ -22,7 +22,7 @@
 - [x] 按 untagged API format 处理直接 scalar、vector、color 和 enumeration 参数。
 - [x] 统一工作台 token、状态卡、表单、对象树和响应式布局。
 
-## 验证结果
+## 2. 验证结果
 
 ```bash
 PLAYWRIGHT_CHANNEL=chrome npm run verify
@@ -37,7 +37,7 @@ PLAYWRIGHT_CHANNEL=chrome npm run verify
 浏览器验收覆盖 1440px、1024px、768px 和 375px；页面无横向溢出，Agent 人工接手按钮
 在窄屏下达到 44px 触控高度。
 
-## 关联文档
+## 3. 关联文档
 
 - `ICE3-STUDIO-SPEC-014` — [Agent 主导的 Studio 工作台设计](../specs/2026-11-01-agent-led-workbench-design.md)
 - `ICE3-STUDIO-PLAN-003` — [原 Studio Web Workbench 实施计划](2026-10-30-studio-web-workbench-ui.md)

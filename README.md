@@ -13,7 +13,7 @@ ICE3 Studio 是一款本地优先的 AI Native 工业 3D 建模工具。建模�
 Studio 自带几何内核，不把建模委托给任何其它建模应用；不绑定模型供应商，不内置凭据、
 Prompt 或 Agent 策略。
 
-## 人机分工
+## 1. 人机分工
 
 | 角色 | 负责 | 不负责 |
 |---|---|---|
@@ -23,7 +23,7 @@ Prompt 或 Agent 策略。
 
 一句话：**AI 承担建模动作，人保留决定权。** 这条分工由 API 权限强制，不靠约定。
 
-## 建模能力
+## 2. 建模能力
 
 内核以通用原语和参数化组合为底座，行业语义通过 metadata、relation 和 assembly 表达，
 不写进 Core 的类型系统。
@@ -44,7 +44,7 @@ Prompt 或 Agent 策略。
 `relation.*`、`constraint.*`）。全量清单见
 [能力清单](docs/reference/capabilities.md)。
 
-## 工作流
+## 3. 工作流
 
 ```
 用户意图 → Agent 查询/提案 → ChangeSet（候选 digest）
@@ -56,7 +56,7 @@ Prompt 或 Agent 策略。
 ChangeSet 有 7 个状态（draft / evaluating / ready / blocked / stale / committed /
 discarded），只有 `ready` 且 digest 一致才可提交。
 
-## 界面
+## 4. 界面
 
 Web Viewer 是工具的界面层，只消费公开 API，没有私有修改路径。工作台采用
 Agent-first 的默认落点，同时保留现有 Objects、3D Scene 和 Review dock 三栏：
@@ -72,7 +72,7 @@ Agent Gateway 离线时界面如实显示离线状态，不阻塞对象搜索、
 或人工提交。设计记录见
 [Agent 主导的 Studio 工作台](docs/specs/2026-11-01-agent-led-workbench-design.md)。
 
-## 当前场景与测试资产
+## 5. 当前场景与测试资产
 
 | 场景 | 规模 | 用于 |
 |---|---|---|
@@ -83,7 +83,7 @@ Agent Gateway 离线时界面如实显示离线状态，不阻塞对象搜索、
 Studio 启动时扫描 `projects/*/project.json`，默认打开修改时间最新的工程；时间相同时
 选择 `currentRevision` 更高的工程。
 
-## 快速开始
+## 6. 快速开始
 
 ```bash
 npm --prefix apps/viewer ci
@@ -217,7 +217,7 @@ E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
 
 端到端流程见 [Getting Started](docs/guides/getting-started.md)。
 
-## 工程文件
+## 7. 工程文件
 
 工程是一个目录，语义与几何分离：Document、变更集、操作历史通常只有几百 KB，引用资产
 在 `references/` 下可达数百 MB。撤销深度上限 200，超出后最早的快照被回收。
@@ -233,7 +233,7 @@ cargo run -p studio-cli -- unpack wwtp.ice3 --into ./restored
 `resources/summary.json` 与按区域着色的 `resources/layout.svg` 作为工程概览。
 详见 [能力清单](docs/reference/capabilities.md)。
 
-## 架构
+## 8. 架构
 
 ```
 外部 AI 或脚本
@@ -256,7 +256,7 @@ Document 加操作历史是唯一真源，几何、bounds、诊断、GLB、预�
 [0001](docs/decisions/0001-document-as-source-of-truth.md)、
 [0002](docs/decisions/0002-local-api-boundary.md)）。
 
-## API
+## 9. API
 
 静态 Schema 固化 37 个 JSON-RPC 方法；运行时能力清单另外暴露 2 个实验性 GPU scene
 方法，共 39 个，分 9 个域（`system`、`project`、`document`、`scene`、`validation`、
@@ -275,7 +275,7 @@ Document 加操作历史是唯一真源，几何、bounds、诊断、GLB、预�
 
 Studio 不内置模型、Prompt、网关或 Agent 策略；自然语言理解留在外部。
 
-## 性能基线
+## 10. 性能基线
 
 `npm run benchmark` 在目标 Apple Silicon Mac 上运行 release build，输出
 `output/studio-mvp-benchmark.json`。任一 p95 超限即失败。
@@ -302,7 +302,7 @@ kernel 更快。只有窄视锥可见性查询 GPU 明显领先：同一组 243 
 
 性能门禁失败关闭，`auto` 继续选 CPU。6.1M 有效三角形的常驻资源约占 46 MiB GPU 内存。
 
-## 边界与缺口
+## 11. 边界与缺口
 
 已实现但实验性的能力：native GPU compute、resident geometry、preview packet、GPU scene
 session。功能已交付，但性能门禁未过，默认关闭。
@@ -328,7 +328,7 @@ Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和 r
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。
 
-## 文档
+## 12. 文档
 
 - [文档索引](docs/README.md)
 - [Architecture](docs/architecture.md)
@@ -341,10 +341,10 @@ Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和 r
 - [Agent 主导的工作台设计](docs/specs/2026-11-01-agent-led-workbench-design.md)
 - [第三方声明](THIRD_PARTY_NOTICES.md)
 
-## AI 辅助开发
+## 13. AI 辅助开发
 
 本项目在设计和实现过程中大量使用了 AI 辅助开发。
 
-## 许可证
+## 14. 许可证
 
 本项目采用 [MIT License](LICENSE) 许可。

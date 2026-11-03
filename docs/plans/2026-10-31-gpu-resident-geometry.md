@@ -20,7 +20,7 @@
 
 **Spec:** `docs/specs/2026-10-31-gpu-resident-geometry-design.md`
 
-## Global Constraints
+## 1. Global Constraints
 
 - Rust remains the modeling kernel and semantic authority.
 - Document, validation, approval, revision, persistence, and canonical source GLB remain CPU-owned.
@@ -42,7 +42,7 @@
 - Current host defaults: two concurrent GPU jobs, 2 GiB host budget capped by adapter budget, and
   effective automatic GPU threshold remains disabled until measured crossover is positive.
 
-## Review Focus
+## 2. Review Focus
 
 - A parameter-only change with unchanged topology must reuse native adjacency and browser
   topology buffers; a wrong implementation would rebuild both and lose the intended gain.
@@ -58,9 +58,9 @@
 
 ---
 
-## File Structure
+## 3. File Structure
 
-### Native Rust workspace
+### 3.1 Native Rust workspace
 
 - `crates/studio-core/src/gpu_contract.rs`: backend-neutral modes, dirty channels, opaque resident
   IDs, resident batch results, snapshot requests, and evidence. No `wgpu` types.
@@ -81,7 +81,7 @@
 - `crates/studio-server/src/preview_packet.rs`: packet model, encoder, delta builder, and validator.
 - `crates/studio-server/src/rpc.rs`: packet endpoints, capability negotiation, and GLB fallback.
 
-### Browser repository
+### 3.2 Browser repository
 
 Browser work occurs in `../ice3-engine` and is committed there separately.
 
@@ -99,7 +99,7 @@ Browser work occurs in `../ice3-engine` and is committed there separately.
 
 ---
 
-### Task 1: Extend the Core contract with residency modes
+### 3.3 Task 1: Extend the Core contract with residency modes
 
 **Files:**
 - Modify: `crates/studio-core/src/gpu_contract.rs`
@@ -281,7 +281,7 @@ git commit -m "feat(studio-core): define resident geometry contract"
 
 ---
 
-### Task 2: Add persistent pipelines and pooled buffers
+### 3.4 Task 2: Add persistent pipelines and pooled buffers
 
 **Files:**
 - Create: `crates/studio-gpu/src/resources/mod.rs`
@@ -392,7 +392,7 @@ git commit -m "feat(studio-gpu): pool native device resources"
 
 ---
 
-### Task 3: Implement residency keys and dirty-channel planning
+### 3.5 Task 3: Implement residency keys and dirty-channel planning
 
 **Files:**
 - Create: `crates/studio-gpu/src/residency/mod.rs`
@@ -489,7 +489,7 @@ git commit -m "feat(studio-gpu): plan resident geometry invalidation"
 
 ---
 
-### Task 4: Implement native residency store and resident evaluation
+### 3.6 Task 4: Implement native residency store and resident evaluation
 
 **Files:**
 - Create: `crates/studio-gpu/src/residency/store.rs`
@@ -586,7 +586,7 @@ git commit -m "feat(studio-gpu): keep derived geometry resident"
 
 ---
 
-### Task 5: Batch submissions and add asynchronous completion
+### 3.7 Task 5: Batch submissions and add asynchronous completion
 
 **Files:**
 - Create: `crates/studio-gpu/src/residency/batch.rs`
@@ -662,7 +662,7 @@ git commit -m "feat(studio-gpu): batch resident geometry submissions"
 
 ---
 
-### Task 6: Integrate resident modes and evidence into the server
+### 3.8 Task 6: Integrate resident modes and evidence into the server
 
 **Files:**
 - Modify: `crates/studio-server/src/compute.rs`
@@ -757,7 +757,7 @@ git commit -m "feat(studio-server): schedule resident geometry modes"
 
 ---
 
-### Task 7: Encode and serve revision-aware preview packets
+### 3.9 Task 7: Encode and serve revision-aware preview packets
 
 **Files:**
 - Create: `crates/studio-server/src/preview_packet.rs`
@@ -848,7 +848,7 @@ git commit -m "feat(studio-server): publish incremental preview packets"
 
 ---
 
-### Task 8: Parse geometry packets and preserve identity in the browser core
+### 3.10 Task 8: Parse geometry packets and preserve identity in the browser core
 
 **Files:**
 - Create: `../ice3-engine/packages/assets/src/ICEPreviewGeometryPacket.ts`
@@ -935,7 +935,7 @@ git commit -m "feat(engine): parse resident geometry packets"
 
 ---
 
-### Task 9: Reuse and partially update browser GPU geometry
+### 3.11 Task 9: Reuse and partially update browser GPU geometry
 
 **Files:**
 - Modify: `../ice3-engine/packages/renderer/src/WebGL2GeometryCache.ts`
@@ -1095,7 +1095,7 @@ git commit -m "feat(studio-workbench): consume resident preview packets"
 
 ---
 
-### Task 10: Add mode-specific evidence, benchmarks, and final documentation
+### 3.12 Task 10: Add mode-specific evidence, benchmarks, and final documentation
 
 **Files:**
 - Modify: `benchmarks/native-gpu.mjs`
@@ -1209,9 +1209,9 @@ git commit -m "docs(studio): document resident geometry evidence"
 
 ---
 
-## Plan Self-Review
+## 4. Plan Self-Review
 
-### Spec Coverage
+### 4.1 Spec Coverage
 
 | Spec area | Plan tasks |
 |---|---|
@@ -1227,7 +1227,7 @@ git commit -m "docs(studio): document resident geometry evidence"
 | Mode-specific benchmarks, UI evidence, documentation, release gates | 10 |
 | CPU authority, canonical GLB, security, compatibility | Global constraints and Tasks 1, 6, 7, 9, 10 |
 
-### Type Consistency
+### 4.2 Type Consistency
 
 - `GeometryEvaluationMode`, `GeometryDirtyChannel`, and `ResidentGeometryId` are defined once in
   Task 1 and reused by later tasks.
@@ -1239,7 +1239,7 @@ git commit -m "docs(studio): document resident geometry evidence"
 - `ICE3PGP1` manifest field names used by Rust packets and TypeScript parsing are identical.
 - Browser `geometryId` is stable across Tasks 7–9 and is distinct from node ID.
 
-### Review Focus Coverage
+### 4.3 Review Focus Coverage
 
 - Parameter-only native and browser reuse: Tasks 4 and 9.
 - Transform-only and material-only zero-work paths: Tasks 3, 6, 7, and 9.

@@ -11,7 +11,7 @@
 > `superpowers:executing-plans` to implement this plan task-by-task. Steps use
 > checkbox (`- [ ]`) syntax for tracking.
 
-## Implementation Outcome
+## 1. Implementation Outcome
 
 Phase 5A 已实现。JT converter bridge、GLB validation、`f64` shared origin、
 hierarchy、共享实例、Selection、metadata、隔离 worker、资源限制、失败关闭和 legacy
@@ -30,7 +30,7 @@ shared origin、资源限制和失败关闭迁入 Studio `studio-import`。
 
 **Spec：** [Studio 原生 JT Import 与 Toolchain 最终退役](../specs/2026-11-02-native-jt-toolchain-retirement-design.md)
 
-## Global Constraints
+## 2. Global Constraints
 
 - Adapter ID 固定为 `jt`，只接受 `.jt`。
 - `jt` feature default-on；它不引入 JT parser 或第三方 converter crate。
@@ -53,7 +53,7 @@ shared origin、资源限制和失败关闭迁入 Studio `studio-import`。
 - 失败时不得发布部分 GLB，也不得泄漏 converter stderr、客户路径或临时目录。
 - Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
 
-## Review Focus
+## 3. Review Focus
 
 - `ICE3_JT_CONVERTER` 缺失、不可执行或来自请求数据时，必须在使用前拒绝，不能从
   `PATH` 猜测另一个 executable。
@@ -68,7 +68,7 @@ shared origin、资源限制和失败关闭迁入 Studio `studio-import`。
 
 ---
 
-### Task 1: 将 Source Import corpus 和 JT baseline 收归 Studio
+### 3.1 Task 1: 将 Source Import corpus 和 JT baseline 收归 Studio
 
 **文件：**
 - Create: `fixtures/source-import/gltf/minimal.glb`
@@ -304,7 +304,7 @@ git commit -m "test(studio): capture native JT import baseline"
 
 ---
 
-### Task 2: 注册 feature-gated JT adapter
+### 3.2 Task 2: 注册 feature-gated JT adapter
 
 **文件：**
 - Modify: `crates/studio-import/Cargo.toml`
@@ -474,7 +474,7 @@ git commit -m "feat(studio-import): register feature-gated JT adapter"
 
 ---
 
-### Task 3: 实现受控 converter 启动与输出验证
+### 3.3 Task 3: 实现受控 converter 启动与输出验证
 
 **文件：**
 - Modify: `Cargo.toml`
@@ -796,7 +796,7 @@ git commit -m "feat(studio-import): run JT converters in a contained process"
 
 ---
 
-### Task 4: 将 raw GLB 转为确定性 SourceScene
+### 3.4 Task 4: 将 raw GLB 转为确定性 SourceScene
 
 **文件：**
 - Modify: `crates/studio-import/src/gltf.rs`
@@ -1003,7 +1003,7 @@ git commit -m "feat(studio-import): canonicalize JT source semantics"
 
 ---
 
-### Task 5: 接通 CLI、isolated worker 和失败关闭
+### 3.5 Task 5: 接通 CLI、isolated worker 和失败关闭
 
 **文件：**
 - Modify: `crates/studio-import/src/worker.rs`
@@ -1172,7 +1172,7 @@ git commit -m "feat(studio-cli): isolate native JT imports"
 
 ---
 
-### Task 6: 建立 parity、确定性和 feature-off 门禁
+### 3.6 Task 6: 建立 parity、确定性和 feature-off 门禁
 
 **文件：**
 - Modify: `scripts/compare-jt-imports.mjs`
@@ -1319,7 +1319,7 @@ git add README.md AGENTS.md docs scripts/verify.mjs \
 git commit -m "test(studio): prove native JT parity and isolation"
 ```
 
-## Plan Self-Review
+## 4. Plan Self-Review
 
 - Spec coverage：fixture ownership、feature/registry、converter policy、process tree、
   output validation、JT metadata、Selection、instances、materials、shared origin、

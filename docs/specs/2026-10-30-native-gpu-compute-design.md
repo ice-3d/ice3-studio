@@ -23,7 +23,7 @@ the source of truth.
 The existing browser WebGPU renderer remains separate. Rendering with GPU hardware does not count
 as Studio Core GPU acceleration.
 
-### Implementation Status
+### 1.1 Implementation Status
 
 The backend-neutral contract, native `wgpu` device lifecycle, Box/Plane/Cylinder/Sphere/Sweep
 geometry kernels, custom-mesh normals and bounds, CPU/GPU scheduler, safe fallback, cache identity,
