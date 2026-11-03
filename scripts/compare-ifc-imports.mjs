@@ -417,6 +417,9 @@ async function expectFailure(root, name, options) {
     expectedCode: options.expectedCode,
     diagnosticPresent: result.stderr.includes(options.expectedCode),
     outputDisposition,
+    ...(status === 'fail'
+      ? { diagnosticExcerpt: result.stderr.trim().slice(-2_000) }
+      : {}),
   };
 }
 

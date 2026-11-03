@@ -2,14 +2,14 @@
 
 > Document ID: ICE3-STUDIO-PLAN-028
 >
-> Status: Draft
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or
 > `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> checkbox (`- [x]`) syntax for tracking.
 
 **Goal：** 让 Studio 直接 `partition` 和项目 `export tileset` 共享同一 AssetProfile，
 在 fine、LOD、coarse 和 render-batch 产物中生成真实 edges、metrics 与 budget。
@@ -68,7 +68,7 @@
   - `AssetProfile::agent_console_v1()`
   - `AssetProfile::direct_partition(...)`
 
-- [ ] **Step 1: 写 profile 失败测试**
+- [x] **Step 1: 写 profile 失败测试**
 
 ```rust
 #[test]
@@ -96,7 +96,7 @@ fn adaptive_semantic_proxy_is_rejected_for_proportional_allocation() {
 }
 ```
 
-- [ ] **Step 2: 运行 RED**
+- [x] **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-pipeline --test asset_profile
@@ -104,14 +104,14 @@ cargo test -p studio-pipeline --test asset_profile
 
 预期：编译失败，因为 profile 模块和字段尚不存在。
 
-- [ ] **Step 3: 移动并扩展 profile**
+- [x] **Step 3: 移动并扩展 profile**
 
 从 `tileset.rs` 移出 `AssetProfile`、`RenderBatchMode` 到 `profile.rs`，避免继续扩展
 大文件。`lib.rs` re-export。
 
 `direct_partition` 接受所有旧参数并执行与 Spec-019 相同的 validation。
 
-- [ ] **Step 4: 在 partition writer 中生成 edges**
+- [x] **Step 4: 在 partition writer 中生成 edges**
 
 新增共享 helper：
 
@@ -135,7 +135,7 @@ pub(crate) fn append_edges_to_primitive(
 - 追加 line primitive；
 - 返回 edge segment count。
 
-- [ ] **Step 5: 加 profile validation 和测试**
+- [x] **Step 5: 加 profile validation 和测试**
 
 校验：
 
@@ -146,7 +146,7 @@ pub(crate) fn append_edges_to_primitive(
 - curve samples 必须在 `4..=32`；
 - semantic-proxy 需要 LOD + adaptive。
 
-- [ ] **Step 6: 运行 GREEN**
+- [x] **Step 6: 运行 GREEN**
 
 ```bash
 cargo test -p studio-pipeline --test asset_profile
@@ -156,7 +156,7 @@ cargo clippy -p studio-pipeline --all-targets -- -D warnings
 
 预期：PASS。
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add crates/studio-pipeline
@@ -176,7 +176,7 @@ git commit -m "feat(studio-pipeline): unify asset profiles and edge config"
 - 消费：Task 1 `AssetProfile` validation and edge writer
 - 产出：PartitionArtifact part files with line primitives and accurate profile stats
 
-- [ ] **Step 1: 写 fine partition edge 测试**
+- [x] **Step 1: 写 fine partition edge 测试**
 
 ```rust
 #[test]
@@ -198,7 +198,7 @@ fn fine_partition_glb_contains_edge_line_primitives() {
 }
 ```
 
-- [ ] **Step 2: 写 LOD/coarse edge 测试**
+- [x] **Step 2: 写 LOD/coarse edge 测试**
 
 ```rust
 #[test]
@@ -219,7 +219,7 @@ fn lod_and_coarse_outputs_generate_edges_from_their_own_geometry() {
 }
 ```
 
-- [ ] **Step 3: 写 byte budget 测试**
+- [x] **Step 3: 写 byte budget 测试**
 
 创建 maxBytes 刚好不含 edges 的 profile：
 
@@ -227,7 +227,7 @@ fn lod_and_coarse_outputs_generate_edges_from_their_own_geometry() {
 - edges on 因 part/chunk 超限失败；
 - failure 不返回可发布 artifact。
 
-- [ ] **Step 4: 运行 RED**
+- [x] **Step 4: 运行 RED**
 
 ```bash
 cargo test -p studio-pipeline --test partition_edges
@@ -235,7 +235,7 @@ cargo test -p studio-pipeline --test partition_edges
 
 预期：line primitive 不存在，edge stats 为 0。
 
-- [ ] **Step 5: 更新 all part writers**
+- [x] **Step 5: 更新 all part writers**
 
 必须修改：
 
@@ -247,7 +247,7 @@ cargo test -p studio-pipeline --test partition_edges
 
 每个 writer 在最终几何确定后生成 edges；禁止复用输入 source 的 edge accessor。
 
-- [ ] **Step 6: 更新 PartitionStats**
+- [x] **Step 6: 更新 PartitionStats**
 
 增加：
 
@@ -258,7 +258,7 @@ pub edge_bytes: u64,
 
 并从实际 part GLB 累加。Tileset extras、CLI report 和 export manifest 同步。
 
-- [ ] **Step 7: 运行 GREEN**
+- [x] **Step 7: 运行 GREEN**
 
 ```bash
 cargo test -p studio-pipeline --test partition_edges
@@ -268,7 +268,7 @@ cargo clippy -p studio-pipeline --all-targets -- -D warnings
 
 预期：PASS。
 
-- [ ] **Step 8: 提交**
+- [x] **Step 8: 提交**
 
 ```bash
 git add crates/studio-pipeline
@@ -293,7 +293,7 @@ git commit -m "feat(studio-pipeline): emit render edges in partition outputs"
   - `partition_source(PartitionOptions) -> Result<PartitionOutput, PartitionError>`
   - `ice3-studio partition ...`
 
-- [ ] **Step 1: 写 glTF partition 测试**
+- [x] **Step 1: 写 glTF partition 测试**
 
 ```rust
 #[test]
@@ -314,7 +314,7 @@ fn partition_writes_tileset_and_part_glbs() {
 }
 ```
 
-- [ ] **Step 2: 写 adapter/auto 测试**
+- [x] **Step 2: 写 adapter/auto 测试**
 
 对 OBJ/FBX/USD/STEP/IFC/JT 各用一个小 fixture：
 
@@ -323,7 +323,7 @@ fn partition_writes_tileset_and_part_glbs() {
 - adapter 与扩展不匹配失败；
 - non-source/无 geometry 不创建输出目录。
 
-- [ ] **Step 3: 写完整 options/validation 测试**
+- [x] **Step 3: 写完整 options/validation 测试**
 
 测试默认值和非法组合：
 
@@ -337,7 +337,7 @@ fn partition_writes_tileset_and_part_glbs() {
 
 每个失败断言 `ICE3_STUDIO_ASSET_INVALID_OPTIONS`，output 不存在。
 
-- [ ] **Step 4: 运行 RED**
+- [x] **Step 4: 运行 RED**
 
 ```bash
 cargo test -p studio-cli --test partition_command
@@ -345,7 +345,7 @@ cargo test -p studio-cli --test partition_command
 
 预期：`partition` subcommand 不存在。
 
-- [ ] **Step 5: 实现 orchestration**
+- [x] **Step 5: 实现 orchestration**
 
 流程：
 
@@ -361,7 +361,7 @@ resolve adapter
 
 临时 source Prepared GLB 位于同 parent staging 外的 tempdir；失败删除。
 
-- [ ] **Step 6: 实现 no-clobber/force**
+- [x] **Step 6: 实现 no-clobber/force**
 
 - 默认 output 已存在时返回 `ICE3_STUDIO_ASSET_OUTPUT_EXISTS`；
 - force 模式在 output parent 创建 staging 和 backup；
@@ -369,7 +369,7 @@ resolve adapter
 - 发布失败时恢复 backup；
 - 不得留下部分 output directory。
 
-- [ ] **Step 7: 运行 GREEN**
+- [x] **Step 7: 运行 GREEN**
 
 ```bash
 cargo test -p studio-cli --test partition_command
@@ -378,7 +378,7 @@ cargo test -p studio-cli
 
 预期：PASS。
 
-- [ ] **Step 8: 提交**
+- [x] **Step 8: 提交**
 
 ```bash
 git add crates/studio-cli crates/studio-pipeline
@@ -399,7 +399,7 @@ git commit -m "feat(studio-cli): partition arbitrary Studio sources"
 - 消费：`AssetProfile::agent_console_v1()` and shared pipeline edges
 - 产出：Runtime Tileset parts/coarse with edges, accurate stats and digest
 
-- [ ] **Step 1: 写 runtime edge 测试**
+- [x] **Step 1: 写 runtime edge 测试**
 
 ```rust
 #[test]
@@ -418,12 +418,12 @@ fn runtime_tileset_parts_include_render_edges() {
 }
 ```
 
-- [ ] **Step 2: 写 diagnostics stats 测试**
+- [x] **Step 2: 写 diagnostics stats 测试**
 
 `DiagnosticCode`/capability reference 使用 `ICE3_STUDIO_ASSET_TILESET_INVALID`，不再
 使用 Toolchain code。`ExportedStats` 增加 `edgeSegmentCount`。
 
-- [ ] **Step 3: 运行 RED**
+- [x] **Step 3: 运行 RED**
 
 ```bash
 cargo test -p studio-server --test runtime_tileset
@@ -431,7 +431,7 @@ cargo test -p studio-server --test runtime_tileset
 
 预期：part GLB 没有 line primitives。
 
-- [ ] **Step 4: 更新 RuntimeTilesetExporter**
+- [x] **Step 4: 更新 RuntimeTilesetExporter**
 
 不再构造独立 profile：
 
@@ -442,7 +442,7 @@ self.profile = AssetProfile::agent_console_v1();
 `agent_console_v1` 的 edges/LOD/batching/budget 与 direct partition 共用同一 profile
 实现。
 
-- [ ] **Step 5: 运行 GREEN**
+- [x] **Step 5: 运行 GREEN**
 
 ```bash
 cargo test -p studio-server --test runtime_tileset
@@ -451,7 +451,7 @@ cargo test -p studio-server
 
 预期：PASS；bundle digest 稳定；binding manifest 不变。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add crates/studio-server crates/studio-cli
@@ -478,7 +478,7 @@ git commit -m "feat(studio-server): include edges in runtime tilesets"
 - 消费：passing direct partition and Runtime Tileset edge tests
 - 产出：deterministic partition parity report and Phase 6B status
 
-- [ ] **Step 1: 写 parity contract**
+- [x] **Step 1: 写 parity contract**
 
 `compare-partition-imports.mjs` 至少运行：
 
@@ -501,7 +501,7 @@ git commit -m "feat(studio-server): include edges in runtime tilesets"
 - byte budget 限制；
 - 确定性文件 digest。
 
-- [ ] **Step 2: 写 contract test**
+- [x] **Step 2: 写 contract test**
 
 ```javascript
 test('partition parity proves edge and LOD semantics', async () => {
@@ -516,11 +516,11 @@ test('partition parity proves edge and LOD semantics', async () => {
 });
 ```
 
-- [ ] **Step 3: 加入 verify**
+- [x] **Step 3: 加入 verify**
 
 `scripts/verify.mjs` 增加 partition contract 和 native parity；保持 Chrome E2E。
 
-- [ ] **Step 4: 更新文档**
+- [x] **Step 4: 更新文档**
 
 说明：
 
@@ -531,7 +531,7 @@ test('partition parity proves edge and LOD semantics', async () => {
 - Phase 6B Implemented，Phase6C pending；
 - 不依赖 Blender/Toolchain。
 
-- [ ] **Step 5: 全量验证**
+- [x] **Step 5: 全量验证**
 
 ```bash
 cargo test -p studio-assets
@@ -545,7 +545,7 @@ PLAYWRIGHT_CHANNEL=chrome npm run verify
 
 预期：全部 PASS。
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add README.md docs scripts crates

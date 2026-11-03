@@ -77,7 +77,7 @@ Agent Gateway 离线时界面如实显示离线状态，不阻塞对象搜索、
 | 场景 | 规模 | 用于 |
 |---|---|---|
 | 污水处理厂工程 | 681 个源节点、166 个实例、63 条连接、355,900 有效三角形 | 默认开发、近景审查与 Studio 建模能力验证 |
-| 程序化大型工业 fixture | 208 个主对象、560 条操作、6 条工艺线、938,964 有效三角形、99 条连接 | 通用大场景契约测试与性能门禁 |
+| 程序化大型工业 fixture | 208 个主对象、560 条操作、6 条工艺线、937,428 有效三角形、99 条连接 | 通用大场景契约测试与性能门禁 |
 | `wastewater-mini` | 11 个源节点 | 启动、API 和端到端契约测试 |
 
 Studio 启动时扫描 `projects/*/project.json`，默认打开修改时间最新的工程；时间相同时
@@ -96,8 +96,9 @@ Viewer URL 并持续服务，`Ctrl+C` 停止。
 完整验证与基准：
 
 ```bash
-npm run verify      # 22 道门禁：fmt / clippy / test / schema / fixture / viewer / E2E / audit
+npm run verify      # 30 道门禁：fmt / clippy / test / Engine+prepare parity / schema / fixture / viewer / E2E / audit
 npm run benchmark
+npm run benchmark:prepare
 npm run benchmark:gpu
 ```
 
@@ -149,6 +150,17 @@ ICE3_JT_CONVERTER=/path/to/approved-jt-converter \
     --adapter jt
 
 cargo run -p studio-cli -- validate plant.glb
+
+cargo run -p studio-cli -- build plant.glb \
+  --output plant-built.glb \
+  --asset-id plant-built \
+  --report plant-built.report.json
+
+cargo run -p studio-cli -- inspect plant-built.glb --json
+
+cargo run -p studio-cli -- partition plant.glb \
+  --output /tmp/plant-tileset \
+  --asset-id plant
 ```
 
 Studio 原生支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242
@@ -168,6 +180,37 @@ STEP 只接受 AP242，并保留产品层级、实例、颜色、Selection 和�
 GlobalId Selection。JT 保留层级、共享 mesh instances、材质、object/assembly
 metadata、custom properties、`<assetId>/jt/node/<ordinal>` Selection 和 shared
 source origin。
+
+`import` 使用共享 Prepare 语义生成 `ice3-prepared` profile、真实 metrics 和
+`interactive-desktop-v1` budget，但默认不生成 render edges。`build` 默认以 30° crease
+angle 生成 `mode=1`、`role="edges"`、`widthPx=3` 的 line primitive 和 `#e6f2ff`
+edge material；`--skip-edges` 可关闭。`build --report` 写出
+`ice3-asset-build-report`，支持 built-in/custom budget 和 `--warnings-as-errors`。
+GLB 与 report 在发布前完成校验；失败不会替换已有文件，`--force` 替换时任一发布步骤失败
+都会恢复上一对文件。`inspect` 对 source 或 Prepared GLB 输出同一套 metrics、
+preparation 和 budget 字段。资产准备失败使用 `ICE3_STUDIO_ASSET_*` Diagnostic，
+不调用 Toolchain、Node Asset runtime、Blender 或其它外部 DCC。
+
+`partition` 直接接受任一 Studio source adapter。默认 `maxTriangles=500000`、
+`maxBytes=33554432`、crease `30°`、edges on、LOD off、render batch off；可按需启用
+proportional/adaptive LOD、semantic proxy、static render batch 和 coarse chunk。
+Fine、LOD、coarse 与 render-batch GLB 都从各自的最终几何生成 `mode=1` edges，edge bytes
+计入 `maxBytes` 与 coarse chunk 限制。输出目录默认不可覆盖；`--force` 在发布失败时恢复
+上一份目录。
+
+Engine 消费与资源门禁：
+
+```bash
+node scripts/verify-prepare-engine.mjs
+node --test scripts/tests/prepare-engine-contract.test.mjs
+npm run benchmark:prepare
+node --test scripts/tests/prepare-performance.test.mjs
+```
+
+Engine 的实际 `readPreparedGLB` 恢复 Studio `mode=1` edges、edge color 和 Selection；
+`readTileset` 加载 direct partition Tileset 的每个 part。Large-industrial benchmark
+连续采样 edge-on/off、direct partition、adaptive proxy 和 static batching，记录
+p50/p95、peak RSS、bytes、triangle/edge/partition/batch/coarse 统计与 digest。
 
 `wastewater-mini`（16 KB JSON，11 个节点）是契约测试 fixture，被 `npm run verify`、
 E2E 和 MVP benchmark 依赖，可用 `npm run dev:mini` 单独启动。
@@ -269,12 +312,18 @@ session。功能已交付，但性能门禁未过，默认关闭。
 静态资产导入、跨项目 GPU 缓冲持久化。清单与理由见
 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
-Runtime GLB、partition、LOD、Tileset 以及 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC、
-JT Source Import 已由 Studio 原生实现。Studio 不再消费 Toolchain Source Import
-生产路径；Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview
-始终由 Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和
-release surface 已完成清理，Studio 不再包含旧 repository 的路径依赖；repository
-归档仍需用户单独授权。
+Runtime GLB、Source Import、preview、partition、LOD 和 Tileset 已由 Studio 原生实现。
+Phase 6A 已补齐共享 Asset Prepare、render edges、metrics、budget/report 以及
+`build`/`inspect`；Phase 6B 已完成直接 `partition`、fine/LOD/coarse edges、统一
+Runtime profile 和 `edgeSegmentCount`。Phase 6C 已完成真实 Engine 消费、large-fixture
+性能/资源基线、文档与全量验收。Studio 已完整接管通用 Source Import、Asset Prepare、
+partition、LOD、Tileset 和 Agent 交付链；生产路径不依赖 Toolchain、Node Asset
+Runtime 或 Blender。JT 仍只使用部署方提供的 host-owned `ICE3_JT_CONVERTER` 受控例外。
+Studio 不再消费 Toolchain Source Import 生产路径；
+Sidecar、client、配置和 Viewer 状态面已经退役，committed/candidate preview 始终由
+Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和 release surface
+已完成清理，Studio 不再包含旧 repository 的路径依赖；repository 归档仍需用户单独
+授权。
 
 本地 API 只监听 loopback，写入需要进程级令牌，项目路径限制在配置的 workspace 内。
 这套边界是单用户本地工具的边界，**不是**多租户授权模型；远程部署需要独立的安全与租户设计。

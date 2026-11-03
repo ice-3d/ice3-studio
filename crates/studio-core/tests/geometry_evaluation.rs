@@ -88,6 +88,29 @@ fn closes_cylinder_ends_with_outward_facing_triangles() {
 }
 
 #[test]
+fn sphere_poles_do_not_emit_degenerate_triangles() {
+    let segments = 32;
+    let rings = 16;
+    let mesh = evaluate_node_content(&NodeContent::Primitive(Primitive::Sphere {
+        radius: 2.0,
+        segments,
+        rings,
+    }))
+    .unwrap();
+
+    assert_eq!(
+        mesh.indices.len() / 3,
+        (segments * 2 * (rings - 1)) as usize
+    );
+    for triangle in mesh.indices.as_chunks::<3>().0 {
+        let positions = triangle.map(|index| mesh.vertices[index as usize].position);
+        assert_ne!(positions[0], positions[1]);
+        assert_ne!(positions[0], positions[2]);
+        assert_ne!(positions[1], positions[2]);
+    }
+}
+
+#[test]
 fn includes_parent_transforms_in_world_bounds() {
     let mut document = Document::new("world-bounds");
     let mut parent = SceneNode::group(NodeId::from("node-000001"), "Parent");

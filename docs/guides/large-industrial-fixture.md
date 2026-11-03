@@ -15,10 +15,10 @@
 - 208 个主要可选组件实例，其中 10 个是功能建筑。
 - 6 条完整 process train，覆盖取水、预处理、初沉、生化、二沉、深度处理、
   污泥处理和公共设施。
-- 16 类可复用装配模板、913 个真实语义部件和 99 条有类型连接。
-- 本次开发参考机器的评估结果为 `859,236` effective triangles。
+- 23 类可复用装配模板、913 个真实语义部件和 99 条有类型连接。
+- 本次开发参考机器的评估结果为 `937,428` effective triangles。
 - 模板、功能建筑、厂区节点和连接共生成 `1,016` 个 unique meshes。
-- unique triangles 为 `96,340`，有效三角形共享比约 `8.92x`。
+- unique triangles 为 `175,812`，有效三角形共享比约 `5.33x`。
 
 模板不是同一种圆柱的缩放副本，也没有使用随机小面片填充三角形预算。生化池包含
 池体、水面、曝气立管、扩散器、巡检通道、栏杆和楼梯；初沉池、二沉池和浓缩池包含
@@ -97,15 +97,33 @@ npm run benchmark:large-industrial
 | source GLB export | 198.490 ms | 226.367 ms |
 | close + reopen + stats | 249.992 ms | 252.029 ms |
 
-本次 source GLB 约 `6.1 MiB`，Document 约 `1.36 MiB`。局部更新复用已有缓存
+本次 source GLB 为 `7,809,800` bytes（约 `7.45 MiB`）。局部更新复用已有缓存
 geometry，不重新生成完整场景。
+
+Asset Prepare 资源门禁：
+
+```bash
+npm run benchmark:prepare
+node --test scripts/tests/prepare-performance.test.mjs
+```
+
+| Case | p95 | Peak RSS | Output bytes | Edges |
+|---|---:|---:|---:|---:|
+| build edges | 326.65 ms | 222,593,024 | 9,354,228 | 70,978 |
+| build skip edges | 280.95 ms | 212,467,712 | 8,814,728 | 0 |
+| direct partition | 764.14 ms | 279,085,056 | 9,356,300 | 70,978 |
+| adaptive LOD + proxy | 1,106.98 ms | 344,293,376 | 18,842,487 | 95,423 |
+| static batching | 1,415.74 ms | 502,104,064 | 43,911,868 | 437,354 |
+
+五个 case 的同参数 p95 均低于本地归档 legacy artifact 的 2 倍，peak RSS 均在
+512 MiB 以下，5 次输出 digest 一致。
 
 这些数字是本机基线，不是跨设备绝对承诺。共享 CI 验证规模、正确性和门禁，不绑定固定硬件
 耗时。
 
 ## 验收边界
 
-- Studio 负责确定性文档、几何求值、连接路由和 source GLB。
-- Toolchain 负责后续 Prepared GLB、Runtime LOD、空间分区和 render batching。
+- Studio 负责确定性文档、几何求值、连接路由、Source GLB、Prepared GLB、Runtime LOD、
+  空间分区、render batching 和 Tileset。
 - 浏览器是否使用 WebGPU 与本验收无关；Studio Native GPU 在 M3 实施。
 - 大型场景必须通过 `evaluation.stats` 获取统计，不应下载完整几何后才能判断规模。

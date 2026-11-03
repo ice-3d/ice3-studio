@@ -82,7 +82,7 @@ impl PrimitiveGpuParams {
         Self {
             dimensions: [radius, 0.0, 0.0, 0.0],
             vertex_count: (rings + 1) * (segments + 1),
-            index_count: rings * segments * 6,
+            index_count: (rings - 1) * segments * 6,
             item_count: segments,
             secondary_count: rings,
         }
@@ -585,7 +585,7 @@ fn validate_radial_params(
                     message: "sphere parameters are outside the supported range".into(),
                 });
             }
-            ((rings + 1) * (segments + 1), rings * segments * 6)
+            ((rings + 1) * (segments + 1), (rings - 1) * segments * 6)
         }
         "generate_sweep" => {
             let segments = params.item_count as u64;

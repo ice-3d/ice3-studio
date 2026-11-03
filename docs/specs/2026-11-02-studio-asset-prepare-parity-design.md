@@ -2,13 +2,14 @@
 
 > Document ID: ICE3-STUDIO-SPEC-019
 >
-> Status: Approved
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
-> **阶段状态：** Phase 1 至 Phase 5 已完成。Phase 6 是迁移后的产品能力收口，
-> 目标是在不恢复 Toolchain、Node Asset Runtime、外部 DCC 或 Blender 的前提下，让
-> Studio 具备原 Toolchain 的完整资产准备能力。
+> **阶段状态：** Phase 1 至 Phase 5、Phase 6A、Phase 6B 与 Phase 6C 已完成。Phase 6 是迁移后的
+> 产品能力收口，目标是在不恢复 Toolchain、Node Asset Runtime、外部 DCC 或 Blender
+> 的前提下，让 Studio 具备原 Toolchain 的完整资产准备能力。Spec 019 已完成并通过
+> Phase 6 exit gates。
 
 **目标：** 在 Studio 内建立唯一、共享的 Asset Prepare pipeline，覆盖确定性 render
 edges、crease angle、Prepared metrics、built-in/custom budget、版本化 report、
@@ -193,6 +194,9 @@ Edge primitive：
 - 否则使用 `#e6f2ff`；
 - `material.extras.ice3.edges = false` 时该 material 不生成 edge primitive；
 - edge material 必须参与 material count、primitive count 和 encoded byte budget。
+- `--skip-edges` 只移除 line primitive 和 edge segment；为保持 legacy material
+  index parity，实际使用的非 suppression source materials 仍保留对应 edge
+  material。
 - 为保持 legacy parity，始终保留 `default`、`default edges` 和 `vertex colors`
   三个 reserved material；即使当前 source 没有使用。其顺序固定排在 source
   material/edge material 之后。
@@ -568,27 +572,51 @@ Studio 新 Diagnostic 使用：
 
 ## 15. 实施阶段
 
-### Phase 6A：共享 Prepare 与 build
+### Phase 6A：共享 Prepare 与 build（Implemented）
 
 - 实现 AssetMetrics、BudgetProfile、edges、report 和 PrepareArtifact。
 - 让 `import` 改走共享 Prepare，默认 edges 关闭。
 - 增加 `build` 和 `inspect`。
 - 使用旧 Toolchain baseline 完成 build/edge parity。
 
-### Phase 6B：Pipeline 与 Runtime Tileset
+Phase 6A 已由 Plan 027 交付。`node scripts/compare-prepare-imports.mjs` 连续构建两次
+Studio GLB，验证字节确定性，并比较 Toolchain baseline 的 stats、bounds、业务节点身份、
+Selection fallback、edge role/width/color、budget 和 report 语义。
+
+### Phase 6B：Pipeline 与 Runtime Tileset（Implemented）
 
 - 扩展 AssetProfile。
 - fine/LOD/coarse 生成真实 edges、metrics 和 budget。
 - 增加直接 `partition`。
 - `export tileset` 改用统一 profiles。
 
-### Phase 6C：文档、性能与最终验收
+Phase 6B 已由 Plan 028 交付。`ice3-studio partition` 可接受全部七种 Source Import
+adapter，完整暴露 LOD、semantic proxy、render batch、coarse chunk 和 budget 选项。
+Fine、LOD、coarse、semantic proxy 与 render batch writer 均从最终几何生成 edges；
+edge bytes 计入 part/chunk budget。Runtime Tileset 与 direct partition 共享
+`AssetProfile`，`ExportedStats` 和 Tileset extras 包含 `edgeSegmentCount`。
+`node scripts/compare-partition-imports.mjs` 连续执行 direct、LOD、semantic proxy、
+batching、coarse chunk 和 skip-edges case，并校验确定性、URI、bounds、Selection、
+edge material、统计和 byte budget。
+
+### Phase 6C：文档、性能与最终验收（Implemented）
 
 - Engine 兼容测试。
 - large-industrial 性能和资源基线。
 - CLI/API/诊断文档同步。
 - 最终 full verify、Chrome E2E 和 Studio standalone。
 - 明确记录“Studio 已完成 Toolchain 产品能力替代，且不依赖 Blender”。
+
+Phase 6C 已由 Plan 029 交付。Engine 的 `readPreparedGLB` 从 Studio build 恢复 12 个
+edge segments、`#e6f2ff` edge color、Preparation metadata 和 Selection；
+`readTileset` 加载 direct partition Tileset 的每个 part。`benchmark:prepare` 对
+large-industrial fixture 的 build、skip-edges、direct partition、adaptive proxy 和
+static batching 执行 warmup + 5 samples；所有 p95 低于本地归档 legacy artifact 的
+两倍，peak RSS 低于 512 MiB，输出 digest 稳定。
+
+Studio 已完整接管通用 Source Import、Asset Prepare、partition、LOD、Tileset 和
+Agent 交付链；生产路径不依赖 Toolchain、Node Asset Runtime 或 Blender。JT 的唯一例外
+是部署方提供的 host-owned `ICE3_JT_CONVERTER`。
 
 ## 16. 风险与控制
 

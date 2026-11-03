@@ -28,6 +28,14 @@ pub enum AssetError {
     Io(#[from] std::io::Error),
     #[error("GLB JSON is invalid")]
     Json(#[from] serde_json::Error),
+    #[error("invalid asset budget: {0}")]
+    InvalidBudget(String),
+    #[error("invalid asset geometry: {0}")]
+    InvalidGeometry(String),
+    #[error("asset budget exceeded")]
+    BudgetExceeded,
+    #[error("asset report serialization failed: {0}")]
+    Report(serde_json::Error),
 }
 
 impl AssetError {
@@ -38,6 +46,10 @@ impl AssetError {
             Self::ProfileInvalid(_) => "ICE3_ASSET_PROFILE_INVALID",
             Self::AccessorUnsupported(_) => "ICE3_ASSET_ACCESSOR_UNSUPPORTED",
             Self::AccessorOutOfRange => "ICE3_ASSET_ACCESSOR_OUT_OF_RANGE",
+            Self::InvalidBudget(_) => "ICE3_STUDIO_ASSET_INVALID_BUDGET",
+            Self::InvalidGeometry(_) => "ICE3_STUDIO_ASSET_INVALID_GEOMETRY",
+            Self::BudgetExceeded => "ICE3_STUDIO_ASSET_BUDGET_EXCEEDED",
+            Self::Report(_) => "ICE3_STUDIO_ASSET_REPORT_WRITE_FAILED",
         }
     }
 }

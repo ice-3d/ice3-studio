@@ -66,6 +66,49 @@ const steps = [
     args: ['build', '-p', 'studio-cli'],
   },
   {
+    label: 'Engine build for prepare contract',
+    command: 'npm',
+    args: ['--prefix', '../ice3-engine', 'run', 'build'],
+  },
+  {
+    label: 'Prepare Engine consumption',
+    command: 'node',
+    args: ['scripts/verify-prepare-engine.mjs'],
+    env: { STUDIO_CLI_BIN: studioCli },
+  },
+  {
+    label: 'Prepare Engine contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/prepare-engine-contract.test.mjs'],
+  },
+  {
+    label: 'Prepare performance contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/prepare-performance.test.mjs'],
+  },
+  {
+    label: 'Prepare baseline contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/prepare-baseline.test.mjs'],
+  },
+  {
+    label: 'Prepare native parity',
+    command: 'node',
+    args: ['scripts/compare-prepare-imports.mjs'],
+    env: { ICE3_STUDIO_BIN: studioCli },
+  },
+  {
+    label: 'Partition native parity',
+    command: 'node',
+    args: ['scripts/compare-partition-imports.mjs'],
+    env: { ICE3_STUDIO_BIN: studioCli },
+  },
+  {
+    label: 'Partition parity report contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/partition-contract.test.mjs'],
+  },
+  {
     label: 'Studio standalone',
     command: 'node',
     args: ['scripts/verify-studio-standalone.mjs'],

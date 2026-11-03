@@ -2694,6 +2694,7 @@ dependencies = [
  "studio-assets",
  "studio-core",
  "studio-import",
+ "studio-pipeline",
  "studio-project",
  "studio-server",
  "tempfile",

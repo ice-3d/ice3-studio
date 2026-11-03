@@ -130,15 +130,40 @@ fn generate_sphere(@builtin(global_invocation_id) invocation: vec3<u32>) {
     }
 
     if (index < params.index_count) {
-        let face = index / 6u;
-        let corner = index % 6u;
-        let ring = face / segments;
-        let segment = face % segments;
+        let cap_indices = segments * 3u;
+        let bottom_start = params.index_count - cap_indices;
+        var ring = 0u;
+        var segment = 0u;
+        var corner = 0u;
+        var branch = 0u;
+        if (index < cap_indices) {
+            segment = index / 3u;
+            corner = index % 3u;
+        } else if (index >= bottom_start) {
+            ring = rings - 1u;
+            let local = index - bottom_start;
+            segment = local / 3u;
+            corner = local % 3u;
+        } else {
+            let local = index - cap_indices;
+            let indices_per_ring = segments * 6u;
+            ring = 1u + local / indices_per_ring;
+            let local_in_ring = local % indices_per_ring;
+            branch = (local_in_ring % 6u) / 3u;
+            segment = local_in_ring / 6u;
+            corner = local_in_ring % 3u;
+        }
         let a = ring * stride + segment;
         let b = a + stride;
-        var pattern = array<u32, 6>(0u, 0u, 1u, 1u, 0u, 1u);
-        var stride_pattern = array<u32, 6>(0u, 1u, 0u, 0u, 1u, 1u);
-        indices[index] = a + pattern[corner] + stride_pattern[corner] * stride;
+        if (ring == 0u) {
+            indices[index] = select(select(a, b, corner == 1u), b + 1u, corner == 2u);
+        } else if (ring == rings - 1u) {
+            indices[index] = select(select(a, b, corner == 1u), a + 1u, corner == 2u);
+        } else if (branch == 0u) {
+            indices[index] = select(select(a, b, corner == 1u), a + 1u, corner == 2u);
+        } else {
+            indices[index] = select(select(a + 1u, b, corner == 1u), b + 1u, corner == 2u);
+        }
     }
 }
 

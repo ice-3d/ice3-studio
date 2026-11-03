@@ -126,6 +126,7 @@ where
     let response_path = response_path_for_request(&request_path)?;
     let converter_group_path = temp.path().join("converter.pgid");
 
+    let started = Instant::now();
     let mut command = launch(&request_path)?;
     command
         .stdin(Stdio::null())
@@ -146,7 +147,6 @@ where
         )
     });
 
-    let started = Instant::now();
     let outcome = wait_for_worker(
         &mut child,
         started,
@@ -330,6 +330,14 @@ fn wait_for_worker(
     converter_group_path: &Path,
 ) -> Result<WorkerOutcome, ImportError> {
     loop {
+        if started.elapsed() >= timeout {
+            let status = finish_worker_cleanup(child, converter_group_path)?;
+            return Ok(WorkerOutcome {
+                status,
+                timed_out: true,
+                stderr_exceeded: stderr_exceeded.load(Ordering::Acquire),
+            });
+        }
         match worker_try_wait(child) {
             Ok(Some(status)) => {
                 terminate_recorded_converter_group(converter_group_path)?;
@@ -351,14 +359,6 @@ fn wait_for_worker(
                 status,
                 timed_out: false,
                 stderr_exceeded: true,
-            });
-        }
-        if started.elapsed() >= timeout {
-            let status = finish_worker_cleanup(child, converter_group_path)?;
-            return Ok(WorkerOutcome {
-                status,
-                timed_out: true,
-                stderr_exceeded: stderr_exceeded.load(Ordering::Acquire),
             });
         }
         std::thread::sleep(WORKER_POLL_INTERVAL);
@@ -425,11 +425,12 @@ fn terminate_worker(child: &mut WorkerChild) -> std::io::Result<()> {
     {
         use command_group::{Signal, UnixChildExt};
         if let Err(error) = child.signal(Signal::SIGTERM) {
-            return if process_is_gone(&error) {
-                Ok(())
-            } else {
-                Err(error)
-            };
+            if process_is_gone(&error) {
+                return Ok(());
+            }
+            if error.raw_os_error() != Some(libc::EPERM) {
+                return Err(error);
+            }
         }
         std::thread::sleep(WORKER_TERMINATE_GRACE);
         if worker_leader_has_exited(child)? {
@@ -908,6 +909,56 @@ mod tests {
         assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_TIMEOUT");
         std::thread::sleep(Duration::from_millis(250));
         assert!(!marker.exists(), "timed-out worker continued running");
+    }
+
+    #[test]
+    fn timeout_deadline_includes_worker_launch_and_rejects_a_late_completion() {
+        let response = WorkerResponse::V1 {
+            source_scene: fixture_scene(),
+            warnings: Vec::new(),
+        };
+        let encoded =
+            bincode::serde::encode_to_vec(&response, bincode::config::standard()).unwrap();
+        let expected = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(expected.path(), encoded).unwrap();
+        let expected_path = expected.path().to_path_buf();
+
+        let error = run_isolated_import_with_launcher(
+            &TestImporter,
+            &import_request(),
+            NativeImportLimits {
+                timeout: Duration::from_millis(10),
+                ..NativeImportLimits::default()
+            },
+            ProcessLimits::default(),
+            move |request_path| {
+                std::thread::sleep(Duration::from_millis(30));
+                let mut command = Command::new("/bin/sh");
+                command
+                    .env("EXPECTED_RESPONSE", &expected_path)
+                    .arg("-c")
+                    .arg("cp \"$EXPECTED_RESPONSE\" \"${2}.response\"")
+                    .arg("studio-import-test-worker")
+                    .arg("--internal-import-worker")
+                    .arg(request_path);
+                Ok(command)
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_TIMEOUT");
+    }
+
+    #[cfg(all(feature = "jt", unix))]
+    #[test]
+    fn terminating_an_already_exited_worker_is_not_a_cleanup_failure() {
+        let mut command = Command::new("/bin/sh");
+        command.arg("-c").arg("exit 0");
+        let mut child = spawn_worker(&mut command).unwrap();
+        std::thread::sleep(Duration::from_millis(50));
+
+        terminate_worker(&mut child).unwrap();
+        assert!(worker_wait(&mut child).unwrap().success());
     }
 
     #[test]

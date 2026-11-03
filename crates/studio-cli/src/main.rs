@@ -1,12 +1,16 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use serde::Serialize;
 use studio_assets::{AssetError, read_glb, validate_prepared_profile};
 use studio_cli::import::{
     ImportOptions, execute_internal_worker, import_limits_from_environment, import_source,
 };
+use studio_cli::partition::{PartitionOptions, partition_source};
+use studio_cli::prepare_command::{InspectOptions, PrepareCommandOptions, run_build, run_inspect};
 use studio_cli::schema;
 use studio_core::gpu_contract::GeometryBackendMode;
+use studio_pipeline::{LodAllocationMode, RenderBatchMode, SemanticProxyMode};
 use studio_project::{ProjectStore, WorkspacePath};
 use studio_server::capabilities::WriteMode;
 use studio_server::runtime_tileset::RuntimeTilesetExporter;
@@ -41,6 +45,106 @@ enum Command {
         warnings_as_errors: bool,
         #[arg(long)]
         force: bool,
+    },
+    /// Build a source asset with prepared render edges.
+    Build {
+        source: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        asset_id: String,
+        #[arg(
+            long,
+            default_value = "auto",
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
+        )]
+        adapter: String,
+        #[arg(long, default_value_t = 30.0)]
+        crease_angle: f32,
+        #[arg(long)]
+        skip_edges: bool,
+        #[arg(long)]
+        budget: Option<String>,
+        #[arg(long)]
+        report: Option<PathBuf>,
+        #[arg(long)]
+        warnings_as_errors: bool,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Inspect a source or Prepared GLB without publishing files.
+    Inspect {
+        source: PathBuf,
+        #[arg(
+            long,
+            default_value = "auto",
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
+        )]
+        adapter: String,
+        #[arg(long)]
+        crease_angle: Option<f32>,
+        #[arg(long)]
+        skip_edges: bool,
+        #[arg(long)]
+        budget: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Partition any registered source into a runtime Tileset directory.
+    Partition {
+        source: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        asset_id: String,
+        #[arg(
+            long,
+            default_value = "auto",
+            value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
+        )]
+        adapter: String,
+        #[arg(long, default_value_t = 500_000)]
+        max_triangles: u64,
+        #[arg(long, default_value_t = 33_554_432)]
+        max_bytes: usize,
+        #[arg(long, default_value_t = 30.0)]
+        crease_angle: f32,
+        #[arg(long)]
+        skip_edges: bool,
+        #[arg(long)]
+        budget: Option<String>,
+        #[arg(long, default_value = "off", value_parser = ["off", "static"])]
+        render_batch: String,
+        #[arg(long)]
+        lod: bool,
+        #[arg(long, default_value_t = 0.15)]
+        lod_ratio: f64,
+        #[arg(
+            long,
+            default_value = "proportional",
+            value_parser = ["proportional", "adaptive"]
+        )]
+        lod_allocation: String,
+        #[arg(long, default_value_t = 250_000)]
+        lod_max_triangles: u64,
+        #[arg(long, default_value_t = 8)]
+        lod_min_unit_triangles: u64,
+        #[arg(long, default_value_t = 8)]
+        lod_curve_samples: u32,
+        #[arg(long, default_value_t = 67_108_864)]
+        lod_max_memory_bytes: usize,
+        #[arg(long, default_value = "off", value_parser = ["off", "auto"])]
+        semantic_proxy: String,
+        #[arg(long)]
+        coarse_chunk_max_bytes: Option<usize>,
+        #[arg(long)]
+        warnings_as_errors: bool,
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        json: bool,
     },
     /// Validate a GLB, glTF, or Prepared GLB.
     Validate { source: PathBuf },
@@ -94,6 +198,8 @@ enum ExportCommand {
         project: PathBuf,
         #[arg(long)]
         output: PathBuf,
+        #[arg(long)]
+        asset_id: Option<String>,
         #[arg(long, default_value = "agent-console-v1")]
         profile: String,
         #[arg(long)]
@@ -143,6 +249,111 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|error| CliFailure(error.to_string()))?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
+        Command::Build {
+            source,
+            output,
+            asset_id,
+            adapter,
+            crease_angle,
+            skip_edges,
+            budget,
+            report,
+            warnings_as_errors,
+            force,
+            json,
+        } => {
+            let limits =
+                import_limits_from_environment().map_err(|error| CliFailure(error.to_string()))?;
+            let output = run_build(PrepareCommandOptions {
+                source,
+                output,
+                asset_id,
+                adapter,
+                crease_angle_degrees: crease_angle,
+                skip_edges,
+                budget,
+                report,
+                warnings_as_errors,
+                force,
+                limits,
+            })
+            .map_err(|error| CliFailure(error.to_string()))?;
+            print_json(&output.report, json)?;
+        }
+        Command::Inspect {
+            source,
+            adapter,
+            crease_angle,
+            skip_edges,
+            budget,
+            json,
+        } => {
+            let limits =
+                import_limits_from_environment().map_err(|error| CliFailure(error.to_string()))?;
+            let report = run_inspect(InspectOptions {
+                source,
+                adapter,
+                crease_angle_degrees: crease_angle,
+                skip_edges,
+                budget,
+                limits,
+            })
+            .map_err(|error| CliFailure(error.to_string()))?;
+            print_json(&report, json)?;
+        }
+        Command::Partition {
+            source,
+            output,
+            asset_id,
+            adapter,
+            max_triangles,
+            max_bytes,
+            crease_angle,
+            skip_edges,
+            budget,
+            render_batch,
+            lod,
+            lod_ratio,
+            lod_allocation,
+            lod_max_triangles,
+            lod_min_unit_triangles,
+            lod_curve_samples,
+            lod_max_memory_bytes,
+            semantic_proxy,
+            coarse_chunk_max_bytes,
+            warnings_as_errors,
+            force,
+            json,
+        } => {
+            let limits =
+                import_limits_from_environment().map_err(|error| CliFailure(error.to_string()))?;
+            let report = partition_source(PartitionOptions {
+                source,
+                output,
+                asset_id,
+                adapter,
+                max_triangles,
+                max_bytes,
+                crease_angle_degrees: crease_angle,
+                skip_edges,
+                budget,
+                render_batch: parse_render_batch(&render_batch)?,
+                lod_enabled: lod,
+                lod_ratio,
+                lod_allocation: parse_lod_allocation(&lod_allocation)?,
+                lod_max_triangles,
+                lod_min_unit_triangles,
+                lod_curve_samples,
+                lod_max_memory_bytes,
+                semantic_proxy: parse_semantic_proxy(&semantic_proxy)?,
+                coarse_chunk_max_bytes,
+                warnings_as_errors,
+                force,
+                limits,
+            })
+            .map_err(|error| CliFailure(error.to_string()))?;
+            print_json(&report, json)?;
+        }
         Command::Validate { source } => {
             let parsed = read_glb(&source)?;
             let report = match validate_prepared_profile(&parsed) {
@@ -165,11 +376,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ExportCommand::Tileset {
                 project,
                 output,
+                asset_id,
                 profile,
                 force,
             } => {
                 if profile != "agent-console-v1" {
-                    return Err(format!("unsupported runtime profile: {profile}").into());
+                    return Err(format!(
+                        "ICE3_STUDIO_ASSET_TILESET_INVALID: unsupported runtime profile: {profile}"
+                    )
+                    .into());
                 }
                 let project_id = project
                     .file_name()
@@ -183,8 +398,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let document = store.load_current_read_only()?;
                 let project_dir = store.project_dir().to_path_buf();
                 drop(store);
-                let result =
-                    RuntimeTilesetExporter::new(output, force).export(&document, &project_dir)?;
+                let mut exporter = RuntimeTilesetExporter::new(output, force);
+                if let Some(asset_id) = asset_id {
+                    exporter = exporter.with_asset_id(asset_id);
+                }
+                let result = exporter.export(&document, &project_dir)?;
                 println!("{}", serde_json::to_string_pretty(&result)?);
             }
         },
@@ -237,6 +455,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn print_json(value: &impl Serialize, compact: bool) -> Result<(), serde_json::Error> {
+    if compact {
+        println!("{}", serde_json::to_string(value)?);
+    } else {
+        println!("{}", serde_json::to_string_pretty(value)?);
+    }
+    Ok(())
+}
+
 fn internal_worker_request() -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
     let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
     if arguments.first().map(std::ffi::OsString::as_os_str)
@@ -272,6 +499,30 @@ fn parse_compute_mode(value: &str) -> Result<GeometryBackendMode, String> {
         "auto" => Ok(GeometryBackendMode::Auto),
         "gpu" => Ok(GeometryBackendMode::Gpu),
         _ => Err("native GPU mode must be cpu, auto, or gpu".into()),
+    }
+}
+
+fn parse_render_batch(value: &str) -> Result<RenderBatchMode, Box<dyn std::error::Error>> {
+    match value {
+        "off" => Ok(RenderBatchMode::Off),
+        "static" => Ok(RenderBatchMode::Static),
+        _ => Err("render batch mode must be off or static".into()),
+    }
+}
+
+fn parse_lod_allocation(value: &str) -> Result<LodAllocationMode, Box<dyn std::error::Error>> {
+    match value {
+        "proportional" => Ok(LodAllocationMode::Proportional),
+        "adaptive" => Ok(LodAllocationMode::Adaptive),
+        _ => Err("LOD allocation must be proportional or adaptive".into()),
+    }
+}
+
+fn parse_semantic_proxy(value: &str) -> Result<SemanticProxyMode, Box<dyn std::error::Error>> {
+    match value {
+        "off" => Ok(SemanticProxyMode::Off),
+        "auto" => Ok(SemanticProxyMode::Auto),
+        _ => Err("semantic proxy mode must be off or auto".into()),
     }
 }
 
@@ -366,5 +617,85 @@ mod tests {
             ])
             .is_err()
         );
+    }
+
+    #[test]
+    fn parses_partition_defaults_and_explicit_options() {
+        let defaults = Cli::try_parse_from([
+            "ice3-studio",
+            "partition",
+            "plant.gltf",
+            "--output",
+            "dist",
+            "--asset-id",
+            "plant",
+        ])
+        .unwrap();
+        assert!(matches!(
+            defaults.command,
+            Command::Partition {
+                adapter,
+                max_triangles: 500_000,
+                max_bytes: 33_554_432,
+                crease_angle,
+                skip_edges: false,
+                render_batch,
+                lod: false,
+                lod_ratio,
+                lod_allocation,
+                lod_max_triangles: 250_000,
+                lod_min_unit_triangles: 8,
+                lod_curve_samples: 8,
+                lod_max_memory_bytes: 67_108_864,
+                semantic_proxy,
+                coarse_chunk_max_bytes: None,
+                force: false,
+                ..
+            } if adapter == "auto"
+                && (crease_angle - 30.0).abs() < f32::EPSILON
+                && render_batch == "off"
+                && (lod_ratio - 0.15).abs() < f64::EPSILON
+                && lod_allocation == "proportional"
+                && semantic_proxy == "off"
+        ));
+
+        let explicit = Cli::try_parse_from([
+            "ice3-studio",
+            "partition",
+            "plant.gltf",
+            "--output",
+            "dist",
+            "--asset-id",
+            "plant",
+            "--adapter",
+            "gltf",
+            "--render-batch",
+            "static",
+            "--lod",
+            "--lod-allocation",
+            "adaptive",
+            "--semantic-proxy",
+            "auto",
+            "--coarse-chunk-max-bytes",
+            "1024",
+            "--force",
+        ])
+        .unwrap();
+        assert!(matches!(
+            explicit.command,
+            Command::Partition {
+                adapter,
+                render_batch,
+                lod: true,
+                lod_allocation,
+                semantic_proxy,
+                coarse_chunk_max_bytes: Some(1024),
+                force: true,
+                ..
+            } if adapter == "gltf"
+                && render_batch == "static"
+                && lod_allocation == "adaptive"
+                && semantic_proxy == "auto"
+        ));
     }
 }

@@ -71,6 +71,20 @@ cache 和项目完整性检查。新 revision 只有在 snapshot 持久化完成
 base directory 内解析外部资源。Draco primitive 在读取阶段物化为普通 accessor；绝对
 路径、URI scheme、`..`、symlink escape、畸形 chunk 和越界 accessor 均失败关闭。
 
+`studio-assets::prepare` 是 SourceScene 到 PreparedArtifact 的唯一语义实现。它一次生成
+GLB bytes、真实 AssetMetrics、Preparation metadata、budget result 和 content digest；
+`import`、`build`、`inspect`、`partition` 与 Runtime Tileset 不得各自重算这些字段。
+`import` 默认
+不生成 render edges；`build` 默认按 30° crease angle 生成 deterministic line edges。
+edge primitive 固定为 `mode=1`、`role="edges"`、`widthPx=3`，并引用独立 edge material。
+Hard budget、非法 options、无效 geometry、profile 校验或 report 序列化失败时，
+Studio 不发布新产物。
+
+Engine 只通过 `@ice3/assets` 的 `readPreparedGLB`、`verifyPreparedGLBIntegrity` 和
+`readTileset` 消费最终字节。它验证 content digest，把 line primitive 恢复为独立
+`edgeIndices` 和 edge color，并保留 node Selection；它不链接 Prepare、Source Import
+或 Studio Rust crate。
+
 ### `studio-import`
 
 定义格式无关的 `SourceImporter`、registry 和 `SourceScene`。当前 adapter：
@@ -100,6 +114,13 @@ adapter 不写 Tileset；`studio-assets::canonical` 把 `SourceScene` 写成 Pre
 拥有 partition unit 分析、确定性的空间切分、meshopt LOD、coarse chunk、可选 semantic
 proxy、静态 render batch 和 Tileset document。共享 Mesh 的实例保持同一 atomic partition
 unit；LOD 保留稳定 selection identity，简化失败时保留原几何。
+
+`AssetProfile` 是直接 `partition` 与 Runtime Tileset 的唯一配置入口。Fine、LOD、
+coarse、semantic proxy 和 render batch writer 都从各自最终 positions/indices 调用共享
+edge generator，不复制 source edge accessor。Edge bytes 参与 part 和 chunk byte budget，
+line primitive 不增加 triangle count；每个 part GLB 与 Tileset aggregate 都记录真实
+`edgeSegmentCount` 和 `edgeBytes`。Static render batch 会烘焙 node transform，同时保留
+`COLOR_0` 和 semantic selection 映射，避免 batching 改变资产外观或可选择性。
 
 ### `studio-gpu`
 
@@ -132,8 +153,12 @@ committed preview 使用原子发布并返回文件 SHA-256。candidate source �
 ### `studio-cli`
 
 启动本地 Server，生成确定性的 JSON Schema/TypeScript declaration，提供 project pack
-和 unpack、Source Import/validate，并从 committed revision 发布
-`agent-console-v1` Runtime bundle。
+和 unpack、Source Import/validate、`build`、`inspect`、任意 source `partition`，并从
+committed revision 发布 `agent-console-v1` Runtime bundle。`partition` 将输入统一经过
+Prepare，再发布完整 staging Tileset；`--force` 使用 backup/rename 并在失败时恢复旧目录。
+`build` 支持 built-in/custom budget、versioned
+`ice3-asset-build-report`、warnings-as-errors 和 GLB/report 成对原子发布；`inspect`
+对 source 与 Prepared GLB 复用同一 metrics/preparation/budget 字段。
 
 ### Web Viewer
 
@@ -224,6 +249,10 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 
 Runtime LOD、空间 partition 和 GLB Runtime Asset 发布已由 Studio 原生 crate 实现。
 glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT Source Import 已迁入 Studio。
+Phase 6A 的共享 Prepare、真实 render edges、budget/report、`build` 和 `inspect` 也已
+完成；Phase 6B 的直接 `partition`、fine/LOD/coarse edges、统一 Runtime profile 和
+byte-budget 收口也已完成。Phase 6C 的真实 Engine 消费、large-fixture p95/RSS/bytes
+基线、Chrome E2E、standalone 和文档收口同样已完成。
 `studio-import` 的 JT adapter 在 isolated worker 中调用 host-owned converter，验证
 标准 GLB，并在 `f64` 共享原点转换后生成 `SourceScene`。Studio 不再消费 Toolchain
 Source Import 生产路径或外部 DCC bridge 服务。Sidecar/client/UI 已退役；相邻

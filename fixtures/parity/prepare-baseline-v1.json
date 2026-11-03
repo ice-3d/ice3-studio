@@ -1,0 +1,377 @@
+{
+  "kind": "ice3-prepare-baseline",
+  "schemaVersion": "1.0",
+  "fixture": "fixtures/source-import/gltf/prepare-cube.gltf",
+  "sourceDigest": "c0f0003313965dd7e405c9649bbdf9080647eea49850006d1c523dd8ae473719",
+  "sourceFiles": {
+    "prepare-cube.gltf": "9c4badb50fd1698bfe76699d6698b01bc528e3a45eff45a2a6aa4a99f7aab01d",
+    "prepare-cube.bin": "627e67cea09ccbb935535ef1c07deb0467213bada2329ab7e41667f7f35b9779"
+  },
+  "converter": "retired Toolchain CLI",
+  "options": {
+    "default": {
+      "budget": "interactive-desktop-v1",
+      "creaseAngleDegrees": 30,
+      "edges": true
+    },
+    "skipEdges": {
+      "budget": "interactive-desktop-v1",
+      "creaseAngleDegrees": 30,
+      "edges": false
+    },
+    "crease90": {
+      "budget": "interactive-desktop-v1",
+      "creaseAngleDegrees": 90,
+      "edges": true
+    }
+  },
+  "normalizationRules": {
+    "selectionIdFallback": "ice3.id",
+    "reason": "Legacy Toolchain build omits node selectionId extras; its stable ice3.id identifies the source business node."
+  },
+  "default": {
+    "outputDigest": "1b649a743490c0c68009ad259262678b4cfb2a7f4b8f269c2ff8aded1ab872e0",
+    "edgesPrepared": true,
+    "stats": {
+      "nodeCount": 1,
+      "maxNodeDepth": 0,
+      "meshCount": 1,
+      "primitiveCount": 2,
+      "triangleCount": 12,
+      "edgeSegmentCount": 12,
+      "materialCount": 5,
+      "selectionGroupCount": 1
+    },
+    "budget": {
+      "profile": "interactive-desktop-v1",
+      "status": "pass",
+      "warningCount": 0,
+      "errorCount": 0
+    },
+    "report": {
+      "kind": "ice3-asset-report",
+      "schemaVersion": "1.0",
+      "budget": {
+        "profile": "interactive-desktop-v1",
+        "status": "pass",
+        "warningCount": 0,
+        "errorCount": 0,
+        "checks": [
+          {
+            "id": "nodes",
+            "metric": "nodeCount",
+            "value": 1,
+            "softLimit": 25000,
+            "hardLimit": 50000,
+            "status": "pass"
+          },
+          {
+            "id": "meshes",
+            "metric": "meshCount",
+            "value": 1,
+            "softLimit": 5000,
+            "hardLimit": 15000,
+            "status": "pass"
+          },
+          {
+            "id": "primitives",
+            "metric": "primitiveCount",
+            "value": 2,
+            "softLimit": 10000,
+            "hardLimit": 30000,
+            "status": "pass"
+          },
+          {
+            "id": "triangles",
+            "metric": "triangleCount",
+            "value": 12,
+            "softLimit": 5000000,
+            "hardLimit": 20000000,
+            "status": "pass"
+          },
+          {
+            "id": "edges",
+            "metric": "edgeSegmentCount",
+            "value": 12,
+            "softLimit": 10000000,
+            "hardLimit": 40000000,
+            "status": "pass"
+          },
+          {
+            "id": "encodedBytes",
+            "metric": "encodedBytes",
+            "value": 3092,
+            "softLimit": 134217728,
+            "hardLimit": 536870912,
+            "status": "pass"
+          },
+          {
+            "id": "selectionGroups",
+            "metric": "selectionGroupCount",
+            "value": 1,
+            "softLimit": 20000,
+            "hardLimit": 100000,
+            "status": "pass"
+          }
+        ]
+      }
+    },
+    "edgeRole": "edges",
+    "edgeWidthPx": 3,
+    "edgeColor": [
+      0.9019607843137255,
+      0.9490196078431372,
+      1,
+      1
+    ],
+    "edgeMaterialName": "steel edges",
+    "selectionIds": [],
+    "nodeBusinessIds": [
+      "prepare-cube/node/0"
+    ],
+    "nodeNames": [
+      "prepared-cube"
+    ],
+    "bounds": {
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "max": [
+        1,
+        1,
+        1
+      ]
+    }
+  },
+  "skipEdges": {
+    "outputDigest": "76bfdb65448645585b59db762e7f3a36f93da1e78a9bb4a253c2aa09201fa6b0",
+    "edgesPrepared": false,
+    "stats": {
+      "nodeCount": 1,
+      "maxNodeDepth": 0,
+      "meshCount": 1,
+      "primitiveCount": 1,
+      "triangleCount": 12,
+      "edgeSegmentCount": 0,
+      "materialCount": 5,
+      "selectionGroupCount": 1
+    },
+    "budget": {
+      "profile": "interactive-desktop-v1",
+      "status": "pass",
+      "warningCount": 0,
+      "errorCount": 0
+    },
+    "report": {
+      "kind": "ice3-asset-report",
+      "schemaVersion": "1.0",
+      "budget": {
+        "profile": "interactive-desktop-v1",
+        "status": "pass",
+        "warningCount": 0,
+        "errorCount": 0,
+        "checks": [
+          {
+            "id": "nodes",
+            "metric": "nodeCount",
+            "value": 1,
+            "softLimit": 25000,
+            "hardLimit": 50000,
+            "status": "pass"
+          },
+          {
+            "id": "meshes",
+            "metric": "meshCount",
+            "value": 1,
+            "softLimit": 5000,
+            "hardLimit": 15000,
+            "status": "pass"
+          },
+          {
+            "id": "primitives",
+            "metric": "primitiveCount",
+            "value": 1,
+            "softLimit": 10000,
+            "hardLimit": 30000,
+            "status": "pass"
+          },
+          {
+            "id": "triangles",
+            "metric": "triangleCount",
+            "value": 12,
+            "softLimit": 5000000,
+            "hardLimit": 20000000,
+            "status": "pass"
+          },
+          {
+            "id": "edges",
+            "metric": "edgeSegmentCount",
+            "value": 0,
+            "softLimit": 10000000,
+            "hardLimit": 40000000,
+            "status": "pass"
+          },
+          {
+            "id": "encodedBytes",
+            "metric": "encodedBytes",
+            "value": 2932,
+            "softLimit": 134217728,
+            "hardLimit": 536870912,
+            "status": "pass"
+          },
+          {
+            "id": "selectionGroups",
+            "metric": "selectionGroupCount",
+            "value": 1,
+            "softLimit": 20000,
+            "hardLimit": 100000,
+            "status": "pass"
+          }
+        ]
+      }
+    },
+    "selectionIds": [],
+    "nodeBusinessIds": [
+      "prepare-cube/node/0"
+    ],
+    "nodeNames": [
+      "prepared-cube"
+    ],
+    "bounds": {
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "max": [
+        1,
+        1,
+        1
+      ]
+    }
+  },
+  "crease90": {
+    "outputDigest": "f433fa60313dc0516cdfc7cdfd079ec7f4f17df787b50c86c7d5f1438ea2f736",
+    "edgesPrepared": true,
+    "stats": {
+      "nodeCount": 1,
+      "maxNodeDepth": 0,
+      "meshCount": 1,
+      "primitiveCount": 2,
+      "triangleCount": 12,
+      "edgeSegmentCount": 12,
+      "materialCount": 5,
+      "selectionGroupCount": 1
+    },
+    "budget": {
+      "profile": "interactive-desktop-v1",
+      "status": "pass",
+      "warningCount": 0,
+      "errorCount": 0
+    },
+    "report": {
+      "kind": "ice3-asset-report",
+      "schemaVersion": "1.0",
+      "budget": {
+        "profile": "interactive-desktop-v1",
+        "status": "pass",
+        "warningCount": 0,
+        "errorCount": 0,
+        "checks": [
+          {
+            "id": "nodes",
+            "metric": "nodeCount",
+            "value": 1,
+            "softLimit": 25000,
+            "hardLimit": 50000,
+            "status": "pass"
+          },
+          {
+            "id": "meshes",
+            "metric": "meshCount",
+            "value": 1,
+            "softLimit": 5000,
+            "hardLimit": 15000,
+            "status": "pass"
+          },
+          {
+            "id": "primitives",
+            "metric": "primitiveCount",
+            "value": 2,
+            "softLimit": 10000,
+            "hardLimit": 30000,
+            "status": "pass"
+          },
+          {
+            "id": "triangles",
+            "metric": "triangleCount",
+            "value": 12,
+            "softLimit": 5000000,
+            "hardLimit": 20000000,
+            "status": "pass"
+          },
+          {
+            "id": "edges",
+            "metric": "edgeSegmentCount",
+            "value": 12,
+            "softLimit": 10000000,
+            "hardLimit": 40000000,
+            "status": "pass"
+          },
+          {
+            "id": "encodedBytes",
+            "metric": "encodedBytes",
+            "value": 3092,
+            "softLimit": 134217728,
+            "hardLimit": 536870912,
+            "status": "pass"
+          },
+          {
+            "id": "selectionGroups",
+            "metric": "selectionGroupCount",
+            "value": 1,
+            "softLimit": 20000,
+            "hardLimit": 100000,
+            "status": "pass"
+          }
+        ]
+      }
+    },
+    "edgeRole": "edges",
+    "edgeWidthPx": 3,
+    "edgeColor": [
+      0.9019607843137255,
+      0.9490196078431372,
+      1,
+      1
+    ],
+    "edgeMaterialName": "steel edges",
+    "selectionIds": [],
+    "nodeBusinessIds": [
+      "prepare-cube/node/0"
+    ],
+    "nodeNames": [
+      "prepared-cube"
+    ],
+    "bounds": {
+      "min": [
+        -1,
+        -1,
+        -1
+      ],
+      "max": [
+        1,
+        1,
+        1
+      ]
+    }
+  },
+  "budget": {
+    "profile": "interactive-desktop-v1",
+    "status": "pass",
+    "warningCount": 0,
+    "errorCount": 0
+  }
+}

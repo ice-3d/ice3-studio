@@ -35,6 +35,10 @@
 - Studio Server 不启动 Node Asset runtime、Toolchain Sidecar 或其它资产守护进程；
   Runtime preview、preparation、partition、LOD 和 Tileset 都由 Studio 原生 crate 完成。
 - 标准 GLB 是互操作输出；Runtime GLB、LOD 和分区由 Studio 原生 crate 负责。
+- Prepared GLB 的唯一 writer 是 `studio-assets::prepare`；`build/import/partition` 和
+  Runtime Tileset 必须复用它，不得另建 Prepare 或外部转换链。
+- Engine/Agent Console 只消费 Prepared GLB/Tileset bytes，不链接 Studio Prepare 实现；
+  edge line primitive、edge color、Selection 和 content digest 必须由真实 reader 验证。
 - glTF/GLB、OBJ/MTL、FBX、USD、STEP、IFC 与 JT Source Import 由 `studio-import`
   负责。FBX/USD/STEP/IFC/JT 必须在
   自带隔离 worker 中解析，使用硬 timeout、进程崩溃隔离、response/stderr 上限、scene
@@ -54,6 +58,8 @@
 - 根级 `npm run verify` 必须覆盖 Rust format、lint、test、schema、Viewer typecheck、
   unit、build、E2E 和依赖审计。
 - 性能行为变化必须更新 `npm run benchmark` 的机器可读基线并核对设计上限。
+- Asset Prepare、partition、LOD、batching 变化必须更新 `npm run benchmark:prepare`
+  基线；p95、512 MiB peak RSS、bytes 和 digest 门禁不得静默放宽。
 - 文档变更必须保持 Proposed 与 Implemented 状态准确。
 
 ## 提交身份

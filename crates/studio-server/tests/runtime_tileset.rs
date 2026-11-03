@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use studio_assets::read_glb_bytes;
 use studio_core::document::{Document, NodeContent, SceneNode};
 use studio_core::geometry::{Bounds, EvaluatedMesh, TriangleMesh, Vertex};
 use studio_core::ids::{NodeId, Revision};
@@ -30,7 +31,10 @@ fn groups_all_parts_sharing_a_tag_into_one_binding() {
 
     let manifest = BindingManifest::from_evaluated_scene("fixture", 1, &scene);
     assert_eq!(manifest.bindings.len(), 1);
-    assert_eq!(manifest.bindings[0].selection_id, "plant/equipment/AE-101");
+    assert_eq!(
+        manifest.bindings[0].selection_id,
+        "fixture/equipment/AE-101"
+    );
     assert_eq!(
         manifest.bindings[0].node_selection_ids,
         ["node-000001/wall-a", "node-000001/wall-b"]
@@ -47,6 +51,47 @@ fn export_is_deterministic_and_contains_no_source_glb() {
     assert!(!first.output_dir.join("source.glb").exists());
     assert!(first.output_dir.join("parts").is_dir());
     assert!(first.output_dir.join("coarse").exists());
+}
+
+#[test]
+fn runtime_tileset_parts_and_coarse_include_render_edges() {
+    let export = fixture_export("edges").unwrap();
+    let geometry_files = export
+        .files
+        .iter()
+        .filter(|file| file.path.starts_with("parts/") || file.path.starts_with("coarse/"))
+        .collect::<Vec<_>>();
+    assert!(!geometry_files.is_empty());
+    for file in geometry_files {
+        let bytes = std::fs::read(export.output_dir.join(&file.path)).unwrap();
+        let parsed = read_glb_bytes(&bytes, &std::env::temp_dir()).unwrap();
+        assert!(
+            parsed.json["meshes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .flat_map(|mesh| mesh["primitives"].as_array().unwrap())
+                .any(|primitive| primitive["mode"] == 1),
+            "{} has no render edges",
+            file.path
+        );
+    }
+    assert!(export.stats.edge_segment_count > 0);
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(export.output_dir.join("export.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        manifest["stats"]["edgeSegmentCount"],
+        export.stats.edge_segment_count
+    );
+}
+
+#[test]
+fn runtime_tileset_diagnostics_use_the_studio_asset_code() {
+    assert_eq!(
+        studio_pipeline::PipelineError::Tileset("invalid".into()).code(),
+        "ICE3_STUDIO_ASSET_TILESET_INVALID"
+    );
 }
 
 #[test]

@@ -7,10 +7,13 @@ use sha2::Digest;
 use studio_core::geometry::Bounds;
 
 use crate::PipelineError;
+use crate::profile::{AssetProfile, RenderBatchMode};
 use studio_assets::{AccessorData, SourceGlb, read_accessor};
 
-use crate::partition::build::build_batched_leaf;
-use crate::partition::build::{GeometryOverride, build_leaf_with_overrides};
+use crate::partition::build::{
+    EdgeOptions, GeometryOverride, build_artifact_with_profile, build_batched_leaf,
+    build_leaf_with_overrides,
+};
 use crate::partition::{PartitionLeaf, PartitionPlan, PartitionPlanNode, PartitionUnit};
 
 #[derive(Debug, Clone)]
@@ -31,6 +34,8 @@ pub struct PartitionFile {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PartitionStats {
     pub triangle_count: u64,
+    pub edge_segment_count: u64,
+    pub edge_bytes: u64,
     pub source_triangle_count: u64,
     pub node_count: u64,
     pub partition_count: usize,
@@ -137,75 +142,32 @@ impl TilesetDocument {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RenderBatchMode {
-    Off,
-    Static,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AssetProfile {
-    pub id: String,
-    pub max_triangles: u64,
-    pub max_bytes: usize,
-    pub lod_ratio: f64,
-    pub lod_allocation: super::lod::LodAllocationMode,
-    pub lod_max_triangles: u64,
-    pub lod_min_unit_triangles: u64,
-    pub lod_max_memory_bytes: usize,
-    pub coarse_chunk_max_bytes: usize,
-    pub semantic_proxy: super::lod::SemanticProxyMode,
-    pub render_batch: RenderBatchMode,
-}
-
-impl AssetProfile {
-    pub fn agent_console_v1() -> Self {
-        Self {
-            id: "agent-console-v1".into(),
-            max_triangles: 60_000,
-            max_bytes: 67_108_864,
-            lod_ratio: 0.5,
-            lod_allocation: super::lod::LodAllocationMode::Adaptive,
-            lod_max_triangles: 120_000,
-            lod_min_unit_triangles: 8,
-            lod_max_memory_bytes: 536_870_912,
-            coarse_chunk_max_bytes: 4_194_304,
-            semantic_proxy: super::lod::SemanticProxyMode::Off,
-            render_batch: RenderBatchMode::Static,
-        }
-    }
-}
-
 pub fn build_with_profile(
     source: &studio_assets::SourceGlb,
     asset_id: &str,
     profile: &AssetProfile,
 ) -> Result<PartitionArtifact, PipelineError> {
-    let mut artifact = crate::build_artifact(
-        source,
-        &BuildOptions {
-            asset_id: asset_id.into(),
-            max_triangles: profile.max_triangles,
-            max_bytes: profile.max_bytes,
-        },
-    )?;
+    profile.validate()?;
+    let mut artifact = build_artifact_with_profile(source, asset_id, profile)?;
     let render_batch_count = if profile.render_batch == RenderBatchMode::Static {
-        rebuild_with_static_batches(source, asset_id, &mut artifact)?
+        rebuild_with_static_batches(source, asset_id, &mut artifact, profile)?
     } else {
         0
     };
     let mut coarse_paths = BTreeMap::<String, Vec<String>>::new();
-    let partitions = collect_internal_partitions(&artifact.plan.root, "group-root");
-    for (partition_id, node) in partitions {
-        let files = build_coarse_files(source, asset_id, profile, &partition_id, &node.units)?;
-        coarse_paths.insert(
-            partition_id,
-            files
-                .iter()
-                .map(|file| file.relative_path.clone())
-                .collect(),
-        );
-        artifact.files.extend(files);
+    if profile.lod_enabled {
+        let partitions = collect_internal_partitions(&artifact.plan.root, "group-root");
+        for (partition_id, node) in partitions {
+            let files = build_coarse_files(source, asset_id, profile, &partition_id, &node.units)?;
+            coarse_paths.insert(
+                partition_id,
+                files
+                    .iter()
+                    .map(|file| file.relative_path.clone())
+                    .collect(),
+            );
+            artifact.files.extend(files);
+        }
     }
     attach_coarse_content(
         &mut artifact.tileset.root,
@@ -214,17 +176,52 @@ pub fn build_with_profile(
     );
     artifact.stats.render_batch_count = render_batch_count;
     artifact.stats.coarse_count = coarse_paths.values().map(Vec::len).sum();
+    refresh_artifact_stats(&mut artifact)?;
     Ok(artifact)
+}
+
+fn refresh_artifact_stats(artifact: &mut PartitionArtifact) -> Result<(), PipelineError> {
+    let metrics = artifact
+        .files
+        .iter()
+        .map(crate::partition::build::part_edge_metrics)
+        .collect::<Result<Vec<_>, _>>()?;
+    artifact.stats.edge_segment_count = metrics.iter().map(|(segments, _)| segments).sum();
+    artifact.stats.edge_bytes = metrics.iter().map(|(_, bytes)| bytes).sum();
+    artifact.stats.max_part_bytes = artifact
+        .files
+        .iter()
+        .map(|file| file.byte_length as u64)
+        .max()
+        .unwrap_or(0);
+    artifact.tileset.asset.extras["ice3"]["stats"] = json!({
+        "triangleCount": artifact.stats.triangle_count,
+        "edgeSegmentCount": artifact.stats.edge_segment_count,
+        "edgeBytes": artifact.stats.edge_bytes,
+        "partitionCount": artifact.stats.partition_count,
+        "renderBatchCount": artifact.stats.render_batch_count,
+        "coarseCount": artifact.stats.coarse_count,
+        "maxPartBytes": artifact.stats.max_part_bytes
+    });
+    Ok(())
 }
 
 fn rebuild_with_static_batches(
     source: &SourceGlb,
     asset_id: &str,
     artifact: &mut PartitionArtifact,
+    profile: &AssetProfile,
 ) -> Result<usize, PipelineError> {
     let mut render_batch_count = 0;
     for (index, leaf) in artifact.plan.leaves.iter().enumerate() {
-        let (built, batches) = build_batched_leaf(source, asset_id, leaf)?;
+        let (built, batches) =
+            build_batched_leaf(source, asset_id, leaf, EdgeOptions::from_profile(profile))?;
+        if built.bytes.len() > profile.max_bytes {
+            return Err(crate::PipelineError::Tileset(format!(
+                "partition {} exceeds maxBytes",
+                leaf.id
+            )));
+        }
         render_batch_count += batches;
         let file = artifact
             .files
@@ -324,6 +321,7 @@ fn build_coarse_files(
         &format!("{asset_id}:lod:{partition_id}"),
         &leaf,
         &overrides,
+        EdgeOptions::from_profile(profile),
     )?;
     if built.bytes.len() <= profile.coarse_chunk_max_bytes || units.len() == 1 {
         if built.bytes.len() > profile.coarse_chunk_max_bytes {
@@ -601,10 +599,17 @@ fn tile_from_node(
             ),
         ),
     };
+    let mut bounds_box = to_tiles_box(node.bounds);
+    if !children.is_empty() {
+        // Child AABBs are rounded from independent f32 world bounds. Keep an
+        // extra parent-only margin so strict readers do not misclassify a few
+        // micrometres of floating-point drift as a real hierarchy violation.
+        bounds_box[3] += 0.001;
+        bounds_box[8] += 0.001;
+        bounds_box[10] += 0.001;
+    }
     Ok(TilesetTile {
-        bounding_volume: TilesetBoundingVolume {
-            bounds_box: to_tiles_box(node.bounds),
-        },
+        bounding_volume: TilesetBoundingVolume { bounds_box },
         geometric_error,
         refine: "REPLACE".into(),
         content,
@@ -618,9 +623,13 @@ fn to_tiles_box(bounds: Bounds) -> [f64; 12] {
     let center_x = (bounds.min.x + bounds.max.x) as f64 / 2.0;
     let center_y = (bounds.min.y + bounds.max.y) as f64 / 2.0;
     let center_z = (bounds.min.z + bounds.max.z) as f64 / 2.0;
-    let half_x = (bounds.max.x - bounds.min.x) as f64 / 2.0;
-    let half_y = (bounds.max.y - bounds.min.y) as f64 / 2.0;
-    let half_z = (bounds.max.z - bounds.min.z) as f64 / 2.0;
+    // Parent and child boxes are derived from f32 scene bounds. At large world
+    // coordinates their independently rounded extents can differ by a few
+    // micrometres, so keep a millimetre-scale margin for strict 3D Tiles readers.
+    let padding = (diagonal(bounds) * 1e-6).max(0.001);
+    let half_x = (bounds.max.x - bounds.min.x) as f64 / 2.0 + padding;
+    let half_y = (bounds.max.y - bounds.min.y) as f64 / 2.0 + padding;
+    let half_z = (bounds.max.z - bounds.min.z) as f64 / 2.0 + padding;
     [
         center_x, -center_z, center_y, half_x, 0.0, 0.0, 0.0, 0.0, half_y, 0.0, half_z, 0.0,
     ]

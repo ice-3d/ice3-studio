@@ -188,6 +188,25 @@ ice3-studio unpack <file.ice3> --into <dir>
 ice3-studio import SOURCE --output FILE --asset-id ID
                         [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
                         [--warnings-as-errors] [--force]
+ice3-studio build SOURCE --output FILE --asset-id ID
+                       [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
+                       [--crease-angle DEGREES] [--skip-edges]
+                       [--budget interactive-desktop-v1|unrestricted|FILE]
+                       [--report FILE] [--warnings-as-errors] [--force] [--json]
+ice3-studio inspect SOURCE [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
+                          [--crease-angle DEGREES] [--skip-edges]
+                          [--budget interactive-desktop-v1|unrestricted|FILE] [--json]
+ice3-studio partition SOURCE --output <dir> --asset-id ID
+                          [--adapter auto|gltf|obj|fbx|usd|step|ifc|jt]
+                          [--max-triangles N] [--max-bytes N] [--crease-angle DEGREES]
+                          [--skip-edges] [--budget PROFILE|FILE]
+                          [--render-batch off|static] [--lod]
+                          [--lod-ratio R] [--lod-allocation proportional|adaptive]
+                          [--lod-max-triangles N] [--lod-min-unit-triangles N]
+                          [--lod-curve-samples N] [--lod-max-memory-bytes N]
+                          [--semantic-proxy off|auto]
+                          [--coarse-chunk-max-bytes N]
+                          [--warnings-as-errors] [--force] [--json]
 ice3-studio validate FILE
 ice3-studio export tileset --project <dir> --output <dir>
                          [--profile agent-console-v1] [--force]
@@ -230,6 +249,88 @@ process group 后才开始执行；批准 converter 不得通过新 session、da
 `--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
 替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。
 
+### Asset Prepare
+
+`import` 使用共享 `PrepareArtifact` 生成 `ice3-prepared` GLB、真实 metrics、
+preparation metadata 和 budget，但默认 `edges=false`。已有 source import 入口行为不变，
+现有 preview 用户不会因为 edges 自动增加 line primitive。
+
+`build` 默认 `edges=true`、crease angle `30°`。edge generation 使用
+`round(position * 100000)` welding，并输出 boundary + crease edges。每个 edge primitive
+固定为 `mode=1`、`role="edges"`、`widthPx=3`，引用包含 `#e6f2ff` base color 的 edge
+material；material `edgeColor` 可覆盖默认色，`edges=false` 的 material 不生成对应边。
+`--skip-edges` 关闭 line primitive 和 edge segments，但保留已使用的 source materials 与
+对应 edge material slots；reserved slots 顺序为 source、edge materials、`default`、
+`default edges`、`vertex colors`。
+
+`build --budget` 接受 `interactive-desktop-v1`、`unrestricted` 或受控 JSON profile。
+Soft limit 产生 warning，hard limit 失败关闭；`--warnings-as-errors` 在发布前把 warning
+转为失败。`--report` 写出 `ice3-asset-build-report` schema `1.0`，包含 source/content
+digest、metrics、preparation、budget 和 warnings。
+
+GLB 与 report 使用 sibling temporary files 成对发布。无 `--force` 时任一目标已存在即失败；
+带 `--force` 时先保留 backup，任一 rename 失败会恢复上一份 GLB/report；成功后才清理
+backup。`inspect` 不发布文件，对 source 执行同一 Prepare，对 Prepared GLB 直接读取
+embedded profile 的 metrics、preparation 和 budget。
+
+`partition` 接受任意已注册 Studio source adapter，并把同一 PrepareArtifact 交给
+`studio_pipeline::build_with_profile`。默认值：
+
+| 参数 | 默认 |
+|---|---|
+| `maxTriangles` / `maxBytes` | `500000` / `33554432` |
+| edges / crease angle | on / `30°` |
+| LOD / ratio / allocation | off / `0.15` / `proportional` |
+| LOD max triangles / min unit triangles | `250000` / `8` |
+| LOD curve samples / max memory | `8` / `67108864` |
+| semantic proxy / render batch | off / off |
+| coarse chunk max bytes | `maxBytes` |
+
+`semantic-proxy=auto` 必须同时启用 `--lod` 和 adaptive allocation。LOD ratio 必须在
+`(0,1)`，curve samples 必须为 `4..=32`，min unit triangles 不得大于 max triangles。
+Fine、LOD、coarse、semantic proxy 和 render batch writer 均从各自最终几何生成真实
+edges；edge bytes 计入 part/chunk budget。输出先写入同父目录 staging，整个 Tileset
+通过 GLB/profile 校验后才 rename。默认拒绝已有目录；`--force` 失败时恢复旧目录。
+`--output` 必须指向可命名的目录，不能使用文件系统根目录或当前目录 `.`，避免 `--force`
+替换 workspace/root。Static render batch 烘焙 node transform 时保留 `COLOR_0`，并继续
+通过 `_ICE3_SEMANTIC_INDEX` 映射原 Selection，不改变 fine geometry 的外观或业务身份。
+
+### Engine 消费
+
+Engine `@ice3/assets` 直接读取 Studio 产物，不链接 Studio Prepare 实现：
+
+- `verifyPreparedGLBIntegrity` 校验 `contentDigest` 覆盖的 BIN chunk；
+- `readPreparedGLB` 恢复 triangle/edge geometry、edge material color、Preparation
+  metadata、stats 和 node Selection；
+- `readTileset` 解析 3D Tiles 1.1 hierarchy、relative GLB URI 和 bounds，再逐 part 调用
+  `readPreparedGLB`。
+
+`node scripts/verify-prepare-engine.mjs` 对 Studio `build` 和 direct partition 执行真实
+Engine reader contract，结果写入 `output/prepare-engine-contract.json`。
+
+### Prepare 性能基线
+
+`npm run benchmark:prepare` 对 large-industrial fixture 的五个 case 执行 warmup 1 次 +
+测量 5 次：
+
+- `build` 的 edges 开启与关闭；
+- 直接 partition；
+- 自适应 LOD 与 semantic proxy；
+- 静态 render batch。
+
+基线记录 p50/p95、peak RSS、output bytes、triangle/edge/partition/batch/coarse count 和
+确定性 digest，写入 `fixtures/parity/prepare-performance-v1.json`；运行报告写入
+`output/prepare-performance.json`。Peak RSS 上限为 512 MiB，p95 上限为同参数本地归档
+legacy artifact 的 2 倍。验证门禁只读取 checked-in baseline，不运行旧 Toolchain。
+
+Prepare CLI 的稳定失败码：
+`ICE3_STUDIO_ASSET_INVALID_OPTIONS`、`ICE3_STUDIO_ASSET_INVALID_BUDGET`、
+`ICE3_STUDIO_ASSET_BUDGET_WARNING`、`ICE3_STUDIO_ASSET_BUDGET_EXCEEDED`、
+`ICE3_STUDIO_ASSET_OUTPUT_EXISTS`、`ICE3_STUDIO_ASSET_INVALID_GEOMETRY`、
+`ICE3_STUDIO_ASSET_INVALID_PROFILE`、`ICE3_STUDIO_ASSET_TILESET_INVALID`、
+`ICE3_STUDIO_ASSET_REPORT_WRITE_FAILED` 和 `ICE3_STUDIO_ASSET_IO`。
+完整恢复规则见 [Diagnostics](diagnostics.md)。
+
 `export tileset` 读取当前 committed revision，生成：
 
 ```text
@@ -244,7 +345,9 @@ source GLB 只保留在 `projects/<id>/cache/preview/`，不会复制到发布�
 不可覆盖；`--force` 通过 sibling staging、backup 和 rename 原子替换，失败时恢复上一份
 成功 bundle。`agent-console-v1` 固定使用 60,000 triangles/part、64 MiB/part、LOD ratio
 0.5、adaptive allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk、
-`semanticProxy=off` 和 static render batch。导出只读取 Studio committed revision。
+`semanticProxy=off` 和 static render batch。Parts 和 coarse GLB 都包含真实 edges；
+`export.json.stats.edgeSegmentCount` 来自实际编码产物。导出只读取 Studio committed
+revision。
 
 `bindings.json` 优先按 metadata `tag` 聚合完整设备，`selectionId` 为
 `plant/equipment/<tag>`；无 tag 的独立场景对象使用 source owner ID。`nodeSelectionIds`

@@ -162,17 +162,73 @@ cargo run -p studio-cli -- export tileset \
 
 `agent-console-v1` 使用 60,000 triangles/part、64 MiB/part、0.5 LOD ratio、adaptive
 allocation、120,000 triangles LOD ceiling、4 MiB coarse chunk 和 static render batch。
+parts 与 coarse GLB 都包含 `mode=1` render edges，`export.json.stats.edgeSegmentCount`
+来自实际编码产物。
 命令不调用 Node、外部 DCC 或资产守护进程。CLI 可以在 Studio Server 持有 writer
 lock 时读取 committed revision，但不会修改工程。
 
-原生 asset pipeline 契约检查：
+直接 partition 任意 Source：
 
 ```bash
-node scripts/compare-asset-pipelines.mjs
+cargo run -p studio-cli -- partition plant.glb \
+  --output /tmp/plant-tileset \
+  --asset-id plant \
+  --max-triangles 500000 \
+  --max-bytes 33554432
+
+cargo run -p studio-cli -- partition plant.ifc \
+  --output /tmp/plant-lod-tileset \
+  --asset-id plant-lod \
+  --lod \
+  --lod-allocation adaptive \
+  --semantic-proxy auto \
+  --render-batch static \
+  --coarse-chunk-max-bytes 4194304
 ```
 
-脚本连续执行两次 Studio 导出，校验 triangle/node/Selection、Tileset bounds、相对 URI
-和字节确定性；机器可读结果写入 `output/asset-pipeline-parity.json`。
+默认 `maxTriangles=500000`、`maxBytes=33554432`、crease `30°`、edges on、LOD off、
+render batch off 和 proportional LOD allocation。`--semantic-proxy auto` 必须与
+`--lod`、adaptive allocation 一起使用。Fine、LOD、coarse、semantic proxy 和 render
+batch 都从最终几何重新生成 edges，edge bytes 计入 part/chunk budget。
+
+输出目录默认 no-clobber；`--force` 通过 sibling staging、backup 和 rename 替换，失败时
+恢复旧目录。source import、Prepare、edge generation、GLB validation 或发布失败都不会
+留下最终 Tileset。
+
+原生 partition parity 门禁：
+
+```bash
+node scripts/compare-partition-imports.mjs
+node --test scripts/tests/partition-contract.test.mjs
+```
+
+脚本连续执行两次 8 组 partition case，覆盖直接 glTF/GLB 与多对象 source、proportional/adaptive LOD、
+semantic proxy、static render batch、chunked coarse 和 skip-edges，并校验 URI、bounds、
+Selection、triangle/edge 数量、edge role/width/color、byte budget 和文件 digest。结果写入
+`output/partition-parity.json`。
+
+Engine 与 Agent Console 消费验证：
+
+```bash
+npm --prefix ../ice3-engine run build
+node scripts/verify-prepare-engine.mjs
+node --test scripts/tests/prepare-engine-contract.test.mjs
+```
+
+脚本调用 Engine 的实际 `readPreparedGLB` 和 `readTileset`，恢复 Studio line edges、
+edge color、Preparation metadata、Selection 和 Tileset part hierarchy。Engine 只读取
+Prepared bytes，不链接 Studio Prepare 实现。
+
+Prepare 性能基线：
+
+```bash
+npm run benchmark:prepare
+node --test scripts/tests/prepare-performance.test.mjs
+```
+
+Large-industrial 五个 case 使用 warmup 1 次、采样 5 次，检查 p95、512 MiB peak RSS、
+output bytes、triangle/edge/batch/coarse counts 和 digest 稳定性。同参数的 legacy
+时间只在一次性捕获时使用；日常门禁不启动 Toolchain。
 
 ## 导入 Source Asset
 
@@ -230,6 +286,67 @@ IFC 只接受 IFC4X3，并保留空间层级、GlobalId Selection、Pset/Qto/Sys
 JT 使用部署方提供的 `ICE3_JT_CONVERTER`，默认 timeout 为 300 秒，并由外层 worker
 额外提供 5 秒清理宽限。Studio 固定 converter 参数、验证 512 MiB 上限内的 GLB，并保留
 层级、共享实例、材质、JT metadata、Selection 和 shared source origin。
+
+## Build 与 Inspect Prepared Asset
+
+`import` 使用共享 Prepare 生成 metrics、preparation 和 budget，但默认不生成 render
+edges。需要面向 Engine 预览的 line edges 时使用 `build`：
+
+```bash
+cargo run -p studio-cli -- build plant.ifc \
+  --output /tmp/plant-built.glb \
+  --asset-id plant \
+  --adapter ifc \
+  --report /tmp/plant-built.report.json
+
+cargo run -p studio-cli -- inspect /tmp/plant-built.glb --json
+```
+
+`build` 默认使用 30° crease angle，生成 `mode=1`、`role="edges"`、`widthPx=3` 的
+line primitive 和 `#e6f2ff` edge material。`--crease-angle` 必须在 `0..=180`；
+`--skip-edges` 关闭 line primitive 和 edge segments。material 的 `edgeColor` 可以覆盖
+默认颜色，material `edges=false` 会抑制对应边。
+
+默认 budget 是 `interactive-desktop-v1`。也可指定 `unrestricted` 或自定义 JSON profile：
+
+```json
+{
+  "id": "small-equipment-v1",
+  "limits": [
+    {
+      "id": "triangleCount",
+      "label": "Triangles",
+      "softLimit": 250000,
+      "hardLimit": 1000000
+    }
+  ]
+}
+```
+
+```bash
+cargo run -p studio-cli -- build plant.ifc \
+  --output /tmp/plant-built.glb \
+  --asset-id plant \
+  --budget ./small-equipment-v1.json \
+  --report /tmp/plant-built.report.json \
+  --warnings-as-errors
+```
+
+Soft limit 默认只产生 warning；hard limit 或 `--warnings-as-errors` 在发布前失败。
+`--report` 写出 `ice3-asset-build-report`，包含实际 metrics、preparation、budget 和
+warnings。GLB/report 成对发布，默认拒绝已有目标；`--force` 替换失败时恢复上一份文件。
+`inspect` 对 source 执行同一 Prepare，对 Prepared GLB 直接读取内嵌字段。
+
+Phase 6A/6B 对应的原生 parity 门禁可单独运行：
+
+```bash
+node scripts/compare-prepare-imports.mjs
+node --test scripts/tests/prepare-baseline.test.mjs
+```
+
+脚本默认构建两次 Studio `build` 产物，校验字节确定性，并比较 stats、bounds、业务节点
+身份、Selection fallback、edge role/width/color、budget 和 report。结果写入
+`output/prepare-parity.json`。
 
 ## 停止与恢复
 
