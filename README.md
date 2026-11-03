@@ -108,8 +108,14 @@ npm run benchmark:gpu
 cargo run -p studio-cli -- export tileset \
   --project ./projects/wastewater-plant \
   --output /tmp/ice3-runtime-tileset \
-  --profile agent-console-v1
+  --profile agent-console-v1 \
+  --asset-id ice3-virtual-wwtp
 ```
+
+`--asset-id` 决定 `bindings.json` 中 `selectionId` 的命名空间前缀。接入
+ice3-agent-console 时必须与其 `shared/demo-asset.ts` 的 `id`（演示资产为
+`ice3-virtual-wwtp`）一致，否则设备剧本的 `focus_equipment` 调用无法命中
+Selection。
 
 该命令由 Rust 直接完成 GLB 读取、Prepared Profile 校验、partition、LOD、coarse
 chunk、Tileset 和 binding manifest 发布，不启动 Toolchain Sidecar、Node Asset runtime

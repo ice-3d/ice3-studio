@@ -269,6 +269,62 @@ async fn source_search_filters_and_pages_deterministically() {
         "{second}"
     );
     assert!(second["result"]["nextCursor"].is_null());
+
+    // 源节点（组件实例）的聚合 world bounds：几何在派生部件上，按 owner 聚合回源。
+    let with_bounds = search(
+        &server,
+        serde_json::json!({
+            "query": "pump",
+            "limit": 25
+        }),
+    )
+    .await;
+    let items = with_bounds["result"]["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2, "{with_bounds}");
+    let bounds = items[0]["bounds"].as_object().cloned();
+    let bounds = bounds.unwrap_or_default();
+    assert_eq!(bounds["min"]["x"].as_f64(), Some(-0.5), "{with_bounds}");
+    assert_eq!(bounds["max"]["x"].as_f64(), Some(0.5), "{with_bounds}");
+    assert_eq!(bounds["min"]["y"].as_f64(), Some(-0.5), "{with_bounds}");
+    let bounds_b = items[1]["bounds"].as_object().cloned();
+    let bounds_b = bounds_b.unwrap_or_default();
+    assert_eq!(bounds_b["min"]["x"].as_f64(), Some(3.5), "{with_bounds}");
+    assert_eq!(bounds_b["max"]["x"].as_f64(), Some(4.5), "{with_bounds}");
+
+    // bounds 过滤对 source scope 生效：只命中 Pump A。
+    let filtered = search(
+        &server,
+        serde_json::json!({
+            "query": "pump",
+            "limit": 25,
+            "bounds": {
+                "min": { "x": -1.0, "y": -1.0, "z": -1.0 },
+                "max": { "x": 1.0, "y": 1.0, "z": 1.0 }
+            }
+        }),
+    )
+    .await;
+    let items = filtered["result"]["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "{filtered}");
+    assert_eq!(items[0]["id"], "node-000001");
+
+    // 不相交窗口返回空。
+    let miss = search(
+        &server,
+        serde_json::json!({
+            "query": "pump",
+            "limit": 25,
+            "bounds": {
+                "min": { "x": 1.5, "y": -1.0, "z": -1.0 },
+                "max": { "x": 2.5, "y": 1.0, "z": 1.0 }
+            }
+        }),
+    )
+    .await;
+    assert!(
+        miss["result"]["items"].as_array().unwrap().is_empty(),
+        "{miss}"
+    );
 }
 
 #[tokio::test]

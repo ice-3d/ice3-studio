@@ -153,8 +153,13 @@ Studio 直接从 committed revision 生成 Agent Console Runtime Asset：
 cargo run -p studio-cli -- export tileset \
   --project ./projects/wastewater-plant \
   --output /tmp/ice3-runtime-tileset \
-  --profile agent-console-v1
+  --profile agent-console-v1 \
+  --asset-id ice3-virtual-wwtp
 ```
+
+`--asset-id` 决定 `bindings.json` 中 `selectionId` 的命名空间前缀，接入
+ice3-agent-console 时必须与其 `shared/demo-asset.ts` 的 `id` 保持一致
+（演示资产为 `ice3-virtual-wwtp`），否则剧本的 `focus_equipment` 无法命中设备。
 
 输出固定为 `tileset.json`、`parts/`、`coarse/`、`bindings.json` 和 `export.json`。
 完整 source GLB 只写入项目缓存，不进入发布目录。发布目录已存在时默认拒绝；显式

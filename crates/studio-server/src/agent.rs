@@ -698,6 +698,9 @@ fn source_items(
         .iter()
         .map(|node| (node.id.as_str(), node))
         .collect::<BTreeMap<_, _>>();
+    // 源节点的几何分布在派生部件上；按 owner 聚合出源节点 world bounds。
+    let source_bounds =
+        studio_core::large_scene::evaluate::aggregate_source_bounds(scene, bounds_by_id);
     session
         .document
         .scene
@@ -722,7 +725,10 @@ fn source_items(
                 geometry_id: evaluated_by_id
                     .get(node.id.as_str())
                     .and_then(|node| node.mesh_key.clone()),
-                bounds: bounds_by_id.get(node.id.as_str()).copied(),
+                bounds: source_bounds
+                    .get(node.id.as_str())
+                    .copied()
+                    .or_else(|| bounds_by_id.get(node.id.as_str()).copied()),
                 metadata: Some(node.metadata.clone()),
             }
         })
