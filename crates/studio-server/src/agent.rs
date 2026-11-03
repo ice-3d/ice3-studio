@@ -6,13 +6,16 @@ use studio_core::API_VERSION;
 use studio_core::PROJECT_SCHEMA_VERSION;
 use studio_core::agent_contract::{
     AgentIdempotency, AgentLimits, AgentManifest, AgentSideEffect, AgentTool, AgentWorkflow,
-    EvaluationInclude, EvaluationQueryItem, EvaluationQueryRequest, EvaluationQueryResult,
-    MAX_EVALUATION_NODES, MAX_SEARCH_LIMIT, RelationTypeCount, SceneContentKind,
-    SceneContentKindCount, SceneContext, SceneCoordinateSystem, SceneCounts, SceneFacets,
-    SceneSearchField, SceneSearchItem, SceneSearchRequest, SceneSearchResult, SceneSearchScope,
+    ComponentDefinitionSummary, ComponentGetParams, ComponentGetResult, ComponentPartKind,
+    ComponentPartSummary, EvaluationInclude, EvaluationQueryItem, EvaluationQueryRequest,
+    EvaluationQueryResult, MAX_EVALUATION_NODES, MAX_PART_SUMMARIES, MAX_SEARCH_LIMIT,
+    RelationTypeCount, SceneContentKind, SceneContentKindCount, SceneContext,
+    SceneCoordinateSystem, SceneCounts, SceneFacets, SceneSearchField, SceneSearchItem,
+    SceneSearchRequest, SceneSearchResult, SceneSearchScope,
 };
 use studio_core::document::NodeContent;
 use studio_core::geometry::{Bounds, TriangleMesh};
+use studio_core::large_scene::component::PartContent;
 use studio_core::large_scene::evaluate::evaluated_scene_bounds;
 use studio_core::math::Vec3;
 use studio_core::validation::DiagnosticCode;
@@ -99,6 +102,17 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 "read access is unavailable",
                 "SceneSearchRequest",
                 Some("SceneSearchResult"),
+            ),
+            tool(
+                "component.get",
+                "Read a component definition with parameters, ports, and part summaries.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_read,
+                "read access is unavailable",
+                "ComponentGetParams",
+                Some("ComponentGetResult"),
             ),
             tool(
                 "evaluation.query",
@@ -260,7 +274,11 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
         workflows: vec![
             workflow(
                 "inspect",
-                ["scene.context", "scene.search|evaluation.query"],
+                [
+                    "scene.context",
+                    "scene.search",
+                    "component.get|evaluation.query",
+                ],
             ),
             workflow(
                 "propose",
@@ -566,6 +584,96 @@ pub(crate) fn search(
         items,
         next_cursor,
     })
+}
+
+pub(crate) fn component_get(
+    session: &mut Session,
+    request: ComponentGetParams,
+) -> Result<ComponentGetResult, RpcError> {
+    if request.component_id.trim().is_empty() {
+        return Err(api_invalid("/componentId", "componentId must not be empty"));
+    }
+    let component = session
+        .document
+        .components
+        .iter()
+        .find(|definition| definition.id.as_str() == request.component_id)
+        .ok_or_else(|| component_not_found(&request.component_id))?;
+    let instance_count = session
+        .document
+        .scene
+        .nodes()
+        .iter()
+        .filter(|node| match &node.content {
+            NodeContent::ComponentInstance(instance) => instance.definition_id == component.id,
+            NodeContent::InstanceSet(set) => set.definition_id == component.id,
+            _ => false,
+        })
+        .count();
+    let part_count = component.parts.len();
+    let parts_truncated = part_count > MAX_PART_SUMMARIES;
+    let parts = component
+        .parts
+        .iter()
+        .take(MAX_PART_SUMMARIES)
+        .map(|part| ComponentPartSummary {
+            id: part.id.clone(),
+            parent_id: part.parent_id.clone(),
+            kind: part_kind(&part.content),
+            referenced_definition_id: match &part.content {
+                PartContent::ComponentReference { definition_id, .. } => {
+                    Some(definition_id.clone())
+                }
+                _ => None,
+            },
+            repeat: part.repeat,
+            visible: part.visible,
+        })
+        .collect();
+    Ok(ComponentGetResult {
+        revision: session.document.revision.as_u64(),
+        component: ComponentDefinitionSummary {
+            id: component.id.clone(),
+            name: component.name.clone(),
+            parameters: component.parameters.clone(),
+            ports: component.ports.clone(),
+            parts,
+            part_count,
+            parts_truncated,
+            instance_count,
+            metadata: component.metadata.clone(),
+        },
+    })
+}
+
+fn part_kind(content: &PartContent) -> ComponentPartKind {
+    match content {
+        PartContent::Group => ComponentPartKind::Group,
+        PartContent::Box { .. } => ComponentPartKind::Box,
+        PartContent::Plane { .. } => ComponentPartKind::Plane,
+        PartContent::Cylinder { .. } => ComponentPartKind::Cylinder,
+        PartContent::Sphere { .. } => ComponentPartKind::Sphere,
+        PartContent::CustomMesh { .. } => ComponentPartKind::CustomMesh,
+        PartContent::Sweep { .. } => ComponentPartKind::Sweep,
+        PartContent::ComponentReference { .. } => ComponentPartKind::ComponentReference,
+    }
+}
+
+fn component_not_found(component_id: &str) -> RpcError {
+    RpcError::with_diagnostic(
+        -32010,
+        DiagnosticCode::ReferenceInvalid.as_str(),
+        format!(
+            "{}: component definition does not exist: {component_id}",
+            DiagnosticCode::ReferenceInvalid.as_str()
+        ),
+        Some(serde_json::json!({
+            "category": "not_found",
+            "retryable": false,
+            "objectId": component_id,
+            "suggestions": ["run scene.search to list valid componentDefinitionId values"]
+        })),
+    )
 }
 
 fn source_items(

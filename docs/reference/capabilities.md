@@ -23,11 +23,11 @@
 - `review-required` 模式下 Agent 令牌不能直接 `document.apply` 或 `changeset.commit`；
   `autonomous` 模式下允许直接写入。
 
-## 2. JSON-RPC 方法（固化 37，运行时 39）
+## 2. JSON-RPC 方法（固化 38，运行时 40）
 
-`schemas/studio-api.schema.json` 固化 37 个方法。Server 的 `system.capabilities` 额外
+`schemas/studio-api.schema.json` 固化 38 个方法。Server 的 `system.capabilities` 额外
 公布两个实验性 GPU scene 方法 `evaluation.waitScene` 和
-`evaluation.visibleInstances`，因此运行时能力清单共 39 个。
+`evaluation.visibleInstances`，因此运行时能力清单共 40 个。
 
 ### 2.1 system（3）
 
@@ -67,13 +67,19 @@
 | `scene.search` | 否 | `SceneSearchRequest` | revision 绑定的 source/derived 节点页 |
 | `scene.bounds` | 否 | 无 | 按 node ID 的世界空间 bounds |
 
-### 2.5 validation（1）
+### 2.5 component（1）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:||---|---|
+| `component.get` | 否 | `ComponentGetParams` | 组件定义有界摘要：参数、端口、部件（≤100 条 + truncation 标志）、实例计数 |
+
+### 2.6 validation（1）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
 | `validation.run` | 否 | 无 | 诊断数组 |
 
-### 2.6 evaluation（5）
+### 2.7 evaluation（5）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -83,14 +89,14 @@
 | `evaluation.waitScene` | 否 | `{ revision? }` | 实验性；已发布的 GPU 场景状态 |
 | `evaluation.visibleInstances` | 否 | `{ targetRevision, planes[6][4] }` | 实验性；可见实例索引与稳定 node ID |
 
-### 2.7 export（2）
+### 2.8 export（2）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
 | `export.sourceGlb` | 是 | 无 | Source GLB 导出元数据 |
 | `export.runtimePreview` | 是 | `RuntimePreviewRequest` | 已提交或候选的预处理预览元数据 |
 
-### 2.8 changeset（10）
+### 2.9 changeset（10）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -105,7 +111,7 @@
 | `changeset.list` | 否 | 无 | ChangeSet 列表 |
 | `changeset.discard` | 是 | `{ changeSetId }` | 丢弃结果 |
 
-### 2.9 referenceAsset（3）
+### 2.10 referenceAsset（3）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
