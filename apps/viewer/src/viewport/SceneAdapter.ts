@@ -163,7 +163,15 @@ export class SceneAdapter {
     try {
       this.tilesetLoader ??= new ICETilesetLoader(this.engine, {
         camera: this.camera,
-        maxConcurrentTiles: 3,
+        // 大场景瓦片同样存在"粗模（抽稀大三角面）逐块被细模替换"的过渡闪烁：
+        // 默认 maxCommitsPerFrame=1 / maxConcurrentTiles=2 会让粗→细切换跨越
+        // 多帧。这里一次性并发拉取、每帧提交全部，并收紧屏幕空间误差阈值让
+        // 细模优先，消除旋转/缩放时的三角形低模弹入。
+        maxConcurrentTiles: 6,
+        maxCommitsPerFrame: 6,
+        maxScreenSpaceErrorPixels: 1,
+        maxResidentTiles: 256,
+        prefetchMarginRatio: 0.6,
         maxResidentBytes: 805_306_368,
       });
       const replacement = await this.tilesetLoader.open(asset.tilesetUrl);
