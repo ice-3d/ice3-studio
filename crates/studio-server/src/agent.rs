@@ -522,14 +522,18 @@ pub(crate) fn search(
     }
     let query = request.query.as_deref().map(str::to_lowercase);
     items.retain(|item| {
-        request
-            .node_id
+        request.node_id.as_ref().is_none_or(|node_id| {
+            // nodeId 限定"该节点或其派生部件"：source 条目精确匹配，
+            // derived 条目形如 `<nodeId>/<part>` 的按前缀归属。
+            item.id == *node_id
+                || item
+                    .id
+                    .strip_prefix(node_id.as_str())
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        }) && request
+            .owner_id
             .as_ref()
-            .is_none_or(|node_id| item.id == *node_id)
-            && request
-                .owner_id
-                .as_ref()
-                .is_none_or(|owner_id| item.owner_id.as_ref() == Some(owner_id))
+            .is_none_or(|owner_id| item.owner_id.as_ref() == Some(owner_id))
             && request
                 .parent_id
                 .as_ref()
@@ -655,6 +659,10 @@ pub(crate) fn component_get(
             instance_count,
             metadata: component.metadata.clone(),
         },
+        definition: request
+            .include_parts
+            .unwrap_or(false)
+            .then(|| component.clone()),
     })
 }
 

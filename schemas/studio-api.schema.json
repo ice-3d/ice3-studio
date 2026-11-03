@@ -16022,6 +16022,13 @@
       "properties": {
         "componentId": {
           "type": "string"
+        },
+        "includeParts": {
+          "description": "显式请求完整定义（含全部 parts binding），供 `component.update` 修改回写。\n缺省只返回有界摘要。",
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       },
       "required": [
@@ -16032,6 +16039,83 @@
     },
     "ComponentGetResult": {
       "$defs": {
+        "BoxCut": {
+          "additionalProperties": false,
+          "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
+          "properties": {
+            "depth": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "width": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "width",
+            "height",
+            "depth"
+          ],
+          "type": "object"
+        },
+        "ComponentDefinition": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "name": {
+              "type": "string"
+            },
+            "parameters": {
+              "items": {
+                "$ref": "#/$defs/ComponentParameter"
+              },
+              "type": "array"
+            },
+            "parts": {
+              "items": {
+                "$ref": "#/$defs/ComponentPart"
+              },
+              "type": "array"
+            },
+            "ports": {
+              "items": {
+                "$ref": "#/$defs/ComponentPort"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "parameters",
+            "parts",
+            "ports",
+            "metadata"
+          ],
+          "type": "object"
+        },
         "ComponentDefinitionSummary": {
           "additionalProperties": false,
           "properties": {
@@ -16115,6 +16199,67 @@
             "name",
             "valueType",
             "default"
+          ],
+          "type": "object"
+        },
+        "ComponentPart": {
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "$ref": "#/$defs/PartContent"
+            },
+            "id": {
+              "type": "string"
+            },
+            "materialRole": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "metadata": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "parentId": {
+              "description": "默认值不落盘：工程文件里只出现真正携带信息的字段。",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repeat": {
+              "description": "重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "subtract": {
+              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "items": {
+                "$ref": "#/$defs/BoxCut"
+              },
+              "type": "array"
+            },
+            "transform": {
+              "$ref": "#/$defs/PartTransform"
+            },
+            "visible": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "content"
           ],
           "type": "object"
         },
@@ -16203,6 +16348,25 @@
             "diameter"
           ],
           "type": "object"
+        },
+        "MaterialBinding": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "properties": {
+                "param": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "param"
+              ],
+              "type": "object"
+            }
+          ],
+          "description": "材质引用：字面量就是材质 id，引用参数写 `{ \"param\": \"name\" }`。"
         },
         "ParameterType": {
           "oneOf": [
@@ -16301,6 +16465,287 @@
           ],
           "description": "参数取值。字面量直接写值，只有引用参数时才需要包装对象。"
         },
+        "PartContent": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "group",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "box",
+                  "type": "string"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "plane",
+                  "type": "string"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "cylinder",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "radius",
+                "height",
+                "segments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "sphere",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "rings": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "segments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "radius",
+                "segments",
+                "rings"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "custom_mesh",
+                  "type": "string"
+                },
+                "mesh": {
+                  "$ref": "#/$defs/TriangleMesh"
+                }
+              },
+              "required": [
+                "kind",
+                "mesh"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "sweep",
+                  "type": "string"
+                },
+                "points": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 3,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "type": "array"
+                },
+                "radialSegments": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "points",
+                "radius",
+                "radialSegments"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "definitionId": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "component_reference",
+                  "type": "string"
+                },
+                "parameters": {
+                  "additionalProperties": {
+                    "$ref": "#/$defs/ParameterValue"
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "kind",
+                "definitionId",
+                "parameters"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "PartTransform": {
+          "additionalProperties": false,
+          "properties": {
+            "rotation": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "scale": {
+              "$ref": "#/$defs/Vector3Binding"
+            },
+            "translation": {
+              "$ref": "#/$defs/Vector3Binding"
+            },
+            "yaw": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "绕 Y 轴的偏航角（度）。与 `rotation` 二选一，用它更容易表达环形朝向。"
+            }
+          },
+          "type": "object"
+        },
+        "ScalarBinding": {
+          "anyOf": [
+            {
+              "format": "float",
+              "type": "number"
+            },
+            {
+              "properties": {
+                "param": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "参数派生量，例如 `radius - wall / 2`。可用变量是该实例的参数集合。",
+              "properties": {
+                "expr": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "expr"
+              ],
+              "type": "object"
+            }
+          ],
+          "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "TriangleMesh": {
+          "properties": {
+            "indices": {
+              "items": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "positions": {
+              "items": {
+                "items": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "positions",
+            "indices"
+          ],
+          "type": "object"
+        },
         "Vec3": {
           "properties": {
             "x": {
@@ -16322,12 +16767,62 @@
             "z"
           ],
           "type": "object"
+        },
+        "Vector3Binding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Vec3"
+            },
+            {
+              "properties": {
+                "param": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "param"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "逐分量给出，用于按索引算出的环形/线性布局。",
+              "properties": {
+                "x": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "y": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "z": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "z"
+              ],
+              "type": "object"
+            }
+          ],
+          "description": "向量字段：字面量写 `{ \"x\": 1, \"y\": 2, \"z\": 3 }`，引用参数写 `{ \"param\": \"name\" }`。"
         }
       },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "component": {
           "$ref": "#/$defs/ComponentDefinitionSummary"
+        },
+        "definition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComponentDefinition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`includeParts: true` 时的完整定义，与 `component.update` 的 payload 同构。"
         },
         "revision": {
           "format": "uint64",

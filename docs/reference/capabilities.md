@@ -71,7 +71,7 @@
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
-| `component.get` | 否 | `ComponentGetParams` | 组件定义有界摘要：参数、端口、部件（≤100 条 + truncation 标志）、实例计数 |
+| `component.get` | 否 | `ComponentGetParams`（`includeParts` 默认 false） | 组件定义有界摘要：参数、端口、部件（≤100 条 + truncation 标志）、实例计数；`includeParts` 追加完整定义供 `component.update` 修改回写 |
 
 ### 2.6 validation（1）
 

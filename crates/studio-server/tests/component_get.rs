@@ -107,6 +107,83 @@ async fn component_get_reports_unknown_id_as_structured_not_found() {
 }
 
 #[tokio::test]
+async fn component_get_returns_the_full_definition_only_when_requested() {
+    let server = start_test_server(ServerConfig::review_required("component-get-full")).await;
+    seed_rich_component(&server).await;
+
+    // 摘要模式：definition 键不出现。
+    let summary = agent_rpc(
+        &server,
+        "component.get",
+        serde_json::json!({ "componentId": "component-000001" }),
+    )
+    .await;
+    assert_eq!(
+        summary["result"]["definition"],
+        serde_json::Value::Null,
+        "{summary}"
+    );
+
+    // 完整模式：definition 与 component.update 的 payload 同构。
+    let full = agent_rpc(
+        &server,
+        "component.get",
+        serde_json::json!({ "componentId": "component-000001", "includeParts": true }),
+    )
+    .await;
+    let definition = &full["result"]["definition"];
+    assert_eq!(definition["id"], "component-000001", "{full}");
+    let parts = definition["parts"].as_array().unwrap();
+    assert_eq!(parts.len(), 2);
+    assert_eq!(parts[0]["id"], "body");
+    assert_eq!(parts[0]["content"]["kind"], "box");
+    assert_eq!(parts[0]["content"]["width"], 1.0);
+    assert_eq!(parts[1]["content"]["definitionId"], "component-000002");
+    assert_eq!(definition["ports"].as_array().unwrap().len(), 2);
+    assert_eq!(definition["parameters"].as_array().unwrap().len(), 2);
+
+    // 修改既有定义的完整工作流：读完整定义 → 加端口 → component.update → 生效。
+    let mut updated = definition.clone();
+    updated["ports"]
+        .as_array_mut()
+        .unwrap()
+        .push(serde_json::json!({
+            "name": "drain",
+            "partId": "body",
+            "position": { "x": 0, "y": -1, "z": 0 },
+            "direction": { "x": 0, "y": -1, "z": 0 },
+            "medium": "raw-water",
+            "diameter": 0.5
+        }));
+    let revision = summary["result"]["revision"].as_u64().unwrap();
+    let apply = rpc_with_approval_cookie(
+        &server,
+        "document.apply",
+        serde_json::json!({
+            "expectedRevision": revision,
+            "dryRun": false,
+            "idempotencyKey": "component-add-port",
+            "operations": [
+                { "type": "component.update", "definition": updated }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(apply["result"]["revision"], revision + 1, "{apply}");
+
+    let after = agent_rpc(
+        &server,
+        "component.get",
+        serde_json::json!({ "componentId": "component-000001" }),
+    )
+    .await;
+    let ports = after["result"]["component"]["ports"].as_array().unwrap();
+    assert_eq!(ports.len(), 3, "{after}");
+    assert_eq!(ports[2]["name"], "drain");
+    assert_eq!(ports[2]["partId"], "body");
+}
+
+#[tokio::test]
 async fn component_get_is_available_to_read_only_callers() {
     let server = start_test_server(ServerConfig::review_required("component-get-read-only")).await;
     seed_rich_component(&server).await;
