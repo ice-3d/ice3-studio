@@ -143,35 +143,40 @@ async function main() {
     const browser = await chromium.launch({
       channel: options.channel === 'none' ? undefined : options.channel,
     });
-    const page = await browser.newPage({
-      viewport: { width: options.width, height: options.height },
-    });
-    page.on('console', (message) => {
-      if (message.type() === 'error') {
-        process.stderr.write(`[console] ${message.text().slice(0, 200)}\n`);
-      }
-    });
-    page.on('response', (response) => {
-      if (response.status() >= 400) {
-        process.stderr.write(
-          `[http ${response.status()}] ${response.request().method()} ${response.url()}\n`,
-        );
-      }
-    });
-    await page.goto(target.url, { waitUntil: 'load', timeout: 60_000 });
-    const canvas = page.locator('canvas[data-layer="scene"]');
-    await canvas.waitFor({ state: 'visible', timeout: 30_000 });
-    // 大 reference 资产流式加载有明确的 ready 信号；普通 preview 直接 settle。
-    await page
-      .locator('section.viewport[data-reference-state="ready"]')
-      .waitFor({ state: 'visible', timeout: 10_000 })
-      .catch(() => {});
-    await page.waitForTimeout(options.wait);
-    const out = isAbsolute(options.out) ? options.out : resolve(process.cwd(), options.out);
-    await mkdir(dirname(out), { recursive: true });
-    await page.screenshot({ path: out });
-    console.log(out);
-    await browser.close();
+    try {
+      const page = await browser.newPage({
+        viewport: { width: options.width, height: options.height },
+      });
+      page.on('console', (message) => {
+        if (message.type() === 'error') {
+          process.stderr.write(`[console] ${message.text().slice(0, 200)}\n`);
+        }
+      });
+      page.on('response', (response) => {
+        if (response.status() >= 400) {
+          process.stderr.write(
+            `[http ${response.status()}] ${response.request().method()} ${response.url()}\n`,
+          );
+        }
+      });
+      await page.goto(target.url, { waitUntil: 'load', timeout: 60_000 });
+      const canvas = page.locator('canvas[data-layer="scene"]');
+      await canvas.waitFor({ state: 'visible', timeout: 30_000 });
+      // 大 reference 资产流式加载有明确的 ready 信号；普通 preview 直接 settle。
+      await page
+        .locator('section.viewport[data-reference-state="ready"]')
+        .waitFor({ state: 'visible', timeout: 10_000 })
+        .catch(() => {});
+      await page.waitForTimeout(options.wait);
+      const out = isAbsolute(options.out)
+        ? options.out
+        : resolve(process.cwd(), options.out);
+      await mkdir(dirname(out), { recursive: true });
+      await page.screenshot({ path: out });
+      console.log(out);
+    } finally {
+      await browser.close().catch(() => {});
+    }
   } finally {
     if (server) {
       server.kill('SIGTERM');
