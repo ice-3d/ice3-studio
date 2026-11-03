@@ -348,12 +348,35 @@ node --test scripts/tests/prepare-baseline.test.mjs
 身份、Selection fallback、edge role/width/color、budget 和 report。结果写入
 `output/prepare-parity.json`。
 
-## 12. 停止与恢复
+## 12. Agent 视觉自检
+
+Agent（或脚本）可以用一条命令把场景渲染为 PNG，无需人工打开浏览器：
+
+```bash
+# 对运行中的 server 按指定机位截图
+node scripts/agent-screenshot.mjs \
+  --base-url http://127.0.0.1:8149 --token <session-token> \
+  --view 45,26,360 --target 300,4,0 \
+  --out output/agent-shot-overview.png
+
+# 自动拉起临时 server（随机端口，退出时清理）
+node scripts/agent-screenshot.mjs --project wastewater-plant \
+  --view 42,18,42 --target 300,5,76 --out output/agent-shot-building.png
+```
+
+`--view` 是方位角,仰角,距离，`--target` 是注视点（米）。截图使用用户已安装的
+Google Chrome（与 E2E 同一 Playwright 通道）；大 reference 资产会等待
+`data-reference-state="ready"` 再落图。注意：`--project` 模式持有 project 写锁，
+常驻服务已打开同一工程时会失败——此时改用 `--base-url` 指向常驻服务。
+
+设计见 [Agent 视觉自检截图通道](../specs/2026-11-03-agent-screenshot-design.md)。
+
+## 13. 停止与恢复
 
 使用 `Ctrl+C` 停止 Server。Revision snapshot 在事件发布前原子写入；写入过程中断时保留
 上一个可加载 revision。死进程遗留的 project lock 会在下一次 open 时恢复。
 
-## 13. 关联文档
+## 14. 关联文档
 
 - `ICE3-STUDIO-RM-001` — [Studio README](../../README.md)
 - `ICE3-STUDIO-ARC-001` — [Studio 架构](../architecture.md)

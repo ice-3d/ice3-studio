@@ -170,6 +170,11 @@ const steps = [
     args: ['--test', 'scripts/tests/latest-project.test.mjs'],
   },
   {
+    label: 'Agent screenshot contract',
+    command: 'node',
+    args: ['--test', 'scripts/tests/agent-screenshot.test.mjs'],
+  },
+  {
     label: 'Viewer unit tests',
     command: 'npm',
     args: ['--prefix', 'apps/viewer', 'test'],

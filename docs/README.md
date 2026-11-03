@@ -62,6 +62,7 @@
 | `ICE3-STUDIO-SPEC-019` | [Studio Asset Prepare 与 Toolchain 功能等价](specs/2026-11-02-studio-asset-prepare-parity-design.md) | Historical | Phase 6A/6B/6C 已完成设计记录；当前链路见 REF-005 |
 | `ICE3-STUDIO-SPEC-020` | [Agent 组件定义内省](specs/2026-11-03-agent-component-introspection-design.md) | Implemented | `component.get` 有界读：参数 schema、端口清单与部件摘要 |
 | `ICE3-STUDIO-SPEC-021` | [场景空间重叠审计](specs/2026-11-03-scene-overlap-audit-design.md) | Implemented | `validation.run` 可选全局重叠 warning：连接/薄板/嵌套排除，重合上报 |
+| `ICE3-STUDIO-SPEC-022` | [Agent 视觉自检截图通道](specs/2026-11-03-agent-screenshot-design.md) | Implemented | 工具层 Chrome 截图：任意机位、自起 server、非 RPC 形态决策 |
 
 ## 5. 实施计划
 
