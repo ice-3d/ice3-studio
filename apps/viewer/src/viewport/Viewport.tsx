@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { StudioReferenceSession } from '../session/SessionStore';
+import { MeasureTool } from './MeasureTool';
 import { SceneAdapter } from './SceneAdapter';
 
 type Props = {
@@ -18,7 +19,9 @@ export function Viewport({ previewUrl, reference, selectionIds, onSelection }: P
     adapter.onSelection = onSelection;
     scene.current = adapter;
     if (host.current) void adapter.mount(host.current);
+    const tool = host.current ? new MeasureTool(host.current, adapter) : null;
     return () => {
+      tool?.dispose();
       scene.current = null;
     };
   }, []);

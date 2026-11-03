@@ -16,6 +16,7 @@ import {
 } from 'ice3';
 import type { StudioReferenceAsset } from '../api/StudioClient';
 import type { StudioReferenceBinding } from '../session/SessionStore';
+import { measureBounds, type Measurement } from './measure';
 import {
   adaptiveCameraClipPlanes,
   frameBoundsForViewport,
@@ -71,6 +72,7 @@ export class SceneAdapter {
     material?: ImportedMaterial;
   }>();
   onSelection: ((ids: readonly string[]) => void) | undefined;
+  private readonly selectionListeners = new Set<(ids: readonly string[]) => void>();
 
   async mount(container: HTMLElement): Promise<void> {
     this.viewportElement = container;
@@ -86,13 +88,15 @@ export class SceneAdapter {
     });
     engine.setCamera(camera).start();
     engine.on<{ selection: readonly string[] }>('SELECTION_CHANGE', (event) => {
-      this.onSelection?.(normalizeEntitySelections(
+      const normalized = normalizeEntitySelections(
         event.param?.selection ?? [],
         {
           referenceScene: this.referenceScene,
           referenceBindings: this.referenceBindings,
         },
-      ));
+      );
+      this.onSelection?.(normalized);
+      for (const listener of this.selectionListeners) listener(normalized);
     });
     engine.on('BEFORE_RENDER', () => this.updateClipPlanes());
     this.engine = engine;
@@ -134,6 +138,45 @@ export class SceneAdapter {
     }
     this.engine.setSelection(importedSelection);
     this.engine.requestRender('studio-selection-change');
+  }
+
+  /** Subscribe to engine selection changes (used by the measure tool). */
+  addSelectionListener(listener: (ids: readonly string[]) => void): () => void {
+    this.selectionListeners.add(listener);
+    return () => this.selectionListeners.delete(listener);
+  }
+
+  /** Project a world point to viewport CSS pixels. */
+  projectPoint(world: readonly [number, number, number]): { x: number; y: number; visible: boolean } {
+    if (!this.engine) return { x: 0, y: 0, visible: false };
+    const projected = this.engine.project([world[0], world[1], world[2]]);
+    return { x: projected.x, y: projected.y, visible: projected.visible };
+  }
+
+  /**
+   * Measure two entities by selection/node id using their world bounds.
+   * Returns centre distance, surface clearance and projected screen endpoints.
+   */
+  measureBetween(firstId: string, secondId: string): (Measurement & {
+    fromScreen: { x: number; y: number; visible: boolean };
+    toScreen: { x: number; y: number; visible: boolean };
+  }) | null {
+    if (!this.engine) return null;
+    const items = this.engine.queryScene();
+    const find = (id: string) =>
+      items.find((item) => item.selectionId === id || item.nodeId === id);
+    const first = find(firstId);
+    const second = find(secondId);
+    if (!first || !second) return null;
+    const measurement = measureBounds(
+      { min: first.bounds.min, max: first.bounds.max },
+      { min: second.bounds.min, max: second.bounds.max },
+    );
+    return {
+      ...measurement,
+      fromScreen: this.projectPoint(measurement.from),
+      toScreen: this.projectPoint(measurement.to),
+    };
   }
 
   async showReference(

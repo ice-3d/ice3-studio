@@ -555,3 +555,98 @@ pub struct AgentErrorData {
     pub actual: Option<serde_json::Value>,
     pub suggestions: Vec<String>,
 }
+
+/// One endpoint of a measurement: either a scene node (its world bounds) or an
+/// explicit world point.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase", optional_fields = nullable)]
+#[ts(export)]
+pub struct MeasurePoint {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub point: Option<[f32; 3]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MeasureRequest {
+    pub from: MeasurePoint,
+    pub to: MeasurePoint,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MeasureResult {
+    pub from: [f32; 3],
+    pub to: [f32; 3],
+    pub distance: f32,
+    pub delta: [f32; 3],
+    /// Surface-to-surface gap when both endpoints are nodes (0 when their
+    /// world bounds overlap); equal to `distance` when either is a free point.
+    pub clearance: f32,
+}
+
+/// Measure the distance between two endpoints. Node endpoints resolve to their
+/// world-bounds centre; `clearance` additionally reports the AABB gap.
+pub fn measure_request(
+    request: &MeasureRequest,
+    bounds: &BTreeMap<String, Bounds>,
+) -> Result<MeasureResult, String> {
+    let (from, from_bounds) = resolve_measure_point(&request.from, bounds)?;
+    let (to, to_bounds) = resolve_measure_point(&request.to, bounds)?;
+    let delta = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+    let distance = (delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2]).sqrt();
+    let clearance = match (from_bounds, to_bounds) {
+        (Some(a), Some(b)) => bounds_gap(&a, &b),
+        _ => distance,
+    };
+    Ok(MeasureResult {
+        from,
+        to,
+        distance,
+        delta,
+        clearance,
+    })
+}
+
+fn resolve_measure_point(
+    point: &MeasurePoint,
+    bounds: &BTreeMap<String, Bounds>,
+) -> Result<([f32; 3], Option<Bounds>), String> {
+    match (&point.node_id, point.point) {
+        (Some(id), None) => {
+            let world = bounds
+                .get(id)
+                .ok_or_else(|| format!("node not found: {id}"))?;
+            Ok((bounds_centre(world), Some(*world)))
+        }
+        (None, Some(position)) => Ok((position, None)),
+        _ => Err("measure point must set exactly one of nodeId or point".to_string()),
+    }
+}
+
+fn bounds_centre(bounds: &Bounds) -> [f32; 3] {
+    [
+        (bounds.min.x + bounds.max.x) * 0.5,
+        (bounds.min.y + bounds.max.y) * 0.5,
+        (bounds.min.z + bounds.max.z) * 0.5,
+    ]
+}
+
+fn bounds_gap(a: &Bounds, b: &Bounds) -> f32 {
+    let axis_gap = |a_min: f32, a_max: f32, b_min: f32, b_max: f32| {
+        (b_min - a_max).max(a_min - b_max).max(0.0)
+    };
+    let x = axis_gap(a.min.x, a.max.x, b.min.x, b.max.x);
+    let y = axis_gap(a.min.y, a.max.y, b.min.y, b.max.y);
+    let z = axis_gap(a.min.z, a.max.z, b.min.z, b.max.z);
+    (x * x + y * y + z * z).sqrt()
+}

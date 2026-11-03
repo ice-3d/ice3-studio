@@ -17,6 +17,7 @@
     "scene.get",
     "scene.query",
     "scene.bounds",
+    "scene.measure",
     "scene.context",
     "scene.search",
     "component.get",
@@ -20528,6 +20529,128 @@
         "materialId"
       ],
       "title": "MaterialPatch",
+      "type": "object"
+    },
+    "MeasurePoint": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "One endpoint of a measurement: either a scene node (its world bounds) or an\nexplicit world point.",
+      "properties": {
+        "nodeId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "point": {
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "title": "MeasurePoint",
+      "type": "object"
+    },
+    "MeasureRequest": {
+      "$defs": {
+        "MeasurePoint": {
+          "additionalProperties": false,
+          "description": "One endpoint of a measurement: either a scene node (its world bounds) or an\nexplicit world point.",
+          "properties": {
+            "nodeId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "point": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/MeasurePoint"
+        },
+        "to": {
+          "$ref": "#/$defs/MeasurePoint"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "title": "MeasureRequest",
+      "type": "object"
+    },
+    "MeasureResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "clearance": {
+          "description": "Surface-to-surface gap when both endpoints are nodes (0 when their\nworld bounds overlap); equal to `distance` when either is a free point.",
+          "format": "float",
+          "type": "number"
+        },
+        "delta": {
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "distance": {
+          "format": "float",
+          "type": "number"
+        },
+        "from": {
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "to": {
+          "items": {
+            "format": "float",
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "distance",
+        "delta",
+        "clearance"
+      ],
+      "title": "MeasureResult",
       "type": "object"
     },
     "Operation": {

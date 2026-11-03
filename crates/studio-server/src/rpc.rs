@@ -14,7 +14,7 @@ use axum::{Json, Router};
 use rand::RngCore;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use studio_core::agent_contract::{AgentAccess, AgentLimits};
+use studio_core::agent_contract::{AgentAccess, AgentLimits, MeasureRequest};
 use studio_core::apply::{ApplyRequest, ApplyResult, apply_transaction, evaluate_operations};
 use studio_core::document::{Document, NodeContent};
 use studio_core::geometry::Bounds;
@@ -923,6 +923,7 @@ fn dispatch(
                 "scene.search".into(),
                 "component.get".into(),
                 "scene.bounds".into(),
+                "scene.measure".into(),
                 "validation.run".into(),
                 "referenceAsset.register".into(),
                 "referenceAsset.get".into(),
@@ -1209,6 +1210,22 @@ fn dispatch(
         "scene.bounds" => {
             let (_, output) = evaluate_session_scene(session)?;
             serde_json::to_value(output).map_err(serialize_error)
+        }
+        "scene.measure" => {
+            let params: MeasureRequest =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let (_, bounds) = evaluate_session_scene(session)?;
+            let result = studio_core::agent_contract::measure_request(&params, &bounds).map_err(
+                |message| {
+                    RpcError::with_diagnostic(
+                        -32602,
+                        "ICE3_STUDIO_API_INVALID",
+                        format!("ICE3_STUDIO_API_INVALID: {message}"),
+                        None,
+                    )
+                },
+            )?;
+            serde_json::to_value(result).map_err(serialize_error)
         }
         "validation.run" => {
             let params = if request.params.is_null() {

@@ -23,11 +23,11 @@
 - `review-required` 模式下 Agent 令牌不能直接 `document.apply` 或 `changeset.commit`；
   `autonomous` 模式下允许直接写入。
 
-## 2. JSON-RPC 方法（固化 38，运行时 40）
+## 2. JSON-RPC 方法（固化 39，运行时 41）
 
-`schemas/studio-api.schema.json` 固化 38 个方法。Server 的 `system.capabilities` 额外
+`schemas/studio-api.schema.json` 固化 39 个方法。Server 的 `system.capabilities` 额外
 公布两个实验性 GPU scene 方法 `evaluation.waitScene` 和
-`evaluation.visibleInstances`，因此运行时能力清单共 40 个。
+`evaluation.visibleInstances`，因此运行时能力清单共 41 个。
 
 ### 2.1 system（3）
 
@@ -57,7 +57,7 @@
 | `document.redo` | 是 | 无 | 同上 |
 | `document.history` | 否 | 无 | 操作历史 |
 
-### 2.4 scene（5）
+### 2.4 scene（6）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -66,6 +66,7 @@
 | `scene.context` | 否 | 无 | 有界项目摘要（计数、bounds、facet、权限、上限） |
 | `scene.search` | 否 | `SceneSearchRequest` | revision 绑定的 source/derived 节点页 |
 | `scene.bounds` | 否 | 无 | 按 node ID 的世界空间 bounds |
+| `scene.measure` | 否 | `MeasureRequest`（`from`/`to` 各为 `{nodeId}` 或 `{point:[x,y,z]}`） | 世界坐标、中心距 `distance`、轴向差 `delta`、表面间隙 `clearance` |
 
 ### 2.5 component（1）
 
@@ -497,7 +498,7 @@ Preview 不启动外部进程，也没有可选优化器 fallback。预览失败
 | 模块 | 职责 |
 |---|---|
 | `app` | Workbench 主框架、Agent-first Review dock、表头与视觉 token |
-| `viewport` | 视口、SceneAdapter、相机取景 |
+| `viewport` | 视口、SceneAdapter、相机取景、测量工具（双选距离/间隙） |
 | `navigation` | 对象搜索、层级过滤、对象树与树模型 |
 | `forms` | 表单渲染、实例参数、表单到操作的编译 |
 | `changeset` | 候选变更的 Provider、Store 与类型 |

@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 use schemars::schema_for;
 use studio_core::agent_contract::{
     AgentManifest, ComponentGetParams, ComponentGetResult, EvaluationQueryRequest,
-    EvaluationQueryResult, IterationImpact, RuntimePreviewRequest, SceneContext,
-    SceneSearchRequest, SceneSearchResult, ValidationRunRequest,
+    EvaluationQueryResult, IterationImpact, MeasurePoint, MeasureRequest, MeasureResult,
+    RuntimePreviewRequest, SceneContext, SceneSearchRequest, SceneSearchResult,
+    ValidationRunRequest,
 };
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
@@ -62,6 +63,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "scene.get",
             "scene.query",
             "scene.bounds",
+            "scene.measure",
             "scene.context",
             "scene.search",
             "component.get",
@@ -108,6 +110,9 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "SceneContext": schema_for!(SceneContext),
             "SceneSearchRequest": schema_for!(SceneSearchRequest),
             "SceneSearchResult": schema_for!(SceneSearchResult),
+            "MeasurePoint": schema_for!(MeasurePoint),
+            "MeasureRequest": schema_for!(MeasureRequest),
+            "MeasureResult": schema_for!(MeasureResult),
             "EvaluationQueryRequest": schema_for!(EvaluationQueryRequest),
             "EvaluationQueryResult": schema_for!(EvaluationQueryResult),
             "ComponentGetParams": schema_for!(ComponentGetParams),

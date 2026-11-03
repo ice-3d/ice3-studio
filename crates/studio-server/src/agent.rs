@@ -104,6 +104,17 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 Some("SceneSearchResult"),
             ),
             tool(
+                "scene.measure",
+                "Measure the distance and clearance between two scene nodes or world points.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_read,
+                "read access is unavailable",
+                "MeasureRequest",
+                Some("MeasureResult"),
+            ),
+            tool(
                 "component.get",
                 "Read a component definition with parameters, ports, and part summaries.",
                 AgentSideEffect::Read,
