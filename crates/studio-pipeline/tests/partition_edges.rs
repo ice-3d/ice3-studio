@@ -48,16 +48,18 @@ fn render_batch_glb_contains_edges_for_its_final_geometry() {
         .iter()
         .filter(|file| file.relative_path.starts_with("parts/"));
     let mut render_batch_nodes = HashSet::new();
+    let mut node_ids = HashSet::new();
     for part in parts {
         let parsed = read_glb_bytes(&part.bytes, &std::env::temp_dir()).unwrap();
         assert!(has_edge_primitive(&parsed.json));
         assert!(has_batch_primitive(&parsed.json));
         for node in parsed.json["nodes"].as_array().unwrap() {
-            if let Some(id) = node
+            let id = node
                 .pointer("/extras/ice3/id")
                 .and_then(Value::as_str)
-                .filter(|id| id.contains("/render-batch-node/"))
-            {
+                .unwrap();
+            assert!(node_ids.insert(id.to_owned()), "duplicate node ID {id}");
+            if id.contains("/render-batch-node/") {
                 assert!(
                     render_batch_nodes.insert(id.to_owned()),
                     "duplicate render-only node ID {id}"
@@ -111,6 +113,7 @@ fn lod_and_coarse_outputs_generate_edges_from_their_own_geometry() {
             file.relative_path.starts_with("parts/") || file.relative_path.starts_with("coarse/")
         })
         .collect::<Vec<_>>();
+    let mut node_ids = HashSet::new();
     assert!(
         parts_and_coarse
             .iter()
@@ -118,6 +121,15 @@ fn lod_and_coarse_outputs_generate_edges_from_their_own_geometry() {
     );
     for file in parts_and_coarse {
         let parsed = read_glb_bytes(&file.bytes, &std::env::temp_dir()).unwrap();
+        for node in parsed.json["nodes"].as_array().unwrap() {
+            if let Some(id) = node.pointer("/extras/ice3/id").and_then(Value::as_str) {
+                assert!(
+                    node_ids.insert(id.to_owned()),
+                    "duplicate node ID {id} in {}",
+                    file.relative_path
+                );
+            }
+        }
         assert!(
             has_edge_primitive(&parsed.json),
             "{} has no render edges",

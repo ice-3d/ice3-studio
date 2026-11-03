@@ -345,13 +345,13 @@ pub(crate) fn build_batched_leaf(
                 .cloned()
                 .unwrap_or_default();
             let selection_id = business_selection_id(&ice3, node_id, asset_id);
-            ice3.entry("id")
-                .or_insert_with(|| Value::from(node_id.clone()));
+            let output_node_id = node_instance_id(asset_id, &leaf.id, node_id);
+            ice3.insert("id".into(), Value::from(output_node_id.clone()));
             ice3.insert("selectionId".into(), Value::from(selection_id.clone()));
             extras.insert("ice3".into(), Value::Object(ice3));
             let semantic_index = semantic_ids.len() as u32;
-            semantic_ids.push(node_id.clone());
-            semantic_node_ids.push(node_id.clone());
+            semantic_ids.push(output_node_id.clone());
+            semantic_node_ids.push(output_node_id);
             semantic_selection_ids.push(selection_id.clone());
             selection_ids.insert(selection_id);
             nodes.push(json!({
@@ -691,8 +691,8 @@ pub(crate) fn build_leaf_with_overrides(
                 .cloned()
                 .unwrap_or_default();
             let selection_id = business_selection_id(&ice3, node_id, asset_id);
-            ice3.entry("id")
-                .or_insert_with(|| Value::from(node_id.clone()));
+            let output_node_id = node_instance_id(asset_id, &leaf.id, node_id);
+            ice3.insert("id".into(), Value::from(output_node_id));
             ice3.insert("selectionId".into(), Value::from(selection_id.clone()));
             extras.insert("ice3".into(), Value::Object(ice3));
             selection_ids.insert(selection_id);
@@ -1722,6 +1722,10 @@ fn business_selection_id(ice3: &Map<String, Value>, node_id: &str, asset_id: &st
         .or_else(|| ice3.get("id").and_then(Value::as_str))
         .map(str::to_owned)
         .unwrap_or_else(|| node_id.to_owned())
+}
+
+fn node_instance_id(asset_id: &str, leaf_id: &str, node_id: &str) -> String {
+    format!("{asset_id}/node/{leaf_id}/{node_id}")
 }
 
 fn primitive_triangles(
