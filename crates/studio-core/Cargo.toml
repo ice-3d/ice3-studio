@@ -17,3 +17,5 @@ ts-rs.workspace = true
 
 [dev-dependencies]
 pollster.workspace = true
+oxideav-step.workspace = true
+oxideav-ifc = { version = "=0.0.3", default-features = false }

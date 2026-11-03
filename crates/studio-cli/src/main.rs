@@ -205,6 +205,87 @@ enum ExportCommand {
         #[arg(long)]
         force: bool,
     },
+    /// Export the committed revision as an AP242 tessellated STEP file.
+    Step {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Export the committed revision as a binary STL mesh (millimetres).
+    Stl {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Export the committed revision as a Wavefront OBJ mesh (millimetres).
+    Obj {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Export the committed revision as an IFC4X3 tessellated model.
+    Ifc {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
+    /// Export the committed revision as an ASCII DXF (3DFACE per triangle).
+    Dxf {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+fn require_writable_output(
+    output: &std::path::Path,
+    force: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if output.exists() && !force {
+        return Err(format!("ICE3_STUDIO_ASSET_OUTPUT_EXISTS: {}", output.display()).into());
+    }
+    Ok(())
+}
+
+fn write_output(
+    output: &std::path::Path,
+    bytes: &[u8],
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(parent) = output.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(output, bytes)?;
+    Ok(())
+}
+
+fn load_committed_document(
+    project: &std::path::Path,
+) -> Result<studio_core::document::Document, Box<dyn std::error::Error>> {
+    let project_id = project
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or("project path must end with a project ID")?;
+    let workspace_root = project
+        .parent()
+        .ok_or("project path must have a parent directory")?;
+    let workspace = WorkspacePath::new(workspace_root, project_id)?;
+    let store = ProjectStore::open_read_only(workspace)?;
+    Ok(store.load_current_read_only()?)
 }
 
 #[tokio::main]
@@ -404,6 +485,125 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 let result = exporter.export(&document, &project_dir)?;
                 println!("{}", serde_json::to_string_pretty(&result)?);
+            }
+            ExportCommand::Step {
+                project,
+                output,
+                force,
+            } => {
+                if output.exists() && !force {
+                    return Err(format!(
+                        "ICE3_STUDIO_ASSET_OUTPUT_EXISTS: {}",
+                        output.display()
+                    )
+                    .into());
+                }
+                let project_id = project
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .ok_or("project path must end with a project ID")?;
+                let workspace_root = project
+                    .parent()
+                    .ok_or("project path must have a parent directory")?;
+                let workspace = WorkspacePath::new(workspace_root, project_id)?;
+                let store = ProjectStore::open_read_only(workspace)?;
+                let document = store.load_current_read_only()?;
+                drop(store);
+                let scene = studio_core::large_scene::evaluate::evaluate_large_scene(&document)?;
+                let step = studio_core::export::step::export_step(&document, &scene)?;
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&output, step.as_bytes())?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "revision": document.revision.as_u64(),
+                        "output": output,
+                        "bytes": step.len(),
+                        "triangles": scene.stats.effective_triangles,
+                    }))?
+                );
+            }
+            ExportCommand::Stl {
+                project,
+                output,
+                force,
+            } => {
+                require_writable_output(&output, force)?;
+                let document = load_committed_document(&project)?;
+                let scene = studio_core::large_scene::evaluate::evaluate_large_scene(&document)?;
+                let bytes = studio_core::export::mesh::export_binary_stl(&scene)?;
+                write_output(&output, &bytes)?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "revision": document.revision.as_u64(),
+                        "output": output,
+                        "bytes": bytes.len(),
+                        "triangles": scene.stats.effective_triangles,
+                    }))?
+                );
+            }
+            ExportCommand::Obj {
+                project,
+                output,
+                force,
+            } => {
+                require_writable_output(&output, force)?;
+                let document = load_committed_document(&project)?;
+                let scene = studio_core::large_scene::evaluate::evaluate_large_scene(&document)?;
+                let text = studio_core::export::mesh::export_obj(&scene)?;
+                write_output(&output, text.as_bytes())?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "revision": document.revision.as_u64(),
+                        "output": output,
+                        "bytes": text.len(),
+                        "triangles": scene.stats.effective_triangles,
+                    }))?
+                );
+            }
+            ExportCommand::Ifc {
+                project,
+                output,
+                force,
+            } => {
+                require_writable_output(&output, force)?;
+                let document = load_committed_document(&project)?;
+                let scene = studio_core::large_scene::evaluate::evaluate_large_scene(&document)?;
+                let text = studio_core::export::ifc::export_ifc(&document, &scene)?;
+                write_output(&output, text.as_bytes())?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "revision": document.revision.as_u64(),
+                        "output": output,
+                        "bytes": text.len(),
+                        "triangles": scene.stats.effective_triangles,
+                    }))?
+                );
+            }
+            ExportCommand::Dxf {
+                project,
+                output,
+                force,
+            } => {
+                require_writable_output(&output, force)?;
+                let document = load_committed_document(&project)?;
+                let scene = studio_core::large_scene::evaluate::evaluate_large_scene(&document)?;
+                let text = studio_core::export::dxf::export_dxf(&scene)?;
+                write_output(&output, text.as_bytes())?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "revision": document.revision.as_u64(),
+                        "output": output,
+                        "bytes": text.len(),
+                        "triangles": scene.stats.effective_triangles,
+                    }))?
+                );
             }
         },
         Command::Schema { output, check } => schema::generate(&output, check)?,

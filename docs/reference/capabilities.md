@@ -217,6 +217,11 @@ ice3-studio partition SOURCE --output <dir> --asset-id ID
 ice3-studio validate FILE
 ice3-studio export tileset --project <dir> --output <dir>
                          [--profile agent-console-v1] [--force]
+ice3-studio export step --project <dir> --output <file.step> [--force]
+ice3-studio export stl --project <dir> --output <file.stl> [--force]
+ice3-studio export obj --project <dir> --output <file.obj> [--force]
+ice3-studio export ifc --project <dir> --output <file.ifc> [--force]
+ice3-studio export dxf --project <dir> --output <file.dxf> [--force]
 ice3-studio serve --workspace <dir> --project <id>
                   [--fixture <dir>] [--port <u16>] [--write-mode <mode>]
                   [--native-gpu <cpu|auto|gpu>]
@@ -359,6 +364,40 @@ revision。
 `bindings.json` 优先按 metadata `tag` 聚合完整设备，`selectionId` 为
 `plant/equipment/<tag>`；无 tag 的独立场景对象使用 source owner ID。`nodeSelectionIds`
 按稳定 ID 排序，bounds 使用 world-space union，`area` 优先取 `train`，否则取 `stage`。
+
+### 6.4 STEP 导出
+
+`export step` 读取当前 committed revision，求值后写出 AP242 三角化 STEP
+（`AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF`）：
+
+- 按 `(mesh, material)` 生成唯一 `SHAPE_REPRESENTATION`，内含
+  `TRIANGULATED_SURFACE_SET`（共享 `COORDINATES_LIST`，1-based 索引）；
+- 刚体节点用 `REPRESENTATION_MAP` + `MAPPED_ITEM` 复用网格并放置世界位姿；
+  非刚性（含缩放/剪切）节点烘焙为独立 face set；
+- 写 `GLOBAL_UNIT_ASSIGNED_CONTEXT`（`SI_UNIT(.MILLI.,.METRE.)`）；
+- 材质写 `STYLED_ITEM` → `SURFACE_STYLE_FILL_AREA` → `COLOUR_RGB`（sRGB 转线性），
+  `opacity < 1` 追加 `SURFACE_STYLE_TRANSPARENT`；
+- 空网格与不可见节点跳过；输出已存在时无 `--force` 失败
+  （`ICE3_STUDIO_ASSET_OUTPUT_EXISTS`）。
+
+`export stl` 写 binary STL（80B 头 + u32 计数 + 50B/三角形）；`export obj` 写
+Wavefront OBJ（`o`/`v`/`f`）；两者均按节点世界变换烘焙、单位毫米。`export ifc` 写
+IFC4X3：`IFCPROJECT` + SI 毫米 `IFCUNITASSIGNMENT` + 几何上下文；
+`IFCSITE → IFCBUILDING → IFCBUILDINGSTOREY` 经 `IFCRELAGGREGATES` 聚合，
+产品经 `IFCRELCONTAINEDINSPATIALSTRUCTURE` 归入 storey；每个网格一个共享
+`IFCSHAPEREPRESENTATION`（`IFCTRIANGULATEDFACESET`），每个节点一个
+`IFCBUILDINGELEMENTPROXY` 并用 `IFCLOCALPLACEMENT` 定位；材质写
+`IFCSTYLEDITEM → IFCSURFACESTYLE → IFCCOLOURRGB`。`export dxf` 写 ASCII DXF
+（`$ACADVER = AC1015`），每个三角形一个 `3DFACE`。STEP/IFC 非 ASCII 名称使用
+`\X2\…\X0\` 编码。
+
+输出 JSON 为 `{ revision, output, bytes, triangles }`。格式由
+`crates/studio-core/tests/{step_export,mesh_export,ifc_export}.rs` 做往返校验：
+STEP 用 `oxideav-step`（单位、实例、颜色与 alpha、中文名）；IFC 用 `oxideav-ifc`
+（`length_unit_scale`=0.001、空间层级、产品数、三角化几何、中文名）。真实工程
+（348,932 三角形）：STEP 9.2 MB / STL 17.4 MB / OBJ 26.0 MB / IFC 9.4 MB /
+DXF 73.2 MB，均可解析。设计见
+[CAD/BIM 回写设计](../specs/2026-11-03-cad-bim-export-design.md)。
 
 ## 7. 环境变量
 

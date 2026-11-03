@@ -2708,6 +2708,8 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "glam 0.30.10",
+ "oxideav-ifc",
+ "oxideav-step",
  "pollster",
  "schemars",
  "serde",
