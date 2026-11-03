@@ -17,8 +17,14 @@ export function adaptiveCameraClipPlanes(
 ): { readonly near: number; readonly far: number } {
   const safeDistance = Math.max(0.2, Number.isFinite(distance) ? distance : 0.2);
   const safeDiagonal = Math.max(10, Number.isFinite(sceneDiagonal) ? sceneDiagonal : 10);
+  // near 下界随场景尺度取 diagonal/150（上限 8 m）：过小的 near 会把 24-bit
+  // 深度缓冲的量化间隔在典型观察距离上放大到厘米级，共面/近共面几何
+  // （水面贴池壁、标线贴路面、薄片栏杆）的深度胜者随视角交替，表现为
+  // 旋转与缩放时的局部闪烁（z-fighting）。下界保持在轨道控制器最小缩放
+  // 距离之内，贴近检查设备不会裁剪。
+  const nearFloor = Math.min(8, safeDiagonal / 150);
   return {
-    near: Math.min(2, Math.max(0.1, safeDistance * 0.005)),
+    near: Math.max(1, nearFloor, Math.min(8, safeDistance * 0.005)),
     far: Math.max(500, safeDistance * 8, safeDiagonal * 0.75),
   };
 }

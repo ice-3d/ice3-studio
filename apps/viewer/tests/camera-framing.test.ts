@@ -67,6 +67,21 @@ test('adapts camera clip planes as zoom distance changes', () => {
   const overview = adaptiveCameraClipPlanes(600, 1000);
   const close = adaptiveCameraClipPlanes(20, 1000);
   assert.ok(overview.far / overview.near < 5000);
-  assert.ok(close.near < overview.near);
+  // near 有场景尺度下界（diagonal/150），拉近不再缩到亚米级——那是远处
+  // 共面几何 z-fighting 闪烁的根因。far 仍随距离收缩。
+  assert.ok(close.near >= 1000 / 150);
+  assert.equal(close.near, overview.near);
   assert.ok(close.far < overview.far);
+});
+
+test('keeps small scenes on a small near plane', () => {
+  const clip = adaptiveCameraClipPlanes(40, 60);
+  assert.ok(clip.near >= 1 && clip.near <= 1.5, `near=${clip.near}`);
+  assert.ok(clip.far >= 500);
+});
+
+test('caps the near floor for very large scenes', () => {
+  const clip = adaptiveCameraClipPlanes(2000, 4000);
+  assert.equal(clip.near, 8);
+  assert.ok(clip.far / clip.near < 5000);
 });

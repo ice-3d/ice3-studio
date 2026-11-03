@@ -60,6 +60,10 @@ export class SceneAdapter {
   private renderableSelectionIds: string[] = [];
   private selectionIds: string[] = [];
   private lastBounds: ICEGeometryBounds | null = null;
+  // clip 滞回：near/far 变化超过该比例才提交，避免缩放过程中深度映射
+  // 每帧重排造成额外的像素抖动。
+  private lastClip: { near: number; far: number } | null = null;
+  private static readonly CLIP_CHANGE_RATIO = 0.15;
   private resizeObserver: ResizeObserver | null = null;
   private originalNodeState = new WeakMap<ImportedNode, {
     matrix: number[];
@@ -376,6 +380,12 @@ export class SceneAdapter {
       this.lastBounds.max[2] - this.lastBounds.min[2],
     );
     const clip = adaptiveCameraClipPlanes(distance, diagonal);
+    const last = this.lastClip;
+    const significant = last === null
+      || Math.abs(clip.near - last.near) > last.near * SceneAdapter.CLIP_CHANGE_RATIO
+      || Math.abs(clip.far - last.far) > last.far * SceneAdapter.CLIP_CHANGE_RATIO;
+    if (!significant) return;
+    this.lastClip = { near: clip.near, far: clip.far };
     this.camera.setClipPlanes(clip.near, clip.far);
   }
 }
