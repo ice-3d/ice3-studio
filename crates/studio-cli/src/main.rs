@@ -198,6 +198,8 @@ enum ExportCommand {
         project: PathBuf,
         #[arg(long)]
         output: PathBuf,
+        #[arg(long)]
+        asset_id: Option<String>,
         #[arg(long, default_value = "agent-console-v1")]
         profile: String,
         #[arg(long)]
@@ -374,6 +376,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ExportCommand::Tileset {
                 project,
                 output,
+                asset_id,
                 profile,
                 force,
             } => {
@@ -395,8 +398,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let document = store.load_current_read_only()?;
                 let project_dir = store.project_dir().to_path_buf();
                 drop(store);
-                let result =
-                    RuntimeTilesetExporter::new(output, force).export(&document, &project_dir)?;
+                let mut exporter = RuntimeTilesetExporter::new(output, force);
+                if let Some(asset_id) = asset_id {
+                    exporter = exporter.with_asset_id(asset_id);
+                }
+                let result = exporter.export(&document, &project_dir)?;
                 println!("{}", serde_json::to_string_pretty(&result)?);
             }
         },

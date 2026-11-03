@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use serde_json::{Value, json};
 use studio_assets::{read_glb_bytes, validate_prepared_profile};
 use studio_pipeline::{
@@ -36,6 +38,7 @@ fn fine_partition_glb_contains_edge_line_primitives() {
 fn render_batch_glb_contains_edges_for_its_final_geometry() {
     let source = grid_source(2, 2);
     let mut profile = AssetProfile::direct_partition(500_000, 33_554_432);
+    profile.max_triangles = 8;
     profile.render_batch = RenderBatchMode::Static;
     let artifact = build_with_profile(&source, "batch-edges", &profile).unwrap();
 
@@ -44,10 +47,49 @@ fn render_batch_glb_contains_edges_for_its_final_geometry() {
         .files
         .iter()
         .filter(|file| file.relative_path.starts_with("parts/"));
+    let mut render_batch_nodes = HashSet::new();
     for part in parts {
         let parsed = read_glb_bytes(&part.bytes, &std::env::temp_dir()).unwrap();
         assert!(has_edge_primitive(&parsed.json));
         assert!(has_batch_primitive(&parsed.json));
+        for node in parsed.json["nodes"].as_array().unwrap() {
+            if let Some(id) = node
+                .pointer("/extras/ice3/id")
+                .and_then(Value::as_str)
+                .filter(|id| id.contains("/render-batch-node/"))
+            {
+                assert!(
+                    render_batch_nodes.insert(id.to_owned()),
+                    "duplicate render-only node ID {id}"
+                );
+            }
+        }
+        let semantic_node_ids = parsed
+            .json
+            .pointer("/asset/extras/ice3/batching/semanticNodeIds")
+            .and_then(Value::as_array)
+            .unwrap();
+        let semantic_selection_ids = parsed
+            .json
+            .pointer("/asset/extras/ice3/batching/semanticSelectionIds")
+            .and_then(Value::as_array)
+            .unwrap();
+        let nodes = parsed.json["nodes"].as_array().unwrap();
+        for (semantic_node_id, semantic_selection_id) in
+            semantic_node_ids.iter().zip(semantic_selection_ids)
+        {
+            let semantic_node_id = semantic_node_id.as_str().unwrap();
+            let node = nodes
+                .iter()
+                .find(|node| {
+                    node.pointer("/extras/ice3/id") == Some(&Value::from(semantic_node_id))
+                })
+                .unwrap_or_else(|| panic!("semantic node {semantic_node_id} is missing"));
+            assert_eq!(
+                node.pointer("/extras/ice3/selectionId"),
+                Some(semantic_selection_id)
+            );
+        }
     }
 }
 
@@ -151,6 +193,42 @@ fn edge_bytes_count_toward_the_part_byte_budget() {
     profile.generate_edges = true;
     let result = build_with_profile(&source, "budget-edges", &profile);
     assert!(result.is_err(), "edge bytes did not exceed maxBytes");
+}
+
+#[test]
+fn tagged_nodes_use_one_asset_scoped_equipment_selection() {
+    let mut source = grid_source(2, 1);
+    for node in source.json["nodes"].as_array_mut().unwrap() {
+        node["extras"]["ice3"]["metadata"] = json!({
+            "tag": "P-101",
+            "stage": "intake"
+        });
+    }
+    let profile = AssetProfile::direct_partition(500_000, 33_554_432);
+    let artifact = build_with_profile(&source, "tagged-asset", &profile).unwrap();
+    let selection_ids = artifact
+        .files
+        .iter()
+        .filter(|file| file.relative_path.starts_with("parts/"))
+        .map(|file| read_glb_bytes(&file.bytes, &std::env::temp_dir()).unwrap())
+        .flat_map(|parsed| {
+            parsed.json["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|node| node.pointer("/extras/ice3/selectionId"))
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    assert!(!selection_ids.is_empty());
+    assert!(
+        selection_ids
+            .iter()
+            .all(|selection_id| selection_id == "tagged-asset/equipment/P-101")
+    );
 }
 
 #[test]

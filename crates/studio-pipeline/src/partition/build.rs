@@ -344,20 +344,14 @@ pub(crate) fn build_batched_leaf(
                 .and_then(Value::as_object)
                 .cloned()
                 .unwrap_or_default();
-            let selection_id = ice3
-                .get("selectionId")
-                .and_then(Value::as_str)
-                .or_else(|| ice3.get("ownerId").and_then(Value::as_str))
-                .or_else(|| ice3.get("id").and_then(Value::as_str))
-                .map(str::to_owned)
-                .unwrap_or_else(|| node_id.clone());
+            let selection_id = business_selection_id(&ice3, node_id, asset_id);
             ice3.entry("id")
                 .or_insert_with(|| Value::from(node_id.clone()));
             ice3.insert("selectionId".into(), Value::from(selection_id.clone()));
             extras.insert("ice3".into(), Value::Object(ice3));
             let semantic_index = semantic_ids.len() as u32;
             semantic_ids.push(node_id.clone());
-            semantic_node_ids.push(format!("{asset_id}/node/{node_id}"));
+            semantic_node_ids.push(node_id.clone());
             semantic_selection_ids.push(selection_id.clone());
             selection_ids.insert(selection_id);
             nodes.push(json!({
@@ -393,7 +387,11 @@ pub(crate) fn build_batched_leaf(
             "mesh": mesh_index,
             "extras": {
                 "ice3": {
-                    "id": format!("{asset_id}/render-batch-node/{batch_index:03}")
+                    "id": format!(
+                        "{asset_id}/render-batch-node/{}/{:03}",
+                        leaf.id,
+                        batch_index,
+                    )
                 }
             }
         }));
@@ -692,13 +690,7 @@ pub(crate) fn build_leaf_with_overrides(
                 .and_then(Value::as_object)
                 .cloned()
                 .unwrap_or_default();
-            let selection_id = ice3
-                .get("selectionId")
-                .and_then(Value::as_str)
-                .or_else(|| ice3.get("ownerId").and_then(Value::as_str))
-                .or_else(|| ice3.get("id").and_then(Value::as_str))
-                .map(str::to_owned)
-                .unwrap_or_else(|| node_id.clone());
+            let selection_id = business_selection_id(&ice3, node_id, asset_id);
             ice3.entry("id")
                 .or_insert_with(|| Value::from(node_id.clone()));
             ice3.insert("selectionId".into(), Value::from(selection_id.clone()));
@@ -1705,6 +1697,31 @@ fn source_nodes(source: &SourceGlb) -> Result<SourceNodeMap, PipelineError> {
         }
     }
     Ok(output)
+}
+
+fn business_selection_id(ice3: &Map<String, Value>, node_id: &str, asset_id: &str) -> String {
+    let explicit = ice3.get("selectionId").and_then(Value::as_str);
+    if explicit.is_some_and(|value| value.contains("/equipment/")) {
+        return explicit.unwrap().to_owned();
+    }
+    let tag = ice3
+        .get("metadata")
+        .and_then(Value::as_object)
+        .and_then(|metadata| metadata.get("tag").or_else(|| metadata.get("equipmentTag")))
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty());
+    if let Some(tag) = tag {
+        let tag = tag
+            .rsplit_once("/equipment/")
+            .map_or(tag, |(_, value)| value)
+            .trim_matches('/');
+        return format!("{asset_id}/equipment/{tag}");
+    }
+    explicit
+        .or_else(|| ice3.get("ownerId").and_then(Value::as_str))
+        .or_else(|| ice3.get("id").and_then(Value::as_str))
+        .map(str::to_owned)
+        .unwrap_or_else(|| node_id.to_owned())
 }
 
 fn primitive_triangles(

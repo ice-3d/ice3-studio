@@ -599,10 +599,17 @@ fn tile_from_node(
             ),
         ),
     };
+    let mut bounds_box = to_tiles_box(node.bounds);
+    if !children.is_empty() {
+        // Child AABBs are rounded from independent f32 world bounds. Keep an
+        // extra parent-only margin so strict readers do not misclassify a few
+        // micrometres of floating-point drift as a real hierarchy violation.
+        bounds_box[3] += 0.001;
+        bounds_box[8] += 0.001;
+        bounds_box[10] += 0.001;
+    }
     Ok(TilesetTile {
-        bounding_volume: TilesetBoundingVolume {
-            bounds_box: to_tiles_box(node.bounds),
-        },
+        bounding_volume: TilesetBoundingVolume { bounds_box },
         geometric_error,
         refine: "REPLACE".into(),
         content,
@@ -616,9 +623,13 @@ fn to_tiles_box(bounds: Bounds) -> [f64; 12] {
     let center_x = (bounds.min.x + bounds.max.x) as f64 / 2.0;
     let center_y = (bounds.min.y + bounds.max.y) as f64 / 2.0;
     let center_z = (bounds.min.z + bounds.max.z) as f64 / 2.0;
-    let half_x = (bounds.max.x - bounds.min.x) as f64 / 2.0;
-    let half_y = (bounds.max.y - bounds.min.y) as f64 / 2.0;
-    let half_z = (bounds.max.z - bounds.min.z) as f64 / 2.0;
+    // Parent and child boxes are derived from f32 scene bounds. At large world
+    // coordinates their independently rounded extents can differ by a few
+    // micrometres, so keep a millimetre-scale margin for strict 3D Tiles readers.
+    let padding = (diagonal(bounds) * 1e-6).max(0.001);
+    let half_x = (bounds.max.x - bounds.min.x) as f64 / 2.0 + padding;
+    let half_y = (bounds.max.y - bounds.min.y) as f64 / 2.0 + padding;
+    let half_z = (bounds.max.z - bounds.min.z) as f64 / 2.0 + padding;
     [
         center_x, -center_z, center_y, half_x, 0.0, 0.0, 0.0, 0.0, half_y, 0.0, half_z, 0.0,
     ]

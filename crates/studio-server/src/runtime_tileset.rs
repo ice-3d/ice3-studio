@@ -76,11 +76,11 @@ impl BindingManifest {
             let tag = raw_tag.clone();
             let selection_id = raw_tag
                 .map(|tag| {
-                    if tag.starts_with("plant/equipment/") {
-                        tag
-                    } else {
-                        format!("plant/equipment/{tag}")
-                    }
+                    let tag = tag
+                        .rsplit_once("/equipment/")
+                        .map_or(tag.as_str(), |(_, value)| value)
+                        .trim_matches('/');
+                    format!("{asset_id}/equipment/{tag}")
                 })
                 .unwrap_or_else(|| node.owner_id.clone());
             let display_name = node
@@ -210,6 +210,7 @@ pub struct ExportedStats {
 pub struct RuntimeTilesetExporter {
     output_dir: PathBuf,
     profile: AssetProfile,
+    asset_id: Option<String>,
     force: bool,
 }
 
@@ -218,12 +219,18 @@ impl RuntimeTilesetExporter {
         Self {
             output_dir,
             profile: AssetProfile::agent_console_v1(),
+            asset_id: None,
             force,
         }
     }
 
     pub fn with_profile(mut self, profile: AssetProfile) -> Self {
         self.profile = profile;
+        self
+    }
+
+    pub fn with_asset_id(mut self, asset_id: impl Into<String>) -> Self {
+        self.asset_id = Some(asset_id.into());
         self
     }
 
@@ -235,14 +242,12 @@ impl RuntimeTilesetExporter {
         if self.output_dir.exists() && !self.force {
             return Err(RuntimeTilesetError::OutputExists);
         }
+        let asset_id = self.asset_id.as_deref().unwrap_or(&document.project_id);
         let (source, scene) = export_source_with_scene(document, project_dir, None)?;
         let source_glb = studio_assets::read_glb(&source.source_path)?;
-        let artifact = build_with_profile(&source_glb, &document.project_id, &self.profile)?;
-        let bindings = BindingManifest::from_evaluated_scene(
-            &document.project_id,
-            document.revision.as_u64(),
-            &scene,
-        );
+        let artifact = build_with_profile(&source_glb, asset_id, &self.profile)?;
+        let bindings =
+            BindingManifest::from_evaluated_scene(asset_id, document.revision.as_u64(), &scene);
         self.publish(source, artifact, bindings)
     }
 

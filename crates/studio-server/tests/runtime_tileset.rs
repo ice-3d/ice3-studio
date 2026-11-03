@@ -31,7 +31,10 @@ fn groups_all_parts_sharing_a_tag_into_one_binding() {
 
     let manifest = BindingManifest::from_evaluated_scene("fixture", 1, &scene);
     assert_eq!(manifest.bindings.len(), 1);
-    assert_eq!(manifest.bindings[0].selection_id, "plant/equipment/AE-101");
+    assert_eq!(
+        manifest.bindings[0].selection_id,
+        "fixture/equipment/AE-101"
+    );
     assert_eq!(
         manifest.bindings[0].node_selection_ids,
         ["node-000001/wall-a", "node-000001/wall-b"]
