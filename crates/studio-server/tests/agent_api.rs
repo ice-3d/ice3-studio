@@ -483,6 +483,35 @@ async fn derived_search_returns_world_node_identity_without_payloads() {
     assert_eq!(both_items[1]["scope"], "derived");
     assert_eq!(both_items[2]["scope"], "source");
     assert_eq!(both_items[3]["scope"], "source");
+
+    // nodeId 限定"该节点或其派生部件"：无需 query 前缀绕行。
+    let by_node = search(
+        &server,
+        serde_json::json!({
+            "scope": "derived",
+            "nodeId": "node-000001",
+            "limit": 25
+        }),
+    )
+    .await;
+    let by_node_items = by_node["result"]["items"].as_array().unwrap();
+    assert_eq!(by_node_items.len(), 1, "{by_node}");
+    assert_eq!(by_node_items[0]["id"], "node-000001/body");
+
+    // 前缀歧义防御：node-00001 不是 node-000001 的前缀（必须带 / 边界）。
+    let ambiguous = search(
+        &server,
+        serde_json::json!({
+            "scope": "derived",
+            "nodeId": "node-00001",
+            "limit": 25
+        }),
+    )
+    .await;
+    assert!(
+        ambiguous["result"]["items"].as_array().unwrap().is_empty(),
+        "{ambiguous}"
+    );
 }
 
 #[tokio::test]

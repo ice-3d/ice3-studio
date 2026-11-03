@@ -6,6 +6,7 @@ use ts_rs::TS;
 
 use crate::geometry::Bounds;
 use crate::ids::{ComponentId, MaterialId};
+use crate::large_scene::component::ComponentDefinition;
 
 pub const DEFAULT_SEARCH_LIMIT: usize = 25;
 pub const MAX_SEARCH_LIMIT: usize = 100;
@@ -318,6 +319,11 @@ pub const MAX_PART_SUMMARIES: usize = 100;
 #[ts(export)]
 pub struct ComponentGetParams {
     pub component_id: String,
+    /// 显式请求完整定义（含全部 parts binding），供 `component.update` 修改回写。
+    /// 缺省只返回有界摘要。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub include_parts: Option<bool>,
 }
 
 #[derive(
@@ -373,6 +379,10 @@ pub struct ComponentDefinitionSummary {
 pub struct ComponentGetResult {
     pub revision: u64,
     pub component: ComponentDefinitionSummary,
+    /// `includeParts: true` 时的完整定义，与 `component.update` 的 payload 同构。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub definition: Option<ComponentDefinition>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]

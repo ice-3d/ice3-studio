@@ -206,6 +206,8 @@ relation type 和当前权限，不返回完整 Node 或 Geometry 集合。
 源 scope 的每个条目返回该实体的聚合 world bounds：组件实例与 InstanceSet 的几何
 分布在派生部件上，`bounds` 是全部派生部件世界包围盒的并集；独立 primitive 与
 custom mesh 节点返回自身的求值 bounds。`bounds` filter 对两种 scope 一致生效。
+`nodeId` 限定"该节点或其派生部件"：source 条目精确匹配，derived 条目按
+`<nodeId>/` 前缀归属，不会误命中仅前缀相似的 ID。
 
 `evaluation.query` 接受 1 至 32 个唯一派生 Node ID。默认返回 vertex/index count、world
 bounds 和 Geometry digest；只有显式请求时才返回 positions/indices。
@@ -217,6 +219,11 @@ bounds 和 Geometry digest；只有显式请求时才返回 positions/indices。
 `componentId` 返回 `ICE3_STUDIO_REFERENCE_INVALID` 结构化 not_found 错误。它是 Agent
 拿到 `componentDefinitionId` 后内省参数 schema 与端口清单的唯一有界通道，无需拉取完整
 Document。
+
+`includeParts: true`（默认 false）时追加 `definition`：与 `component.update` payload
+同构的完整定义（全部 parts binding 与参数绑定）。修改既有定义——加端口、改部件
+绑定——的标准工作流是 `component.get includeParts` 读出完整定义，本地修改后
+`component.update` 全量写回。完整定义无截断；最大定义约 1.4 MiB，仅在需要修改时请求。
 
 `validation.run` 接受可选 `includeOverlaps`（默认 `false`）。显式请求时在常规诊断后
 追加 `ICE3_STUDIO_GEOMETRY_OVERLAP` warning：报告三轴交叠深度均超过 0.1 m 且交叠
