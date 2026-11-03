@@ -264,6 +264,7 @@ Studio 的脚本、测试和构建不再引用旧 repository；repository 归档
 - `ICE3-STUDIO-RM-001` — [Studio README](../README.md)
 - `ICE3-STUDIO-REF-001` — [能力清单](reference/capabilities.md)
 - `ICE3-STUDIO-REF-002` — [API Reference](reference/api.md)
+- `ICE3-STUDIO-REF-005` — [Asset Pipeline](reference/asset-pipeline.md)
 - `ICE3-STUDIO-SPEC-014` — [Agent 主导工作台设计](specs/2026-11-01-agent-led-workbench-design.md)
 - `ICE3-STUDIO-SPEC-016` — [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md)
 - `ICE3-DOC-ADR-006` — [Agent 主导的 Studio 工作台](https://github.com/ice-3d/ice3-doc/blob/main/docs/decisions/0006-agent-led-studio-workbench.md)

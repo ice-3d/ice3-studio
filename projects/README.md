@@ -20,7 +20,10 @@ STUDIO_SESSION_TOKEN=dev STUDIO_VIEWER_DIR=$PWD/apps/viewer/dist \
 
 浏览器打开 `http://127.0.0.1:8120/?token=dev`。
 
-不需要 toolchain：预览由内核直接产出 GLB。配了 toolchain 才会额外做压缩与分块。
+预览、Asset Prepare、partition、LOD 和 Tileset 均由 Studio 原生 crate 完成，不依赖
+Toolchain 或外部 DCC。需要发布 Agent Runtime bundle 时运行 `export tileset`；需要
+直接处理其它 source 时运行 `partition`。完整链路见
+[Asset Pipeline](../docs/reference/asset-pipeline.md)。
 
 ## 修改
 

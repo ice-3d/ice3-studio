@@ -1,5 +1,11 @@
 # Third-Party Notices
 
+> Document ID: ICE3-STUDIO-NOTICE-001
+>
+> Status: Active
+>
+> Owner: ICE3 Studio maintainers
+
 ICE3 Studio uses the following third-party components for native FBX, USD, STEP and
 IFC source import plus isolated JT converter process containment. ICE3 does not
 modify these components.

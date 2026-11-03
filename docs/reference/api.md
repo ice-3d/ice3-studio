@@ -9,9 +9,10 @@
 Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
 路径；所有修改都必须进入事务或 ChangeSet。
 
-`API_VERSION` 当前保持 `1.0`。项目仍处于 pre-release，Phase 5B 已删除
-`system.capabilities.toolchain`，因此该形状变化不承诺向后兼容；客户端必须按当前
-generated schema 解析 capabilities，不能把 `1.0` 当作兼容性承诺。
+`API_VERSION` 当前保持 `1.0`。项目仍处于 pre-release。历史 API 曾包含
+`system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
+不含 `toolchain`，客户端必须按当前 generated schema 解析 capabilities。该形状变化
+不承诺向后兼容，不能把 `1.0` 当作兼容性承诺。
 
 ## Transport
 

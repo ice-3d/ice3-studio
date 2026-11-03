@@ -2,9 +2,13 @@
 
 > Document ID: ICE3-STUDIO-PLAN-023
 >
-> Status: Implemented
+> Status: Historical
 >
 > Owner: ICE3 Studio maintainers
+
+> **历史状态：** 本文保留已完成实施过程的审计记录，不代表当前生产依赖；当前能力以
+> [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
+> 为准。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:subagent-driven-development` (recommended) or

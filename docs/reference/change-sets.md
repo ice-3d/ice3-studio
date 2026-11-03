@@ -1,4 +1,4 @@
-# ChangeSet Review Contract
+# ChangeSet 审阅契约
 
 > Document ID: ICE3-STUDIO-REF-003
 >
@@ -6,27 +6,27 @@
 >
 > Owner: ICE3 Studio maintainers
 
-A ChangeSet is a persistent, reviewable proposal derived from an immutable project revision. It
-does not modify the committed Document until explicitly approved and committed.
+ChangeSet 是从不可变项目 revision 派生、可持久化并可供审阅的候选提案。在显式批准并
+提交之前，它不会修改 committed Document。
 
-## Lifecycle
+## 1. 生命周期
 
-| Status | Meaning |
+| Status | 含义 |
 |---|---|
-| `draft` | Accepting Operations; the candidate is stale or not evaluated |
-| `evaluating` | Candidate evaluation is in progress |
-| `ready` | Candidate passed validation and has a digest |
-| `blocked` | Candidate validation or preview failed |
-| `stale` | The project revision advanced beyond the base revision |
-| `committed` | Operations were committed as one new revision |
-| `discarded` | Proposal was abandoned without modifying the project |
+| `draft` | 接收 Operation；候选尚未求值，或已过期 |
+| `evaluating` | 正在求值候选 |
+| `ready` | 候选通过验证并具有 digest |
+| `blocked` | 候选验证或 preview 失败 |
+| `stale` | 项目 revision 已超过候选的 base revision |
+| `committed` | Operation 已作为一个新 revision 提交 |
+| `discarded` | 已放弃提案，项目未修改 |
 
-Adding or removing an entry requires the current `expectedVersion`, increments `version`, and
-invalidates the candidate digest and diagnostics.
+增加或删除 entry 必须携带当前 `expectedVersion`，递增 `version`，并使候选 digest 与
+Diagnostics 失效。
 
-## API
+## 2. API
 
-The following public methods implement the review lifecycle:
+以下公开方法实现审阅生命周期：
 
 - `changeset.create`
 - `changeset.list`
@@ -39,29 +39,28 @@ The following public methods implement the review lifecycle:
 - `changeset.commit`
 - `changeset.discard`
 
-`changeset.evaluate` returns the ordered diff, diagnostics, and a SHA-256 candidate digest.
-`includeCandidate` controls whether the derived Document is included in that response.
+`changeset.evaluate` 返回有序 diff、Diagnostics 和 SHA-256 candidate digest。
+`includeCandidate` 决定响应是否包含派生 Document。
 
-`changeset.impact` evaluates the current ChangeSet and returns bounded planning evidence:
-source, derived, relation, component, and material counts; `local`, `targeted`, `broad`,
-`full_rebuild`, or `unavailable` scope; generated and reused geometry; cache hits and misses; and
-deduplicated reason codes. It returns the same candidate digest that `changeset.commit` verifies.
-The method persists candidate evaluation state but never changes the committed Document or
-publishes a scene revision.
+`changeset.impact` 求值当前 ChangeSet，并返回有界规划证据：source、derived、relation、
+component 和 material 数量；`local`、`targeted`、`broad`、`full_rebuild` 或
+`unavailable` scope；新生成和复用 Geometry；cache hit/miss；以及去重后的 reason code。
+它返回的 candidate digest 与 `changeset.commit` 校验的 digest 相同。
 
-Impact analysis uses the existing incremental dependency planner and may warm the
-content-addressed geometry cache. It does not merge the candidate into the active scene snapshot.
-After commit, `evaluation.stats` reports the execution evidence for the committed revision.
+该方法可以持久化 candidate evaluation state，但不得修改 committed Document，也不得发布
+Scene revision。Impact analysis 复用现有增量依赖 planner，并且可以预热内容寻址
+Geometry cache；它不会把候选合并到 active scene snapshot。提交后，
+`evaluation.stats` 报告 committed revision 的执行证据。
 
-`changeset.commit` requires:
+`changeset.commit` 要求：
 
-- matching `expectedVersion`;
-- matching current base revision;
-- `approvedDigest` equal to a fresh evaluation;
-- approval capability;
-- a unique idempotency key.
+- `expectedVersion` 匹配；
+- 当前 base revision 匹配；
+- `approvedDigest` 等于一次新求值得到的 digest；
+- 调用方拥有 approval capability；
+- 提供唯一 idempotency key。
 
-## Persistence
+## 3. 持久化
 
 ```text
 project/
@@ -70,26 +69,26 @@ project/
 └── cache/preview/<digest>.glb
 ```
 
-ChangeSet files are canonical JSON written through a temporary sibling and atomic rename. Candidate
-previews are content-addressed. ChangeSets survive process restart. A malformed ChangeSet is
-isolated and reported without preventing the current revision from loading.
+ChangeSet 文件使用 canonical JSON，通过 sibling temporary file 和 atomic rename 写入。
+Candidate preview 使用内容寻址。ChangeSet 在进程重启后仍然存在；单个畸形 ChangeSet
+被隔离并报告，不得阻止当前 revision 加载。
 
-## Permissions
+## 4. 权限
 
-`review-required` is the default mode. The Agent proposal token may read, create and edit
-ChangeSets, evaluate or analyze candidates, and request candidate previews. It cannot commit,
-approve, discard, or call `document.apply`.
+`review-required` 是默认模式。Agent proposal token 可以读取、创建和编辑 ChangeSet，
+求值或分析候选，并请求 candidate preview；它不能 commit、approve、discard，也不能调用
+`document.apply`。
 
-The human approval capability is delivered by the single-use loopback bootstrap endpoint and stored
-in an `HttpOnly`, `SameSite=Strict` cookie. It may commit or discard proposals. It is not returned
-to page scripts or model prompts.
+人工审批能力由一次性 loopback bootstrap endpoint 发放，并保存在 `HttpOnly`、
+`SameSite=Strict` cookie 中。该 capability 可以提交或放弃提案，不会返回给页面脚本或
+model prompt。
 
-`autonomous` mode must be enabled explicitly by host configuration. It grants its trusted writer
-token direct transaction and ChangeSet commit rights.
+`autonomous` 模式必须由 host configuration 显式启用。它授予受信任 writer token 直接
+执行 transaction 和 ChangeSet commit 的权限。
 
-## Events
+## 5. 事件
 
-The authenticated WebSocket publishes:
+通过认证的 WebSocket 发布：
 
 - `changeset.created`
 - `changeset.updated`
@@ -98,16 +97,22 @@ The authenticated WebSocket publishes:
 - `changeset.discarded`
 - `revision.committed`
 
-Committing a ChangeSet publishes `changeset.committed` before `revision.committed`.
+提交 ChangeSet 时，`changeset.committed` 先于 `revision.committed` 发布。
 
-## Recovery
+## 6. 恢复
 
-- A failed evaluation leaves the committed revision unchanged.
-- A blocked or stale impact request returns `scope: "unavailable"` and does not forecast partial
-  derived geometry.
-- A failed candidate preview retains previously valid candidate files.
-- A stale base marks the ChangeSet stale and rejects commit with
-  `ICE3_STUDIO_REVISION_CONFLICT`.
-- A candidate modified after review fails digest verification and is reported as
-  `ICE3_STUDIO_OPERATION_INVALID`.
-- Duplicate commits with the same idempotency key return the original result.
+- Evaluation 失败时，committed revision 保持不变。
+- 被 blocked 或 stale 的 impact request 返回 `scope: "unavailable"`，不预测部分派生
+  Geometry。
+- Candidate preview 失败时保留上一份有效 candidate 文件。
+- Base revision 过期时，ChangeSet 标记为 stale，并以
+  `ICE3_STUDIO_REVISION_CONFLICT` 拒绝提交。
+- Review 后被修改的 candidate 无法通过 digest 校验，并报告
+  `ICE3_STUDIO_OPERATION_INVALID`。
+- 使用相同 idempotency key 的重复提交返回原始结果。
+
+## 7. 关联文档
+
+- `ICE3-STUDIO-IDX-001` — [文档索引](../README.md)
+- `ICE3-STUDIO-REF-002` — [API Reference](api.md)
+- `ICE3-STUDIO-REF-004` — [Diagnostics](diagnostics.md)

@@ -2,9 +2,13 @@
 
 > Document ID: ICE3-STUDIO-SPEC-012
 >
-> Status: Implemented
+> Status: Historical
 >
 > Owner: ICE3 Studio maintainers
+
+> **历史状态：** 本文保留默认污水厂资产的设计和验收记录；当前工程、生产链和已知缺口以
+> [污水处理厂工程](../guides/wastewater-fixture.md)、[Asset Pipeline](../reference/asset-pipeline.md)
+> 和 [能力清单](../reference/capabilities.md) 为准。
 
 ## 1. 目标
 

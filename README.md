@@ -336,8 +336,10 @@ Studio 原生生成。相邻 Toolchain repository 的 JT adapter、Sidecar 和 r
 - [API Reference](docs/reference/api.md)
 - [Diagnostics](docs/reference/diagnostics.md)
 - [ChangeSet 审阅](docs/reference/change-sets.md)
+- [Asset Pipeline](docs/reference/asset-pipeline.md)
 - [原生 Asset Pipeline 迁移设计](docs/specs/2026-11-01-native-asset-pipeline-migration-design.md)
 - [Agent 主导的工作台设计](docs/specs/2026-11-01-agent-led-workbench-design.md)
+- [第三方声明](THIRD_PARTY_NOTICES.md)
 
 ## AI 辅助开发
 

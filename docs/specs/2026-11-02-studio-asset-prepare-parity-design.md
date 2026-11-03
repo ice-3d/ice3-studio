@@ -2,9 +2,12 @@
 
 > Document ID: ICE3-STUDIO-SPEC-019
 >
-> Status: Implemented
+> Status: Historical
 >
 > Owner: ICE3 Studio maintainers
+
+> **历史状态：** Phase 6A/6B/6C 已完成，本文保留功能和 parity 的设计证据；当前生产链见
+> [Asset Pipeline](../reference/asset-pipeline.md)。
 
 > **阶段状态：** Phase 1 至 Phase 5、Phase 6A、Phase 6B 与 Phase 6C 已完成。Phase 6 是迁移后的
 > 产品能力收口，目标是在不恢复 Toolchain、Node Asset Runtime、外部 DCC 或 Blender
@@ -33,7 +36,8 @@ Phase 5 完成后，Studio 已拥有：
 Studio 的生产代码、测试和依赖不再调用 Blender。JT 仍使用组织批准的 host-owned
 converter，这是已有的受控例外。
 
-但旧 Toolchain 的下列能力尚未全部形成 Studio 公共入口：
+在本轮迁移开始时，旧 Toolchain 的下列能力还没有形成完整的 Studio 公共入口。Phase 6
+已经交付这些入口，以下清单仅用于说明本轮范围和证据边界：
 
 - `build`：edge generation、crease angle、budget 和 report；
 - `inspect`：source 与 Prepared GLB 的稳定统计；

@@ -6,6 +6,9 @@
 >
 > Owner: ICE3 Studio maintainers
 
+> **历史状态：** Sidecar 已退役，本文只保留迁移和审计证据；当前生产链见
+> [Asset Pipeline](../reference/asset-pipeline.md)。
+
 > **历史说明：** Sidecar 已由 Studio 原生 preview 和 asset pipeline 取代。
 > 本文仅记录退役前的设计，不得作为当前部署或接口依据。
 

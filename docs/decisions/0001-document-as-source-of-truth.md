@@ -1,4 +1,4 @@
-# 0001: Document and Operation History Are the Source of Truth
+# 0001：Document 与 Operation History 是唯一真源
 
 > Document ID: ICE3-STUDIO-ADR-001
 >
@@ -8,24 +8,29 @@
 >
 > Date: 2026-10-30
 
-## Context
+## 背景
 
-An AI-native modeling system needs deterministic change review, retries, undo, and recovery.
-Treating an evaluated mutable scene graph as the only source would make semantic changes hard
-to distinguish from transient geometry and renderer state.
+AI-native 建模系统需要确定性的变更审阅、重试、撤销和恢复。如果把求值后的可变 Scene
+graph 当作唯一真源，语义修改将很难与临时 Geometry、renderer state 区分。
 
-## Decision
+## 决策
 
-Persist a serializable `Document` and its append-only transaction history. Treat evaluated
-meshes, bounds, diagnostics, source GLB, and runtime preview as derived values.
+持久化可序列化的 `Document` 及其 append-only transaction history。求值得到的 Mesh、
+bounds、Diagnostics、source GLB 和 Runtime preview 都视为派生值。
 
-Every accepted batch is one atomic revision. Stable IDs remain independent of names and
-revision numbers. Geometry can be recomputed from document content.
+每个接受的 batch 对应一个原子 revision。稳定 ID 独立于 display name 和 revision
+number。Geometry 可以从 Document 内容重新计算。
 
-## Consequences
+## 影响
 
-- AI operations can be inspected, diffed, retried, undone, and replayed.
-- Failed transactions leave the previous snapshot unchanged.
-- Cache invalidation and incremental evaluation have explicit document dependencies.
-- The implementation must maintain schema migrations and deterministic serialization.
-- Large derived assets cannot be the sole record of a model.
+- AI Operation 可以检查、diff、重试、撤销和重放。
+- Transaction 失败时，上一份 snapshot 保持不变。
+- Cache invalidation 和增量求值具有明确的 Document dependency。
+- 实现必须维护 schema migration 和确定性序列化。
+- 大型派生 Asset 不能成为模型的唯一记录。
+
+## 关联文档
+
+- `ICE3-STUDIO-IDX-002` — [架构决策索引](README.md)
+- `ICE3-STUDIO-ARC-001` — [Studio 架构](../architecture.md)
+- `ICE3-STUDIO-REF-003` — [ChangeSet 审阅契约](../reference/change-sets.md)
