@@ -2753,7 +2753,8 @@
             "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
             "ICE3_STUDIO_GPU_KERNEL_FAILED",
             "ICE3_STUDIO_GPU_DEVICE_LOST",
-            "ICE3_STUDIO_GPU_PARITY_FAILED"
+            "ICE3_STUDIO_GPU_PARITY_FAILED",
+            "ICE3_STUDIO_GEOMETRY_OVERLAP"
           ],
           "type": "string"
         },
@@ -3969,7 +3970,8 @@
             "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
             "ICE3_STUDIO_GPU_KERNEL_FAILED",
             "ICE3_STUDIO_GPU_DEVICE_LOST",
-            "ICE3_STUDIO_GPU_PARITY_FAILED"
+            "ICE3_STUDIO_GPU_PARITY_FAILED",
+            "ICE3_STUDIO_GEOMETRY_OVERLAP"
           ],
           "type": "string"
         },
@@ -11726,7 +11728,8 @@
             "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
             "ICE3_STUDIO_GPU_KERNEL_FAILED",
             "ICE3_STUDIO_GPU_DEVICE_LOST",
-            "ICE3_STUDIO_GPU_PARITY_FAILED"
+            "ICE3_STUDIO_GPU_PARITY_FAILED",
+            "ICE3_STUDIO_GEOMETRY_OVERLAP"
           ],
           "type": "string"
         },
@@ -16638,7 +16641,8 @@
             "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
             "ICE3_STUDIO_GPU_KERNEL_FAILED",
             "ICE3_STUDIO_GPU_DEVICE_LOST",
-            "ICE3_STUDIO_GPU_PARITY_FAILED"
+            "ICE3_STUDIO_GPU_PARITY_FAILED",
+            "ICE3_STUDIO_GEOMETRY_OVERLAP"
           ],
           "type": "string"
         }
@@ -17028,7 +17032,8 @@
             "ICE3_STUDIO_GPU_BUDGET_EXCEEDED",
             "ICE3_STUDIO_GPU_KERNEL_FAILED",
             "ICE3_STUDIO_GPU_DEVICE_LOST",
-            "ICE3_STUDIO_GPU_PARITY_FAILED"
+            "ICE3_STUDIO_GPU_PARITY_FAILED",
+            "ICE3_STUDIO_GEOMETRY_OVERLAP"
           ],
           "type": "string"
         },
@@ -23037,6 +23042,20 @@
         }
       ],
       "title": "ServerEvent"
+    },
+    "ValidationRunRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "includeOverlaps": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "title": "ValidationRunRequest",
+      "type": "object"
     }
   }
 }

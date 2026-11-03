@@ -6,7 +6,7 @@ use schemars::schema_for;
 use studio_core::agent_contract::{
     AgentManifest, ComponentGetParams, ComponentGetResult, EvaluationQueryRequest,
     EvaluationQueryResult, IterationImpact, RuntimePreviewRequest, SceneContext,
-    SceneSearchRequest, SceneSearchResult,
+    SceneSearchRequest, SceneSearchResult, ValidationRunRequest,
 };
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
@@ -112,6 +112,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "EvaluationQueryResult": schema_for!(EvaluationQueryResult),
             "ComponentGetParams": schema_for!(ComponentGetParams),
             "ComponentGetResult": schema_for!(ComponentGetResult),
+            "ValidationRunRequest": schema_for!(ValidationRunRequest),
             "InstancePatch": schema_for!(InstancePatch),
             "ComponentPatch": schema_for!(ComponentPatch),
             "ConnectionPatch": schema_for!(ConnectionPatch),

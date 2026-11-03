@@ -115,6 +115,17 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 Some("ComponentGetResult"),
             ),
             tool(
+                "validation.run",
+                "Validate the committed document and optionally audit spatial overlaps.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_read,
+                "read access is unavailable",
+                "ValidationRunRequest",
+                None,
+            ),
+            tool(
                 "evaluation.query",
                 "Query summaries or payloads for a small explicit set of derived nodes.",
                 AgentSideEffect::Read,
@@ -278,6 +289,7 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                     "scene.context",
                     "scene.search",
                     "component.get|evaluation.query",
+                    "validation.run",
                 ],
             ),
             workflow(

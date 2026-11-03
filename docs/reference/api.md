@@ -73,7 +73,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | `scene.search` | 否 | `SceneSearchRequest` | revision-bound page |
 | `component.get` | 否 | `ComponentGetParams` | 单个组件定义的有界摘要 |
 | `scene.bounds` | 否 | 无 | 按 Node ID 的 world bounds |
-| `validation.run` | 否 | 无 | Diagnostic |
+| `validation.run` | 否 | `ValidationRunRequest` | Diagnostic |
 | `referenceAsset.register` | 是 | 四个 workspace-relative path | asset ID 和 descriptor |
 | `referenceAsset.get` | 否 | `{ assetId }` | descriptor 和 URL |
 | `referenceAsset.bindings` | 否 | `{ assetId, cursor?, limit? }` | binding page，limit `1..=100` |
@@ -213,6 +213,13 @@ bounds 和 Geometry digest；只有显式请求时才返回 positions/indices。
 `componentId` 返回 `ICE3_STUDIO_REFERENCE_INVALID` 结构化 not_found 错误。它是 Agent
 拿到 `componentDefinitionId` 后内省参数 schema 与端口清单的唯一有界通道，无需拉取完整
 Document。
+
+`validation.run` 接受可选 `includeOverlaps`（默认 `false`）。显式请求时在常规诊断后
+追加 `ICE3_STUDIO_GEOMETRY_OVERLAP` warning：报告三轴交叠深度均超过 0.1 m 且交叠
+体积占较大实体 ≥ 15% 的实体对。连接路由、薄板实体（最薄维度 < 0.5 m）、祖先-后代、
+单向包含（嵌套）与浅接触（室内设备突出建筑轮廓）不产生噪音；双向包含（实体重合）
+按冲突上报；至多 50 条并附总数汇总。重叠审计不参与事务校验，不会阻塞
+`document.apply` 或 ChangeSet 求值。
 
 ## 9. ChangeSet
 

@@ -92,6 +92,9 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_GPU_PARITY_FAILED")]
     #[ts(rename = "ICE3_STUDIO_GPU_PARITY_FAILED")]
     GpuParityFailed,
+    #[serde(rename = "ICE3_STUDIO_GEOMETRY_OVERLAP")]
+    #[ts(rename = "ICE3_STUDIO_GEOMETRY_OVERLAP")]
+    GeometryOverlap,
 }
 
 pub const DIAGNOSTIC_CODES: &[&str] = &[
@@ -122,6 +125,7 @@ pub const DIAGNOSTIC_CODES: &[&str] = &[
     "ICE3_STUDIO_GPU_KERNEL_FAILED",
     "ICE3_STUDIO_GPU_DEVICE_LOST",
     "ICE3_STUDIO_GPU_PARITY_FAILED",
+    "ICE3_STUDIO_GEOMETRY_OVERLAP",
 ];
 
 impl DiagnosticCode {
@@ -154,6 +158,7 @@ impl DiagnosticCode {
             Self::GpuKernelFailed => "ICE3_STUDIO_GPU_KERNEL_FAILED",
             Self::GpuDeviceLost => "ICE3_STUDIO_GPU_DEVICE_LOST",
             Self::GpuParityFailed => "ICE3_STUDIO_GPU_PARITY_FAILED",
+            Self::GeometryOverlap => "ICE3_STUDIO_GEOMETRY_OVERLAP",
         }
     }
 }
@@ -506,6 +511,187 @@ fn reference(
         pointer,
         message: message.into(),
     }
+}
+
+pub const MIN_OVERLAP_METERS: f32 = 0.1;
+pub const SLAB_MIN_EXTENT_METERS: f32 = 0.5;
+pub const MAX_OVERLAP_DIAGNOSTICS: usize = 50;
+/// 重叠体积占较大实体体积的比例低于该值时视为贴边或室内设备，不上报。
+pub const OVERLAP_VOLUME_RATIO_LIMIT: f32 = 0.15;
+
+/// 全局空间重叠审计：warning 级，不参与事务校验。
+///
+/// 实体是源节点（派生部件 world bounds 的并集）。按顺序排除连接节点、
+/// 薄板实体、祖先-后代对与单向包含（嵌套）；三轴交叠深度均超过阈值才报告，
+/// 双向包含（实体重合）视为冲突上报。
+pub fn validate_overlaps(document: &Document) -> Vec<Diagnostic> {
+    let bounds_by_node = derived_source_bounds(document);
+    if bounds_by_node.len() < 2 {
+        return Vec::new();
+    }
+    let nodes_by_id: HashMap<crate::ids::NodeId, &SceneNode> = document
+        .scene
+        .nodes()
+        .iter()
+        .map(|node| (node.id.clone(), node))
+        .collect();
+
+    let mut entities: Vec<(&crate::ids::NodeId, Bounds)> = bounds_by_node
+        .iter()
+        .filter(|(id, _)| {
+            nodes_by_id
+                .get(*id)
+                .is_some_and(|node| !matches!(node.content, NodeContent::Connection(_)))
+        })
+        .filter(|(_, bounds)| {
+            let extent = |min: f32, max: f32| max - min;
+            extent(bounds.min.x, bounds.max.x) >= SLAB_MIN_EXTENT_METERS
+                && extent(bounds.min.y, bounds.max.y) >= SLAB_MIN_EXTENT_METERS
+                && extent(bounds.min.z, bounds.max.z) >= SLAB_MIN_EXTENT_METERS
+        })
+        .map(|(id, bounds)| (id, *bounds))
+        .collect();
+    entities.sort_by_key(|(id, _)| (*id).clone());
+
+    let mut overlaps: Vec<(crate::ids::NodeId, crate::ids::NodeId, [f32; 3])> = Vec::new();
+    for left in 0..entities.len() {
+        for right in left + 1..entities.len() {
+            let (id_a, bounds_a) = &entities[left];
+            let (id_b, bounds_b) = &entities[right];
+            if is_ancestor_pair(id_a, id_b, &nodes_by_id) {
+                continue;
+            }
+            // 单向包含是嵌套（池内水面、建筑内设备）；双向包含是实体重合，
+            // 属于最严重的空间冲突，必须继续走深度检查上报。
+            let a_contains_b = bounds_contains(bounds_a, bounds_b);
+            let b_contains_a = bounds_contains(bounds_b, bounds_a);
+            if a_contains_b != b_contains_a {
+                continue;
+            }
+            let depth = overlap_depth(bounds_a, bounds_b);
+            if depth[0] > MIN_OVERLAP_METERS
+                && depth[1] > MIN_OVERLAP_METERS
+                && depth[2] > MIN_OVERLAP_METERS
+                && overlap_volume_ratio(bounds_a, bounds_b, depth) >= OVERLAP_VOLUME_RATIO_LIMIT
+            {
+                overlaps.push(((*id_a).clone(), (*id_b).clone(), depth));
+            }
+        }
+    }
+
+    let total = overlaps.len();
+    let mut diagnostics: Vec<Diagnostic> = overlaps
+        .into_iter()
+        .take(MAX_OVERLAP_DIAGNOSTICS)
+        .map(|(id_a, id_b, depth)| {
+            let name_a = nodes_by_id
+                .get(&id_a)
+                .map(|node| node.name.as_str())
+                .unwrap_or_else(|| id_a.as_str())
+                .to_owned();
+            let name_b = nodes_by_id
+                .get(&id_b)
+                .map(|node| node.name.as_str())
+                .unwrap_or_else(|| id_b.as_str())
+                .to_owned();
+            overlap_diagnostic(
+                &id_a,
+                &id_b,
+                &format!(
+                    "spatial overlap between {name_a} and {name_b}: x={:.2}m y={:.2}m z={:.2}m",
+                    depth[0], depth[1], depth[2]
+                ),
+            )
+        })
+        .collect();
+    if total > MAX_OVERLAP_DIAGNOSTICS {
+        diagnostics.push(Diagnostic {
+            code: DiagnosticCode::GeometryOverlap,
+            operation_index: None,
+            object_id: None,
+            pointer: "/scene".into(),
+            message: format!(
+                "scene overlap audit found {total} pairs; showing the first \
+                 {MAX_OVERLAP_DIAGNOSTICS}"
+            ),
+        });
+    }
+    diagnostics
+}
+
+fn overlap_diagnostic(
+    id_a: &crate::ids::NodeId,
+    id_b: &crate::ids::NodeId,
+    message: &str,
+) -> Diagnostic {
+    Diagnostic {
+        code: DiagnosticCode::GeometryOverlap,
+        operation_index: None,
+        object_id: Some(format!("{}|{}", id_a.as_str(), id_b.as_str())),
+        pointer: "/scene".into(),
+        message: message.into(),
+    }
+}
+
+fn is_ancestor_pair(
+    id_a: &crate::ids::NodeId,
+    id_b: &crate::ids::NodeId,
+    nodes_by_id: &HashMap<crate::ids::NodeId, &SceneNode>,
+) -> bool {
+    let mut current = nodes_by_id
+        .get(id_b)
+        .and_then(|node| node.parent_id.clone());
+    while let Some(parent) = current {
+        if &parent == id_a {
+            return true;
+        }
+        current = nodes_by_id
+            .get(&parent)
+            .and_then(|candidate| candidate.parent_id.clone());
+    }
+    let mut current = nodes_by_id
+        .get(id_a)
+        .and_then(|node| node.parent_id.clone());
+    while let Some(parent) = current {
+        if &parent == id_b {
+            return true;
+        }
+        current = nodes_by_id
+            .get(&parent)
+            .and_then(|candidate| candidate.parent_id.clone());
+    }
+    false
+}
+
+fn bounds_contains(outer: &Bounds, inner: &Bounds) -> bool {
+    outer.min.x <= inner.min.x
+        && outer.min.y <= inner.min.y
+        && outer.min.z <= inner.min.z
+        && inner.max.x <= outer.max.x
+        && inner.max.y <= outer.max.y
+        && inner.max.z <= outer.max.z
+}
+
+fn overlap_depth(a: &Bounds, b: &Bounds) -> [f32; 3] {
+    [
+        a.max.x.min(b.max.x) - a.min.x.max(b.min.x),
+        a.max.y.min(b.max.y) - a.min.y.max(b.min.y),
+        a.max.z.min(b.max.z) - a.min.z.max(b.min.z),
+    ]
+}
+
+fn overlap_volume_ratio(a: &Bounds, b: &Bounds, depth: [f32; 3]) -> f32 {
+    let volume = |bounds: &Bounds| {
+        (bounds.max.x - bounds.min.x)
+            * (bounds.max.y - bounds.min.y)
+            * (bounds.max.z - bounds.min.z)
+    };
+    let overlap = depth[0].max(0.0) * depth[1].max(0.0) * depth[2].max(0.0);
+    let larger = volume(a).max(volume(b));
+    if larger <= f32::EPSILON {
+        return f32::INFINITY;
+    }
+    overlap / larger
 }
 
 fn geometry(
