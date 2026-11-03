@@ -280,6 +280,40 @@ pub fn evaluated_scene_bounds(scene: &EvaluatedScene) -> BTreeMap<String, Bounds
     output
 }
 
+/// 把派生节点的 world bounds 按源节点聚合。
+///
+/// 组件实例等源节点的几何分布在派生部件上；`owner_id` 声明归属，取其首个 `/`
+/// 段即源节点 ID。聚合结果即源节点的 world bounds（含所有派生部件）。
+pub fn aggregate_source_bounds(
+    scene: &EvaluatedScene,
+    bounds_by_id: &BTreeMap<String, Bounds>,
+) -> BTreeMap<String, Bounds> {
+    let mut output: BTreeMap<String, Bounds> = BTreeMap::new();
+    for node in &scene.nodes {
+        let Some(bounds) = bounds_by_id.get(node.id.as_str()) else {
+            continue;
+        };
+        let source_id = node
+            .owner_id
+            .split('/')
+            .next()
+            .filter(|candidate| !candidate.is_empty())
+            .unwrap_or(node.owner_id.as_str());
+        output
+            .entry(source_id.to_owned())
+            .and_modify(|current| {
+                current.min.x = current.min.x.min(bounds.min.x);
+                current.min.y = current.min.y.min(bounds.min.y);
+                current.min.z = current.min.z.min(bounds.min.z);
+                current.max.x = current.max.x.max(bounds.max.x);
+                current.max.y = current.max.y.max(bounds.max.y);
+                current.max.z = current.max.z.max(bounds.max.z);
+            })
+            .or_insert(*bounds);
+    }
+    output
+}
+
 pub fn update_transform_only(
     scene: &mut EvaluatedScene,
     node_id: &str,

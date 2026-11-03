@@ -203,6 +203,10 @@ relation type 和当前权限，不返回完整 Node 或 Geometry 集合。
 返回 `{revision, items, nextCursor}`。Cursor 绑定 revision 和 normalized filter；revision
 或 filter 变化后必须重新搜索。
 
+源 scope 的每个条目返回该实体的聚合 world bounds：组件实例与 InstanceSet 的几何
+分布在派生部件上，`bounds` 是全部派生部件世界包围盒的并集；独立 primitive 与
+custom mesh 节点返回自身的求值 bounds。`bounds` filter 对两种 scope 一致生效。
+
 `evaluation.query` 接受 1 至 32 个唯一派生 Node ID。默认返回 vertex/index count、world
 bounds 和 Geometry digest；只有显式请求时才返回 positions/indices。
 
