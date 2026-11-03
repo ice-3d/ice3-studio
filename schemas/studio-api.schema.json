@@ -411,9 +411,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -529,6 +529,46 @@
             "constraintType",
             "nodeIds",
             "metadata"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -2257,6 +2297,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartOverride": {
           "additionalProperties": false,
           "properties": {
@@ -2573,6 +2627,43 @@
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "type": "object"
         },
         "Transform": {
           "properties": {
@@ -3818,9 +3909,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -3936,6 +4027,46 @@
             "constraintType",
             "nodeIds",
             "metadata"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -5842,6 +5973,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartOverride": {
           "additionalProperties": false,
           "properties": {
@@ -6158,6 +6303,43 @@
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "type": "object"
         },
         "Transform": {
           "properties": {
@@ -6597,9 +6779,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -6715,6 +6897,46 @@
             "constraintType",
             "nodeIds",
             "metadata"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -8443,6 +8665,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartOverride": {
           "additionalProperties": false,
           "properties": {
@@ -8759,6 +8995,43 @@
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "type": "object"
         },
         "Transform": {
           "properties": {
@@ -9155,9 +9428,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -9273,6 +9546,46 @@
             "constraintType",
             "nodeIds",
             "metadata"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -11001,6 +11314,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartOverride": {
           "additionalProperties": false,
           "properties": {
@@ -11317,6 +11644,43 @@
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "type": "object"
         },
         "Transform": {
           "properties": {
@@ -11706,9 +12070,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -11784,6 +12148,46 @@
             "constraintType",
             "nodeIds",
             "metadata"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -12852,6 +13256,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartOverride": {
           "additionalProperties": false,
           "properties": {
@@ -13226,6 +13644,43 @@
             "content",
             "metadata",
             "visible"
+          ],
+          "type": "object"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
           ],
           "type": "object"
         },
@@ -13830,9 +14285,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -13948,6 +14403,46 @@
             "constraintType",
             "nodeIds",
             "metadata"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -15676,6 +16171,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartOverride": {
           "additionalProperties": false,
           "properties": {
@@ -15992,6 +16501,43 @@
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "type": "object"
         },
         "Transform": {
           "properties": {
@@ -16424,9 +16970,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -16527,6 +17073,46 @@
             "direction",
             "medium",
             "diameter"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -16864,6 +17450,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartTransform": {
           "additionalProperties": false,
           "properties": {
@@ -16927,6 +17527,43 @@
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "type": "object"
         },
         "TriangleMesh": {
           "properties": {
@@ -17596,9 +18233,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -17674,6 +18311,46 @@
             "constraintType",
             "nodeIds",
             "metadata"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -18673,6 +19350,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartOverride": {
           "additionalProperties": false,
           "properties": {
@@ -19047,6 +19738,43 @@
             "content",
             "metadata",
             "visible"
+          ],
+          "type": "object"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
           ],
           "type": "object"
         },
@@ -19982,9 +20710,9 @@
               ]
             },
             "subtract": {
-              "description": "从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，\n墙上的门窗洞、管道穿墙口都属于这一类。",
+              "description": "从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，\n墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。",
               "items": {
-                "$ref": "#/$defs/BoxCut"
+                "$ref": "#/$defs/PartCut"
               },
               "type": "array"
             },
@@ -20100,6 +20828,46 @@
             "constraintType",
             "nodeIds",
             "metadata"
+          ],
+          "type": "object"
+        },
+        "CylinderCut": {
+          "additionalProperties": false,
+          "description": "圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。",
+          "properties": {
+            "axis": {
+              "default": "z",
+              "description": "圆柱轴线方向：`x`、`y` 或 `z`。",
+              "type": "string"
+            },
+            "height": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "segments": {
+              "default": 32,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius",
+            "height"
           ],
           "type": "object"
         },
@@ -20892,6 +21660,20 @@
             }
           ]
         },
+        "PartCut": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BoxCut"
+            },
+            {
+              "$ref": "#/$defs/CylinderCut"
+            },
+            {
+              "$ref": "#/$defs/SphereCut"
+            }
+          ],
+          "description": "从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`\n字段）继续按 `Box` 解析。"
+        },
         "PartOverride": {
           "additionalProperties": false,
           "properties": {
@@ -21208,6 +21990,43 @@
             }
           ],
           "description": "部件字段：字面量就是普通数字，引用参数写 `{ \"param\": \"name\" }`。"
+        },
+        "SphereCut": {
+          "additionalProperties": false,
+          "description": "球形挖除。",
+          "properties": {
+            "radius": {
+              "$ref": "#/$defs/ScalarBinding"
+            },
+            "rings": {
+              "default": 12,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "segments": {
+              "default": 24,
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "x": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "y": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            },
+            "z": {
+              "$ref": "#/$defs/ScalarBinding",
+              "default": 0.0
+            }
+          },
+          "required": [
+            "radius"
+          ],
+          "type": "object"
         },
         "Transform": {
           "properties": {

@@ -2,7 +2,7 @@ mod support;
 
 use std::collections::BTreeMap;
 use studio_core::large_scene::component::{
-    ComponentPart, PartContent, PartTransform, ScalarBinding,
+    ComponentPart, CylinderCut, PartContent, PartCut, PartTransform, ScalarBinding,
 };
 use studio_core::large_scene::evaluate::evaluate_large_scene;
 use support::shared_pump_document;
@@ -58,4 +58,40 @@ fn extrude_part_evaluates_to_a_prism() {
     let mesh = evaluated.meshes.values().next().expect("one shared mesh");
     assert_eq!(mesh.indices.len() / 3, 12, "square prism has 12 triangles");
     assert_eq!(evaluated.stats.effective_triangles, 24, "two instances");
+}
+
+fn signed_volume(mesh: &studio_core::geometry::EvaluatedMesh) -> f32 {
+    let mut total = 0.0;
+    for triangle in mesh.indices.as_chunks::<3>().0 {
+        let a = mesh.vertices[triangle[0] as usize].position;
+        let b = mesh.vertices[triangle[1] as usize].position;
+        let c = mesh.vertices[triangle[2] as usize].position;
+        total += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+            + a[2] * (b[0] * c[1] - b[1] * c[0]))
+            / 6.0;
+    }
+    total
+}
+
+#[test]
+fn cylinder_cut_removes_material_from_a_box_part() {
+    let mut document = shared_pump_document();
+    document.components[0].parts[0].subtract = vec![PartCut::Cylinder(CylinderCut {
+        radius: ScalarBinding::Literal(0.2),
+        height: ScalarBinding::Literal(3.0),
+        x: ScalarBinding::Literal(0.0),
+        y: ScalarBinding::Literal(0.0),
+        z: ScalarBinding::Literal(0.0),
+        segments: 32,
+        axis: "z".to_string(),
+    })];
+    let evaluated = evaluate_large_scene(&document).unwrap();
+    let mesh = evaluated.meshes.values().next().expect("shared cut mesh");
+    assert!(mesh.indices.len() / 3 > 12, "cut adds cap/wall triangles");
+    // Box is 2 x 1 x 1 = 2; a through hole of radius 0.2 removes ~0.126.
+    assert!(
+        signed_volume(mesh) < 1.95,
+        "volume {} should be below the solid box",
+        signed_volume(mesh)
+    );
 }

@@ -143,6 +143,71 @@ fn zero_scalar() -> ScalarBinding {
     ScalarBinding::Literal(0.0)
 }
 
+/// 从部件几何中减去的实体。使用 untagged 表示，已有的盒体挖除（无 `kind`
+/// 字段）继续按 `Box` 解析。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(untagged)]
+#[ts(export)]
+pub enum PartCut {
+    Box(BoxCut),
+    Cylinder(CylinderCut),
+    Sphere(SphereCut),
+}
+
+/// 圆柱挖除，轴向默认 `z`（穿过拉伸板/墙的孔）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export)]
+pub struct CylinderCut {
+    pub radius: ScalarBinding,
+    pub height: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub x: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub y: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub z: ScalarBinding,
+    #[serde(default = "default_cut_segments")]
+    pub segments: u32,
+    /// 圆柱轴线方向：`x`、`y` 或 `z`。
+    #[serde(default = "default_cut_axis")]
+    pub axis: String,
+}
+
+/// 球形挖除。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export)]
+pub struct SphereCut {
+    pub radius: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub x: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub y: ScalarBinding,
+    #[serde(default = "zero_scalar")]
+    pub z: ScalarBinding,
+    #[serde(default = "default_sphere_segments")]
+    pub segments: u32,
+    #[serde(default = "default_sphere_rings")]
+    pub rings: u32,
+}
+
+fn default_cut_segments() -> u32 {
+    32
+}
+
+fn default_cut_axis() -> String {
+    "z".to_string()
+}
+
+fn default_sphere_segments() -> u32 {
+    24
+}
+
+fn default_sphere_rings() -> u32 {
+    12
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
@@ -154,10 +219,10 @@ pub struct ComponentPart {
     #[serde(default, skip_serializing_if = "PartTransform::is_identity")]
     pub transform: PartTransform,
     pub content: PartContent,
-    /// 从长方体上挖去的区域（相对部件中心）。只支持轴对齐盒相减，
-    /// 墙上的门窗洞、管道穿墙口都属于这一类。
+    /// 从部件几何中挖去的实体（相对部件中心）。支持盒、圆柱、球，
+    /// 墙上的门窗洞、管道穿墙口、设备开孔都属于这一类。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub subtract: Vec<BoxCut>,
+    pub subtract: Vec<PartCut>,
     /// 重复次数。求值时展开成 count 个部件，暴露 `i`（0..count-1）与 `count`。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repeat: Option<u32>,

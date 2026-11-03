@@ -136,6 +136,9 @@
 
 `component` 的 part content 支持 `group`、`box`、`plane`、`cylinder`、`sphere`、
 `customMesh`、`sweep` 与 `extrude`（二维轮廓沿 +Z 拉伸；支持参数/表达式高度）。
+`ComponentPart.subtract` 支持盒、圆柱（`axis` 可选 `x`/`y`/`z`）与球，求值时
+通过 BSP CSG 从任意部件几何中减去（`CsgTooLarge` 上限：底模 60,000 / 切体 20,000 三角形）。
+
 
 `*.patch` 为稀疏字段修改，只提交声明的字段，但仍经过完整校验、diff、幂等和 revision
 冲突检查。操作不能提交路径、URL、shell 命令、脚本或任意表达式。

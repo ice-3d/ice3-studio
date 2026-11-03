@@ -1,3 +1,4 @@
+mod csg;
 mod evaluate;
 mod extrude;
 mod primitives;
@@ -14,6 +15,7 @@ use ts_rs::TS;
 use crate::document::{Document, SceneNode};
 use crate::math::Vec3;
 
+pub use csg::csg_subtract;
 pub use evaluate::evaluate_node_content;
 pub use extrude::extrude_profile;
 
@@ -185,4 +187,8 @@ pub enum GeometryError {
     InvalidSegments,
     #[error("extrusion profile is invalid")]
     InvalidProfile,
+    #[error("CSG operation failed")]
+    CsgFailed,
+    #[error("CSG input exceeds the triangle budget")]
+    CsgTooLarge,
 }

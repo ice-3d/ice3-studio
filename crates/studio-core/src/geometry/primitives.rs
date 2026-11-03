@@ -177,7 +177,7 @@ fn cylinder_mesh(radius: f32, height: f32, segments: u32) -> Result<EvaluatedMes
     }
     for ring in 0..segments {
         let base = ring * 2;
-        indices.extend([base, base + 2, base + 3, base, base + 3, base + 1]);
+        indices.extend([base, base + 3, base + 2, base, base + 1, base + 3]);
     }
     for (y, normal, reverse) in [
         (-half, [0.0, -1.0, 0.0], false),
@@ -257,6 +257,13 @@ fn sphere_mesh(radius: f32, segments: u32, rings: u32) -> Result<EvaluatedMesh, 
                 indices.extend([a, b, a + 1, a + 1, b, b + 1]);
             }
         }
+    }
+    // The UV sphere is generated inward; flip every triangle so the winding is
+    // outward and the enclosed volume is positive (needed by CSG and shadows).
+    let mut triangle = 0;
+    while triangle + 2 < indices.len() {
+        indices.swap(triangle + 1, triangle + 2);
+        triangle += 3;
     }
     Ok(EvaluatedMesh {
         vertices,
