@@ -102,16 +102,25 @@ fn iteration_impact_serializes_with_counts_and_snake_case_reasons() {
 fn component_get_request_serializes_with_camel_case_and_rejects_unknown_fields() {
     let request = ComponentGetParams {
         component_id: "component-000001".into(),
+        include_parts: Some(true),
     };
     let value = serde_json::to_value(&request).unwrap();
     assert_eq!(value["componentId"], "component-000001");
+    assert_eq!(value["includeParts"], true);
     assert!(value.get("component_id").is_none());
 
     let rejected = serde_json::from_value::<ComponentGetParams>(serde_json::json!({
         "componentId": "component-000001",
-        "includeParts": true
+        "includePartsAndPorts": true
     }));
     assert!(rejected.is_err());
+
+    let with_parts = serde_json::from_value::<ComponentGetParams>(serde_json::json!({
+        "componentId": "component-000001",
+        "includeParts": true
+    }));
+    assert!(with_parts.is_ok());
+    assert_eq!(with_parts.unwrap().include_parts, Some(true));
 
     let empty = serde_json::from_value::<ComponentGetParams>(serde_json::json!({
         "componentId": ""
@@ -151,6 +160,7 @@ fn component_get_result_serializes_summary_with_snake_case_part_kinds() {
             instance_count: 4,
             metadata: BTreeMap::new(),
         },
+        definition: None,
     };
     let value = serde_json::to_value(&result).unwrap();
 
@@ -168,6 +178,8 @@ fn component_get_result_serializes_summary_with_snake_case_part_kinds() {
         "component-000002"
     );
     assert_eq!(component["parts"][1]["repeat"], 30);
+    // 摘要模式：definition 键不出现（skip_serializing_if）。
+    assert_eq!(value.get("definition"), None);
 }
 
 #[test]
