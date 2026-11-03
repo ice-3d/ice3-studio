@@ -57,6 +57,7 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_GPU_KERNEL_FAILED` | A native GPU compute kernel failed or returned incomplete output |
 | `ICE3_STUDIO_GPU_DEVICE_LOST` | The native GPU device was lost during derived-geometry evaluation |
 | `ICE3_STUDIO_GPU_PARITY_FAILED` | GPU output failed finite-value, topology, bounds, or CPU parity validation |
+| `ICE3_STUDIO_GEOMETRY_OVERLAP` | Two scene entities overlap in world space (opt-in warning audit; not a transaction failure) |
 
 ## 3. 源导入 CLI 代码
 

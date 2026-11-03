@@ -1211,7 +1211,20 @@ fn dispatch(
             serde_json::to_value(output).map_err(serialize_error)
         }
         "validation.run" => {
-            serde_json::to_value(validate_document(&session.document)).map_err(serialize_error)
+            let params = if request.params.is_null() {
+                serde_json::json!({})
+            } else {
+                request.params.clone()
+            };
+            let request: studio_core::agent_contract::ValidationRunRequest =
+                serde_json::from_value(params).map_err(invalid_params)?;
+            let mut diagnostics = validate_document(&session.document);
+            if request.include_overlaps.unwrap_or(false) {
+                diagnostics.extend(studio_core::validation::validate_overlaps(
+                    &session.document,
+                ));
+            }
+            serde_json::to_value(diagnostics).map_err(serialize_error)
         }
         method
             if matches!(
