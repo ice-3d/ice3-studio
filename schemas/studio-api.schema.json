@@ -2203,6 +2203,36 @@
               "type": "object"
             },
             {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -5758,6 +5788,36 @@
               "type": "object"
             },
             {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -8329,6 +8389,36 @@
               "type": "object"
             },
             {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -10857,6 +10947,36 @@
               "type": "object"
             },
             {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -12674,6 +12794,36 @@
                 "points",
                 "radius",
                 "radialSegments"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
               ],
               "type": "object"
             },
@@ -15472,6 +15622,36 @@
               "type": "object"
             },
             {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -16272,6 +16452,7 @@
             "sphere",
             "custom_mesh",
             "sweep",
+            "extrude",
             "component_reference"
           ],
           "type": "string"
@@ -16625,6 +16806,36 @@
                 "points",
                 "radius",
                 "radialSegments"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
               ],
               "type": "object"
             },
@@ -18404,6 +18615,36 @@
                 "points",
                 "radius",
                 "radialSegments"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
               ],
               "type": "object"
             },
@@ -20593,6 +20834,36 @@
                 "points",
                 "radius",
                 "radialSegments"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A closed 2-D profile in XY extruded along +Z (sketch → prism).",
+              "properties": {
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "extrude",
+                  "type": "string"
+                },
+                "profile": {
+                  "items": {
+                    "items": {
+                      "format": "float",
+                      "type": "number"
+                    },
+                    "maxItems": 2,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "kind",
+                "profile",
+                "height"
               ],
               "type": "object"
             },

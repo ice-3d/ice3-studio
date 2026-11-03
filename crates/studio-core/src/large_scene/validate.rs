@@ -708,6 +708,18 @@ fn validate_part_content(
                 ));
             }
         }
+        PartContent::Extrude { profile, height } => {
+            if !scalar_binding_is_declared(height, parameters) {
+                invalid_binding(diagnostics, "height");
+            }
+            if profile.len() < 3 || profile.iter().flatten().any(|value| !value.is_finite()) {
+                diagnostics.push(component(
+                    definition_id,
+                    pointer.clone(),
+                    "extrude profile must have at least three finite points",
+                ));
+            }
+        }
         PartContent::ComponentReference {
             definition_id: nested,
             parameters: supplied,

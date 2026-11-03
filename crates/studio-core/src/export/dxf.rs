@@ -5,7 +5,7 @@
 
 use std::fmt::Write as _;
 
-use crate::export::step::{buckets_from_scene, StepExportError, StepMeshBucket};
+use crate::export::step::{StepExportError, StepMeshBucket, buckets_from_scene};
 use crate::large_scene::evaluate::EvaluatedScene;
 
 pub fn export_dxf(scene: &EvaluatedScene) -> Result<String, StepExportError> {

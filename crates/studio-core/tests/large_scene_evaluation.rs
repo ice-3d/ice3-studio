@@ -1,7 +1,9 @@
 mod support;
 
 use std::collections::BTreeMap;
-use studio_core::large_scene::component::{ComponentPart, PartContent, PartTransform};
+use studio_core::large_scene::component::{
+    ComponentPart, PartContent, PartTransform, ScalarBinding,
+};
 use studio_core::large_scene::evaluate::evaluate_large_scene;
 use support::shared_pump_document;
 
@@ -43,4 +45,17 @@ fn group_parts_create_hierarchy_without_empty_meshes() {
             .count()
             >= 2
     );
+}
+
+#[test]
+fn extrude_part_evaluates_to_a_prism() {
+    let mut document = shared_pump_document();
+    document.components[0].parts[0].content = PartContent::Extrude {
+        profile: vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+        height: ScalarBinding::Literal(2.0),
+    };
+    let evaluated = evaluate_large_scene(&document).unwrap();
+    let mesh = evaluated.meshes.values().next().expect("one shared mesh");
+    assert_eq!(mesh.indices.len() / 3, 12, "square prism has 12 triangles");
+    assert_eq!(evaluated.stats.effective_triangles, 24, "two instances");
 }

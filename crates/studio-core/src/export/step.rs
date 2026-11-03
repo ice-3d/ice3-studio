@@ -50,7 +50,12 @@ pub fn encode_step(buckets: &[StepMeshBucket], part_name: &str) -> String {
             continue;
         }
         let coords = writer.coordinates_list(&bucket.name, &bucket.positions);
-        let set = writer.triangulated_surface_set(&bucket.name, coords, bucket.positions.len(), &bucket.triangles);
+        let set = writer.triangulated_surface_set(
+            &bucket.name,
+            coords,
+            bucket.positions.len(),
+            &bucket.triangles,
+        );
         items.push(set);
     }
     writer.shape_representation(part_name, &items, None);
@@ -83,10 +88,7 @@ pub fn buckets_from_scene(scene: &EvaluatedScene) -> Vec<StepMeshBucket> {
             )) * MILLIMETRES_PER_METRE;
             positions.push([point.x, point.y, point.z]);
         }
-        let mut triangles = Vec::with_capacity(mesh.indices.len() / 3);
-        for chunk in mesh.indices.chunks_exact(3) {
-            triangles.push([chunk[0], chunk[1], chunk[2]]);
-        }
+        let triangles = mesh.indices.as_chunks::<3>().0.to_vec();
         buckets.push(StepMeshBucket {
             name: node.name.clone(),
             positions,
@@ -106,6 +108,17 @@ pub fn export_step_from_scene(scene: &EvaluatedScene) -> Result<String, StepExpo
 }
 
 /// Phase 2 encoder: units, colours/transparency and instancing.
+/// A non-rigid node baked to world space (millimetres).
+pub(crate) struct BakedMesh {
+    pub name: String,
+    pub positions: Vec<[f32; 3]>,
+    pub triangles: Vec<[u32; 3]>,
+    pub material: Option<String>,
+}
+
+/// Instances grouped by `(mesh, material)` variant.
+type VariantInstances = BTreeMap<(String, Option<String>), Vec<Mat4>>;
+
 pub fn export_step(document: &Document, scene: &EvaluatedScene) -> Result<String, StepExportError> {
     let materials: BTreeMap<&str, &Material> = document
         .materials
@@ -115,9 +128,8 @@ pub fn export_step(document: &Document, scene: &EvaluatedScene) -> Result<String
     let world = world_matrices(scene);
 
     // Nodes grouped by (mesh, material) so shared geometry is written once.
-    let mut variant_instances: BTreeMap<(String, Option<String>), Vec<Mat4>> =
-        BTreeMap::new();
-    let mut baked: Vec<(String, Vec<[f32; 3]>, Vec<[u32; 3]>, Option<String>)> = Vec::new();
+    let mut variant_instances: VariantInstances = BTreeMap::new();
+    let mut baked: Vec<BakedMesh> = Vec::new();
 
     for node in &scene.nodes {
         if !node.visible {
@@ -150,11 +162,13 @@ pub fn export_step(document: &Document, scene: &EvaluatedScene) -> Result<String
                 )) * MILLIMETRES_PER_METRE;
                 positions.push([point.x, point.y, point.z]);
             }
-            let mut triangles = Vec::with_capacity(mesh.indices.len() / 3);
-            for chunk in mesh.indices.chunks_exact(3) {
-                triangles.push([chunk[0], chunk[1], chunk[2]]);
-            }
-            baked.push((node.name.clone(), positions, triangles, material_id));
+            let triangles = mesh.indices.as_chunks::<3>().0.to_vec();
+            baked.push(BakedMesh {
+                name: node.name.clone(),
+                positions,
+                triangles,
+                material: material_id,
+            });
         }
     }
 
@@ -178,13 +192,13 @@ pub fn export_step(document: &Document, scene: &EvaluatedScene) -> Result<String
                 vertex.position[2] * MILLIMETRES_PER_METRE,
             ]);
         }
-        let mut triangles = Vec::with_capacity(mesh.indices.len() / 3);
-        for chunk in mesh.indices.chunks_exact(3) {
-            triangles.push([chunk[0], chunk[1], chunk[2]]);
-        }
+        let triangles = mesh.indices.as_chunks::<3>().0.to_vec();
         let coords = writer.coordinates_list(mesh_key, &positions);
         let set = writer.triangulated_surface_set(mesh_key, coords, positions.len(), &triangles);
-        if let Some(material) = material_id.as_deref().and_then(|id| materials.get(id).copied()) {
+        if let Some(material) = material_id
+            .as_deref()
+            .and_then(|id| materials.get(id).copied())
+        {
             writer.styled_item(set, material.base_color, material.opacity);
         }
         let rep = writer.shape_representation(mesh_key, &[set], Some(context));
@@ -195,10 +209,19 @@ pub fn export_step(document: &Document, scene: &EvaluatedScene) -> Result<String
             root_items.push(writer.mapped_item(map, target));
         }
     }
-    for (name, positions, triangles, material_id) in &baked {
-        let coords = writer.coordinates_list(name, positions);
-        let set = writer.triangulated_surface_set(name, coords, positions.len(), triangles);
-        if let Some(material) = material_id.as_deref().and_then(|id| materials.get(id).copied()) {
+    for baked_mesh in &baked {
+        let coords = writer.coordinates_list(&baked_mesh.name, &baked_mesh.positions);
+        let set = writer.triangulated_surface_set(
+            &baked_mesh.name,
+            coords,
+            baked_mesh.positions.len(),
+            &baked_mesh.triangles,
+        );
+        if let Some(material) = baked_mesh
+            .material
+            .as_deref()
+            .and_then(|id| materials.get(id).copied())
+        {
             writer.styled_item(set, material.base_color, material.opacity);
         }
         root_items.push(set);
@@ -296,13 +319,15 @@ impl StepWriter {
     fn header(&mut self) {
         self.out.push_str("ISO-10303-21;\n");
         self.out.push_str("HEADER;\n");
-        self.out.push_str("FILE_DESCRIPTION(('ICE3 Studio tessellated geometry'),'2;1');\n");
+        self.out
+            .push_str("FILE_DESCRIPTION(('ICE3 Studio tessellated geometry'),'2;1');\n");
         let _ = writeln!(
             self.out,
             "FILE_NAME('{}.step','2026-01-01T00:00:00',(''),(''),'ice3-studio','ice3-studio','');",
             self.root_name
         );
-        self.out.push_str("FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF'));\n");
+        self.out
+            .push_str("FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF'));\n");
         self.out.push_str("ENDSEC;\n");
         self.out.push_str("DATA;\n");
     }
@@ -326,7 +351,12 @@ impl StepWriter {
     fn coordinates_list(&mut self, name: &str, positions: &[[f32; 3]]) -> u64 {
         let id = self.id();
         let mut body = String::with_capacity(32 + positions.len() * 40);
-        let _ = write!(body, "COORDINATES_LIST('{}',{},(", encode_string(name), positions.len());
+        let _ = write!(
+            body,
+            "COORDINATES_LIST('{}',{},(",
+            encode_string(name),
+            positions.len()
+        );
         for (index, position) in positions.iter().enumerate() {
             if index > 0 {
                 body.push(',');
@@ -393,11 +423,17 @@ impl StepWriter {
             ),
         );
         let fill_colour = self.id();
-        self.line(fill_colour, &format!("FILL_AREA_STYLE_COLOUR('',#{colour})"));
+        self.line(
+            fill_colour,
+            &format!("FILL_AREA_STYLE_COLOUR('',#{colour})"),
+        );
         let fill_style = self.id();
         self.line(fill_style, &format!("FILL_AREA_STYLE('',(#{fill_colour}))"));
         let fill_area = self.id();
-        self.line(fill_area, &format!("SURFACE_STYLE_FILL_AREA(#{fill_style})"));
+        self.line(
+            fill_area,
+            &format!("SURFACE_STYLE_FILL_AREA(#{fill_style})"),
+        );
 
         let side_style = if opacity < 1.0 {
             // The fill area carries the colour; a sibling rendering style carries
@@ -406,7 +442,10 @@ impl StepWriter {
             let transparency = self.id();
             self.line(
                 transparency,
-                &format!("SURFACE_STYLE_TRANSPARENT({})", write_real((1.0 - opacity) as f64)),
+                &format!(
+                    "SURFACE_STYLE_TRANSPARENT({})",
+                    write_real((1.0 - opacity) as f64)
+                ),
             );
             let rendering = self.id();
             self.line(
@@ -429,7 +468,10 @@ impl StepWriter {
         let usage = self.id();
         self.line(usage, &format!("SURFACE_STYLE_USAGE(.BOTH.,#{side_style})"));
         let assignment = self.id();
-        self.line(assignment, &format!("PRESENTATION_STYLE_ASSIGNMENT((#{usage}))"));
+        self.line(
+            assignment,
+            &format!("PRESENTATION_STYLE_ASSIGNMENT((#{usage}))"),
+        );
         let styled = self.id();
         self.line(styled, &format!("STYLED_ITEM('',(#{assignment}),#{item})"));
     }
@@ -477,7 +519,10 @@ impl StepWriter {
 
     fn representation_map(&mut self, origin: u64, representation: u64) -> u64 {
         let id = self.id();
-        self.line(id, &format!("REPRESENTATION_MAP(#{origin},#{representation})"));
+        self.line(
+            id,
+            &format!("REPRESENTATION_MAP(#{origin},#{representation})"),
+        );
         id
     }
 

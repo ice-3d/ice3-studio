@@ -20,12 +20,15 @@ use glam::{Mat4, Vec3};
 
 use crate::document::{Document, Material};
 use crate::export::step::{
-    encode_string, is_rigid, placement_from_matrix, world_matrices, StepExportError,
-    MILLIMETRES_PER_METRE,
+    BakedMesh, MILLIMETRES_PER_METRE, StepExportError, encode_string, is_rigid,
+    placement_from_matrix, world_matrices,
 };
 use crate::large_scene::evaluate::EvaluatedScene;
 
 /// Encode an evaluated scene as an IFC4X3 tessellated model.
+/// Instances grouped by `(mesh, material)` variant.
+type IfcVariants = BTreeMap<(String, Option<String>), Vec<(String, Mat4)>>;
+
 pub fn export_ifc(document: &Document, scene: &EvaluatedScene) -> Result<String, StepExportError> {
     let materials: BTreeMap<&str, &Material> = document
         .materials
@@ -35,9 +38,9 @@ pub fn export_ifc(document: &Document, scene: &EvaluatedScene) -> Result<String,
     let world = world_matrices(scene);
 
     // Rigid nodes grouped by (mesh, material) so shared geometry is written once.
-    let mut variants: BTreeMap<(String, Option<String>), Vec<(String, Mat4)>> = BTreeMap::new();
+    let mut variants: IfcVariants = BTreeMap::new();
     // Non-rigid nodes are baked to world space and get their own body.
-    let mut baked: Vec<(String, Vec<[f32; 3]>, Vec<[u32; 3]>, Option<String>)> = Vec::new();
+    let mut baked: Vec<BakedMesh> = Vec::new();
 
     for node in &scene.nodes {
         if !node.visible {
@@ -68,11 +71,13 @@ pub fn export_ifc(document: &Document, scene: &EvaluatedScene) -> Result<String,
                 )) * MILLIMETRES_PER_METRE;
                 positions.push([point.x, point.y, point.z]);
             }
-            let mut triangles = Vec::with_capacity(mesh.indices.len() / 3);
-            for chunk in mesh.indices.chunks_exact(3) {
-                triangles.push([chunk[0], chunk[1], chunk[2]]);
-            }
-            baked.push((node.name.clone(), positions, triangles, material_id));
+            let triangles = mesh.indices.as_chunks::<3>().0.to_vec();
+            baked.push(BakedMesh {
+                name: node.name.clone(),
+                positions,
+                triangles,
+                material: material_id,
+            });
         }
     }
 
@@ -148,12 +153,12 @@ pub fn export_ifc(document: &Document, scene: &EvaluatedScene) -> Result<String,
                 vertex.position[2] * MILLIMETRES_PER_METRE,
             ]);
         }
-        let mut triangles = Vec::with_capacity(mesh.indices.len() / 3);
-        for chunk in mesh.indices.chunks_exact(3) {
-            triangles.push([chunk[0], chunk[1], chunk[2]]);
-        }
+        let triangles = mesh.indices.as_chunks::<3>().0.to_vec();
         let face_set = writer.body(&positions, &triangles);
-        if let Some(material) = material_id.as_deref().and_then(|id| materials.get(id).copied()) {
+        if let Some(material) = material_id
+            .as_deref()
+            .and_then(|id| materials.get(id).copied())
+        {
             writer.style(face_set, material.base_color, material.opacity);
         }
         let pds = writer.product_shape(face_set, context);
@@ -162,14 +167,18 @@ pub fn export_ifc(document: &Document, scene: &EvaluatedScene) -> Result<String,
             products.push((name.clone(), placement, pds));
         }
     }
-    for (name, positions, triangles, material_id) in &baked {
-        let face_set = writer.body(positions, triangles);
-        if let Some(material) = material_id.as_deref().and_then(|id| materials.get(id).copied()) {
+    for baked_mesh in &baked {
+        let face_set = writer.body(&baked_mesh.positions, &baked_mesh.triangles);
+        if let Some(material) = baked_mesh
+            .material
+            .as_deref()
+            .and_then(|id| materials.get(id).copied())
+        {
             writer.style(face_set, material.base_color, material.opacity);
         }
         let pds = writer.product_shape(face_set, context);
         let placement = writer.local_placement(identity_placement);
-        products.push((name.clone(), placement, pds));
+        products.push((baked_mesh.name.clone(), placement, pds));
     }
 
     for (name, placement, pds) in &products {
@@ -202,7 +211,11 @@ struct IfcWriter {
 
 impl IfcWriter {
     fn new() -> Self {
-        Self { out: String::new(), next: 1, seed: 1 }
+        Self {
+            out: String::new(),
+            next: 1,
+            seed: 1,
+        }
     }
 
     fn id(&mut self) -> u64 {
@@ -218,7 +231,8 @@ impl IfcWriter {
     fn header(&mut self) {
         self.out.push_str("ISO-10303-21;\n");
         self.out.push_str("HEADER;\n");
-        self.out.push_str("FILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');\n");
+        self.out
+            .push_str("FILE_DESCRIPTION(('ViewDefinition [ReferenceView_V1.2]'),'2;1');\n");
         self.out.push_str(
             "FILE_NAME('ice3-scene.ifc','2026-01-01T00:00:00',(''),(''),'ice3-studio','ice3-studio','');\n",
         );
@@ -267,7 +281,9 @@ impl IfcWriter {
 
     fn axis_placement(&mut self, location: u64, axis: Option<u64>, reference: Option<u64>) -> u64 {
         let id = self.id();
-        let axis_text = axis.map(|value| format!("#{value}")).unwrap_or_else(|| "$".to_string());
+        let axis_text = axis
+            .map(|value| format!("#{value}"))
+            .unwrap_or_else(|| "$".to_string());
         let reference_text = reference
             .map(|value| format!("#{value}"))
             .unwrap_or_else(|| "$".to_string());
@@ -343,9 +359,7 @@ impl IfcWriter {
         let representation = self.id();
         self.line(
             representation,
-            &format!(
-                "IFCSHAPEREPRESENTATION(#{context},'Body','Tessellation',(#{face_set}))"
-            ),
+            &format!("IFCSHAPEREPRESENTATION(#{context},'Body','Tessellation',(#{face_set}))"),
         );
         let pds = self.id();
         self.line(
@@ -411,9 +425,7 @@ impl IfcWriter {
         }
         self.line(
             id,
-            &format!(
-                "IFCRELCONTAINEDINSPATIALSTRUCTURE('{guid}',$,$,$,({refs}),#{structure})"
-            ),
+            &format!("IFCRELCONTAINEDINSPATIALSTRUCTURE('{guid}',$,$,$,({refs}),#{structure})"),
         );
     }
 }

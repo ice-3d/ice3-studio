@@ -1,4 +1,5 @@
 mod evaluate;
+mod extrude;
 mod primitives;
 mod sweep;
 
@@ -14,6 +15,7 @@ use crate::document::{Document, SceneNode};
 use crate::math::Vec3;
 
 pub use evaluate::evaluate_node_content;
+pub use extrude::extrude_profile;
 
 pub fn world_bounds(
     document: &Document,
@@ -181,4 +183,6 @@ pub enum GeometryError {
     InvalidSweep,
     #[error("primitive segment counts are outside the supported range")]
     InvalidSegments,
+    #[error("extrusion profile is invalid")]
+    InvalidProfile,
 }

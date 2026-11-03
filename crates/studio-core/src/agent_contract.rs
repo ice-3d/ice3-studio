@@ -340,6 +340,7 @@ pub enum ComponentPartKind {
     Sphere,
     CustomMesh,
     Sweep,
+    Extrude,
     ComponentReference,
 }
 

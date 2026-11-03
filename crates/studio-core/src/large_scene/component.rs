@@ -259,6 +259,11 @@ pub enum PartContent {
         radius: ScalarBinding,
         radial_segments: u32,
     },
+    /// A closed 2-D profile in XY extruded along +Z (sketch → prism).
+    Extrude {
+        profile: Vec<[f32; 2]>,
+        height: ScalarBinding,
+    },
     ComponentReference {
         definition_id: ComponentId,
         parameters: BTreeMap<String, ParameterValue>,

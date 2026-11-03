@@ -262,10 +262,7 @@ fn require_writable_output(
     Ok(())
 }
 
-fn write_output(
-    output: &std::path::Path,
-    bytes: &[u8],
-) -> Result<(), Box<dyn std::error::Error>> {
+fn write_output(output: &std::path::Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(parent) = output.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -492,11 +489,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 force,
             } => {
                 if output.exists() && !force {
-                    return Err(format!(
-                        "ICE3_STUDIO_ASSET_OUTPUT_EXISTS: {}",
-                        output.display()
-                    )
-                    .into());
+                    return Err(
+                        format!("ICE3_STUDIO_ASSET_OUTPUT_EXISTS: {}", output.display()).into(),
+                    );
                 }
                 let project_id = project
                     .file_name()

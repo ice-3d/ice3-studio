@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 
 use glam::Vec3;
 
-use crate::export::step::{buckets_from_scene, StepExportError, StepMeshBucket};
+use crate::export::step::{StepExportError, StepMeshBucket, buckets_from_scene};
 use crate::large_scene::evaluate::EvaluatedScene;
 
 /// Binary STL: 80-byte header, u32 triangle count, then 50 bytes per triangle.

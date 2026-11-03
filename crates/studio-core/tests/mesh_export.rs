@@ -16,14 +16,24 @@ fn cube() -> StepMeshBucket {
         }
     }
     let triangles = vec![
-        [0, 1, 3], [0, 3, 2],
-        [4, 6, 7], [4, 7, 5],
-        [0, 4, 5], [0, 5, 1],
-        [2, 3, 7], [2, 7, 6],
-        [0, 2, 6], [0, 6, 4],
-        [1, 5, 7], [1, 7, 3],
+        [0, 1, 3],
+        [0, 3, 2],
+        [4, 6, 7],
+        [4, 7, 5],
+        [0, 4, 5],
+        [0, 5, 1],
+        [2, 3, 7],
+        [2, 7, 6],
+        [0, 2, 6],
+        [0, 6, 4],
+        [1, 5, 7],
+        [1, 7, 3],
     ];
-    StepMeshBucket { name: "cube".to_string(), positions, triangles }
+    StepMeshBucket {
+        name: "cube".to_string(),
+        positions,
+        triangles,
+    }
 }
 
 fn empty_scene() -> EvaluatedScene {
@@ -47,14 +57,20 @@ fn binary_stl_header_and_triangle_count() {
     let ny = f32::from_le_bytes(bytes[88..92].try_into().unwrap());
     let nz = f32::from_le_bytes(bytes[92..96].try_into().unwrap());
     let length = (nx * nx + ny * ny + nz * nz).sqrt();
-    assert!((length - 1.0).abs() < 1e-3, "normal is unit length, got {length}");
+    assert!(
+        (length - 1.0).abs() < 1e-3,
+        "normal is unit length, got {length}"
+    );
 }
 
 #[test]
 fn obj_emits_one_object_vertices_and_faces() {
     let obj = write_obj(&[cube()]);
     assert_eq!(obj.lines().filter(|line| line.starts_with("v ")).count(), 8);
-    assert_eq!(obj.lines().filter(|line| line.starts_with("f ")).count(), 12);
+    assert_eq!(
+        obj.lines().filter(|line| line.starts_with("f ")).count(),
+        12
+    );
     assert_eq!(obj.lines().filter(|line| line.starts_with("o ")).count(), 1);
     assert!(obj.contains("o cube"));
 }
@@ -62,6 +78,9 @@ fn obj_emits_one_object_vertices_and_faces() {
 #[test]
 fn empty_scene_is_rejected() {
     let scene = empty_scene();
-    assert!(matches!(export_binary_stl(&scene), Err(StepExportError::Empty)));
+    assert!(matches!(
+        export_binary_stl(&scene),
+        Err(StepExportError::Empty)
+    ));
     assert!(matches!(export_obj(&scene), Err(StepExportError::Empty)));
 }

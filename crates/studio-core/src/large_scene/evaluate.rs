@@ -931,6 +931,9 @@ fn resolve_part_content(
             radius: resolve_scalar(radius, parameters)?,
             radial_segments: *radial_segments,
         },
+        PartContent::Extrude { profile, height } => NodeContent::CustomMesh(
+            crate::geometry::extrude_profile(profile, resolve_scalar(height, parameters)?)?,
+        ),
         PartContent::ComponentReference { .. } => NodeContent::Group,
     })
 }

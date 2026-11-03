@@ -14,16 +14,33 @@ use studio_core::math::{Transform, Vec3};
 fn triangle_mesh() -> EvaluatedMesh {
     EvaluatedMesh {
         vertices: vec![
-            Vertex { position: [0.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
-            Vertex { position: [1.0, 0.0, 0.0], normal: [0.0, 0.0, 1.0] },
-            Vertex { position: [0.0, 1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+            Vertex {
+                position: [0.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [1.0, 0.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [0.0, 1.0, 0.0],
+                normal: [0.0, 0.0, 1.0],
+            },
         ],
         indices: vec![0, 1, 2],
-        bounds: Bounds { min: Vec3::default(), max: Vec3::default() },
+        bounds: Bounds {
+            min: Vec3::default(),
+            max: Vec3::default(),
+        },
     }
 }
 
-fn instance_node(id: &str, name: &str, x: f32, material: Option<&MaterialId>) -> EvaluatedSceneNode {
+fn instance_node(
+    id: &str,
+    name: &str,
+    x: f32,
+    material: Option<&MaterialId>,
+) -> EvaluatedSceneNode {
     EvaluatedSceneNode {
         id: id.to_string(),
         owner_id: id.to_string(),
@@ -99,7 +116,11 @@ fn ifc_round_trips_spatial_styles_unicode_and_geometry() {
     let storeys = model.aggregated_children(buildings[0]);
     assert_eq!(storeys.len(), 1, "building aggregates one storey");
     let contained = model.contained_elements(storeys[0]);
-    assert_eq!(contained.len(), 2, "both products are contained in the storey");
+    assert_eq!(
+        contained.len(),
+        2,
+        "both products are contained in the storey"
+    );
 
     // Unicode name survives the `\X2\` encoding round trip.
     let mut names = Vec::new();
@@ -130,7 +151,10 @@ fn empty_scene_is_rejected() {
         resident_geometry_ids: BTreeMap::new(),
         stats: LargeSceneStats::default(),
     };
-    assert!(matches!(export_ifc(&document, &scene), Err(StepExportError::Empty)));
+    assert!(matches!(
+        export_ifc(&document, &scene),
+        Err(StepExportError::Empty)
+    ));
 }
 
 /// Opt-in: parse a real exported IFC file when `STUDIO_IFC_SAMPLE` points at one.
