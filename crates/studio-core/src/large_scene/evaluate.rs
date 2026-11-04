@@ -928,6 +928,19 @@ fn resolve_part_content(
         PartContent::Extrude { profile, height } => NodeContent::CustomMesh(
             crate::geometry::extrude_profile(profile, resolve_scalar(height, parameters)?)?,
         ),
+        PartContent::RoundedBox {
+            width,
+            height,
+            depth,
+            radius,
+            segments,
+        } => NodeContent::CustomMesh(crate::geometry::rounded_box(
+            resolve_scalar(width, parameters)?,
+            resolve_scalar(height, parameters)?,
+            resolve_scalar(depth, parameters)?,
+            resolve_scalar(radius, parameters)?,
+            *segments,
+        )?),
         PartContent::ComponentReference { .. } => NodeContent::Group,
     })
 }

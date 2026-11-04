@@ -2276,6 +2276,41 @@
               "type": "object"
             },
             {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -6181,6 +6216,41 @@
               "type": "object"
             },
             {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -8873,6 +8943,41 @@
               "type": "object"
             },
             {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -11522,6 +11627,41 @@
               "type": "object"
             },
             {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -13460,6 +13600,41 @@
                 "kind",
                 "profile",
                 "height"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
               ],
               "type": "object"
             },
@@ -16379,6 +16554,41 @@
               "type": "object"
             },
             {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
+              ],
+              "type": "object"
+            },
+            {
               "properties": {
                 "definitionId": {
                   "type": "string"
@@ -17443,6 +17653,7 @@
             "custom_mesh",
             "sweep",
             "extrude",
+            "rounded_box",
             "component_reference"
           ],
           "type": "string"
@@ -17866,6 +18077,41 @@
                 "kind",
                 "profile",
                 "height"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
               ],
               "type": "object"
             },
@@ -19766,6 +20012,41 @@
                 "kind",
                 "profile",
                 "height"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
               ],
               "type": "object"
             },
@@ -22198,6 +22479,41 @@
                 "kind",
                 "profile",
                 "height"
+              ],
+              "type": "object"
+            },
+            {
+              "description": "A box whose 12 edges are rounded with `radius`, or bevelled when\n`segments` is 1.",
+              "properties": {
+                "depth": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "height": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "kind": {
+                  "const": "rounded_box",
+                  "type": "string"
+                },
+                "radius": {
+                  "$ref": "#/$defs/ScalarBinding"
+                },
+                "segments": {
+                  "default": 4,
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "width": {
+                  "$ref": "#/$defs/ScalarBinding"
+                }
+              },
+              "required": [
+                "kind",
+                "width",
+                "height",
+                "depth",
+                "radius"
               ],
               "type": "object"
             },

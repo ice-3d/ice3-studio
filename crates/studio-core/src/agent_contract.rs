@@ -342,6 +342,7 @@ pub enum ComponentPartKind {
     CustomMesh,
     Sweep,
     Extrude,
+    RoundedBox,
     ComponentReference,
 }
 

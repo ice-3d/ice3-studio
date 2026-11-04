@@ -256,6 +256,10 @@ pub struct PartTransform {
     pub scale: Vector3Binding,
 }
 
+fn default_rounding_segments() -> u32 {
+    4
+}
+
 fn zero_vector() -> Vector3Binding {
     Vector3Binding::Literal(Vec3::default())
 }
@@ -328,6 +332,16 @@ pub enum PartContent {
     Extrude {
         profile: Vec<[f32; 2]>,
         height: ScalarBinding,
+    },
+    /// A box whose 12 edges are rounded with `radius`, or bevelled when
+    /// `segments` is 1.
+    RoundedBox {
+        width: ScalarBinding,
+        height: ScalarBinding,
+        depth: ScalarBinding,
+        radius: ScalarBinding,
+        #[serde(default = "default_rounding_segments")]
+        segments: u32,
     },
     ComponentReference {
         definition_id: ComponentId,

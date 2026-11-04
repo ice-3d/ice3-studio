@@ -709,6 +709,7 @@ fn part_kind(content: &PartContent) -> ComponentPartKind {
         PartContent::CustomMesh { .. } => ComponentPartKind::CustomMesh,
         PartContent::Sweep { .. } => ComponentPartKind::Sweep,
         PartContent::Extrude { .. } => ComponentPartKind::Extrude,
+        PartContent::RoundedBox { .. } => ComponentPartKind::RoundedBox,
         PartContent::ComponentReference { .. } => ComponentPartKind::ComponentReference,
     }
 }

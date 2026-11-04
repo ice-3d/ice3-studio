@@ -3,6 +3,7 @@ mod csg;
 mod evaluate;
 mod extrude;
 mod primitives;
+mod rounded;
 mod sweep;
 
 use std::collections::HashSet;
@@ -20,6 +21,7 @@ pub use clash::{CLASH_EPSILON, meshes_intersect, signed_gap, sweep_pairs, within
 pub use csg::csg_subtract;
 pub use evaluate::evaluate_node_content;
 pub use extrude::extrude_profile;
+pub use rounded::{MAX_ROUNDED_SEGMENTS, rounded_box};
 
 pub fn world_bounds(
     document: &Document,

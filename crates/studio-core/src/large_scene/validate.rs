@@ -720,6 +720,31 @@ fn validate_part_content(
                 ));
             }
         }
+        PartContent::RoundedBox {
+            width,
+            height,
+            depth,
+            radius,
+            segments,
+        } => {
+            for (name, binding) in [
+                ("width", width),
+                ("height", height),
+                ("depth", depth),
+                ("radius", radius),
+            ] {
+                if !scalar_binding_is_declared(binding, parameters) {
+                    invalid_binding(diagnostics, name);
+                }
+            }
+            if !(1..=crate::geometry::MAX_ROUNDED_SEGMENTS).contains(segments) {
+                diagnostics.push(component(
+                    definition_id,
+                    format!("{pointer}/segments"),
+                    "rounded box segment count is outside the supported range",
+                ));
+            }
+        }
         PartContent::ComponentReference {
             definition_id: nested,
             parameters: supplied,
