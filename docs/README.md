@@ -35,6 +35,8 @@
 | `ICE3-STUDIO-REF-005` | [资产流水线](reference/asset-pipeline.md) | Implemented | Source Import 到 Prepared GLB、Tileset 和 Agent 交付的当前生产链 |
 | `ICE3-STUDIO-ADR-001` | [Document 作为真源](decisions/0001-document-as-source-of-truth.md) | Implemented | Document 与派生 Geometry 的决策 |
 | `ICE3-STUDIO-ADR-002` | [本地 API 边界](decisions/0002-local-api-boundary.md) | Implemented | 本地 API 与 Viewer 边界决策 |
+| `ICE3-STUDIO-ADR-003` | [Operation wire format 统一](decisions/0003-wire-format-camel-case.md) | Implemented | camelCase 单一输出、历史 snake_case 别名双读 |
+| `ICE3-STUDIO-ADR-004` | [NodeContent 字段统一](decisions/0004-node-content-camel-case.md) | Implemented | 与 PartContent 对齐，`radial_segments` 别名双读 |
 | `ICE3-STUDIO-NOTICE-001` | [第三方声明](../THIRD_PARTY_NOTICES.md) | Active | Source Import、converter containment 与许可证披露 |
 
 ## 4. 设计规格
@@ -53,7 +55,7 @@
 | `ICE3-STUDIO-SPEC-010` | [Agent Iteration Impact Analysis](specs/2026-10-31-agent-iteration-impact-design.md) | Historical | 局部影响、几何重建与缓存复用的已完成设计记录 |
 | `ICE3-STUDIO-SPEC-011` | [Large Reference Asset Editing](specs/2026-10-31-large-reference-assets-design.md) | Historical | 外部大型资产、轻量绑定和流式预览的已完成设计记录 |
 | `ICE3-STUDIO-SPEC-012` | [工程评审级污水处理厂资产](specs/2026-11-01-realistic-wastewater-plant-asset-design.md) | Historical | 默认污水厂资产的已完成设计记录 |
-| `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Approved | 工艺拓扑、连续弯头、防扭转扫掠和功能配色；碰撞与支吊架校验仍待补 |
+| `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Approved | 工艺拓扑、连续弯头、防扭转扫掠和功能配色；碰撞校验已由 SPEC-030 交付，支吊架校验仍待补 |
 | `ICE3-STUDIO-SPEC-014` | [Agent 主导的 Studio 工作台](specs/2026-11-01-agent-led-workbench-design.md) | Implemented | Agent 默认入口、工作上下文、实体 Selection 和人工接手 |
 | `ICE3-STUDIO-SPEC-015` | [Studio Runtime Tileset 导出](specs/2026-11-01-studio-runtime-tileset-export-design.md) | Deprecated | 由 Studio 原生 Asset Pipeline 取代的 Sidecar 方案 |
 | `ICE3-STUDIO-SPEC-016` | [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md) | Implemented | Source Import、Asset、Partition、LOD 和 Tileset 已全部迁入 Studio |
@@ -63,6 +65,16 @@
 | `ICE3-STUDIO-SPEC-020` | [Agent 组件定义内省](specs/2026-11-03-agent-component-introspection-design.md) | Implemented | `component.get` 有界读：参数 schema、端口清单与部件摘要 |
 | `ICE3-STUDIO-SPEC-021` | [场景空间重叠审计](specs/2026-11-03-scene-overlap-audit-design.md) | Implemented | `validation.run` 可选全局重叠 warning：连接/薄板/嵌套排除，重合上报 |
 | `ICE3-STUDIO-SPEC-022` | [Agent 视觉自检截图通道](specs/2026-11-03-agent-screenshot-design.md) | Implemented | 工具层 Chrome 截图：任意机位、自起 server、非 RPC 形态决策 |
+| `ICE3-STUDIO-SPEC-023` | [CAD/BIM 回写（Export）](specs/2026-11-03-cad-bim-export-design.md) | Implemented | STEP AP242 / IFC4X3 / STL / OBJ / DXF 导出；B-rep、参数化回写与图纸为明确非目标 |
+| `ICE3-STUDIO-SPEC-024` | [草图拉伸（Extrude）](specs/2026-11-03-sketch-extrude-design.md) | Implemented | 二维闭合轮廓耳切三角化后沿 +Z 拉伸；内环、旋转体、放样非目标 |
+| `ICE3-STUDIO-SPEC-025` | [布尔挖除（Boolean Cuts）](specs/2026-11-03-boolean-cuts-design.md) | Implemented | 盒/圆柱/球对任意部件几何做 BSP CSG 减除；并集与交集非目标 |
+| `ICE3-STUDIO-SPEC-026` | [测量（Measurement）](specs/2026-11-03-measurement-design.md) | Implemented | 双选节点或世界点的距离、轴向差与表面间隙 |
+| `ICE3-STUDIO-SPEC-027` | [剖切面（Section Plane）](specs/2026-11-03-section-plane-design.md) | Implemented | 水平剖切开关与高度滑块；任意方向剖切与封口非目标 |
+| `ICE3-STUDIO-SPEC-028` | [爆炸视图（Exploded View）](specs/2026-11-03-exploded-view-design.md) | Implemented | 按原始局部矩阵重算的爆炸强度，可用 URL 预置 |
+| `ICE3-STUDIO-SPEC-029` | [工程量清单（BOM）](specs/2026-11-03-bill-of-materials-design.md) | Implemented | 按组件、材质、owner 或 metadata 键聚合；不含计价与下料 |
+| `ICE3-STUDIO-SPEC-030` | [干涉与净空检测](specs/2026-11-03-clash-detection-design.md) | Implemented | 按严重度排序的干涉对与净空违规，可选三角窄相位 |
+| `ICE3-STUDIO-SPEC-031` | [圆角与倒角（Fillet / Chamfer）](specs/2026-11-03-fillet-chamfer-design.md) | Implemented | 盒体 12 边倒角与圆角；任意 B-rep 圆角非目标 |
+| `ICE3-STUDIO-SPEC-032` | [材质表面、UV 与 PBR 导出](specs/2026-11-04-material-pbr-uv-design.md) | Implemented | 底色/法线/ORM 打包贴图与 uvScale，对齐 glTF metallic-roughness |
 
 ## 5. 实施计划
 

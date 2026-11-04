@@ -17,6 +17,7 @@
     "asset:visual-review": "node scripts/wastewater-visual-review.mjs",
     "asset:capabilities": "node scripts/wastewater-capability-report.mjs",
     "fixture:large-industrial": "node scripts/run-large-industrial-fixture.mjs",
+    "docs:check": "node scripts/check-docs.mjs",
     "verify": "node scripts/verify.mjs"
   }
 }

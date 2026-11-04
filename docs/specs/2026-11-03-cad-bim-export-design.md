@@ -2,16 +2,20 @@
 
 > Document ID: ICE3-STUDIO-SPEC-023
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
-> **阶段状态：** Phase 1–3b 已实现（STEP/IFC/STL/OBJ/DXF，均经往返校验或结构校验）。
+> **阶段状态：** Phase 1–3b 已实现并交付（STEP/IFC/STL/OBJ/DXF，均经往返校验或结构校验），
+> 当前能力登记在 [能力清单](../reference/capabilities.md) §6.4。
+>
+> **仍为非目标：** B-rep 实体建模、STEP 参数化特征回写、图纸与标注生成。这些不是"待补的
+> 交付项"，而是本设计明确划出的范围外能力。
 
 ## 1. 背景与目标
 
-Studio 目前只能导入 STEP/IFC/JT 等源资产，产出只有 source GLB 与 Runtime Tileset，
-**无法把建模结果回写到下游 CAD/BIM**，交付链路是断的。本设计补齐"导出"方向，
+本设计提出时，Studio 只能导入 STEP/IFC/JT 等源资产，产出只有 source GLB 与 Runtime
+Tileset，**无法把建模结果回写到下游 CAD/BIM**，交付链路是断的。本设计补齐"导出"方向，
 让 `Document → evaluate → 文件` 这条链路对 CAD/BIM 格式成立。
 
 非目标（本设计不做）：B-rep 实体建模、STEP 参数化特征回写、图纸/标注生成。

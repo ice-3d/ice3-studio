@@ -115,6 +115,11 @@ const steps = [
     env: { STUDIO_CLI_BIN: studioCli },
   },
   {
+    label: 'Documentation contract',
+    command: 'node',
+    args: ['scripts/check-docs.mjs'],
+  },
+  {
     label: 'Generated schemas',
     command: 'cargo',
     args: [

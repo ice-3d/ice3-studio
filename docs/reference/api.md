@@ -9,7 +9,9 @@
 Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
 路径；所有修改都必须进入事务或 ChangeSet。
 
-`API_VERSION` 当前保持 `1.0`。项目仍处于 pre-release。历史 API 曾包含
+`API_VERSION` 当前为 `1.1`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
+读回显从 snake_case 变为 camelCase（见 [ADR-003](../decisions/0003-wire-format-camel-case.md)）。
+历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`，客户端必须按当前 generated schema 解析 capabilities。该形状变化
 不承诺向后兼容，不能把 `1.0` 当作兼容性承诺。
@@ -129,9 +131,10 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | Relation | `relation.create`、`relation.update`、`relation.delete` |
 | Constraint | `constraint.upsert`、`constraint.delete` |
 
-`*.patch` 只修改显式字段，但仍执行完整校验、diff、幂等和 revision 冲突检查。传统
-Operation variant 顶层字段使用 snake_case（例如 `node_id`、`material_id`）；`*.patch`
-payload 和返回的 Document 使用 camelCase（例如 `nodeId`、`setParameters`）。
+`*.patch` 只修改显式字段，但仍执行完整校验、diff、幂等和 revision 冲突检查。所有
+operation 字段与 Document 均使用 camelCase（例如 `nodeId`、`materialId`、
+`setParameters`）。历史 snake_case 拼写（`node_id`、`material_id`）仍被接受，但会在
+0.2.0 之后的下一个 minor 移除，新调用方不应再发送。
 
 ## 6. Component 与参数
 
@@ -171,11 +174,11 @@ Part scalar 和 vector 字面量同样直接写值：
 ```json
 {
   "type": "material.upsert",
-  "material_id": "material-000001",
+  "materialId": "material-000001",
   "name": "Process water",
-  "base_color": [0.24, 0.52, 0.62, 1.0],
+  "baseColor": [0.24, 0.52, 0.62, 1.0],
   "opacity": 0.72,
-  "edge_color": null,
+  "edgeColor": null,
   "shading": "water"
 }
 ```

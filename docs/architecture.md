@@ -196,8 +196,8 @@ Preview packet 只有在 host 明确开启时发布。客户端验证完整 pack
 buffer，失败时回退到 canonical GLB。GPU scene visibility 也提供 CPU fallback；GPU
 handle、device generation 和 buffer slot 不能泄漏为公共 object identity。
 
-静态 Schema 固化 37 个 JSON-RPC 方法；运行中的 Server 另外公布
-`evaluation.waitScene` 和 `evaluation.visibleInstances`，共 39 个方法。后者属于实验性
+静态 Schema 固化 39 个 JSON-RPC 方法；运行中的 Server 另外公布
+`evaluation.waitScene` 和 `evaluation.visibleInstances`，共 41 个方法。后者属于实验性
 能力，调用前应读取 `system.capabilities`。
 
 ## 5. Agent capability
@@ -239,7 +239,9 @@ Studio 启动时扫描 `projects/*/project.json`，默认加载修改时间最�
 
 以下能力在产品范围但尚未交付：
 
-- Boolean geometry，包括 cut、union 和 intersect。
+- Boolean union 与 intersect，以及任意网格之间的布尔运算。凸体减除已交付：
+  `ComponentPart.subtract` 支持盒、圆柱、球对任意部件几何做 BSP CSG 挖除
+  （见 [能力清单](reference/capabilities.md) §3），但只有"减去凸体"这一种形态。
 - Free-form curve 与 curve-driven sweep。
 - Sculpting 和有机网格编辑。
 - 协作编辑与并发多用户 session。

@@ -30,8 +30,8 @@ npm run dev          # 自动选 projects/ 里最新的工程，打印 Viewer UR
 
 `Ctrl+C` 停止。只想跑契约测试用的小工程：`npm run dev:mini`。
 
-提交前跑全量门禁（30 道，含 fmt / clippy / 测试 / Engine+prepare parity / schema /
-fixture / viewer / E2E / 依赖审计）：
+提交前跑全量门禁（32 道，含 fmt / clippy / 测试 / Engine+prepare parity / schema /
+文档契约 / fixture / viewer / E2E / 依赖审计）：
 
 ```bash
 npm run verify
@@ -183,8 +183,10 @@ preview packet、GPU scene session 一交付即实验、默认关闭，`auto` �
 
 ## 9. 边界与缺口
 
-**产品范围内尚未实现**（待补齐，不是范围外决定）：布尔几何（开孔、管道穿插）、自由曲线
-与曲线驱动 sweep、雕刻与有机网格编辑、协作编辑、云租户与远程部署、跨项目 GPU 缓冲持久化。
+**产品范围内尚未实现**（待补齐，不是范围外决定）：布尔并集与交集、任意网格之间的布尔运算、
+自由曲线与曲线驱动 sweep、雕刻与有机网格编辑、协作编辑、云租户与远程部署、跨项目 GPU
+缓冲持久化。凸体布尔减除（盒/圆柱/球开孔）已交付，见
+[能力清单](docs/reference/capabilities.md) §3。
 清单与理由见 [Architecture](docs/architecture.md) 的 Not Yet Implemented。
 
 生产路径不依赖 Toolchain、Node Asset Runtime 或 Blender；Sidecar 与旧 repository 的
