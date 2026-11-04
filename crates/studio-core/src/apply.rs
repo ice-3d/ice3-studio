@@ -419,6 +419,7 @@ fn apply_operation(
             opacity,
             edge_color,
             shading,
+            surface,
         } => {
             let material = Material {
                 id: material_id.clone(),
@@ -427,6 +428,7 @@ fn apply_operation(
                 opacity,
                 edge_color,
                 shading,
+                surface,
             };
             if let Some(existing) = document
                 .materials
@@ -764,6 +766,14 @@ fn apply_material_patch(
             "edgeColor and clearEdgeColor cannot be combined",
         ));
     }
+    if patch.surface.is_some() && patch.clear_surface {
+        return Err(invalid_patch(
+            operation_index,
+            &patch.material_id,
+            "/clearSurface",
+            "surface and clearSurface cannot be combined",
+        ));
+    }
     let material = document
         .materials
         .iter_mut()
@@ -789,6 +799,11 @@ fn apply_material_patch(
         material.edge_color = Some(edge_color);
     } else if patch.clear_edge_color {
         material.edge_color = None;
+    }
+    if let Some(surface) = patch.surface {
+        material.surface = Some(surface);
+    } else if patch.clear_surface {
+        material.surface = None;
     }
     diff.material_updated(patch.material_id);
     Ok(())

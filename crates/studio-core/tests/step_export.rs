@@ -166,6 +166,7 @@ fn exports_units_colours_and_instancing() {
         opacity: 0.5,
         edge_color: None,
         shading: None,
+        surface: None,
     });
 
     let mut meshes = BTreeMap::new();

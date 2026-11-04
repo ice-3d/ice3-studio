@@ -49,37 +49,59 @@ pub fn export_glb_from_scene(
         .enumerate()
         .map(|(index, material)| (material.id.clone(), index))
         .collect();
-    let materials = document
-        .materials
-        .iter()
-        .map(|material| {
-            let mut base_color = material.base_color.map(srgb_to_linear);
-            base_color[3] = material.opacity;
-            let edge_color = material.edge_color.map(srgb_color_hex);
-            let shading = match material.shading.as_ref() {
-                Some(MaterialShading::Flat) => "flat",
-                Some(MaterialShading::Water) => "water",
-                Some(MaterialShading::Directional) | None => "directional",
-            };
-            json!({
-                "name": material.name,
-                "pbrMetallicRoughness": {
-                    "baseColorFactor": base_color,
-                    "metallicFactor": 0.0,
-                    "roughnessFactor": 0.9
-                },
-                "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" },
-                "extras": {
-                    "ice3": {
-                        "id": material.id.as_str(),
-                        "edges": edge_color.is_some(),
-                        "edgeColor": edge_color,
-                        "shading": shading
-                    }
+    // Texture images are referenced by relative path; each distinct path becomes
+    // one image, one sampler and one texture so materials can share them.
+    let mut image_indices: BTreeMap<String, usize> = BTreeMap::new();
+    let surface_of = |material: &crate::document::Material| {
+        material
+            .surface
+            .clone()
+            .unwrap_or_else(crate::document::MaterialSurface::dielectric)
+    };
+    let mut materials = Vec::with_capacity(document.materials.len());
+    for material in &document.materials {
+        let mut base_color = material.base_color.map(srgb_to_linear);
+        base_color[3] = material.opacity;
+        let edge_color = material.edge_color.map(srgb_color_hex);
+        let shading = match material.shading.as_ref() {
+            Some(MaterialShading::Flat) => "flat",
+            Some(MaterialShading::Water) => "water",
+            Some(MaterialShading::Directional) | None => "directional",
+        };
+        let surface = surface_of(material);
+        let mut pbr = json!({
+            "baseColorFactor": base_color,
+            "metallicFactor": surface.metallic,
+            "roughnessFactor": surface.roughness
+        });
+        if let Some(path) = &surface.base_color_texture {
+            let next = image_indices.len();
+            let index = *image_indices.entry(path.clone()).or_insert(next);
+            pbr["baseColorTexture"] = json!({
+                "index": index,
+                "extensions": {
+                    "KHR_texture_transform": { "scale": surface.uv_scale }
                 }
-            })
-        })
-        .collect::<Vec<_>>();
+            });
+        }
+        let mut value = json!({
+            "name": material.name,
+            "pbrMetallicRoughness": pbr,
+            "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" },
+            "extras": {
+                "ice3": {
+                    "id": material.id.as_str(),
+                    "edges": edge_color.is_some(),
+                    "edgeColor": edge_color,
+                    "shading": shading
+                }
+            }
+        });
+        if let Some(emissive) = surface.emissive {
+            value["emissiveFactor"] = json!(emissive);
+        }
+        materials.push(value);
+    }
     let mut primitive_by_key = BTreeMap::new();
     for (key, mesh) in &evaluated.meshes {
         primitive_by_key.insert(
@@ -202,6 +224,19 @@ pub fn export_glb_from_scene(
             }
         }
     });
+    if !image_indices.is_empty() {
+        let images = image_indices
+            .keys()
+            .map(|uri| json!({ "uri": uri }))
+            .collect::<Vec<_>>();
+        let textures = (0..images.len())
+            .map(|index| json!({ "sampler": 0, "source": index }))
+            .collect::<Vec<_>>();
+        gltf["images"] = json!(images);
+        gltf["samplers"] = json!([{ "wrapS": 10497, "wrapT": 10497 }]);
+        gltf["textures"] = json!(textures);
+        gltf["extensionsUsed"] = json!(["KHR_texture_transform"]);
+    }
     if binary.is_empty() {
         gltf.as_object_mut().expect("object").remove("buffers");
     }
@@ -212,6 +247,7 @@ pub fn export_glb_from_scene(
 struct ExportedPrimitive {
     position_accessor: usize,
     normal_accessor: usize,
+    uv_accessor: usize,
     index_accessor: usize,
 }
 
@@ -231,8 +267,13 @@ fn export_geometry(
         .iter()
         .flat_map(|vertex| vertex.normal)
         .collect::<Vec<_>>();
+    let uvs = crate::geometry::box_projected_uvs(mesh)
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
     let position_view = append_view(binary, buffer_views, bytemuck_f32(&positions), Some(34962));
     let normal_view = append_view(binary, buffer_views, bytemuck_f32(&normals), Some(34962));
+    let uv_view = append_view(binary, buffer_views, bytemuck_f32(&uvs), Some(34962));
     let index_bytes = if mesh.vertices.len() <= u16::MAX as usize {
         mesh.indices
             .iter()
@@ -263,6 +304,13 @@ fn export_geometry(
         "count": normals.len() / 3,
         "type": "VEC3"
     }));
+    let uv_accessor = accessors.len();
+    accessors.push(json!({
+        "bufferView": uv_view,
+        "componentType": 5126,
+        "count": uvs.len() / 2,
+        "type": "VEC2"
+    }));
     let index_accessor = accessors.len();
     accessors.push(json!({
         "bufferView": index_view,
@@ -273,6 +321,7 @@ fn export_geometry(
     ExportedPrimitive {
         position_accessor,
         normal_accessor,
+        uv_accessor,
         index_accessor,
     }
 }
@@ -375,7 +424,8 @@ fn mesh_json(
     let mut value = json!({
         "attributes": {
             "POSITION": primitive.position_accessor,
-            "NORMAL": primitive.normal_accessor
+            "NORMAL": primitive.normal_accessor,
+            "TEXCOORD_0": primitive.uv_accessor
         },
         "indices": primitive.index_accessor,
         "mode": 4

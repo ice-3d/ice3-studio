@@ -153,6 +153,56 @@ pub struct Material {
     pub edge_color: Option<[f32; 4]>,
     #[serde(default)]
     pub shading: Option<MaterialShading>,
+    /// Physical surface description (metallic/roughness/emissive/texture). `None`
+    /// means "use the built-in dielectric defaults", which keeps projects that
+    /// never cared about PBR byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<MaterialSurface>,
+}
+
+/// Physically based surface parameters, aligned with glTF's metallic-roughness
+/// model so an export needs no interpretation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export)]
+pub struct MaterialSurface {
+    /// 0 = dielectric, 1 = metal.
+    #[serde(default)]
+    pub metallic: f32,
+    /// 0 = mirror, 1 = fully diffuse.
+    #[serde(default = "default_roughness")]
+    pub roughness: f32,
+    /// Linear RGB emitted by the surface, independent of lighting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub emissive: Option<[f32; 3]>,
+    /// Texture tiling in UV units per texture repeat; UVs are metres, so this is
+    /// "metres per tile" inverted.
+    #[serde(default = "unit_uv_scale")]
+    pub uv_scale: [f32; 2],
+    /// Relative path of the base-colour image, resolved against the glTF file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_color_texture: Option<String>,
+}
+
+impl MaterialSurface {
+    /// Dielectric, semi-rough, untiled — what a material without a `surface`.
+    pub fn dielectric() -> Self {
+        Self {
+            metallic: 0.0,
+            roughness: default_roughness(),
+            emissive: None,
+            uv_scale: [1.0, 1.0],
+            base_color_texture: None,
+        }
+    }
+}
+
+fn default_roughness() -> f32 {
+    0.9
+}
+
+fn unit_uv_scale() -> [f32; 2] {
+    [1.0, 1.0]
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]

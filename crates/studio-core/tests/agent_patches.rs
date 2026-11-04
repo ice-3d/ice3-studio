@@ -97,6 +97,8 @@ fn material_patch_changes_only_requested_fields() {
             opacity: Some(0.4),
             edge_color: None,
             clear_edge_color: false,
+            surface: None,
+            clear_surface: false,
         })),
     )
     .unwrap();
@@ -404,6 +406,7 @@ fn fixture_document() -> Document {
         opacity: 1.0,
         edge_color: Some([0.1, 0.1, 0.1, 1.0]),
         shading: None,
+        surface: None,
     });
     document.components.push(ComponentDefinition {
         id: component_id.clone(),

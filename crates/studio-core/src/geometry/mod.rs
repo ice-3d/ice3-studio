@@ -5,6 +5,7 @@ mod extrude;
 mod primitives;
 mod rounded;
 mod sweep;
+mod uv;
 
 use std::collections::HashSet;
 
@@ -22,6 +23,7 @@ pub use csg::csg_subtract;
 pub use evaluate::evaluate_node_content;
 pub use extrude::extrude_profile;
 pub use rounded::{MAX_ROUNDED_SEGMENTS, rounded_box};
+pub use uv::box_projected_uvs;
 
 pub fn world_bounds(
     document: &Document,

@@ -827,6 +827,59 @@
           ],
           "type": "string"
         },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -1149,6 +1202,10 @@
                   "default": false,
                   "type": "boolean"
                 },
+                "clearSurface": {
+                  "default": false,
+                  "type": "boolean"
+                },
                 "edgeColor": {
                   "items": {
                     "format": "float",
@@ -1176,6 +1233,17 @@
                     "number",
                     "null"
                   ]
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Replaces the whole surface description; use `clearSurface` to go back to\nthe built-in dielectric defaults."
                 },
                 "type": {
                   "const": "material.patch",
@@ -1833,6 +1901,16 @@
                     }
                   ],
                   "default": null
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "type": {
                   "const": "material.upsert",
@@ -4767,6 +4845,59 @@
           ],
           "type": "string"
         },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -5089,6 +5220,10 @@
                   "default": false,
                   "type": "boolean"
                 },
+                "clearSurface": {
+                  "default": false,
+                  "type": "boolean"
+                },
                 "edgeColor": {
                   "items": {
                     "format": "float",
@@ -5116,6 +5251,17 @@
                     "number",
                     "null"
                   ]
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Replaces the whole surface description; use `clearSurface` to go back to\nthe built-in dielectric defaults."
                 },
                 "type": {
                   "const": "material.patch",
@@ -5773,6 +5919,16 @@
                     }
                   ],
                   "default": null
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "type": {
                   "const": "material.upsert",
@@ -7494,6 +7650,59 @@
           ],
           "type": "string"
         },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -7816,6 +8025,10 @@
                   "default": false,
                   "type": "boolean"
                 },
+                "clearSurface": {
+                  "default": false,
+                  "type": "boolean"
+                },
                 "edgeColor": {
                   "items": {
                     "format": "float",
@@ -7843,6 +8056,17 @@
                     "number",
                     "null"
                   ]
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Replaces the whole surface description; use `clearSurface` to go back to\nthe built-in dielectric defaults."
                 },
                 "type": {
                   "const": "material.patch",
@@ -8500,6 +8724,16 @@
                     }
                   ],
                   "default": null
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "type": {
                   "const": "material.upsert",
@@ -10178,6 +10412,59 @@
           ],
           "type": "string"
         },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -10500,6 +10787,10 @@
                   "default": false,
                   "type": "boolean"
                 },
+                "clearSurface": {
+                  "default": false,
+                  "type": "boolean"
+                },
                 "edgeColor": {
                   "items": {
                     "format": "float",
@@ -10527,6 +10818,17 @@
                     "number",
                     "null"
                   ]
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Replaces the whole surface description; use `clearSurface` to go back to\nthe built-in dielectric defaults."
                 },
                 "type": {
                   "const": "material.patch",
@@ -11184,6 +11486,16 @@
                     }
                   ],
                   "default": null
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "type": {
                   "const": "material.upsert",
@@ -13054,6 +13366,17 @@
                 }
               ],
               "default": null
+            },
+            "surface": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialSurface"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Physical surface description (metallic/roughness/emissive/texture). `None`\nmeans \"use the built-in dielectric defaults\", which keeps projects that\nnever cared about PBR byte-identical."
             }
           },
           "required": [
@@ -13090,6 +13413,59 @@
             "water"
           ],
           "type": "string"
+        },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
         },
         "NodeContent": {
           "oneOf": [
@@ -15105,6 +15481,59 @@
           ],
           "type": "string"
         },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
         "NodeContent": {
           "oneOf": [
             {
@@ -15427,6 +15856,10 @@
                   "default": false,
                   "type": "boolean"
                 },
+                "clearSurface": {
+                  "default": false,
+                  "type": "boolean"
+                },
                 "edgeColor": {
                   "items": {
                     "format": "float",
@@ -15454,6 +15887,17 @@
                     "number",
                     "null"
                   ]
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Replaces the whole surface description; use `clearSurface` to go back to\nthe built-in dielectric defaults."
                 },
                 "type": {
                   "const": "material.patch",
@@ -16111,6 +16555,16 @@
                     }
                   ],
                   "default": null
+                },
+                "surface": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/MaterialSurface"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "type": {
                   "const": "material.upsert",
@@ -19466,6 +19920,17 @@
                 }
               ],
               "default": null
+            },
+            "surface": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialSurface"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Physical surface description (metallic/roughness/emissive/texture). `None`\nmeans \"use the built-in dielectric defaults\", which keeps projects that\nnever cared about PBR byte-identical."
             }
           },
           "required": [
@@ -19502,6 +19967,59 @@
             "water"
           ],
           "type": "string"
+        },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
         },
         "NodeContent": {
           "oneOf": [
@@ -21201,6 +21719,61 @@
       "type": "object"
     },
     "MaterialPatch": {
+      "$defs": {
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
@@ -21217,6 +21790,10 @@
           ]
         },
         "clearEdgeColor": {
+          "default": false,
+          "type": "boolean"
+        },
+        "clearSurface": {
           "default": false,
           "type": "boolean"
         },
@@ -21247,6 +21824,17 @@
             "number",
             "null"
           ]
+        },
+        "surface": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MaterialSurface"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Replaces the whole surface description; use `clearSurface` to go back to\nthe built-in dielectric defaults."
         }
       },
       "required": [
@@ -21969,6 +22557,59 @@
             "water"
           ],
           "type": "string"
+        },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
         },
         "NodeContent": {
           "oneOf": [
@@ -23126,6 +23767,10 @@
               "default": false,
               "type": "boolean"
             },
+            "clearSurface": {
+              "default": false,
+              "type": "boolean"
+            },
             "edgeColor": {
               "items": {
                 "format": "float",
@@ -23153,6 +23798,17 @@
                 "number",
                 "null"
               ]
+            },
+            "surface": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialSurface"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Replaces the whole surface description; use `clearSurface` to go back to\nthe built-in dielectric defaults."
             },
             "type": {
               "const": "material.patch",
@@ -23810,6 +24466,16 @@
                 }
               ],
               "default": null
+            },
+            "surface": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialSurface"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "const": "material.upsert",

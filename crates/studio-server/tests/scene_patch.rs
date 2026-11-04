@@ -73,6 +73,7 @@ fn material_change_selects_referencing_nodes_without_geometry() {
         opacity: 1.0,
         edge_color: None,
         shading: None,
+        surface: None,
     });
     document.scene.nodes_mut()[0].material_id = Some(material_id.clone());
     let previous_scene = evaluate_large_scene(&document).unwrap();

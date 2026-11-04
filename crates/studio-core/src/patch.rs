@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::document::MaterialSurface;
 use crate::ids::{ComponentId, MaterialId, NodeId};
 use crate::large_scene::component::ParameterValue;
 use crate::large_scene::connection::{InstancePortRef, RoutePolicy};
@@ -74,6 +75,13 @@ pub struct MaterialPatch {
     #[serde(default)]
     #[ts(as = "Option<_>", optional)]
     pub clear_edge_color: bool,
+    /// Replaces the whole surface description; use `clearSurface` to go back to
+    /// the built-in dielectric defaults.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<MaterialSurface>,
+    #[serde(default)]
+    #[ts(as = "Option<_>", optional)]
+    pub clear_surface: bool,
 }
 
 impl MaterialPatch {
@@ -82,6 +90,8 @@ impl MaterialPatch {
             || self.base_color.is_some()
             || self.opacity.is_some()
             || self.edge_color.is_some()
+            || self.surface.is_some()
+            || self.clear_surface
             || self.clear_edge_color
     }
 }

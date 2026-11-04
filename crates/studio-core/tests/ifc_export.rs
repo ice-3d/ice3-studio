@@ -67,6 +67,7 @@ fn document_with_material(material_id: &MaterialId) -> Document {
         opacity: 0.5,
         edge_color: None,
         shading: None,
+        surface: None,
     });
     document
 }

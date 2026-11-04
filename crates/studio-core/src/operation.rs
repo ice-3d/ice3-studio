@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::document::{Constraint, MaterialShading, NodeContent, Relation};
+use crate::document::{Constraint, MaterialShading, MaterialSurface, NodeContent, Relation};
 use crate::geometry::{Primitive, TriangleMesh};
 use crate::ids::{ComponentId, ConstraintId, MaterialId, NodeId, RelationId};
 use crate::large_scene::component::{ComponentDefinition, ComponentInstance, InstanceSet};
@@ -148,6 +148,8 @@ pub enum Operation {
         edge_color: Option<[f32; 4]>,
         #[serde(default)]
         shading: Option<MaterialShading>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        surface: Option<MaterialSurface>,
     },
     #[serde(rename = "material.assign")]
     #[ts(rename = "material.assign")]

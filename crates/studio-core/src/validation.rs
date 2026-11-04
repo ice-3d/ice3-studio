@@ -299,6 +299,31 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
                 "material values must be finite with opacity between zero and one".into(),
             ));
         }
+        if let Some(surface) = &material.surface {
+            let factors_valid =
+                (0.0..=1.0).contains(&surface.metallic) && (0.0..=1.0).contains(&surface.roughness);
+            let emissive_valid = surface.emissive.is_none_or(|emissive| {
+                emissive
+                    .iter()
+                    .all(|value| value.is_finite() && *value >= 0.0)
+            });
+            let scale_valid = surface
+                .uv_scale
+                .iter()
+                .all(|value| value.is_finite() && *value > 0.0);
+            let texture_valid = surface
+                .base_color_texture
+                .as_ref()
+                .is_none_or(|path| texture_path_is_relative(path));
+            if !(factors_valid && emissive_valid && scale_valid && texture_valid) {
+                diagnostics.push(geometry(
+                    None,
+                    material.id.as_str(),
+                    format!("/materials/{index}/surface"),
+                    "material surface must keep metallic/roughness in [0,1], emissive non-negative, uvScale positive, and a relative texture path".into(),
+                ));
+            }
+        }
     }
 
     let mut relation_ids = HashSet::new();
@@ -707,4 +732,14 @@ fn geometry(
         pointer,
         message,
     }
+}
+
+/// Texture references travel with the exported glTF, so they must be relative to
+/// it: an absolute path or a remote URL would silently break on another machine.
+fn texture_path_is_relative(path: &str) -> bool {
+    !path.trim().is_empty()
+        && !path.starts_with('/')
+        && !path.starts_with('\\')
+        && !path.contains("..")
+        && !path.contains("://")
 }

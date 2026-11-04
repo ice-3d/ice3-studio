@@ -32,6 +32,7 @@ fn exports_material_opacity_as_a_gltf_blend_material() {
         opacity: 0.4,
         edge_color: None,
         shading: None,
+        surface: None,
     });
     let mut node = SceneNode::group(NodeId::from("node-000001"), "Water");
     node.material_id = Some(material_id);
@@ -65,6 +66,7 @@ fn exports_material_edge_color_and_directional_shading_metadata() {
         opacity: 1.0,
         edge_color: Some([0.1, 0.2, 0.3, 1.0]),
         shading: None,
+        surface: None,
     });
     let mut node = SceneNode::group(NodeId::from("node-000001"), "Equipment");
     node.material_id = Some(material_id);
@@ -100,6 +102,7 @@ fn exports_water_materials_with_a_liquid_surface_shading_mode() {
         opacity: 1.0,
         edge_color: None,
         shading: Some(MaterialShading::Water),
+        surface: None,
     });
     let mut node = SceneNode::group(NodeId::from("node-000001"), "Basin");
     node.material_id = Some(material_id);
