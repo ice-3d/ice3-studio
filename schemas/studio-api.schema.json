@@ -18,6 +18,7 @@
     "scene.query",
     "scene.bounds",
     "scene.measure",
+    "scene.bom",
     "scene.context",
     "scene.search",
     "component.get",
@@ -3054,6 +3055,235 @@
         "dryRun"
       ],
       "title": "ApplyResult",
+      "type": "object"
+    },
+    "BomRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Bill-of-materials request. `groupBy` is `definition` (default), `material`,\n`owner`, or `metadata:<key>`.",
+      "properties": {
+        "groupBy": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": null,
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "title": "BomRequest",
+      "type": "object"
+    },
+    "BomResult": {
+      "$defs": {
+        "BomRow": {
+          "properties": {
+            "bounds": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Bounds"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "count": {
+              "description": "Evaluated part nodes in this group.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "key": {
+              "description": "Raw grouping id (definition id, material id, owner id or metadata value).",
+              "type": "string"
+            },
+            "label": {
+              "description": "Human-readable label (definition/material name, metadata value).",
+              "type": "string"
+            },
+            "owners": {
+              "description": "Distinct source instances in this group.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "volume": {
+              "description": "Summed mesh volume (m³), scaled by the node scale.",
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "key",
+            "label",
+            "count",
+            "owners",
+            "volume"
+          ],
+          "type": "object"
+        },
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "groupBy": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/BomRow"
+          },
+          "type": "array"
+        },
+        "total": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rows",
+        "total",
+        "truncated",
+        "groupBy"
+      ],
+      "title": "BomResult",
+      "type": "object"
+    },
+    "BomRow": {
+      "$defs": {
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "bounds": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Bounds"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "count": {
+          "description": "Evaluated part nodes in this group.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "key": {
+          "description": "Raw grouping id (definition id, material id, owner id or metadata value).",
+          "type": "string"
+        },
+        "label": {
+          "description": "Human-readable label (definition/material name, metadata value).",
+          "type": "string"
+        },
+        "owners": {
+          "description": "Distinct source instances in this group.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "volume": {
+          "description": "Summed mesh volume (m³), scaled by the node scale.",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "count",
+        "owners",
+        "volume"
+      ],
+      "title": "BomRow",
       "type": "object"
     },
     "CandidatePreview": {

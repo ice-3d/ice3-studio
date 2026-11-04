@@ -115,6 +115,17 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 Some("MeasureResult"),
             ),
             tool(
+                "scene.bom",
+                "Aggregate the evaluated scene into a bill of materials grouped by definition, material, owner, or metadata key.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_read,
+                "read access is unavailable",
+                "BomRequest",
+                Some("BomResult"),
+            ),
+            tool(
                 "component.get",
                 "Read a component definition with parameters, ports, and part summaries.",
                 AgentSideEffect::Read,

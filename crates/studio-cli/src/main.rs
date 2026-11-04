@@ -250,6 +250,17 @@ enum ExportCommand {
         #[arg(long)]
         force: bool,
     },
+    /// Export a bill of materials (CSV) grouped by definition, material, owner, or `metadata:<key>`.
+    Bom {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long, default_value = "definition")]
+        group_by: String,
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 fn require_writable_output(
@@ -600,6 +611,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }))?
                 );
             }
+            ExportCommand::Bom {
+                project,
+                output,
+                group_by,
+                force,
+            } => {
+                require_writable_output(&output, force)?;
+                let document = load_committed_document(&project)?;
+                let scene = studio_core::large_scene::evaluate::evaluate_large_scene(&document)?;
+                let request = studio_core::agent_contract::BomRequest {
+                    group_by: Some(group_by.clone()),
+                    limit: None,
+                };
+                let result = studio_core::agent_contract::build_bom(&document, &scene, &request);
+                let text = studio_core::export::bom::bom_csv(&result);
+                write_output(&output, text.as_bytes())?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "revision": document.revision.as_u64(),
+                        "output": output,
+                        "bytes": text.len(),
+                        "groupBy": result.group_by,
+                        "rows": result.rows.len(),
+                        "parts": document.scene.nodes().len(),
+                    }))?
+                );
+            }
         },
         Command::Schema { output, check } => schema::generate(&output, check)?,
         Command::Pack {
@@ -746,6 +785,34 @@ mod tests {
                 command: ExportCommand::Tileset { force: true, .. }
             }
         ));
+    }
+
+    #[test]
+    fn parses_bom_export_command() {
+        let cli = Cli::try_parse_from([
+            "ice3-studio",
+            "export",
+            "bom",
+            "--project",
+            "project",
+            "--output",
+            "bom.csv",
+            "--group-by",
+            "material",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Export {
+                command:
+                    ExportCommand::Bom {
+                        group_by, force, ..
+                    },
+            } => {
+                assert_eq!(group_by, "material");
+                assert!(!force);
+            }
+            _ => panic!("expected export bom"),
+        }
     }
 
     #[test]

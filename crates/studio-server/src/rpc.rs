@@ -924,6 +924,7 @@ fn dispatch(
                 "component.get".into(),
                 "scene.bounds".into(),
                 "scene.measure".into(),
+                "scene.bom".into(),
                 "validation.run".into(),
                 "referenceAsset.register".into(),
                 "referenceAsset.get".into(),
@@ -1225,6 +1226,18 @@ fn dispatch(
                     )
                 },
             )?;
+            serde_json::to_value(result).map_err(serialize_error)
+        }
+        "scene.bom" => {
+            let params = if request.params.is_null() {
+                serde_json::json!({})
+            } else {
+                request.params.clone()
+            };
+            let params: studio_core::agent_contract::BomRequest =
+                serde_json::from_value(params).map_err(invalid_params)?;
+            let (scene, _) = evaluate_session_scene(session)?;
+            let result = studio_core::agent_contract::build_bom(&session.document, &scene, &params);
             serde_json::to_value(result).map_err(serialize_error)
         }
         "validation.run" => {

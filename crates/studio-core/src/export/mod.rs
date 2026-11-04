@@ -1,3 +1,4 @@
+pub mod bom;
 pub mod dxf;
 pub mod glb;
 pub mod ifc;

@@ -1,12 +1,13 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::geometry::Bounds;
+use crate::geometry::{Bounds, EvaluatedMesh};
 use crate::ids::{ComponentId, MaterialId};
 use crate::large_scene::component::ComponentDefinition;
+use crate::large_scene::evaluate::{EvaluatedScene, evaluated_scene_bounds};
 
 pub const DEFAULT_SEARCH_LIMIT: usize = 25;
 pub const MAX_SEARCH_LIMIT: usize = 100;
@@ -649,4 +650,225 @@ fn bounds_gap(a: &Bounds, b: &Bounds) -> f32 {
     let y = axis_gap(a.min.y, a.max.y, b.min.y, b.max.y);
     let z = axis_gap(a.min.z, a.max.z, b.min.z, b.max.z);
     (x * x + y * y + z * z).sqrt()
+}
+
+pub const DEFAULT_BOM_LIMIT: usize = 200;
+pub const MAX_BOM_LIMIT: usize = 1000;
+
+/// Bill-of-materials request. `groupBy` is `definition` (default), `material`,
+/// `owner`, or `metadata:<key>`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BomRequest {
+    pub group_by: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BomRow {
+    /// Raw grouping id (definition id, material id, owner id or metadata value).
+    pub key: String,
+    /// Human-readable label (definition/material name, metadata value).
+    pub label: String,
+    /// Evaluated part nodes in this group.
+    pub count: usize,
+    /// Distinct source instances in this group.
+    pub owners: usize,
+    /// Summed mesh volume (m³), scaled by the node scale.
+    pub volume: f32,
+    pub bounds: Option<Bounds>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BomResult {
+    pub rows: Vec<BomRow>,
+    pub total: usize,
+    pub truncated: bool,
+    pub group_by: String,
+}
+
+/// Aggregate the evaluated scene into a bill of materials.
+pub fn build_bom(
+    document: &crate::document::Document,
+    scene: &EvaluatedScene,
+    request: &BomRequest,
+) -> BomResult {
+    let group_by = request
+        .group_by
+        .clone()
+        .unwrap_or_else(|| "definition".to_string());
+    let limit = request
+        .limit
+        .unwrap_or(DEFAULT_BOM_LIMIT)
+        .clamp(1, MAX_BOM_LIMIT);
+
+    let definitions: BTreeMap<&str, &str> = document
+        .components
+        .iter()
+        .map(|definition| (definition.id.as_str(), definition.name.as_str()))
+        .collect();
+    let materials: BTreeMap<&str, &str> = document
+        .materials
+        .iter()
+        .map(|material| (material.id.as_str(), material.name.as_str()))
+        .collect();
+    let definition_by_owner: BTreeMap<&str, &str> = document
+        .scene
+        .nodes()
+        .iter()
+        .filter_map(|node| match &node.content {
+            crate::document::NodeContent::ComponentInstance(instance) => {
+                Some((node.id.as_str(), instance.definition_id.as_str()))
+            }
+            _ => None,
+        })
+        .collect();
+
+    let node_bounds = evaluated_scene_bounds(scene);
+    let mut mesh_volumes: BTreeMap<&str, f32> = BTreeMap::new();
+    let mut groups: BTreeMap<String, BomAccumulator> = BTreeMap::new();
+
+    for node in &scene.nodes {
+        let (key, label) = bom_key(
+            node,
+            &group_by,
+            &definitions,
+            &materials,
+            &definition_by_owner,
+        );
+        let accumulator = groups.entry(key).or_default();
+        accumulator.label = label;
+        accumulator.count += 1;
+        accumulator.owners.insert(node.owner_id.clone());
+        if let Some(mesh_key) = &node.mesh_key {
+            let volume = *mesh_volumes
+                .entry(mesh_key.as_str())
+                .or_insert_with(|| scene.meshes.get(mesh_key).map(mesh_volume).unwrap_or(0.0));
+            let scale = node.transform.scale;
+            accumulator.volume += volume * (scale.x * scale.y * scale.z).abs();
+        }
+        if let Some(bounds) = node_bounds.get(&node.id) {
+            accumulator.include(bounds);
+        }
+    }
+
+    let mut rows: Vec<BomRow> = groups
+        .into_iter()
+        .map(|(key, accumulator)| BomRow {
+            key,
+            label: accumulator.label,
+            count: accumulator.count,
+            owners: accumulator.owners.len(),
+            volume: accumulator.volume,
+            bounds: accumulator.bounds,
+        })
+        .collect();
+    rows.sort_by(|left, right| {
+        right
+            .count
+            .cmp(&left.count)
+            .then_with(|| left.key.cmp(&right.key))
+    });
+    let total = rows.len();
+    let truncated = total > limit;
+    rows.truncate(limit);
+    BomResult {
+        rows,
+        total,
+        truncated,
+        group_by,
+    }
+}
+
+#[derive(Default)]
+struct BomAccumulator {
+    label: String,
+    count: usize,
+    owners: BTreeSet<String>,
+    volume: f32,
+    bounds: Option<Bounds>,
+}
+
+impl BomAccumulator {
+    fn include(&mut self, bounds: &Bounds) {
+        self.bounds = Some(match self.bounds {
+            None => *bounds,
+            Some(current) => Bounds {
+                min: crate::math::Vec3 {
+                    x: current.min.x.min(bounds.min.x),
+                    y: current.min.y.min(bounds.min.y),
+                    z: current.min.z.min(bounds.min.z),
+                },
+                max: crate::math::Vec3 {
+                    x: current.max.x.max(bounds.max.x),
+                    y: current.max.y.max(bounds.max.y),
+                    z: current.max.z.max(bounds.max.z),
+                },
+            },
+        });
+    }
+}
+
+fn bom_key(
+    node: &crate::large_scene::evaluate::EvaluatedSceneNode,
+    group_by: &str,
+    definitions: &BTreeMap<&str, &str>,
+    materials: &BTreeMap<&str, &str>,
+    definition_by_owner: &BTreeMap<&str, &str>,
+) -> (String, String) {
+    if let Some(metadata_key) = group_by.strip_prefix("metadata:") {
+        let value = node
+            .metadata
+            .get(metadata_key)
+            .cloned()
+            .unwrap_or_else(|| "unassigned".to_string());
+        return (value.clone(), value);
+    }
+    match group_by {
+        "material" => {
+            let id = node
+                .material_id
+                .as_ref()
+                .map(|material| material.as_str().to_string())
+                .unwrap_or_else(|| "unassigned".to_string());
+            let label = materials
+                .get(id.as_str())
+                .map(|name| (*name).to_string())
+                .unwrap_or_else(|| id.clone());
+            (id, label)
+        }
+        "owner" => (node.owner_id.clone(), node.owner_id.clone()),
+        _ => {
+            let id = definition_by_owner
+                .get(node.owner_id.as_str())
+                .map(|definition| (*definition).to_string())
+                .unwrap_or_else(|| "primitive".to_string());
+            let label = definitions
+                .get(id.as_str())
+                .map(|name| (*name).to_string())
+                .unwrap_or_else(|| id.clone());
+            (id, label)
+        }
+    }
+}
+
+fn mesh_volume(mesh: &EvaluatedMesh) -> f32 {
+    let mut total: f32 = 0.0;
+    for triangle in mesh.indices.as_chunks::<3>().0 {
+        let a = mesh.vertices[triangle[0] as usize].position;
+        let b = mesh.vertices[triangle[1] as usize].position;
+        let c = mesh.vertices[triangle[2] as usize].position;
+        total += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+            + a[2] * (b[0] * c[1] - b[1] * c[0]))
+            / 6.0;
+    }
+    total.abs()
 }

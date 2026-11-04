@@ -57,7 +57,7 @@
 | `document.redo` | 是 | 无 | 同上 |
 | `document.history` | 否 | 无 | 操作历史 |
 
-### 2.4 scene（6）
+### 2.4 scene（7）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -67,6 +67,7 @@
 | `scene.search` | 否 | `SceneSearchRequest` | revision 绑定的 source/derived 节点页 |
 | `scene.bounds` | 否 | 无 | 按 node ID 的世界空间 bounds |
 | `scene.measure` | 否 | `MeasureRequest`（`from`/`to` 各为 `{nodeId}` 或 `{point:[x,y,z]}`） | 世界坐标、中心距 `distance`、轴向差 `delta`、表面间隙 `clearance` |
+| `scene.bom` | 否 | `BomRequest`（`groupBy` = `definition`/`material`/`owner`/`metadata:<key>`，`limit` ≤ 1000） | `BomResult`（按组件的行：键、可读名、零件数、实例数、体积、合并 bounds） |
 
 ### 2.5 component（1）
 
