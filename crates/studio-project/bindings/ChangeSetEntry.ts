@@ -3,4 +3,20 @@ import type { ChangeSetSource } from "./ChangeSetSource";
 import type { EntryId } from "./EntryId";
 import type { Operation } from "./Operation";
 
-export type ChangeSetEntry = { id: EntryId, source: ChangeSetSource, operation: Operation, created_at: bigint, };
+export type ChangeSetEntry = { 
+/**
+ * 条目 ID，删除时按它定位。
+ */
+id: EntryId, 
+/**
+ * 该条操作的提出者。
+ */
+source: ChangeSetSource, 
+/**
+ * 类型化建模操作，与 `document.apply` 的 operation 同构。
+ */
+operation: Operation, 
+/**
+ * 创建时间，Unix 毫秒。
+ */
+created_at: bigint, };

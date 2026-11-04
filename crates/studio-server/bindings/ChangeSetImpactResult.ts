@@ -4,4 +4,32 @@ import type { ChangeSetStatus } from "./ChangeSetStatus";
 import type { IterationImpact } from "./IterationImpact";
 import type { Revision } from "./Revision";
 
-export type ChangeSetImpactResult = { changeSetId: ChangeSetId, version: bigint, baseRevision: Revision, status: ChangeSetStatus, candidateDigest: string | null, diagnosticCount: number, impact: IterationImpact, };
+export type ChangeSetImpactResult = { 
+/**
+ * 被分析的变更集 ID。
+ */
+changeSetId: ChangeSetId, 
+/**
+ * 分析时所基于的变更集版本。
+ */
+version: bigint, 
+/**
+ * 候选所基于的已提交 revision。
+ */
+baseRevision: Revision, 
+/**
+ * 分析后的候选状态；`blocked` 或 `stale` 时影响范围记为 `unavailable`。
+ */
+status: ChangeSetStatus, 
+/**
+ * 候选摘要；状态不可提交时为 null。
+ */
+candidateDigest: string | null, 
+/**
+ * 候选校验诊断数量。
+ */
+diagnosticCount: number, 
+/**
+ * 影响范围、几何重建与缓存复用情况。
+ */
+impact: IterationImpact, };

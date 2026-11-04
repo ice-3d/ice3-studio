@@ -7,4 +7,40 @@ import type { NodeId } from "./NodeId";
 import type { RelationId } from "./RelationId";
 import type { Revision } from "./Revision";
 
-export type ApplyResult = { previous_revision: Revision, revision: Revision, changed_component_ids: Array<ComponentId>, changed_node_ids: Array<NodeId>, changed_material_ids: Array<MaterialId>, changed_relation_ids: Array<RelationId>, diff: DocumentDiff, diagnostics: Array<Diagnostic>, dry_run: boolean, };
+export type ApplyResult = { 
+/**
+ * 事务开始前的 revision。
+ */
+previous_revision: Revision, 
+/**
+ * 事务结束后的 revision；dry run 时与 `previousRevision` 相同。
+ */
+revision: Revision, 
+/**
+ * 受影响组件定义的 ID，已排序去重。
+ */
+changed_component_ids: Array<ComponentId>, 
+/**
+ * 受影响节点的 ID，已排序去重。
+ */
+changed_node_ids: Array<NodeId>, 
+/**
+ * 受影响材质的 ID，已排序去重。
+ */
+changed_material_ids: Array<MaterialId>, 
+/**
+ * 受影响 relation 的 ID，已排序去重。
+ */
+changed_relation_ids: Array<RelationId>, 
+/**
+ * 结构化文档差异，含新增、修改与删除。
+ */
+diff: DocumentDiff, 
+/**
+ * 本次事务产生的诊断；为空表示没有 warning 或 error。
+ */
+diagnostics: Array<Diagnostic>, 
+/**
+ * 是否只是试运行、未落盘。
+ */
+dry_run: boolean, };

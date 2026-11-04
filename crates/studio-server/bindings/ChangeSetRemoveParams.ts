@@ -2,4 +2,16 @@
 import type { ChangeSetId } from "./ChangeSetId";
 import type { EntryId } from "./EntryId";
 
-export type ChangeSetRemoveParams = { changeSetId: ChangeSetId, expectedVersion: bigint, entryIds: Array<EntryId>, };
+export type ChangeSetRemoveParams = { 
+/**
+ * 目标变更集 ID。
+ */
+changeSetId: ChangeSetId, 
+/**
+ * 期望的当前版本，用于乐观并发控制。
+ */
+expectedVersion: bigint, 
+/**
+ * 要移除的条目 ID；不存在的 ID 会被忽略。
+ */
+entryIds: Array<EntryId>, };

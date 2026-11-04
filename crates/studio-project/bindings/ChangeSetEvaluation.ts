@@ -6,4 +6,36 @@ import type { Document } from "./Document";
 import type { DocumentDiff } from "./DocumentDiff";
 import type { Revision } from "./Revision";
 
-export type ChangeSetEvaluation = { change_set_id: ChangeSetId, version: bigint, base_revision: Revision, status: ChangeSetStatus, candidate_digest: string | null, candidate: Document | null, diff: DocumentDiff, diagnostics: Array<Diagnostic>, };
+export type ChangeSetEvaluation = { 
+/**
+ * 被求值的变更集 ID。
+ */
+change_set_id: ChangeSetId, 
+/**
+ * 求值时变更集的版本。
+ */
+version: bigint, 
+/**
+ * 求值所基于的基线 revision。
+ */
+base_revision: Revision, 
+/**
+ * 求值后的状态；`ready` 才允许提交。
+ */
+status: ChangeSetStatus, 
+/**
+ * 候选摘要；与审批时回传的 `approvedDigest` 必须一致。
+ */
+candidate_digest: string | null, 
+/**
+ * 完整候选文档，仅在 `includeCandidate=true` 时返回；体积可能较大。
+ */
+candidate: Document | null, 
+/**
+ * 候选相对基线的结构化差异。
+ */
+diff: DocumentDiff, 
+/**
+ * 校验诊断；存在 error 时状态为 `blocked`。
+ */
+diagnostics: Array<Diagnostic>, };

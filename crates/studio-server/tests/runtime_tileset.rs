@@ -246,7 +246,11 @@ fn textures_ship_beside_the_tiles_that_reference_them() {
     let orm_image = b"\x89PNG\r\n\x1a\npacked-orm".to_vec();
     std::fs::create_dir_all(store.project_dir().join("textures")).unwrap();
     std::fs::write(store.project_dir().join("textures/steel.png"), &image).unwrap();
-    std::fs::write(store.project_dir().join("textures/steel-orm.png"), &orm_image).unwrap();
+    std::fs::write(
+        store.project_dir().join("textures/steel-orm.png"),
+        &orm_image,
+    )
+    .unwrap();
 
     let mut document = fixture_document();
     document.revision = Revision::new(0);

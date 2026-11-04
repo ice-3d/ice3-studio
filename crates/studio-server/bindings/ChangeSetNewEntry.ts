@@ -2,4 +2,12 @@
 import type { ChangeSetSource } from "./ChangeSetSource";
 import type { Operation } from "./Operation";
 
-export type ChangeSetNewEntry = { source: ChangeSetSource, operation: Operation, };
+export type ChangeSetNewEntry = { 
+/**
+ * 该条操作的提出者，用于审阅时归因。
+ */
+source: ChangeSetSource, 
+/**
+ * 类型化建模操作；同一批次内要么全部校验通过，要么整批失败。
+ */
+operation: Operation, };

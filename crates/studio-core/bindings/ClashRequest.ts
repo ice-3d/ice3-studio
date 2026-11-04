@@ -10,9 +10,33 @@
  * narrow phase on penetrating candidates. `ownerIds` restricts the audit to
  * those source instances.
  */
-export type ClashRequest = { clearance: number | null, scope: string | null, precise: boolean | null, includeTouching: boolean | null, ownerIds: Array<string> | null, 
+export type ClashRequest = { 
+/**
+ * 净空阈值，单位米；间距小于该值的部件对会被报告，默认 0。
+ */
+clearance: number | null, 
+/**
+ * 比较粒度：`owners`（按设备聚合）或 `parts`（按部件），默认 `owners`。
+ */
+scope: string | null, 
+/**
+ * 是否执行三角级窄相位；关闭时只做包围盒判断，更快但可能误报。
+ */
+precise: boolean | null, 
+/**
+ * 是否把恰好接触（gap 为 0）计入结果，默认 false。
+ */
+includeTouching: boolean | null, 
+/**
+ * 只比较这些设备及其部件；省略表示全场景。
+ */
+ownerIds: Array<string> | null, 
 /**
  * Triangle pairs examined per candidate in the narrow phase. Raise it when
  * big meshes come back `confirmed: null`; it is the only cost knob.
  */
-triangleBudget: number | null, limit: number | null, };
+triangleBudget: number | null, 
+/**
+ * 返回的干涉对数量上限，默认 200，最大 1000。
+ */
+limit: number | null, };

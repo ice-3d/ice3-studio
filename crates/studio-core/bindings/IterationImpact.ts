@@ -3,4 +3,60 @@ import type { ChangeImpactCounts } from "./ChangeImpactCounts";
 import type { IterationImpactReason } from "./IterationImpactReason";
 import type { IterationImpactScope } from "./IterationImpactScope";
 
-export type IterationImpact = { scope: IterationImpactScope, fullSceneRebuildRequired: boolean, sourceNodes: ChangeImpactCounts, derivedNodes: ChangeImpactCounts, relations: ChangeImpactCounts, components: ChangeImpactCounts, materials: ChangeImpactCounts, affectedSourceNodes: number, affectedDerivedNodes: number, reusedGeometry: number, generatedGeometry: number, cacheHits: number, cacheMisses: number, reasons: Array<IterationImpactReason>, };
+export type IterationImpact = { 
+/**
+ * 影响范围档位；`unavailable` 表示候选阻塞或过期，无法给出预测。
+ */
+scope: IterationImpactScope, 
+/**
+ * 是否必须重建整个场景；为 true 时本次迭代的代价与全量求值相当。
+ */
+fullSceneRebuildRequired: boolean, 
+/**
+ * 源节点的增删改计数。
+ */
+sourceNodes: ChangeImpactCounts, 
+/**
+ * 派生节点（展开部件与管线路径）的增删改计数。
+ */
+derivedNodes: ChangeImpactCounts, 
+/**
+ * relation 的增删改计数。
+ */
+relations: ChangeImpactCounts, 
+/**
+ * 组件定义的增删改计数。
+ */
+components: ChangeImpactCounts, 
+/**
+ * 材质的增删改计数。
+ */
+materials: ChangeImpactCounts, 
+/**
+ * 受影响的源节点总数。
+ */
+affectedSourceNodes: number, 
+/**
+ * 受影响的派生节点总数。
+ */
+affectedDerivedNodes: number, 
+/**
+ * 复用已有缓存的几何数量，不重新求值。
+ */
+reusedGeometry: number, 
+/**
+ * 需要重新生成的几何数量。
+ */
+generatedGeometry: number, 
+/**
+ * 内容寻址几何缓存命中次数。
+ */
+cacheHits: number, 
+/**
+ * 内容寻址几何缓存未命中次数。
+ */
+cacheMisses: number, 
+/**
+ * 判定影响范围的具体原因，按稳定顺序返回。
+ */
+reasons: Array<IterationImpactReason>, };

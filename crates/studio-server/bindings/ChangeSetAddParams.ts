@@ -2,4 +2,16 @@
 import type { ChangeSetId } from "./ChangeSetId";
 import type { ChangeSetNewEntry } from "./ChangeSetNewEntry";
 
-export type ChangeSetAddParams = { changeSetId: ChangeSetId, expectedVersion: bigint, entries: Array<ChangeSetNewEntry>, };
+export type ChangeSetAddParams = { 
+/**
+ * 目标变更集 ID。
+ */
+changeSetId: ChangeSetId, 
+/**
+ * 期望的当前版本；与服务器不一致时返回版本冲突，防止覆盖他人改动。
+ */
+expectedVersion: bigint, 
+/**
+ * 要追加的候选条目。
+ */
+entries: Array<ChangeSetNewEntry>, };

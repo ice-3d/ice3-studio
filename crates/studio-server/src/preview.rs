@@ -50,10 +50,15 @@ pub struct SourceExport {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct CandidatePreview {
+    /// 该预览所属的资产 ID。
     pub asset_id: String,
+    /// 候选变更集的摘要，与审批时使用的 digest 一致。
     pub digest: String,
+    /// 预览文件字节的 SHA-256，用于校验内容未被替换。
     pub content_hash: String,
+    /// 候选 GLB 的读取地址。
     pub url: String,
+    /// 增量 preview packet 地址；仅在 host 显式开启时非 null。
     pub packet_url: Option<String>,
 }
 

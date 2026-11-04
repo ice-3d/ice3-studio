@@ -31,7 +31,7 @@ test('compiles only changed API parameters into instance.update', () => {
   );
   assert.deepEqual(operations, [{
     type: 'instance.update',
-    node_id: 'node-000001',
+    nodeId: 'node-000001',
     instance: {
       ...instance,
       parameters: { width: 4 },

@@ -23,7 +23,7 @@ export function compileNodeChanges(
   if (name === null && visible === null && metadata === null) return [];
   return [{
     type: 'node.update',
-    node_id: node.id,
+    nodeId: node.id,
     name,
     transform: null,
     visible,

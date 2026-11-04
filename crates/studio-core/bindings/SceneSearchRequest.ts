@@ -6,4 +6,68 @@ import type { SceneContentKind } from "./SceneContentKind";
 import type { SceneSearchField } from "./SceneSearchField";
 import type { SceneSearchScope } from "./SceneSearchScope";
 
-export type SceneSearchRequest = { scope?: SceneSearchScope, query?: string | null, nodeId?: string | null, ownerId?: string | null, parentId?: string | null, metadata?: { [key in string]?: string }, contentKind?: SceneContentKind | null, componentDefinitionId?: ComponentId | null, materialId?: MaterialId | null, visible?: boolean | null, relationType?: string | null, relatedNodeId?: string | null, bounds?: Bounds | null, fields?: Array<SceneSearchField> | null, cursor?: string | null, limit?: number, };
+export type SceneSearchRequest = { 
+/**
+ * 检索范围：源对象、派生对象或两者，默认 `source`。
+ */
+scope?: SceneSearchScope, 
+/**
+ * 对稳定 ID 与显示名做大小写不敏感的子串匹配。
+ */
+query?: string | null, 
+/**
+ * 精确匹配某个节点 ID；与其它过滤条件取交集。
+ */
+nodeId?: string | null, 
+/**
+ * 只返回归属于该业务实体的节点。
+ */
+ownerId?: string | null, 
+/**
+ * 只返回该节点的直接子节点。
+ */
+parentId?: string | null, 
+/**
+ * 业务属性的精确键值匹配，多个键之间为 AND。
+ */
+metadata?: { [key in string]?: string }, 
+/**
+ * 只返回指定内容类别的节点。
+ */
+contentKind?: SceneContentKind | null, 
+/**
+ * 只返回使用该组件定义的实例。
+ */
+componentDefinitionId?: ComponentId | null, 
+/**
+ * 只返回绑定该材质的节点。
+ */
+materialId?: MaterialId | null, 
+/**
+ * 按可见性过滤。
+ */
+visible?: boolean | null, 
+/**
+ * 只返回参与该类型 relation 的源节点；`scope=derived` 时无效。
+ */
+relationType?: string | null, 
+/**
+ * 只返回与指定节点存在 relation 的源节点；`scope=derived` 时无效。
+ */
+relatedNodeId?: string | null, 
+/**
+ * 世界空间包围盒相交过滤，单位米。
+ */
+bounds?: Bounds | null, 
+/**
+ * 字段投影；`id`、`scope`、`kind` 必须保留，未知字段名会被拒绝。
+ */
+fields?: Array<SceneSearchField> | null, 
+/**
+ * 不透明分页游标，绑定 revision 与查询摘要；跨 revision 使用会被拒绝。
+ */
+cursor?: string | null, 
+/**
+ * 返回条数，取值 1..=100，默认 25。
+ */
+limit?: number, };

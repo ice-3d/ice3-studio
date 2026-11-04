@@ -4,4 +4,40 @@ import type { ComponentParameter } from "./ComponentParameter";
 import type { ComponentPartSummary } from "./ComponentPartSummary";
 import type { ComponentPort } from "./ComponentPort";
 
-export type ComponentDefinitionSummary = { id: ComponentId, name: string, parameters: Array<ComponentParameter>, ports: Array<ComponentPort>, parts: Array<ComponentPartSummary>, partCount: number, partsTruncated: boolean, instanceCount: number, metadata: { [key in string]?: string }, };
+export type ComponentDefinitionSummary = { 
+/**
+ * 组件定义 ID。
+ */
+id: ComponentId, 
+/**
+ * 显示名。
+ */
+name: string, 
+/**
+ * 参数 schema：名称、类型、取值范围或枚举、默认值与单位。
+ */
+parameters: Array<ComponentParameter>, 
+/**
+ * 端口清单：所属部件、位置、方向、介质与管径，供连接提案使用。
+ */
+ports: Array<ComponentPort>, 
+/**
+ * 部件层级摘要，最多 100 条。
+ */
+parts: Array<ComponentPartSummary>, 
+/**
+ * 部件条目总数，`repeat` 不展开。
+ */
+partCount: number, 
+/**
+ * 部件超过 100 条时为 true，表示摘要被截断。
+ */
+partsTruncated: boolean, 
+/**
+ * 当前 revision 中以该定义为蓝本的实例与实例集合数量之和。
+ */
+instanceCount: number, 
+/**
+ * 定义级业务属性，内核不解释。
+ */
+metadata: { [key in string]?: string }, };

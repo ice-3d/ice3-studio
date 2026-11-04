@@ -2,4 +2,16 @@
 import type { RelationTypeCount } from "./RelationTypeCount";
 import type { SceneContentKindCount } from "./SceneContentKindCount";
 
-export type SceneFacets = { contentKinds: Array<SceneContentKindCount>, relationTypes: Array<RelationTypeCount>, relationTypesTruncated: boolean, };
+export type SceneFacets = { 
+/**
+ * 按内容类别聚合的节点计数。
+ */
+contentKinds: Array<SceneContentKindCount>, 
+/**
+ * 按类型聚合的 relation 计数，最多 50 条，按类型名稳定排序。
+ */
+relationTypes: Array<RelationTypeCount>, 
+/**
+ * relation 类型超过 50 种时为 true，表示清单被截断而非穷举。
+ */
+relationTypesTruncated: boolean, };

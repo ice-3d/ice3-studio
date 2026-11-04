@@ -6,4 +6,64 @@ import type { ChangeSetStatus } from "./ChangeSetStatus";
 import type { Diagnostic } from "./Diagnostic";
 import type { Revision } from "./Revision";
 
-export type ChangeSet = { schema_version: number, id: ChangeSetId, project_id: string, base_revision: Revision, version: bigint, status: ChangeSetStatus, title: string, entries: Array<ChangeSetEntry>, candidate_digest: string | null, diagnostics: Array<Diagnostic>, committed_revision: Revision | null, commit_result: ApplyResult | null, commit_idempotency_key: string | null, created_at: bigint, updated_at: bigint, };
+export type ChangeSet = { 
+/**
+ * 变更集持久化格式版本。
+ */
+schema_version: number, 
+/**
+ * 变更集 ID。
+ */
+id: ChangeSetId, 
+/**
+ * 所属工程 ID。
+ */
+project_id: string, 
+/**
+ * 创建时的基线 revision；当前 revision 前进后本变更集会变为 stale。
+ */
+base_revision: Revision, 
+/**
+ * 乐观并发版本，每次增删条目递增；写入时必须回传 `expectedVersion`。
+ */
+version: bigint, 
+/**
+ * 生命周期状态：draft、evaluating、ready、blocked、stale、committed、discarded。
+ */
+status: ChangeSetStatus, 
+/**
+ * 人类可读标题，用于审阅列表。
+ */
+title: string, 
+/**
+ * 候选操作条目。
+ */
+entries: Array<ChangeSetEntry>, 
+/**
+ * 求值通过后生成的候选摘要；提交时必须原样回传作为审批凭据。
+ */
+candidate_digest: string | null, 
+/**
+ * 最近一次求值产生的诊断。
+ */
+diagnostics: Array<Diagnostic>, 
+/**
+ * 已提交时对应的 revision。
+ */
+committed_revision: Revision | null, 
+/**
+ * 已提交时的事务结果。
+ */
+commit_result: ApplyResult | null, 
+/**
+ * 提交时使用的幂等键，供审计与重试比对。
+ */
+commit_idempotency_key: string | null, 
+/**
+ * 创建时间，Unix 毫秒。
+ */
+created_at: bigint, 
+/**
+ * 最近更新时间，Unix 毫秒。
+ */
+updated_at: bigint, };

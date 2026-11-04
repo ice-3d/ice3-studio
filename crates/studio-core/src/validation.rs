@@ -167,10 +167,15 @@ impl DiagnosticCode {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct Diagnostic {
+    /// 稳定的 `ICE3_STUDIO_*` 诊断码，调用方应依赖它而不是 message 文本。
     pub code: DiagnosticCode,
+    /// 原子事务中出错操作的序号，从 0 开始。
     pub operation_index: Option<usize>,
+    /// 相关的稳定对象 ID。
     pub object_id: Option<String>,
+    /// 指向无效文档字段的 RFC 6901 JSON Pointer。
     pub pointer: String,
+    /// 人类可读的说明；可能随版本变化，不要用于分支判断。
     pub message: String,
 }
 

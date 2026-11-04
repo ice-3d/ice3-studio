@@ -2,9 +2,37 @@
 import type { MaterialId } from "./MaterialId";
 import type { MaterialSurface } from "./MaterialSurface";
 
-export type MaterialPatch = { materialId: MaterialId, name?: string | null, baseColor?: [number, number, number, number] | null, opacity?: number | null, edgeColor?: [number, number, number, number] | null, clearEdgeColor?: boolean, 
+export type MaterialPatch = { 
+/**
+ * 要修改的材质 ID。
+ */
+materialId: MaterialId, 
+/**
+ * 新的显示名；省略表示不修改。
+ */
+name?: string | null, 
+/**
+ * 基础色 RGBA，各分量 0..=1。
+ */
+baseColor?: [number, number, number, number] | null, 
+/**
+ * 不透明度，0..=1；小于 1 时导出为 alpha blend。
+ */
+opacity?: number | null, 
+/**
+ * 描边颜色 RGBA；与 `clearEdgeColor` 同时给出为非法组合。
+ */
+edgeColor?: [number, number, number, number] | null, 
+/**
+ * 为 true 时清除描边颜色；与 `edgeColor` 同时给出为非法组合。
+ */
+clearEdgeColor?: boolean, 
 /**
  * Replaces the whole surface description; use `clearSurface` to go back to
  * the built-in dielectric defaults.
  */
-surface?: MaterialSurface | null, clearSurface?: boolean, };
+surface?: MaterialSurface | null, 
+/**
+ * 为 true 时把表面恢复为内置电介质默认值。
+ */
+clearSurface?: boolean, };

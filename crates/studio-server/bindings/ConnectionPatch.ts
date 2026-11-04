@@ -3,4 +3,36 @@ import type { InstancePortRef } from "./InstancePortRef";
 import type { NodeId } from "./NodeId";
 import type { RoutePolicy } from "./RoutePolicy";
 
-export type ConnectionPatch = { nodeId: NodeId, from?: InstancePortRef | null, to?: InstancePortRef | null, medium?: string | null, diameter?: number | null, routePolicy?: RoutePolicy | null, setMetadata?: { [key in string]?: string }, removeMetadataKeys?: Array<string>, };
+export type ConnectionPatch = { 
+/**
+ * 要修改的连接节点 ID。
+ */
+nodeId: NodeId, 
+/**
+ * 起点端口引用；省略表示不修改。端点变更会重新校验 relation。
+ */
+from?: InstancePortRef | null, 
+/**
+ * 终点端口引用；省略表示不修改。
+ */
+to?: InstancePortRef | null, 
+/**
+ * 介质标签（水、污泥、沼气等），内核只按其分组，不解释语义。
+ */
+medium?: string | null, 
+/**
+ * 管径，单位米。
+ */
+diameter?: number | null, 
+/**
+ * 路由策略，决定扫掠路径的取点与弯头约束。
+ */
+routePolicy?: RoutePolicy | null, 
+/**
+ * 合并写入的业务属性。
+ */
+setMetadata?: { [key in string]?: string }, 
+/**
+ * 要删除的属性键；键不存在时不报错。
+ */
+removeMetadataKeys?: Array<string>, };

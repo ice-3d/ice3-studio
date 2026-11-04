@@ -4,4 +4,12 @@
  * Bill-of-materials request. `groupBy` is `definition` (default), `material`,
  * `owner`, or `metadata:<key>`.
  */
-export type BomRequest = { groupBy: string | null, limit: number | null, };
+export type BomRequest = { 
+/**
+ * 分组依据：`definition`（默认）、`material`、`owner` 或 `metadata:<key>`。
+ */
+groupBy: string | null, 
+/**
+ * 返回行数上限，默认 200，最大 1000。
+ */
+limit: number | null, };

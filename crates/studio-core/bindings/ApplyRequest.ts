@@ -2,4 +2,20 @@
 import type { Operation } from "./Operation";
 import type { Revision } from "./Revision";
 
-export type ApplyRequest = { expected_revision: Revision, dry_run: boolean, idempotency_key: string, operations: Array<Operation>, };
+export type ApplyRequest = { 
+/**
+ * 基线 revision；与当前值不一致时返回 `ICE3_STUDIO_REVISION_CONFLICT`。
+ */
+expected_revision: Revision, 
+/**
+ * 为 true 时只求值与校验，不写入 revision。
+ */
+dry_run: boolean, 
+/**
+ * 幂等键；同一键的相同请求返回首次结果，不同内容复用会被拒绝。
+ */
+idempotency_key: string, 
+/**
+ * 原子操作数组，要么全部成功，要么全部不生效。
+ */
+operations: Array<Operation>, };

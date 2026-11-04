@@ -86,7 +86,9 @@ pub enum ChangeSetSourceKind {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ChangeSetSource {
+    /// 提案来源类别，区分 Agent、人工表单与导入。
     pub kind: ChangeSetSourceKind,
+    /// 来源的可读标签，例如 Agent 名称或表单入口，仅用于审计展示。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
 }
@@ -95,9 +97,13 @@ pub struct ChangeSetSource {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ChangeSetEntry {
+    /// 条目 ID，删除时按它定位。
     pub id: EntryId,
+    /// 该条操作的提出者。
     pub source: ChangeSetSource,
+    /// 类型化建模操作，与 `document.apply` 的 operation 同构。
     pub operation: Operation,
+    /// 创建时间，Unix 毫秒。
     pub created_at: u64,
 }
 
@@ -105,22 +111,37 @@ pub struct ChangeSetEntry {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ChangeSet {
+    /// 变更集持久化格式版本。
     pub schema_version: u32,
+    /// 变更集 ID。
     pub id: ChangeSetId,
+    /// 所属工程 ID。
     pub project_id: String,
+    /// 创建时的基线 revision；当前 revision 前进后本变更集会变为 stale。
     pub base_revision: Revision,
+    /// 乐观并发版本，每次增删条目递增；写入时必须回传 `expectedVersion`。
     pub version: u64,
+    /// 生命周期状态：draft、evaluating、ready、blocked、stale、committed、discarded。
     pub status: ChangeSetStatus,
+    /// 人类可读标题，用于审阅列表。
     pub title: String,
+    /// 候选操作条目。
     pub entries: Vec<ChangeSetEntry>,
+    /// 求值通过后生成的候选摘要；提交时必须原样回传作为审批凭据。
     pub candidate_digest: Option<String>,
+    /// 最近一次求值产生的诊断。
     pub diagnostics: Vec<Diagnostic>,
+    /// 已提交时对应的 revision。
     pub committed_revision: Option<Revision>,
+    /// 已提交时的事务结果。
     #[serde(default)]
     pub commit_result: Option<ApplyResult>,
+    /// 提交时使用的幂等键，供审计与重试比对。
     #[serde(default)]
     pub commit_idempotency_key: Option<String>,
+    /// 创建时间，Unix 毫秒。
     pub created_at: u64,
+    /// 最近更新时间，Unix 毫秒。
     pub updated_at: u64,
 }
 
@@ -276,13 +297,21 @@ impl ChangeSet {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetEvaluation {
+    /// 被求值的变更集 ID。
     pub change_set_id: ChangeSetId,
+    /// 求值时变更集的版本。
     pub version: u64,
+    /// 求值所基于的基线 revision。
     pub base_revision: Revision,
+    /// 求值后的状态；`ready` 才允许提交。
     pub status: ChangeSetStatus,
+    /// 候选摘要；与审批时回传的 `approvedDigest` 必须一致。
     pub candidate_digest: Option<String>,
+    /// 完整候选文档，仅在 `includeCandidate=true` 时返回；体积可能较大。
     pub candidate: Option<Document>,
+    /// 候选相对基线的结构化差异。
     pub diff: DocumentDiff,
+    /// 校验诊断；存在 error 时状态为 `blocked`。
     pub diagnostics: Vec<Diagnostic>,
 }
 

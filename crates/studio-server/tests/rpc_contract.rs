@@ -27,7 +27,7 @@ async fn health_reports_api_and_schema_versions() {
         .await
         .unwrap();
     assert_eq!(body["status"], "ok");
-    assert_eq!(body["apiVersion"], "1.0");
+    assert_eq!(body["apiVersion"], "1.1");
     assert_eq!(body["schemaVersion"], 2);
 }
 
@@ -133,7 +133,7 @@ async fn publishes_generated_api_schemas() {
         .text()
         .await
         .unwrap();
-    assert!(schema.contains("\"apiVersion\": \"1.0\""));
+    assert!(schema.contains("\"apiVersion\": \"1.1\""));
     assert!(schema.contains("node.create"));
     assert!(schema.contains("evaluation.stats"));
 }

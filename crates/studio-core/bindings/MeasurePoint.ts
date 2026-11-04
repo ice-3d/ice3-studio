@@ -4,4 +4,12 @@
  * One endpoint of a measurement: either a scene node (its world bounds) or an
  * explicit world point.
  */
-export type MeasurePoint = { nodeId?: string, point?: [number, number, number], };
+export type MeasurePoint = { 
+/**
+ * 以节点世界包围盒中心作为端点；与 `point` 二选一。
+ */
+nodeId?: string, 
+/**
+ * 直接给出世界坐标点，单位米；与 `nodeId` 二选一。
+ */
+point?: [number, number, number], };

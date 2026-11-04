@@ -98,10 +98,14 @@ impl ServerConfig {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcRequest {
+    /// 协议版本，固定为 `2.0`。
     pub jsonrpc: String,
+    /// 请求 ID，字符串或数字，响应会原样带回。
     #[ts(type = "unknown")]
     pub id: serde_json::Value,
+    /// 方法名，例如 `scene.search`；完整清单见 `system.capabilities`。
     pub method: String,
+    /// 方法参数；形状由 `schemaUrl` 中对应类型定义。
     #[ts(type = "unknown")]
     pub params: serde_json::Value,
 }
@@ -110,12 +114,16 @@ pub struct RpcRequest {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcResponse {
+    /// 协议版本，固定为 `2.0`。
     pub jsonrpc: String,
+    /// 与请求相同的 ID。
     #[ts(type = "unknown")]
     pub id: serde_json::Value,
+    /// 成功时的返回值；与 `error` 互斥。
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(type = "unknown | null")]
     pub result: Option<serde_json::Value>,
+    /// 失败时的错误对象；与 `result` 互斥。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<RpcError>,
 }
@@ -124,10 +132,15 @@ pub struct RpcResponse {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct RpcError {
+    /// JSON-RPC 错误码；解析错误用 `-32700`，未知方法用 `-32601`。
     pub code: i64,
+    /// 人类可读说明；不要用于分支判断。
     pub message: String,
+    /// 稳定的 `ICE3_STUDIO_*` 诊断码，应以此为准。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diagnostic_code: Option<String>,
+    /// 附加数据；Agent 调用失败时包含 `AgentErrorData`（category、retryable、
+    /// expected/actual、suggestions）。
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(type = "unknown | null")]
     pub data: Option<serde_json::Value>,
@@ -137,11 +150,17 @@ pub struct RpcError {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct Capabilities {
+    /// API 版本字符串。
     pub api_version: String,
+    /// 文档 schema 版本。
     pub schema_version: u32,
+    /// 运行时可用方法清单，包含实验性方法。
     pub methods: Vec<String>,
+    /// 求值后端状态：CPU 权威路径与实验性 GPU 能力。
     pub compute: ComputeStatus,
+    /// 当前令牌的有效权限。
     pub access: AgentAccess,
+    /// 响应与请求限额。
     pub limits: AgentLimits,
 }
 
@@ -149,13 +168,21 @@ pub struct Capabilities {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct EvaluatedSceneStats {
+    /// 源节点数量。
     pub source_nodes: usize,
+    /// 展开后的派生节点数量。
     pub expanded_nodes: usize,
+    /// 去重后的唯一网格数量。
     pub unique_meshes: usize,
+    /// 实际渲染三角形数量。
     pub effective_triangles: usize,
+    /// 去重后的唯一三角形数量；实例共享几何时小于前者。
     pub unique_triangles: usize,
+    /// 几何缓存命中次数。
     pub cache_hits: usize,
+    /// 几何缓存未命中次数。
     pub cache_misses: usize,
+    /// 本次求值新生成的网格数量。
     pub generated_meshes: usize,
 }
 

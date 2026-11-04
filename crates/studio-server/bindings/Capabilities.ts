@@ -3,4 +3,28 @@ import type { AgentAccess } from "./AgentAccess";
 import type { AgentLimits } from "./AgentLimits";
 import type { ComputeStatus } from "./ComputeStatus";
 
-export type Capabilities = { api_version: string, schema_version: number, methods: Array<string>, compute: ComputeStatus, access: AgentAccess, limits: AgentLimits, };
+export type Capabilities = { 
+/**
+ * API 版本字符串。
+ */
+api_version: string, 
+/**
+ * 文档 schema 版本。
+ */
+schema_version: number, 
+/**
+ * 运行时可用方法清单，包含实验性方法。
+ */
+methods: Array<string>, 
+/**
+ * 求值后端状态：CPU 权威路径与实验性 GPU 能力。
+ */
+compute: ComputeStatus, 
+/**
+ * 当前令牌的有效权限。
+ */
+access: AgentAccess, 
+/**
+ * 响应与请求限额。
+ */
+limits: AgentLimits, };

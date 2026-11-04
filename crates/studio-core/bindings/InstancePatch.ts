@@ -5,4 +5,48 @@ import type { NodeId } from "./NodeId";
 import type { ParameterValue } from "./ParameterValue";
 import type { Transform } from "./Transform";
 
-export type InstancePatch = { nodeId: NodeId, name?: string | null, transform?: Transform | null, visible?: boolean | null, definitionId?: ComponentId | null, setParameters?: { [key in string]?: ParameterValue }, removeParameters?: Array<string>, setMetadata?: { [key in string]?: string }, removeMetadataKeys?: Array<string>, materialId?: MaterialId | null, clearMaterial?: boolean, };
+export type InstancePatch = { 
+/**
+ * 要修改的组件实例或实例集合节点 ID。
+ */
+nodeId: NodeId, 
+/**
+ * 新的显示名；省略或 null 表示不修改。
+ */
+name?: string | null, 
+/**
+ * 新的局部变换；省略或 null 表示不修改。
+ */
+transform?: Transform | null, 
+/**
+ * 是否参与渲染；省略表示不修改。
+ */
+visible?: boolean | null, 
+/**
+ * 切换到另一个组件定义；省略表示不修改。
+ */
+definitionId?: ComponentId | null, 
+/**
+ * 只替换列出的参数值，未列出的参数保持不变。
+ */
+setParameters?: { [key in string]?: ParameterValue }, 
+/**
+ * 要删除的参数名；与 `setParameters` 出现同名条目时校验失败。
+ */
+removeParameters?: Array<string>, 
+/**
+ * 合并写入的业务属性，不覆盖未列出的键。
+ */
+setMetadata?: { [key in string]?: string }, 
+/**
+ * 要删除的属性键；键不存在时不报错。
+ */
+removeMetadataKeys?: Array<string>, 
+/**
+ * 绑定材质；省略或 null 表示不修改。
+ */
+materialId?: MaterialId | null, 
+/**
+ * 为 true 时清除材质绑定；与 `materialId` 同时给出为非法组合。
+ */
+clearMaterial?: boolean, };

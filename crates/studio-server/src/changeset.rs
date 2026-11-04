@@ -28,7 +28,9 @@ use crate::rpc::{RpcError, Session, project_error, transaction_error};
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetCreateParams {
+    /// 候选所基于的已提交 revision；之后 revision 前进会使该变更集变为 stale。
     base_revision: Revision,
+    /// 人类可读标题，用于审阅列表。
     title: String,
 }
 
@@ -37,6 +39,7 @@ pub struct ChangeSetCreateParams {
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetGetParams {
+    /// 变更集 ID；`getCandidate` 与 `discard` 复用同一参数。
     change_set_id: ChangeSetId,
 }
 
@@ -45,7 +48,9 @@ pub struct ChangeSetGetParams {
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetNewEntry {
+    /// 该条操作的提出者，用于审阅时归因。
     source: ChangeSetSource,
+    /// 类型化建模操作；同一批次内要么全部校验通过，要么整批失败。
     operation: Operation,
 }
 
@@ -54,8 +59,11 @@ pub struct ChangeSetNewEntry {
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetAddParams {
+    /// 目标变更集 ID。
     change_set_id: ChangeSetId,
+    /// 期望的当前版本；与服务器不一致时返回版本冲突，防止覆盖他人改动。
     expected_version: u64,
+    /// 要追加的候选条目。
     entries: Vec<ChangeSetNewEntry>,
 }
 
@@ -64,8 +72,11 @@ pub struct ChangeSetAddParams {
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetRemoveParams {
+    /// 目标变更集 ID。
     change_set_id: ChangeSetId,
+    /// 期望的当前版本，用于乐观并发控制。
     expected_version: u64,
+    /// 要移除的条目 ID；不存在的 ID 会被忽略。
     entry_ids: Vec<EntryId>,
 }
 
@@ -74,8 +85,11 @@ pub struct ChangeSetRemoveParams {
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetEvaluateParams {
+    /// 目标变更集 ID。
     change_set_id: ChangeSetId,
+    /// 期望的当前版本；求值不推进版本，但版本过期说明候选已变化。
     expected_version: u64,
+    /// 是否在响应中附带完整候选文档，默认 false（只返回 diff 与诊断）。
     #[serde(default)]
     #[ts(as = "Option<_>", optional)]
     include_candidate: bool,
@@ -86,7 +100,9 @@ pub struct ChangeSetEvaluateParams {
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetImpactParams {
+    /// 目标变更集 ID。
     change_set_id: ChangeSetId,
+    /// 期望的当前版本，用于确认分析对象是最新候选。
     expected_version: u64,
 }
 
@@ -95,12 +111,19 @@ pub struct ChangeSetImpactParams {
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetImpactResult {
+    /// 被分析的变更集 ID。
     change_set_id: ChangeSetId,
+    /// 分析时所基于的变更集版本。
     version: u64,
+    /// 候选所基于的已提交 revision。
     base_revision: Revision,
+    /// 分析后的候选状态；`blocked` 或 `stale` 时影响范围记为 `unavailable`。
     status: ChangeSetStatus,
+    /// 候选摘要；状态不可提交时为 null。
     candidate_digest: Option<String>,
+    /// 候选校验诊断数量。
     diagnostic_count: usize,
+    /// 影响范围、几何重建与缓存复用情况。
     impact: IterationImpact,
 }
 
@@ -109,9 +132,13 @@ pub struct ChangeSetImpactResult {
 #[ts(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ChangeSetCommitParams {
+    /// 要提交的变更集 ID。
     change_set_id: ChangeSetId,
+    /// 期望的当前版本，防止提交已被改动的候选。
     expected_version: u64,
+    /// 人工审阅时看到的候选摘要；与当前 digest 不一致时拒绝提交。
     approved_digest: String,
+    /// 幂等键；相同键的相同请求返回首次结果，不同内容复用会被拒绝。
     idempotency_key: String,
 }
 

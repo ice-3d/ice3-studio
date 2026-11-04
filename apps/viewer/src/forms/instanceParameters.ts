@@ -37,7 +37,7 @@ export function compileParameterChanges(
   return changed
     ? [{
         type: 'instance.update',
-        node_id: nodeId,
+        nodeId,
         instance: { ...instance, parameters },
       }]
     : [];

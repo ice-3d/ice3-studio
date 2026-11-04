@@ -19,10 +19,14 @@ use crate::validation::{Diagnostic, DiagnosticCode, validate_document};
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ApplyRequest {
+    /// 基线 revision；与当前值不一致时返回 `ICE3_STUDIO_REVISION_CONFLICT`。
     pub expected_revision: Revision,
+    /// 为 true 时只求值与校验，不写入 revision。
     #[serde(default)]
     pub dry_run: bool,
+    /// 幂等键；同一键的相同请求返回首次结果，不同内容复用会被拒绝。
     pub idempotency_key: String,
+    /// 原子操作数组，要么全部成功，要么全部不生效。
     pub operations: Vec<Operation>,
 }
 
@@ -38,14 +42,23 @@ impl ApplyRequest {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ApplyResult {
+    /// 事务开始前的 revision。
     pub previous_revision: Revision,
+    /// 事务结束后的 revision；dry run 时与 `previousRevision` 相同。
     pub revision: Revision,
+    /// 受影响组件定义的 ID，已排序去重。
     pub changed_component_ids: Vec<ComponentId>,
+    /// 受影响节点的 ID，已排序去重。
     pub changed_node_ids: Vec<NodeId>,
+    /// 受影响材质的 ID，已排序去重。
     pub changed_material_ids: Vec<MaterialId>,
+    /// 受影响 relation 的 ID，已排序去重。
     pub changed_relation_ids: Vec<RelationId>,
+    /// 结构化文档差异，含新增、修改与删除。
     pub diff: DocumentDiff,
+    /// 本次事务产生的诊断；为空表示没有 warning 或 error。
     pub diagnostics: Vec<Diagnostic>,
+    /// 是否只是试运行、未落盘。
     pub dry_run: bool,
 }
 

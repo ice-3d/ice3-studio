@@ -18,7 +18,7 @@ test('compiles generic node field changes into node.update', () => {
 
   assert.deepEqual(operations, [{
     type: 'node.update',
-    node_id: 'node-000001',
+    nodeId: 'node-000001',
     name: 'Assembly revised',
     transform: null,
     visible: false,

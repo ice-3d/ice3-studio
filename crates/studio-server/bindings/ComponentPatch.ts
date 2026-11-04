@@ -2,4 +2,24 @@
 import type { ComponentId } from "./ComponentId";
 import type { ParameterValue } from "./ParameterValue";
 
-export type ComponentPatch = { componentId: ComponentId, name?: string | null, setParameterDefaults?: { [key in string]?: ParameterValue }, setMetadata?: { [key in string]?: string }, removeMetadataKeys?: Array<string>, };
+export type ComponentPatch = { 
+/**
+ * 要修改的组件定义 ID。
+ */
+componentId: ComponentId, 
+/**
+ * 新的显示名；省略表示不修改。
+ */
+name?: string | null, 
+/**
+ * 只覆盖列出的参数默认值；已显式设置该参数的实例不受影响。
+ */
+setParameterDefaults?: { [key in string]?: ParameterValue }, 
+/**
+ * 合并写入的定义级业务属性。
+ */
+setMetadata?: { [key in string]?: string }, 
+/**
+ * 要删除的属性键；键不存在时不报错。
+ */
+removeMetadataKeys?: Array<string>, };

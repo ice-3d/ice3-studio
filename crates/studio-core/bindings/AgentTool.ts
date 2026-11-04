@@ -2,4 +2,40 @@
 import type { AgentIdempotency } from "./AgentIdempotency";
 import type { AgentSideEffect } from "./AgentSideEffect";
 
-export type AgentTool = { name: string, summary: string, sideEffect: AgentSideEffect, requiresApproval: boolean, idempotency: AgentIdempotency, available: boolean, unavailableReason: string | null, inputSchemaRef: string, outputSchemaRef: string | null, };
+export type AgentTool = { 
+/**
+ * 工具名，与 JSON-RPC 方法名一致。
+ */
+name: string, 
+/**
+ * 一句话说明该工具做什么、返回什么。
+ */
+summary: string, 
+/**
+ * 副作用类别，决定能否在只读会话里调用。
+ */
+sideEffect: AgentSideEffect, 
+/**
+ * 是否必须经过人工审批才能产生效果。
+ */
+requiresApproval: boolean, 
+/**
+ * 幂等约束；`required` 时必须携带幂等键。
+ */
+idempotency: AgentIdempotency, 
+/**
+ * 当前令牌能否调用；false 时不要尝试。
+ */
+available: boolean, 
+/**
+ * `available=false` 的原因。
+ */
+unavailableReason: string | null, 
+/**
+ * 指向 `schemaUrl` 中入参定义的 JSON Pointer。
+ */
+inputSchemaRef: string, 
+/**
+ * 指向出参定义的 JSON Pointer；无结构化返回时为 null。
+ */
+outputSchemaRef: string | null, };

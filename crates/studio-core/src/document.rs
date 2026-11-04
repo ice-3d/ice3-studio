@@ -16,16 +16,26 @@ use crate::reference_asset::ReferenceInstanceContent;
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct Document {
+    /// 文档 schema 版本。
     pub schema_version: u32,
+    /// 当前 revision；每次成功事务递增一次，撤销/重做也会产生新 revision。
     pub revision: Revision,
+    /// 所属工程 ID。
     pub project_id: String,
+    /// 场景树，保存源节点层级与变换；几何是由它派生的。
     pub scene: Scene,
+    /// 材质表。
     pub materials: Vec<Material>,
+    /// typed relation，描述对象之间的有向或无向关联。
     pub relations: Vec<Relation>,
+    /// 约束标签；只声明关系，不包含几何求解结果。
     pub constraints: Vec<Constraint>,
+    /// 组件定义（蓝图），实例通过 ID 引用它。
     #[serde(default)]
     pub components: Vec<ComponentDefinition>,
+    /// 工程级业务属性，内核不解释。
     pub metadata: BTreeMap<String, String>,
+    /// 已使用的幂等键记录，用于识别重复事务。
     pub idempotency_keys: Vec<crate::apply::IdempotencyRecord>,
 }
 
@@ -114,7 +124,11 @@ impl SceneNode {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(
+    tag = "type",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 #[ts(export)]
 pub enum NodeContent {
     #[default]
@@ -124,6 +138,7 @@ pub enum NodeContent {
     Sweep {
         points: Vec<[f32; 3]>,
         radius: f32,
+        #[serde(alias = "radial_segments")]
         radial_segments: u32,
     },
     ComponentInstance(ComponentInstance),

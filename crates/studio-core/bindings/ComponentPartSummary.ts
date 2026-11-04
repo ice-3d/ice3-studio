@@ -2,4 +2,28 @@
 import type { ComponentId } from "./ComponentId";
 import type { ComponentPartKind } from "./ComponentPartKind";
 
-export type ComponentPartSummary = { id: string, parentId: string | null, kind: ComponentPartKind, referencedDefinitionId: ComponentId | null, repeat: number | null, visible: boolean, };
+export type ComponentPartSummary = { 
+/**
+ * 部件在所属定义内的稳定 ID。
+ */
+id: string, 
+/**
+ * 父部件 ID，顶层部件为 null。
+ */
+parentId: string | null, 
+/**
+ * 部件几何类别。
+ */
+kind: ComponentPartKind, 
+/**
+ * 被引用的组件定义 ID，仅 `component_reference` 部件有值。
+ */
+referencedDefinitionId: ComponentId | null, 
+/**
+ * `repeat` 展开前的声明次数；null 表示不重复。
+ */
+repeat: number | null, 
+/**
+ * 是否参与渲染。
+ */
+visible: boolean, };

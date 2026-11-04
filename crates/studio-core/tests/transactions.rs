@@ -6,6 +6,42 @@ use studio_core::ids::{ConstraintId, RelationId, Revision};
 use studio_core::operation::Operation;
 
 #[test]
+fn accepts_both_wire_spellings_and_serialises_camel_case() {
+    let camel: Operation = serde_json::from_value(serde_json::json!({
+        "type": "node.delete",
+        "nodeId": "node-000001"
+    }))
+    .expect("camelCase spelling is accepted");
+
+    let legacy: Operation = serde_json::from_value(serde_json::json!({
+        "type": "node.delete",
+        "node_id": "node-000001"
+    }))
+    .expect("legacy snake_case spelling is still accepted during migration");
+
+    assert_eq!(camel, legacy);
+
+    let duplicate: Operation = serde_json::from_value(serde_json::json!({
+        "type": "node.update",
+        "nodeId": "node-000001",
+        "transform": null
+    }))
+    .expect("one object may mix spellings while clients migrate");
+    assert_eq!(
+        duplicate,
+        serde_json::from_value(serde_json::json!({
+            "type": "node.update",
+            "nodeId": "node-000001"
+        }))
+        .unwrap()
+    );
+
+    let encoded = serde_json::to_value(&legacy).unwrap();
+    assert!(encoded.get("nodeId").is_some(), "{encoded}");
+    assert!(encoded.get("node_id").is_none(), "{encoded}");
+}
+
+#[test]
 fn rejects_unknown_operation_fields() {
     let result = serde_json::from_value::<studio_core::apply::ApplyRequest>(serde_json::json!({
         "expectedRevision": 0,

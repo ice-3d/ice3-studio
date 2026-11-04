@@ -4,4 +4,36 @@ import type { AgentLimits } from "./AgentLimits";
 import type { AgentTool } from "./AgentTool";
 import type { AgentWorkflow } from "./AgentWorkflow";
 
-export type AgentManifest = { apiVersion: string, contractVersion: string, schemaUrl: string, typesUrl: string, access: AgentAccess, limits: AgentLimits, tools: Array<AgentTool>, workflows: Array<AgentWorkflow>, };
+export type AgentManifest = { 
+/**
+ * API 版本字符串，仅用于诊断。
+ */
+apiVersion: string, 
+/**
+ * Agent 契约版本，当前为 `1.0`。
+ */
+contractVersion: string, 
+/**
+ * 可下载的 JSON Schema 地址。
+ */
+schemaUrl: string, 
+/**
+ * 可下载的 TypeScript 声明地址。
+ */
+typesUrl: string, 
+/**
+ * 当前令牌的有效权限。
+ */
+access: AgentAccess, 
+/**
+ * 响应与请求限额。
+ */
+limits: AgentLimits, 
+/**
+ * 可用工具清单，含副作用、审批、幂等与 schema 引用。
+ */
+tools: Array<AgentTool>, 
+/**
+ * 推荐的调用序列，只描述顺序，不含自然语言提示。
+ */
+workflows: Array<AgentWorkflow>, };

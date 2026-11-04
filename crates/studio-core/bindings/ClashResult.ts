@@ -9,7 +9,23 @@ pairs: Array<ClashPair>,
 /**
  * Total pair count before `limit` was applied.
  */
-total: number, truncated: boolean, clearance: number, scope: string, precise: boolean, 
+total: number, 
+/**
+ * 结果被 `limit` 截断时为 true。
+ */
+truncated: boolean, 
+/**
+ * 本次采用的净空阈值，单位米。
+ */
+clearance: number, 
+/**
+ * 本次采用的比较粒度。
+ */
+scope: string, 
+/**
+ * 是否执行了三角级窄相位。
+ */
+precise: boolean, 
 /**
  * Evaluated parts that entered the broad phase.
  */

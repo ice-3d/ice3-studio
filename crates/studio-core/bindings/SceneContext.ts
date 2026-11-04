@@ -6,4 +6,48 @@ import type { SceneCoordinateSystem } from "./SceneCoordinateSystem";
 import type { SceneCounts } from "./SceneCounts";
 import type { SceneFacets } from "./SceneFacets";
 
-export type SceneContext = { projectId: string, revision: bigint, apiVersion: string, schemaVersion: number, units: string, coordinateSystem: SceneCoordinateSystem, bounds: Bounds | null, counts: SceneCounts, facets: SceneFacets, access: AgentAccess, limits: AgentLimits, };
+export type SceneContext = { 
+/**
+ * 工程 ID。
+ */
+projectId: string, 
+/**
+ * 本响应所代表的已提交 revision；后续分页与提交都以它为基准。
+ */
+revision: bigint, 
+/**
+ * API 版本字符串，仅用于诊断，不构成兼容性承诺。
+ */
+apiVersion: string, 
+/**
+ * 文档 schema 版本。
+ */
+schemaVersion: number, 
+/**
+ * 长度单位，当前固定为 `meters`。
+ */
+units: string, 
+/**
+ * 坐标约定。
+ */
+coordinateSystem: SceneCoordinateSystem, 
+/**
+ * 整个场景的世界空间包围盒，单位米；空场景为 null。
+ */
+bounds: Bounds | null, 
+/**
+ * 源对象与派生对象的计数摘要。
+ */
+counts: SceneCounts, 
+/**
+ * 内容类别与 relation 类型的聚合视图。
+ */
+facets: SceneFacets, 
+/**
+ * 当前令牌的有效权限。
+ */
+access: AgentAccess, 
+/**
+ * 本会话适用的响应与请求限额。
+ */
+limits: AgentLimits, };

@@ -2,7 +2,15 @@
 import type { ComponentDefinition } from "./ComponentDefinition";
 import type { ComponentDefinitionSummary } from "./ComponentDefinitionSummary";
 
-export type ComponentGetResult = { revision: bigint, component: ComponentDefinitionSummary, 
+export type ComponentGetResult = { 
+/**
+ * 读取所基于的已提交 revision。
+ */
+revision: bigint, 
+/**
+ * 有界定义摘要。
+ */
+component: ComponentDefinitionSummary, 
 /**
  * `includeParts: true` 时的完整定义，与 `component.update` 的 payload 同构。
  */

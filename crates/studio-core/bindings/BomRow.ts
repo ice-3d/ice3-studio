@@ -21,4 +21,8 @@ owners: number,
 /**
  * Summed mesh volume (m³), scaled by the node scale.
  */
-volume: number, bounds: Bounds | null, };
+volume: number, 
+/**
+ * 该组所有部件的世界空间合并包围盒，单位米。
+ */
+bounds: Bounds | null, };

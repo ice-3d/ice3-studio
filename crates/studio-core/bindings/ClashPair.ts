@@ -2,13 +2,21 @@
 
 export type ClashPair = { 
 /**
- * Evaluated part node id of the first part.
+ * 第一个部件的派生节点 ID。
  */
-a: string, b: string, 
+a: string, 
 /**
- * Source instance that owns each part.
+ * 第二个部件的派生节点 ID。
  */
-aOwner: string, bOwner: string, 
+b: string, 
+/**
+ * 第一个部件所属的源实例。
+ */
+aOwner: string, 
+/**
+ * 第二个部件所属的源实例。
+ */
+bOwner: string, 
 /**
  * Signed separation in metres: negative is the penetration depth.
  */

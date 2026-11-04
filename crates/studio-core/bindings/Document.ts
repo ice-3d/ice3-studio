@@ -7,4 +7,44 @@ import type { Relation } from "./Relation";
 import type { Revision } from "./Revision";
 import type { Scene } from "./Scene";
 
-export type Document = { schema_version: number, revision: Revision, project_id: string, scene: Scene, materials: Array<Material>, relations: Array<Relation>, constraints: Array<Constraint>, components: Array<ComponentDefinition>, metadata: { [key in string]?: string }, idempotency_keys: Array<IdempotencyRecord>, };
+export type Document = { 
+/**
+ * 文档 schema 版本。
+ */
+schema_version: number, 
+/**
+ * 当前 revision；每次成功事务递增一次，撤销/重做也会产生新 revision。
+ */
+revision: Revision, 
+/**
+ * 所属工程 ID。
+ */
+project_id: string, 
+/**
+ * 场景树，保存源节点层级与变换；几何是由它派生的。
+ */
+scene: Scene, 
+/**
+ * 材质表。
+ */
+materials: Array<Material>, 
+/**
+ * typed relation，描述对象之间的有向或无向关联。
+ */
+relations: Array<Relation>, 
+/**
+ * 约束标签；只声明关系，不包含几何求解结果。
+ */
+constraints: Array<Constraint>, 
+/**
+ * 组件定义（蓝图），实例通过 ID 引用它。
+ */
+components: Array<ComponentDefinition>, 
+/**
+ * 工程级业务属性，内核不解释。
+ */
+metadata: { [key in string]?: string }, 
+/**
+ * 已使用的幂等键记录，用于识别重复事务。
+ */
+idempotency_keys: Array<IdempotencyRecord>, };

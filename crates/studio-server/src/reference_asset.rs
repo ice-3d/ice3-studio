@@ -18,8 +18,11 @@ use crate::rpc::{RpcError, Session, invalid_params};
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ReferenceAssetRegisterParams {
+    /// 源资产路径，必须位于工程目录内。
     pub source_path: String,
+    /// 已生成的 Prepared GLB 路径；省略时按需生成。
     pub prepared_path: Option<String>,
+    /// 已生成的 Tileset 目录；省略时按需生成。
     pub tileset_path: Option<String>,
     /// 资产发布方提供的语义绑定清单路径。
     #[serde(default)]
@@ -33,6 +36,7 @@ pub struct ReferenceAssetRegisterParams {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ReferenceAssetGetParams {
+    /// 已注册的引用资产 ID。
     pub asset_id: String,
 }
 
@@ -40,8 +44,11 @@ pub struct ReferenceAssetGetParams {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[ts(export)]
 pub struct ReferenceAssetBindingsParams {
+    /// 已注册的引用资产 ID。
     pub asset_id: String,
+    /// 不透明分页游标；省略表示从头开始。
     pub cursor: Option<String>,
+    /// 每页条数，取值 1..=100。
     #[serde(default = "default_binding_limit")]
     pub limit: usize,
 }
@@ -50,7 +57,9 @@ pub struct ReferenceAssetBindingsParams {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ReferenceAssetRegisterResult {
+    /// 注册后分配或确认的资产 ID。
     pub asset_id: String,
+    /// 有界资产描述符，不含几何数据。
     pub descriptor: ReferenceAssetDescriptor,
 }
 
@@ -58,9 +67,13 @@ pub struct ReferenceAssetRegisterResult {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ReferenceAssetEndpoint {
+    /// 资产描述符。
     pub descriptor: ReferenceAssetDescriptor,
+    /// Runtime Tileset 的流式地址；未生成 Tileset 时为 null。
     pub tileset_url: Option<String>,
+    /// Prepared GLB 预览的流式地址；未生成预览时为 null。
     pub prepared_preview_url: Option<String>,
+    /// 绑定清单地址，供 Viewer 按槽位取色与隐藏废弃件。
     pub binding_manifest_url: String,
 }
 
@@ -68,7 +81,9 @@ pub struct ReferenceAssetEndpoint {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ReferenceAssetBindingPageResult {
+    /// 本页绑定，按 `selectionId` 稳定排序。
     pub items: Vec<ReferenceAssetBinding>,
+    /// 下一页游标；为 null 表示已到末页。
     pub next_cursor: Option<String>,
 }
 

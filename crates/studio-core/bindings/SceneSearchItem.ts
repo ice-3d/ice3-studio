@@ -5,4 +5,52 @@ import type { MaterialId } from "./MaterialId";
 import type { SceneContentKind } from "./SceneContentKind";
 import type { SceneSearchScope } from "./SceneSearchScope";
 
-export type SceneSearchItem = { id: string, scope: SceneSearchScope, kind: SceneContentKind, name?: string, parentId?: string, ownerId?: string, visible?: boolean, componentDefinitionId?: ComponentId, materialId?: MaterialId, geometryId?: string, bounds?: Bounds, metadata?: { [key in string]?: string }, };
+export type SceneSearchItem = { 
+/**
+ * 稳定节点 ID；派生对象的 ID 形如 `<instance>/<part>` 或 `<connection>/route`。
+ */
+id: string, 
+/**
+ * 该条结果属于源对象还是派生对象。
+ */
+scope: SceneSearchScope, 
+/**
+ * 内容类别，决定该节点是否有自身几何。
+ */
+kind: SceneContentKind, 
+/**
+ * 显示名，未命名对象为 null。
+ */
+name?: string, 
+/**
+ * 父节点 ID，根节点为 null。
+ */
+parentId?: string, 
+/**
+ * 所属业务实体 ID；派生部件指向宿主实例或连接。
+ */
+ownerId?: string, 
+/**
+ * 是否参与渲染。
+ */
+visible?: boolean, 
+/**
+ * 组件定义 ID，仅组件实例与实例集合有值。
+ */
+componentDefinitionId?: ComponentId, 
+/**
+ * 材质 ID，未绑定材质时为 null。
+ */
+materialId?: MaterialId, 
+/**
+ * 内容寻址的派生几何 ID；纯分组节点为 null。
+ */
+geometryId?: string, 
+/**
+ * 世界空间包围盒，单位米。
+ */
+bounds?: Bounds, 
+/**
+ * 业务属性键值，内核不解释其含义。
+ */
+metadata?: { [key in string]?: string }, };
