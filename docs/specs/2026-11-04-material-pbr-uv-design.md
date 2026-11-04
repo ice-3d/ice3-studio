@@ -107,6 +107,11 @@
   贴图表是全局且索引稳定的，复制不会让 `baseColorTexture.index` 失配。
 - 引擎读取器把 `baseColorTexture → textures[].source → images[].uri` 解析成材质的
   `map`，`KHR_texture_transform.scale` 作为平铺倍率带出。
+- 导出器按 `images[].uri` 从工程目录读出图片，写到 tileset 的 `parts/<uri>`：tile 在
+  `parts/part-000.glb`，按 glTF 语义相对该文件解析得到 `parts/textures/steel.png`，
+  与落盘位置一致。缺文件直接让导出失败，而不是产出 404 的包。
+- `/reference-assets/{id}/tiled/{*path}` 放行 `png`/`jpg`/`webp`；引擎按**资产 URL**
+  解析图片，因此 `/tiled/parts/part-000.glb` 请求的是 `/tiled/parts/textures/steel.png`。
 
 ## 6. 代码落点
 
