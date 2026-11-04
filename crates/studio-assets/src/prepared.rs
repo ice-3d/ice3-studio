@@ -641,20 +641,20 @@ fn validate_textures(json: &Value) -> AssetResult<()> {
         if source.is_none_or(|index| index as usize >= images.len()) {
             return Err(profile_invalid("texture source is out of range"));
         }
-        if let Some(sampler) = texture.get("sampler").and_then(Value::as_u64) {
-            if sampler as usize >= samplers.len() {
-                return Err(profile_invalid("texture sampler is out of range"));
-            }
+        if let Some(sampler) = texture.get("sampler").and_then(Value::as_u64)
+            && sampler as usize >= samplers.len()
+        {
+            return Err(profile_invalid("texture sampler is out of range"));
         }
     }
     for material in array(json.get("materials")) {
         let index = material
             .pointer("/pbrMetallicRoughness/baseColorTexture/index")
             .and_then(Value::as_u64);
-        if let Some(index) = index {
-            if index as usize >= textures.len() {
-                return Err(profile_invalid("baseColorTexture index is out of range"));
-            }
+        if let Some(index) = index
+            && index as usize >= textures.len()
+        {
+            return Err(profile_invalid("baseColorTexture index is out of range"));
         }
     }
     Ok(())

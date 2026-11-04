@@ -96,6 +96,18 @@
 - 表面参数校验并入文档校验：metallic/roughness ∈ [0,1]、emissive 非负有限、
   uvScale 正有限、贴图路径相对。
 
+## 5.1 资产链路（同一轮补齐）
+
+- Prepared GLB profile 放开 `textures`/`images`/`samplers`，但只接受**相对路径**的外部
+  图片；`bufferView` 内嵌图片、绝对路径、`..`、`://` 一律拒绝（profile 只有一个 buffer，
+  内嵌图片渲染器无法寻址）。
+- `CanonicalMaterial.texture` → canonical writer 写 `images`/`samplers`/`textures` 与
+  `baseColorTexture`（`KHR_texture_transform.scale` 携带 `uvScale`）。
+- 分区打包把 `images`/`samplers`/`textures`/`extensionsUsed` 原样复制到每个 tile：
+  贴图表是全局且索引稳定的，复制不会让 `baseColorTexture.index` 失配。
+- 引擎读取器把 `baseColorTexture → textures[].source → images[].uri` 解析成材质的
+  `map`，`KHR_texture_transform.scale` 作为平铺倍率带出。
+
 ## 6. 代码落点
 
 | 文件 | 变更 |

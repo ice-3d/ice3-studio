@@ -1490,6 +1490,16 @@ impl PartWriter {
             "buffers": [{"byteLength": self.binary.len()}],
             "extras": project_extras
         });
+        // Texture tables are global and index-stable, so every tile that uses a
+        // textured material carries the same arrays verbatim. The image files
+        // themselves are copied next to the tileset by the exporter.
+        for field in ["images", "samplers", "textures", "extensionsUsed"] {
+            if let Some(value) = source.json.get(field)
+                && value.as_array().is_none_or(|values| !values.is_empty())
+            {
+                json[field] = value.clone();
+            }
+        }
         let mut edge_segment_count = 0_u64;
         let mut edge_bytes = 0_u64;
         if self.edge_options.generate_edges {
