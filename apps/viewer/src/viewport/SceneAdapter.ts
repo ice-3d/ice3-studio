@@ -73,6 +73,7 @@ export class SceneAdapter {
   }>();
   onSelection: ((ids: readonly string[]) => void) | undefined;
   private readonly selectionListeners = new Set<(ids: readonly string[]) => void>();
+  private sectionRatio: number | null = null;
 
   async mount(container: HTMLElement): Promise<void> {
     this.viewportElement = container;
@@ -87,6 +88,13 @@ export class SceneAdapter {
       target: [0, 1, 0],
     });
     engine.setCamera(camera).start();
+    const sectionParam = new URLSearchParams(window.location.search).get('section');
+    if (sectionParam !== null) {
+      const ratio = Number.parseFloat(sectionParam);
+      if (Number.isFinite(ratio)) {
+        this.sectionRatio = Math.min(1, Math.max(0, ratio));
+      }
+    }
     engine.on<{ selection: readonly string[] }>('SELECTION_CHANGE', (event) => {
       const normalized = normalizeEntitySelections(
         event.param?.selection ?? [],
@@ -138,6 +146,42 @@ export class SceneAdapter {
     }
     this.engine.setSelection(importedSelection);
     this.engine.requestRender('studio-selection-change');
+  }
+
+  /** Enable/disable the horizontal section plane (ratio 0..1 of scene height). */
+  setSectionRatio(ratio: number | null): void {
+    this.sectionRatio = ratio === null ? null : Math.min(1, Math.max(0, ratio));
+    this.applySection();
+  }
+
+  private applySection(): void {
+    if (!this.engine) return;
+    if (this.sectionRatio === null) {
+      this.engine.setClipPlane(null);
+      this.engine.requestRender('section-off');
+      return;
+    }
+    const range = this.verticalRange();
+    if (!range) {
+      this.engine.setClipPlane(null);
+      return;
+    }
+    const cut = range.minY + (range.maxY - range.minY) * this.sectionRatio;
+    // Keep everything below the cut plane (`dot(world, n) + d >= 0`).
+    this.engine.setClipPlane([0, -1, 0, cut]);
+    this.engine.requestRender('section');
+  }
+
+  private verticalRange(): { minY: number; maxY: number } | null {
+    const items = this.engine?.queryScene() ?? [];
+    if (items.length === 0) return null;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const item of items) {
+      minY = Math.min(minY, item.bounds.min[1]);
+      maxY = Math.max(maxY, item.bounds.max[1]);
+    }
+    return Number.isFinite(minY) && Number.isFinite(maxY) ? { minY, maxY } : null;
   }
 
   /** Subscribe to engine selection changes (used by the measure tool). */
@@ -231,6 +275,7 @@ export class SceneAdapter {
           this.referenceExposure,
         );
         this.engine.setScene(replacement.scene);
+        this.applySection();
         this.select(this.selectionIds);
         const previous = this.tilesetHandle;
         this.tilesetHandle = replacement;
@@ -311,6 +356,7 @@ export class SceneAdapter {
     }
     this.pinnedPacketGeometries.clear();
     this.engine.setScene(handle.scene);
+    this.applySection();
     this.orbit = new ICEOrbitController(this.engine, this.camera).start();
     this.engine.requestRender('studio-preview-ready');
   }
@@ -360,6 +406,7 @@ export class SceneAdapter {
     this.tilesetHandle?.dispose();
     this.tilesetHandle = null;
     this.engine.setScene(scene);
+    this.applySection();
     this.orbit?.dispose();
     this.orbit = new ICEOrbitController(this.engine, this.camera).start();
     this.engine.requestRender('studio-preview-packet-ready');
