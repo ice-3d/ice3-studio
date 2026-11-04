@@ -1,1 +1,13 @@
-{"schemaVersion":2,"projectId":"wastewater-plant","currentRevision":3,"snapshotDigest":"1a7e2540e08d805200cfe1ccf5c63fd090699bd628823d6b3a2706a454c82149","undoStack":[0,1,2],"redoStack":[]}
+{
+  "schemaVersion": 2,
+  "projectId": "wastewater-plant",
+  "currentRevision": 4,
+  "snapshotDigest": "2288b6a643cc21a0bf324f2369041d99b0825b95b07c959d325d2701edd225b9",
+  "undoStack": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "redoStack": []
+}
