@@ -1550,6 +1550,11 @@ async fn reference_tiled_file(
     let content_type = match relative.extension().and_then(|value| value.to_str()) {
         Some("json") => "application/json; charset=utf-8",
         Some("glb") => "model/gltf-binary",
+        // Base-colour textures ship beside the tiles and are fetched by the
+        // renderer through this same route.
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
     serve_reference_asset_file(state, asset_id, &relative, content_type).await

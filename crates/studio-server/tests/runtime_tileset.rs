@@ -230,3 +230,61 @@ fn mesh() -> EvaluatedMesh {
         },
     }
 }
+
+#[test]
+fn textures_ship_beside_the_tiles_that_reference_them() {
+    use studio_core::document::{Material, MaterialSurface};
+    use studio_core::ids::MaterialId;
+
+    let root = tempfile::tempdir().unwrap().keep();
+    let project_root = root.join("projects");
+    std::fs::create_dir_all(&project_root).unwrap();
+    let workspace = WorkspacePath::new(&project_root, "textured").unwrap();
+    let store = ProjectStore::create(workspace).unwrap();
+
+    let image = b"\x89PNG\r\n\x1a\nnot-really-a-png".to_vec();
+    std::fs::create_dir_all(store.project_dir().join("textures")).unwrap();
+    std::fs::write(store.project_dir().join("textures/steel.png"), &image).unwrap();
+
+    let mut document = fixture_document();
+    document.revision = Revision::new(0);
+    let material_id = MaterialId::from("material-000001");
+    document.materials.push(Material {
+        id: material_id.clone(),
+        name: "Steel".into(),
+        base_color: [0.6, 0.6, 0.62, 1.0],
+        opacity: 1.0,
+        edge_color: None,
+        shading: None,
+        surface: Some(MaterialSurface {
+            base_color_texture: Some("textures/steel.png".into()),
+            ..MaterialSurface::dielectric()
+        }),
+    });
+    for node in document.scene.nodes_mut() {
+        node.material_id = Some(material_id.clone());
+    }
+    store.write_snapshot(&document).unwrap();
+
+    let output = root.join("bundle");
+    let export = RuntimeTilesetExporter::new(output.clone(), false)
+        .export(&document, store.project_dir())
+        .expect("export");
+
+    let copied = output.join("parts/textures/steel.png");
+    assert_eq!(std::fs::read(&copied).unwrap(), image);
+    let listed = export
+        .files
+        .iter()
+        .find(|file| file.path == "parts/textures/steel.png")
+        .expect("texture is listed in the manifest");
+    assert_eq!(listed.byte_length as usize, image.len());
+
+    let part = std::fs::read(output.join("parts/part-000.glb")).expect("part glb");
+    let parsed = read_glb_bytes(&part, &std::env::temp_dir()).expect("parse part");
+    assert_eq!(parsed.json["images"][0]["uri"], "textures/steel.png");
+    assert_eq!(
+        parsed.json["materials"][0]["pbrMetallicRoughness"]["baseColorTexture"]["index"],
+        0
+    );
+}

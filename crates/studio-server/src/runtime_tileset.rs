@@ -246,9 +246,10 @@ impl RuntimeTilesetExporter {
         let (source, scene) = export_source_with_scene(document, project_dir, None)?;
         let source_glb = studio_assets::read_glb(&source.source_path)?;
         let artifact = build_with_profile(&source_glb, asset_id, &self.profile)?;
+        let textures = collect_textures(&source_glb, project_dir)?;
         let bindings =
             BindingManifest::from_evaluated_scene(asset_id, document.revision.as_u64(), &scene);
-        self.publish(source, artifact, bindings)
+        self.publish(source, artifact, bindings, textures)
     }
 
     fn publish(
@@ -256,6 +257,7 @@ impl RuntimeTilesetExporter {
         source: crate::preview::SourceExport,
         artifact: PartitionArtifact,
         bindings: BindingManifest,
+        textures: Vec<TextureFile>,
     ) -> Result<RuntimeTilesetExport, RuntimeTilesetError> {
         let parent = self
             .output_dir
@@ -299,6 +301,16 @@ impl RuntimeTilesetExporter {
             byte_length: bindings.len(),
             digest: format!("{:x}", Sha256::digest(&bindings)),
         });
+        // Tiles live in `parts/`, and glTF resolves an image relative to the file
+        // that references it, so textures ship next to the tiles they belong to.
+        for texture in &textures {
+            let path = format!("parts/{}", texture.relative_path);
+            exported_files.push(ExportedFile {
+                path: path.clone(),
+                byte_length: texture.bytes.len(),
+                digest: format!("{:x}", Sha256::digest(&texture.bytes)),
+            });
+        }
         exported_files.sort_by(|left, right| left.path.cmp(&right.path));
         let export = RuntimeTilesetExport {
             kind: "ice3-runtime-asset".into(),
@@ -323,6 +335,13 @@ impl RuntimeTilesetExporter {
         write_file(&staging, "bindings.json", &bindings)?;
         for file in &artifact.files {
             write_relative(&staging, &file.relative_path, &file.bytes)?;
+        }
+        for texture in &textures {
+            write_relative(
+                &staging,
+                &format!("parts/{}", texture.relative_path),
+                &texture.bytes,
+            )?;
         }
         write_file(&staging, "export.json", &pretty_json(&export)?)?;
         publish_directory(&staging, &self.output_dir, &backup, self.force)?;
@@ -420,4 +439,54 @@ fn pretty_json<T: Serialize>(value: &T) -> Result<Vec<u8>, RuntimeTilesetError> 
 fn bindings_count(bytes: &[u8]) -> Result<usize, RuntimeTilesetError> {
     let manifest: BindingManifest = serde_json::from_slice(bytes)?;
     Ok(manifest.bindings.len())
+}
+
+/// A texture image that has to ship with the tileset.
+struct TextureFile {
+    /// Project-relative path, identical to the `images[].uri` in the source GLB.
+    relative_path: String,
+    bytes: Vec<u8>,
+}
+
+/// Read every image the source GLB references from the project directory.
+///
+/// Texture tables are already copied into each tile, so a missing file would
+/// publish an asset that 404s at runtime; failing the export is the honest
+/// answer.
+fn collect_textures(
+    source: &studio_assets::SourceGlb,
+    project_dir: &Path,
+) -> Result<Vec<TextureFile>, RuntimeTilesetError> {
+    let mut textures = Vec::new();
+    let Some(images) = source
+        .json
+        .get("images")
+        .and_then(serde_json::Value::as_array)
+    else {
+        return Ok(textures);
+    };
+    for image in images {
+        let Some(uri) = image.get("uri").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let relative = Path::new(uri);
+        if relative.is_absolute()
+            || relative
+                .components()
+                .any(|component| !matches!(component, Component::Normal(_)))
+        {
+            return Err(RuntimeTilesetError::InvalidPath(uri.into()));
+        }
+        let bytes = std::fs::read(project_dir.join(relative)).map_err(|error| {
+            RuntimeTilesetError::Io(std::io::Error::new(
+                error.kind(),
+                format!("texture {uri} is unavailable: {error}"),
+            ))
+        })?;
+        textures.push(TextureFile {
+            relative_path: uri.into(),
+            bytes,
+        });
+    }
+    Ok(textures)
 }
