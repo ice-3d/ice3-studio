@@ -354,9 +354,11 @@ fn build_canonical_document(
         "buffers": [{"byteLength": byte_length}]
     });
     if !image_indices.is_empty() {
-        let images = image_indices
-            .keys()
-            .map(|uri| json!({ "uri": uri }))
+        let mut ordered = image_indices.iter().collect::<Vec<_>>();
+        ordered.sort_by_key(|(_, index)| **index);
+        let images = ordered
+            .into_iter()
+            .map(|(uri, _)| json!({ "uri": uri }))
             .collect::<Vec<_>>();
         let textures = (0..images.len())
             .map(|index| json!({ "sampler": 0, "source": index }))

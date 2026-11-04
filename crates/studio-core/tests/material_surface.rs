@@ -72,6 +72,7 @@ fn emissive_and_texture_are_exported_together() {
         emissive: Some([0.0, 0.4, 0.8]),
         uv_scale: [2.0, 3.0],
         base_color_texture: Some("textures/steel.png".into()),
+        ..MaterialSurface::dielectric()
     }));
     let gltf = gltf_json(&document);
     let emissive = gltf["materials"][0]["emissiveFactor"]
@@ -216,4 +217,53 @@ fn surface_defaults_fill_in_for_a_minimal_document() {
     assert_eq!(decoded.metallic, 0.3);
     assert_eq!(decoded.roughness, 0.9);
     assert_eq!(decoded.uv_scale, [1.0, 1.0]);
+}
+
+#[test]
+fn a_normal_map_reaches_the_gltf_material_with_its_strength() {
+    let document = document_with(Some(MaterialSurface {
+        metallic: 0.4,
+        roughness: 0.35,
+        base_color_texture: Some("textures/steel.png".into()),
+        normal_texture: Some("textures/steel-normal.png".into()),
+        normal_scale: Some(0.6),
+        ..MaterialSurface::dielectric()
+    }));
+    let gltf = gltf_json(&document);
+    // Image indices follow the deduplicated path table, so resolve each slot
+    // back through the material instead of assuming declaration order.
+    let base = gltf["materials"][0]["pbrMetallicRoughness"]["baseColorTexture"]["index"]
+        .as_u64()
+        .unwrap() as usize;
+    let normal = gltf["materials"][0]["normalTexture"]["index"]
+        .as_u64()
+        .unwrap() as usize;
+    assert_eq!(gltf["images"][base]["uri"], "textures/steel.png");
+    assert_eq!(gltf["images"][normal]["uri"], "textures/steel-normal.png");
+    assert_ne!(base, normal);
+    assert!(
+        (gltf["materials"][0]["normalTexture"]["scale"]
+            .as_f64()
+            .unwrap()
+            - 0.6)
+            .abs()
+            < 1e-6
+    );
+    assert_eq!(gltf["textures"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn an_illegal_normal_scale_or_path_is_rejected() {
+    let bad_scale = document_with(Some(MaterialSurface {
+        normal_texture: Some("textures/steel-normal.png".into()),
+        normal_scale: Some(3.0),
+        ..MaterialSurface::dielectric()
+    }));
+    assert!(!validate_document(&bad_scale).is_empty());
+
+    let bad_path = document_with(Some(MaterialSurface {
+        normal_texture: Some("../outside/normal.png".into()),
+        ..MaterialSurface::dielectric()
+    }));
+    assert!(!validate_document(&bad_path).is_empty());
 }

@@ -182,6 +182,12 @@ pub struct MaterialSurface {
     /// Relative path of the base-colour image, resolved against the glTF file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_color_texture: Option<String>,
+    /// Relative path of a tangent-space normal map; shares the base-colour UVs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal_texture: Option<String>,
+    /// Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal_scale: Option<f32>,
 }
 
 impl MaterialSurface {
@@ -193,6 +199,8 @@ impl MaterialSurface {
             emissive: None,
             uv_scale: [1.0, 1.0],
             base_color_texture: None,
+            normal_texture: None,
+            normal_scale: None,
         }
     }
 }

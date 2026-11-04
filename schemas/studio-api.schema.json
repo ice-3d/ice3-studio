@@ -857,6 +857,21 @@
               "format": "float",
               "type": "number"
             },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -4875,6 +4890,21 @@
               "format": "float",
               "type": "number"
             },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -7680,6 +7710,21 @@
               "format": "float",
               "type": "number"
             },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -10441,6 +10486,21 @@
               "description": "0 = dielectric, 1 = metal.",
               "format": "float",
               "type": "number"
+            },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "roughness": {
               "default": 0.8999999761581421,
@@ -13444,6 +13504,21 @@
               "format": "float",
               "type": "number"
             },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -15510,6 +15585,21 @@
               "description": "0 = dielectric, 1 = metal.",
               "format": "float",
               "type": "number"
+            },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "roughness": {
               "default": 0.8999999761581421,
@@ -19998,6 +20088,21 @@
               "format": "float",
               "type": "number"
             },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -21750,6 +21855,21 @@
               "format": "float",
               "type": "number"
             },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -22587,6 +22707,21 @@
               "description": "0 = dielectric, 1 = metal.",
               "format": "float",
               "type": "number"
+            },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "roughness": {
               "default": 0.8999999761581421,

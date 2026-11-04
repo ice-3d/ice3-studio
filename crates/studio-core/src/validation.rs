@@ -314,8 +314,20 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
             let texture_valid = surface
                 .base_color_texture
                 .as_ref()
-                .is_none_or(|path| texture_path_is_relative(path));
-            if !(factors_valid && emissive_valid && scale_valid && texture_valid) {
+                .is_none_or(|path| texture_path_is_relative(path))
+                && surface
+                    .normal_texture
+                    .as_ref()
+                    .is_none_or(|path| texture_path_is_relative(path));
+            let normal_scale_valid = surface
+                .normal_scale
+                .is_none_or(|scale| scale.is_finite() && (0.0..=2.0).contains(&scale));
+            if !(factors_valid
+                && emissive_valid
+                && scale_valid
+                && texture_valid
+                && normal_scale_valid)
+            {
                 diagnostics.push(geometry(
                     None,
                     material.id.as_str(),

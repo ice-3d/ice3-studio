@@ -50,8 +50,23 @@ pub fn export_glb_from_scene(
         .map(|(index, material)| (material.id.clone(), index))
         .collect();
     // Texture images are referenced by relative path; each distinct path becomes
-    // one image, one sampler and one texture so materials can share them.
+    // one image, one sampler and one texture so materials can share them. The
+    // table is built up front so base-colour and normal slots share indices.
     let mut image_indices: BTreeMap<String, usize> = BTreeMap::new();
+    for material in &document.materials {
+        if let Some(surface) = &material.surface {
+            for path in [
+                surface.base_color_texture.as_ref(),
+                surface.normal_texture.as_ref(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                let next = image_indices.len();
+                image_indices.entry(path.clone()).or_insert(next);
+            }
+        }
+    }
     let surface_of = |material: &crate::document::Material| {
         material
             .surface
@@ -75,8 +90,7 @@ pub fn export_glb_from_scene(
             "roughnessFactor": surface.roughness
         });
         if let Some(path) = &surface.base_color_texture {
-            let next = image_indices.len();
-            let index = *image_indices.entry(path.clone()).or_insert(next);
+            let index = image_indices.get(path).copied().unwrap_or(0);
             pbr["baseColorTexture"] = json!({
                 "index": index,
                 "extensions": {
@@ -84,6 +98,10 @@ pub fn export_glb_from_scene(
                 }
             });
         }
+        let normal_texture = surface
+            .normal_texture
+            .as_ref()
+            .and_then(|path| image_indices.get(path).copied());
         let mut value = json!({
             "name": material.name,
             "pbrMetallicRoughness": pbr,
@@ -99,6 +117,12 @@ pub fn export_glb_from_scene(
         });
         if let Some(emissive) = surface.emissive {
             value["emissiveFactor"] = json!(emissive);
+        }
+        if let Some(index) = normal_texture {
+            value["normalTexture"] = json!({
+                "index": index,
+                "scale": surface.normal_scale.unwrap_or(1.0)
+            });
         }
         materials.push(value);
     }
@@ -225,9 +249,13 @@ pub fn export_glb_from_scene(
         }
     });
     if !image_indices.is_empty() {
-        let images = image_indices
-            .keys()
-            .map(|uri| json!({ "uri": uri }))
+        // `baseColorTexture.index` indexes this array, so emit by assigned index
+        // rather than by key order.
+        let mut ordered = image_indices.iter().collect::<Vec<_>>();
+        ordered.sort_by_key(|(_, index)| **index);
+        let images = ordered
+            .into_iter()
+            .map(|(uri, _)| json!({ "uri": uri }))
             .collect::<Vec<_>>();
         let textures = (0..images.len())
             .map(|index| json!({ "sampler": 0, "source": index }))

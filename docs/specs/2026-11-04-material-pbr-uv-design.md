@@ -113,6 +113,12 @@
 - `/reference-assets/{id}/tiled/{*path}` 放行 `png`/`jpg`/`webp`；引擎按**资产 URL**
   解析图片，因此 `/tiled/parts/part-000.glb` 请求的是 `/tiled/parts/textures/steel.png`。
 
+## 5.2 法线贴图链路
+
+`normalTexture` 与 base-colour 走同一条路：profile 校验（相对路径 + 索引范围）→
+canonical/export writer → 分区 tile 复制 → 导出器落盘 → 路由供出 → 引擎读取器解析成
+`normalMap{url, strength}` → `ICEBasicMaterial.normalMap` → 着色器按解析切线基扰动法线。
+
 ## 6. 代码落点
 
 | 文件 | 变更 |

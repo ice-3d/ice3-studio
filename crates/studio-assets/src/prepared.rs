@@ -648,13 +648,16 @@ fn validate_textures(json: &Value) -> AssetResult<()> {
         }
     }
     for material in array(json.get("materials")) {
-        let index = material
-            .pointer("/pbrMetallicRoughness/baseColorTexture/index")
-            .and_then(Value::as_u64);
-        if let Some(index) = index
-            && index as usize >= textures.len()
-        {
-            return Err(profile_invalid("baseColorTexture index is out of range"));
+        for pointer in [
+            "/pbrMetallicRoughness/baseColorTexture/index",
+            "/normalTexture/index",
+        ] {
+            let index = material.pointer(pointer).and_then(Value::as_u64);
+            if let Some(index) = index
+                && index as usize >= textures.len()
+            {
+                return Err(profile_invalid("texture index is out of range"));
+            }
         }
     }
     Ok(())
