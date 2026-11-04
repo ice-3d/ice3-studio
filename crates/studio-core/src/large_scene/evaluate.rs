@@ -214,11 +214,16 @@ fn resolved_part_geometry_key_with_metadata(
 }
 
 pub fn evaluated_scene_bounds(scene: &EvaluatedScene) -> BTreeMap<String, Bounds> {
-    let by_id = scene
-        .nodes
-        .iter()
-        .map(|node| (node.id.as_str(), node))
-        .collect::<BTreeMap<_, _>>();
+    let matrices = evaluated_world_matrices(scene);
+    evaluated_scene_bounds_with(scene, &matrices)
+}
+
+/// World bounds using pre-computed node matrices, so callers that already need
+/// the matrices do not pay for the parent walk twice.
+pub fn evaluated_scene_bounds_with(
+    scene: &EvaluatedScene,
+    matrices: &BTreeMap<String, Mat4>,
+) -> BTreeMap<String, Bounds> {
     let mut output = BTreeMap::new();
     for node in &scene.nodes {
         let Some(mesh_key) = &node.mesh_key else {
@@ -227,21 +232,10 @@ pub fn evaluated_scene_bounds(scene: &EvaluatedScene) -> BTreeMap<String, Bounds
         let Some(mesh) = scene.meshes.get(mesh_key) else {
             continue;
         };
-        let mut transforms = Vec::new();
-        let mut current = Some(node);
-        while let Some(candidate) = current {
-            transforms.push(candidate.transform);
-            current = candidate
-                .parent_id
-                .as_deref()
-                .and_then(|parent| by_id.get(parent).copied());
-        }
-        let matrix = transforms
-            .iter()
-            .rev()
-            .fold(Mat4::IDENTITY, |parent, child| {
-                parent * transform_matrix(*child)
-            });
+        let matrix = matrices
+            .get(node.id.as_str())
+            .copied()
+            .unwrap_or(Mat4::IDENTITY);
         let mut minimum = [f32::INFINITY; 3];
         let mut maximum = [f32::NEG_INFINITY; 3];
         for x in [mesh.bounds.min.x, mesh.bounds.max.x] {
@@ -278,6 +272,44 @@ pub fn evaluated_scene_bounds(scene: &EvaluatedScene) -> BTreeMap<String, Bounds
         );
     }
     output
+}
+
+/// World matrix of every evaluated node, composed through the parent chain.
+///
+/// The parent chain is resolved once per node and memoised, so a deep hierarchy
+/// costs one matrix multiply per level instead of one per node visit.
+pub fn evaluated_world_matrices(scene: &EvaluatedScene) -> BTreeMap<String, Mat4> {
+    let by_id = scene
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect::<BTreeMap<_, _>>();
+    let mut matrices: BTreeMap<String, Mat4> = BTreeMap::new();
+    for node in &scene.nodes {
+        if matrices.contains_key(node.id.as_str()) {
+            continue;
+        }
+        let mut chain: Vec<&EvaluatedSceneNode> = Vec::new();
+        let mut current = Some(node);
+        let mut base = Mat4::IDENTITY;
+        while let Some(candidate) = current {
+            if let Some(matrix) = matrices.get(candidate.id.as_str()) {
+                base = *matrix;
+                break;
+            }
+            chain.push(candidate);
+            current = candidate
+                .parent_id
+                .as_deref()
+                .and_then(|parent| by_id.get(parent).copied());
+        }
+        let mut matrix = base;
+        for candidate in chain.iter().rev() {
+            matrix *= transform_matrix(candidate.transform);
+            matrices.insert(candidate.id.clone(), matrix);
+        }
+    }
+    matrices
 }
 
 /// 把派生节点的 world bounds 按源节点聚合。

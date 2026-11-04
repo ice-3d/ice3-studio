@@ -19,6 +19,7 @@
     "scene.bounds",
     "scene.measure",
     "scene.bom",
+    "scene.clashes",
     "scene.context",
     "scene.search",
     "component.get",
@@ -16972,6 +16973,218 @@
       ],
       "title": "ChangeSetStatus",
       "type": "string"
+    },
+    "ClashPair": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "a": {
+          "description": "Evaluated part node id of the first part.",
+          "type": "string"
+        },
+        "aOwner": {
+          "description": "Source instance that owns each part.",
+          "type": "string"
+        },
+        "b": {
+          "type": "string"
+        },
+        "bOwner": {
+          "type": "string"
+        },
+        "confirmed": {
+          "description": "Narrow-phase verdict: `null` when `precise` was not requested or the\ntriangle budget ran out.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "gap": {
+          "description": "Signed separation in metres: negative is the penetration depth.",
+          "format": "float",
+          "type": "number"
+        },
+        "penetrating": {
+          "description": "True when the boxes penetrate, so `gap` is a depth rather than a gap.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "aOwner",
+        "bOwner",
+        "gap",
+        "penetrating"
+      ],
+      "title": "ClashPair",
+      "type": "object"
+    },
+    "ClashRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "Clash / clearance query over the evaluated scene.\n\n`clearance` is a distance in metres: `0` (default) reports penetrations only,\nanything larger also reports parts that come that close. `scope` is `owners`\n(default, compare parts belonging to different source instances) or `parts`\n(also compare parts of the same instance). `precise` asks for a triangle\nnarrow phase on penetrating candidates. `ownerIds` restricts the audit to\nthose source instances.",
+      "properties": {
+        "clearance": {
+          "default": null,
+          "format": "float",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "includeTouching": {
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "limit": {
+          "default": null,
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ownerIds": {
+          "default": null,
+          "items": {
+            "type": "string"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "precise": {
+          "default": null,
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "scope": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "triangleBudget": {
+          "default": null,
+          "description": "Triangle pairs examined per candidate in the narrow phase. Raise it when\nbig meshes come back `confirmed: null`; it is the only cost knob.",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "title": "ClashRequest",
+      "type": "object"
+    },
+    "ClashResult": {
+      "$defs": {
+        "ClashPair": {
+          "properties": {
+            "a": {
+              "description": "Evaluated part node id of the first part.",
+              "type": "string"
+            },
+            "aOwner": {
+              "description": "Source instance that owns each part.",
+              "type": "string"
+            },
+            "b": {
+              "type": "string"
+            },
+            "bOwner": {
+              "type": "string"
+            },
+            "confirmed": {
+              "description": "Narrow-phase verdict: `null` when `precise` was not requested or the\ntriangle budget ran out.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "gap": {
+              "description": "Signed separation in metres: negative is the penetration depth.",
+              "format": "float",
+              "type": "number"
+            },
+            "penetrating": {
+              "description": "True when the boxes penetrate, so `gap` is a depth rather than a gap.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "a",
+            "b",
+            "aOwner",
+            "bOwner",
+            "gap",
+            "penetrating"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "candidates": {
+          "description": "Candidates that the sweep produced before the scope filter.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "checkedParts": {
+          "description": "Evaluated parts that entered the broad phase.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "clearance": {
+          "format": "float",
+          "type": "number"
+        },
+        "pairs": {
+          "description": "Worst offenders first: deepest penetration, then closest approach.",
+          "items": {
+            "$ref": "#/$defs/ClashPair"
+          },
+          "type": "array"
+        },
+        "precise": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "total": {
+          "description": "Total pair count before `limit` was applied.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pairs",
+        "total",
+        "truncated",
+        "clearance",
+        "scope",
+        "precise",
+        "checkedParts",
+        "candidates"
+      ],
+      "title": "ClashResult",
+      "type": "object"
     },
     "ComponentGetParams": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

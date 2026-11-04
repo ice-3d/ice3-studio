@@ -872,3 +872,216 @@ fn mesh_volume(mesh: &EvaluatedMesh) -> f32 {
     }
     total.abs()
 }
+
+pub const DEFAULT_CLASH_LIMIT: usize = 100;
+pub const MAX_CLASH_LIMIT: usize = 1000;
+/// Default number of triangle pairs examined for one clash candidate.
+pub const DEFAULT_CLASH_TRIANGLE_BUDGET: usize = 20_000;
+pub const MAX_CLASH_TRIANGLE_BUDGET: usize = 4_000_000;
+/// Upper bound on the candidates that enter the narrow phase at all.
+const MAX_PRECISE_CANDIDATES: usize = 256;
+
+/// Clash / clearance query over the evaluated scene.
+///
+/// `clearance` is a distance in metres: `0` (default) reports penetrations only,
+/// anything larger also reports parts that come that close. `scope` is `owners`
+/// (default, compare parts belonging to different source instances) or `parts`
+/// (also compare parts of the same instance). `precise` asks for a triangle
+/// narrow phase on penetrating candidates. `ownerIds` restricts the audit to
+/// those source instances.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ClashRequest {
+    pub clearance: Option<f32>,
+    pub scope: Option<String>,
+    pub precise: Option<bool>,
+    pub include_touching: Option<bool>,
+    pub owner_ids: Option<Vec<String>>,
+    /// Triangle pairs examined per candidate in the narrow phase. Raise it when
+    /// big meshes come back `confirmed: null`; it is the only cost knob.
+    pub triangle_budget: Option<usize>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ClashPair {
+    /// Evaluated part node id of the first part.
+    pub a: String,
+    pub b: String,
+    /// Source instance that owns each part.
+    pub a_owner: String,
+    pub b_owner: String,
+    /// Signed separation in metres: negative is the penetration depth.
+    pub gap: f32,
+    /// True when the boxes penetrate, so `gap` is a depth rather than a gap.
+    pub penetrating: bool,
+    /// Narrow-phase verdict: `null` when `precise` was not requested or the
+    /// triangle budget ran out.
+    pub confirmed: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ClashResult {
+    /// Worst offenders first: deepest penetration, then closest approach.
+    pub pairs: Vec<ClashPair>,
+    /// Total pair count before `limit` was applied.
+    pub total: usize,
+    pub truncated: bool,
+    pub clearance: f32,
+    pub scope: String,
+    pub precise: bool,
+    /// Evaluated parts that entered the broad phase.
+    pub checked_parts: usize,
+    /// Candidates that the sweep produced before the scope filter.
+    pub candidates: usize,
+}
+
+/// Detect clashes and clearance violations between evaluated parts.
+pub fn build_clash_report(scene: &EvaluatedScene, request: &ClashRequest) -> ClashResult {
+    let clearance = request.clearance.unwrap_or(0.0).max(0.0);
+    let scope = request
+        .scope
+        .clone()
+        .unwrap_or_else(|| "owners".to_string());
+    let precise = request.precise.unwrap_or(false);
+    let include_touching = request.include_touching.unwrap_or(false);
+    let limit = request
+        .limit
+        .unwrap_or(DEFAULT_CLASH_LIMIT)
+        .clamp(1, MAX_CLASH_LIMIT);
+    let triangle_budget = request
+        .triangle_budget
+        .unwrap_or(DEFAULT_CLASH_TRIANGLE_BUDGET)
+        .clamp(1, MAX_CLASH_TRIANGLE_BUDGET);
+    let owners: Option<BTreeSet<&str>> = request
+        .owner_ids
+        .as_ref()
+        .map(|ids| ids.iter().map(|id| id.as_str()).collect::<BTreeSet<&str>>());
+
+    let matrices = crate::large_scene::evaluate::evaluated_world_matrices(scene);
+    let bounds = crate::large_scene::evaluate::evaluated_scene_bounds_with(scene, &matrices);
+    let parts: Vec<&crate::large_scene::evaluate::EvaluatedSceneNode> = scene
+        .nodes
+        .iter()
+        .filter(|node| node.visible && node.mesh_key.is_some())
+        .filter(|node| {
+            owners
+                .as_ref()
+                .is_none_or(|allowed| allowed.contains(node.owner_id.as_str()))
+        })
+        .filter(|node| bounds.contains_key(node.id.as_str()))
+        .collect();
+
+    let boxes: Vec<Bounds> = parts.iter().map(|node| bounds[node.id.as_str()]).collect();
+    let candidates = crate::geometry::sweep_pairs(&boxes, clearance);
+    let candidate_count = candidates.len();
+
+    let mut reported: Vec<(f32, usize, usize)> = Vec::new();
+    for (left, right) in candidates {
+        if scope != "parts" && parts[left].owner_id == parts[right].owner_id {
+            continue;
+        }
+        let gap = crate::geometry::signed_gap(&boxes[left], &boxes[right]);
+        if !clash_reported(gap, clearance, include_touching) {
+            continue;
+        }
+        reported.push((gap, left, right));
+    }
+    // Worst offenders first, so the narrow-phase budget is spent on the pairs
+    // that actually matter rather than on sweep order.
+    reported.sort_by(|left, right| {
+        left.0
+            .partial_cmp(&right.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| parts[left.1].id.cmp(&parts[right.1].id))
+            .then_with(|| parts[left.2].id.cmp(&parts[right.2].id))
+    });
+
+    let mut precise_candidates = 0usize;
+    let mut pairs: Vec<ClashPair> = Vec::new();
+    for (gap, left, right) in reported {
+        let a = parts[left];
+        let b = parts[right];
+        let mut confirmed = None;
+        if precise && gap < 0.0 && precise_candidates < MAX_PRECISE_CANDIDATES {
+            precise_candidates += 1;
+            let verdict = crate::geometry::meshes_intersect(
+                &world_triangles(scene, a, &matrices),
+                &world_triangles(scene, b, &matrices),
+                triangle_budget,
+            );
+            if verdict == Some(false) {
+                // Bounding volumes overlapped, geometry did not: not a clash.
+                continue;
+            }
+            confirmed = verdict;
+        }
+        pairs.push(ClashPair {
+            a: a.id.clone(),
+            b: b.id.clone(),
+            a_owner: a.owner_id.clone(),
+            b_owner: b.owner_id.clone(),
+            gap,
+            penetrating: gap < 0.0,
+            confirmed,
+        });
+    }
+
+    let total = pairs.len();
+    let truncated = total > limit;
+    pairs.truncate(limit);
+
+    ClashResult {
+        pairs,
+        total,
+        truncated,
+        clearance,
+        scope,
+        precise,
+        checked_parts: parts.len(),
+        candidates: candidate_count,
+    }
+}
+
+/// A pair is reported when it penetrates, when it touches and the caller asked
+/// for touching pairs, or when it sits inside the requested clearance band.
+fn clash_reported(gap: f32, clearance: f32, include_touching: bool) -> bool {
+    crate::geometry::within_clearance(gap, clearance, include_touching)
+}
+
+/// World-space triangles of an evaluated part, used by the narrow phase.
+fn world_triangles(
+    scene: &EvaluatedScene,
+    node: &crate::large_scene::evaluate::EvaluatedSceneNode,
+    matrices: &BTreeMap<String, glam::Mat4>,
+) -> Vec<[[f32; 3]; 3]> {
+    let Some(mesh_key) = node.mesh_key.as_ref() else {
+        return Vec::new();
+    };
+    let Some(mesh) = scene.meshes.get(mesh_key) else {
+        return Vec::new();
+    };
+    let matrix = matrices
+        .get(node.id.as_str())
+        .copied()
+        .unwrap_or(glam::Mat4::IDENTITY);
+    let mut triangles = Vec::with_capacity(mesh.indices.len() / 3);
+    for triangle in mesh.indices.as_chunks::<3>().0 {
+        let mut points = [[0.0f32; 3]; 3];
+        for (slot, index) in triangle.iter().enumerate() {
+            let position = mesh.vertices[*index as usize].position;
+            let point = matrix.transform_point3(glam::Vec3::from_array(position));
+            points[slot] = point.to_array();
+        }
+        triangles.push(points);
+    }
+    triangles
+}

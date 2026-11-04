@@ -126,6 +126,17 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 Some("BomResult"),
             ),
             tool(
+                "scene.clashes",
+                "Report interferences and clearance violations between evaluated parts, with an optional triangle narrow phase.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_read,
+                "read access is unavailable",
+                "ClashRequest",
+                Some("ClashResult"),
+            ),
+            tool(
                 "component.get",
                 "Read a component definition with parameters, ports, and part summaries.",
                 AgentSideEffect::Read,

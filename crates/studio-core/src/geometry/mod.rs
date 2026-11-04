@@ -1,3 +1,4 @@
+mod clash;
 mod csg;
 mod evaluate;
 mod extrude;
@@ -15,6 +16,7 @@ use ts_rs::TS;
 use crate::document::{Document, SceneNode};
 use crate::math::Vec3;
 
+pub use clash::{CLASH_EPSILON, meshes_intersect, signed_gap, sweep_pairs, within_clearance};
 pub use csg::csg_subtract;
 pub use evaluate::evaluate_node_content;
 pub use extrude::extrude_profile;

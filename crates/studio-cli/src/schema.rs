@@ -4,10 +4,10 @@ use std::path::{Path, PathBuf};
 
 use schemars::schema_for;
 use studio_core::agent_contract::{
-    AgentManifest, BomRequest, BomResult, BomRow, ComponentGetParams, ComponentGetResult,
-    EvaluationQueryRequest, EvaluationQueryResult, IterationImpact, MeasurePoint, MeasureRequest,
-    MeasureResult, RuntimePreviewRequest, SceneContext, SceneSearchRequest, SceneSearchResult,
-    ValidationRunRequest,
+    AgentManifest, BomRequest, BomResult, BomRow, ClashPair, ClashRequest, ClashResult,
+    ComponentGetParams, ComponentGetResult, EvaluationQueryRequest, EvaluationQueryResult,
+    IterationImpact, MeasurePoint, MeasureRequest, MeasureResult, RuntimePreviewRequest,
+    SceneContext, SceneSearchRequest, SceneSearchResult, ValidationRunRequest,
 };
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
@@ -65,6 +65,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "scene.bounds",
             "scene.measure",
             "scene.bom",
+            "scene.clashes",
             "scene.context",
             "scene.search",
             "component.get",
@@ -117,6 +118,9 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "BomRequest": schema_for!(BomRequest),
             "BomRow": schema_for!(BomRow),
             "BomResult": schema_for!(BomResult),
+            "ClashRequest": schema_for!(ClashRequest),
+            "ClashPair": schema_for!(ClashPair),
+            "ClashResult": schema_for!(ClashResult),
             "EvaluationQueryRequest": schema_for!(EvaluationQueryRequest),
             "EvaluationQueryResult": schema_for!(EvaluationQueryResult),
             "ComponentGetParams": schema_for!(ComponentGetParams),
