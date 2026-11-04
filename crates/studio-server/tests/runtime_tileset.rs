@@ -309,3 +309,38 @@ fn textures_ship_beside_the_tiles_that_reference_them() {
         0
     );
 }
+
+#[test]
+fn scenery_stays_out_of_the_binding_manifest() {
+    // Ground, roads and planting are context: they must not become selectable
+    // entities just because they have geometry.
+    let mut document = fixture_document();
+    // fixture_document tags both walls, so untag one and force the other.
+    let nodes = document.scene.nodes_mut();
+    nodes[0].metadata.remove("equipmentTag");
+    nodes[1].metadata.insert("pickable".into(), "false".into());
+    document.revision = Revision::new(0);
+
+    let scene = studio_core::large_scene::evaluate::evaluate_large_scene(&document).unwrap();
+    let manifest = BindingManifest::from_evaluated_scene("asset", 0, &scene);
+    assert!(
+        manifest.bindings.is_empty(),
+        "untagged scenery and explicitly unpickable nodes must not be bound",
+    );
+
+    let mut document = fixture_document();
+    document.revision = Revision::new(0);
+    for node in document.scene.nodes_mut() {
+        node.metadata.remove("equipmentTag");
+    }
+    document.scene.nodes_mut()[0]
+        .metadata
+        .insert("pickable".into(), "true".into());
+    let scene = studio_core::large_scene::evaluate::evaluate_large_scene(&document).unwrap();
+    let manifest = BindingManifest::from_evaluated_scene("asset", 0, &scene);
+    assert_eq!(
+        manifest.bindings.len(),
+        1,
+        "pickable=true keeps a tag-less node"
+    );
+}

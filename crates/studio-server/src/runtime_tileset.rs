@@ -73,6 +73,13 @@ impl BindingManifest {
                 .or_else(|| node.metadata.get("equipmentTag"))
                 .filter(|value| !value.trim().is_empty())
                 .cloned();
+            // A binding is what a client may select. Scenery carries no tag, so
+            // it must not become an entity: ground, roads and planting are
+            // context, not business objects. `pickable` overrides either way for
+            // the rare tag-less object that is still worth picking.
+            if !node_is_pickable(&node.metadata, raw_tag.is_some()) {
+                continue;
+            }
             let tag = raw_tag.clone();
             let selection_id = raw_tag
                 .map(|tag| {
@@ -518,5 +525,21 @@ fn join_relative(directory: &str, relative: &str) -> String {
         relative.to_string()
     } else {
         format!("{directory}/{relative}")
+    }
+}
+
+/// Whether a node belongs in the binding manifest.
+///
+/// Tagged nodes are equipment; untagged ones are scenery. The `pickable`
+/// metadata key lets a document override that in either direction without the
+/// renderer having to know about names or categories.
+fn node_is_pickable(metadata: &BTreeMap<String, String>, tagged: bool) -> bool {
+    match metadata
+        .get("pickable")
+        .map(|value| value.trim().to_ascii_lowercase())
+    {
+        Some(value) if value == "false" || value == "0" || value == "no" => false,
+        Some(value) if value == "true" || value == "1" || value == "yes" => true,
+        _ => tagged,
     }
 }
