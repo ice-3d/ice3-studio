@@ -498,7 +498,7 @@ Preview 不启动外部进程，也没有可选优化器 fallback。预览失败
 | 模块 | 职责 |
 |---|---|
 | `app` | Workbench 主框架、Agent-first Review dock、表头与视觉 token |
-| `viewport` | 视口、SceneAdapter、相机取景、测量工具（双选距离/间隙）、剖切面（Section 开关 + 高度滑块，`?section=` 可预置） |
+| `viewport` | 视口、SceneAdapter、相机取景、测量工具（双选距离/间隙）、剖切面（Section 开关 + 高度滑块，`?section=` 可预置）、爆炸视图（Explode 开关 + 强度滑块，`?explode=` 可预置） |
 | `navigation` | 对象搜索、层级过滤、对象树与树模型 |
 | `forms` | 表单渲染、实例参数、表单到操作的编译 |
 | `changeset` | 候选变更的 Provider、Store 与类型 |

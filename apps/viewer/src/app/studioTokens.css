@@ -1380,3 +1380,13 @@ h2 {
   width: 120px;
   accent-color: #6fd3ff;
 }
+
+.explode-toolbar {
+  position: absolute;
+  top: 52px;
+  right: 12px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

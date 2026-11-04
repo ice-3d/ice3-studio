@@ -10,6 +10,7 @@ import {
   collectSceneItems,
   type ICEGeometryBounds,
   type ICEIndexedGeometry,
+  type ICENode,
   type ICEPreviewGeometryPacket,
   type ICEScene,
   type ICETilesetEvent,
@@ -74,6 +75,10 @@ export class SceneAdapter {
   onSelection: ((ids: readonly string[]) => void) | undefined;
   private readonly selectionListeners = new Set<(ids: readonly string[]) => void>();
   private sectionRatio: number | null = null;
+  private explodeFactor = 0;
+  private currentScene: ICEScene | null = null;
+  private explodeOriginals: Map<ICENode, number[]> | null = null;
+  private explodeWorld: Map<ICENode, [number, number, number]> | null = null;
 
   async mount(container: HTMLElement): Promise<void> {
     this.viewportElement = container;
@@ -93,6 +98,13 @@ export class SceneAdapter {
       const ratio = Number.parseFloat(sectionParam);
       if (Number.isFinite(ratio)) {
         this.sectionRatio = Math.min(1, Math.max(0, ratio));
+      }
+    }
+    const explodeParam = new URLSearchParams(window.location.search).get('explode');
+    if (explodeParam !== null) {
+      const factor = Number.parseFloat(explodeParam);
+      if (Number.isFinite(factor)) {
+        this.explodeFactor = Math.min(1, Math.max(0, factor));
       }
     }
     engine.on<{ selection: readonly string[] }>('SELECTION_CHANGE', (event) => {
@@ -146,6 +158,85 @@ export class SceneAdapter {
     }
     this.engine.setSelection(importedSelection);
     this.engine.requestRender('studio-selection-change');
+  }
+
+  /** Bind the freshly published scene and reset per-scene explosion state. */
+  private bindScene(scene: ICEScene): void {
+    this.currentScene = scene;
+    this.explodeOriginals = null;
+    this.explodeWorld = null;
+  }
+
+  /** Explode the scene outward from its centre by `factor` (0 restores). */
+  setExplodeFactor(factor: number): void {
+    this.explodeFactor = Math.min(1, Math.max(0, factor));
+    this.applyExplode();
+  }
+
+  private applyExplode(): void {
+    if (!this.engine || !this.currentScene) return;
+    const scene = this.currentScene;
+    if (!this.explodeOriginals) {
+      const nodes = explodeTargets(scene);
+      if (nodes.length === 0) return;
+      const originals = new Map<ICENode, number[]>();
+      const world = new Map<ICENode, [number, number, number]>();
+      for (const node of nodes) {
+        originals.set(node, localMatrixOf(node));
+        node.updateWorldMatrix();
+        const position = node.getWorldPosition();
+        world.set(node, [position.x, position.y, position.z]);
+      }
+      this.explodeOriginals = originals;
+      this.explodeWorld = world;
+    }
+    const originals = this.explodeOriginals;
+    if (!originals) return;
+    const factor = this.explodeFactor;
+    const bounds = this.lastBounds;
+    const center: [number, number, number] = bounds
+      ? [
+        (bounds.min[0] + bounds.max[0]) / 2,
+        (bounds.min[1] + bounds.max[1]) / 2,
+        (bounds.min[2] + bounds.max[2]) / 2,
+      ]
+      : [0, 0, 0];
+    const diagonal = bounds
+      ? Math.hypot(
+        bounds.max[0] - bounds.min[0],
+        bounds.max[1] - bounds.min[1],
+        bounds.max[2] - bounds.min[2],
+      )
+      : 10;
+    let index = 0;
+    for (const [node, original] of originals) {
+      if (factor <= 0) {
+        node.setLocalMatrix(original as never);
+        index += 1;
+        continue;
+      }
+      const world = this.explodeWorld?.get(node) ?? [0, 0, 0];
+      let dx = world[0] - center[0];
+      let dy = world[1] - center[1];
+      let dz = world[2] - center[2];
+      let length = Math.hypot(dx, dy, dz);
+      if (length < 1e-4) {
+        // Nodes stacked at the centre still need a direction.
+        const angle = index * 2.399963;
+        dx = Math.cos(angle);
+        dy = 0.35;
+        dz = Math.sin(angle);
+        length = Math.hypot(dx, dy, dz);
+      }
+      const push = (factor * diagonal * 0.6) / length;
+      const moved = [...original];
+      moved[12] = (moved[12] ?? 0) + dx * push;
+      moved[13] = (moved[13] ?? 0) + dy * push;
+      moved[14] = (moved[14] ?? 0) + dz * push;
+      node.setLocalMatrix(moved as never);
+      index += 1;
+    }
+    this.engine.requestRender('explode');
   }
 
   /** Enable/disable the horizontal section plane (ratio 0..1 of scene height). */
@@ -275,7 +366,9 @@ export class SceneAdapter {
           this.referenceExposure,
         );
         this.engine.setScene(replacement.scene);
+        this.bindScene(replacement.scene);
         this.applySection();
+        this.applyExplode();
         this.select(this.selectionIds);
         const previous = this.tilesetHandle;
         this.tilesetHandle = replacement;
@@ -356,7 +449,9 @@ export class SceneAdapter {
     }
     this.pinnedPacketGeometries.clear();
     this.engine.setScene(handle.scene);
+    this.bindScene(handle.scene);
     this.applySection();
+    this.applyExplode();
     this.orbit = new ICEOrbitController(this.engine, this.camera).start();
     this.engine.requestRender('studio-preview-ready');
   }
@@ -406,7 +501,9 @@ export class SceneAdapter {
     this.tilesetHandle?.dispose();
     this.tilesetHandle = null;
     this.engine.setScene(scene);
+    this.bindScene(scene);
     this.applySection();
+    this.applyExplode();
     this.orbit?.dispose();
     this.orbit = new ICEOrbitController(this.engine, this.camera).start();
     this.engine.requestRender('studio-preview-packet-ready');
@@ -841,4 +938,22 @@ function parseTarget(raw: string | null): [number, number, number] | null {
   const parts = raw.split(',').map((value) => Number.parseFloat(value));
   if (parts.length !== 3 || !parts.every(Number.isFinite)) return null;
   return [parts[0]!, parts[1]!, parts[2]!];
+}
+
+/** Top-level nodes to spread: scene children, or the single root's children. */
+function explodeTargets(scene: ICEScene): ICENode[] {
+  const roots = [...scene.children];
+  if (roots.length > 1) return roots;
+  const root = roots[0];
+  return root ? [...root.children] : [];
+}
+
+function localMatrixOf(node: ICENode): number[] {
+  const json = node.toJSON();
+  if (json.matrix) return [...json.matrix];
+  return eulerTransformMatrix(
+    { x: json.position[0], y: json.position[1], z: json.position[2] },
+    { x: json.rotation[0], y: json.rotation[1], z: json.rotation[2] },
+    { x: json.scale[0], y: json.scale[1], z: json.scale[2] },
+  );
 }

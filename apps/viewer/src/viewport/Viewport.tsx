@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { StudioReferenceSession } from '../session/SessionStore';
+import { ExplodeTool } from './ExplodeTool';
 import { MeasureTool } from './MeasureTool';
 import { SectionTool } from './SectionTool';
 import { SceneAdapter } from './SceneAdapter';
@@ -22,9 +23,11 @@ export function Viewport({ previewUrl, reference, selectionIds, onSelection }: P
     if (host.current) void adapter.mount(host.current);
     const tool = host.current ? new MeasureTool(host.current, adapter) : null;
     const section = host.current ? new SectionTool(host.current, adapter) : null;
+    const explode = host.current ? new ExplodeTool(host.current, adapter) : null;
     return () => {
       tool?.dispose();
       section?.dispose();
+      explode?.dispose();
       scene.current = null;
     };
   }, []);
