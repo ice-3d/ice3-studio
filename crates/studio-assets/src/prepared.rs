@@ -650,7 +650,9 @@ fn validate_textures(json: &Value) -> AssetResult<()> {
     for material in array(json.get("materials")) {
         for pointer in [
             "/pbrMetallicRoughness/baseColorTexture/index",
+            "/pbrMetallicRoughness/metallicRoughnessTexture/index",
             "/normalTexture/index",
+            "/occlusionTexture/index",
         ] {
             let index = material.pointer(pointer).and_then(Value::as_u64);
             if let Some(index) = index

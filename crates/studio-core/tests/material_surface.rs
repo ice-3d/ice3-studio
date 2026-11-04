@@ -267,3 +267,48 @@ fn an_illegal_normal_scale_or_path_is_rejected() {
     }));
     assert!(!validate_document(&bad_path).is_empty());
 }
+
+#[test]
+fn an_orm_map_fills_both_gltf_slots_from_one_image() {
+    let document = document_with(Some(MaterialSurface {
+        metallic: 0.8,
+        roughness: 0.4,
+        orm_texture: Some("textures/steel-orm.png".into()),
+        uv_scale: [0.5, 0.25],
+        ..MaterialSurface::dielectric()
+    }));
+    let gltf = gltf_json(&document);
+    let pbr = &gltf["materials"][0]["pbrMetallicRoughness"];
+    let metallic_roughness = pbr["metallicRoughnessTexture"]["index"].as_u64().unwrap();
+    let occlusion = gltf["materials"][0]["occlusionTexture"]["index"]
+        .as_u64()
+        .unwrap();
+    // 一张图两个槽位：索引必须一致，否则运行时会当成两张贴图各采样一次。
+    assert_eq!(metallic_roughness, occlusion);
+    assert_eq!(
+        gltf["images"][metallic_roughness as usize]["uri"],
+        "textures/steel-orm.png"
+    );
+    // 平铺倍率跟着 uvScale 走，和底色贴图共用同一套 UV。
+    assert_eq!(
+        pbr["metallicRoughnessTexture"]["extensions"]["KHR_texture_transform"]["scale"],
+        serde_json::json!([0.5, 0.25])
+    );
+    assert_eq!(
+        gltf["materials"][0]["occlusionTexture"]["extensions"]["KHR_texture_transform"]["scale"],
+        serde_json::json!([0.5, 0.25])
+    );
+    // 因子仍然写进材质：贴图与标量相乘才是最终值。
+    // f32 存 0.8 会带出 0.8000000119，按容差比。
+    assert!((pbr["metallicFactor"].as_f64().unwrap() - 0.8).abs() < 1e-6);
+    assert!((pbr["roughnessFactor"].as_f64().unwrap() - 0.4).abs() < 1e-6);
+}
+
+#[test]
+fn an_orm_path_must_stay_relative() {
+    let bad = document_with(Some(MaterialSurface {
+        orm_texture: Some("/abs/orm.png".into()),
+        ..MaterialSurface::dielectric()
+    }));
+    assert!(!validate_document(&bad).is_empty());
+}

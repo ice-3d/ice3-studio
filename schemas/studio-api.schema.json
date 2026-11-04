@@ -872,6 +872,13 @@
                 "null"
               ]
             },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -4905,6 +4912,13 @@
                 "null"
               ]
             },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -7725,6 +7739,13 @@
                 "null"
               ]
             },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -10497,6 +10518,13 @@
             },
             "normalTexture": {
               "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
               "type": [
                 "string",
                 "null"
@@ -13519,6 +13547,13 @@
                 "null"
               ]
             },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -15596,6 +15631,13 @@
             },
             "normalTexture": {
               "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
               "type": [
                 "string",
                 "null"
@@ -20103,6 +20145,13 @@
                 "null"
               ]
             },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -21870,6 +21919,13 @@
                 "null"
               ]
             },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "roughness": {
               "default": 0.8999999761581421,
               "description": "0 = mirror, 1 = fully diffuse.",
@@ -22718,6 +22774,13 @@
             },
             "normalTexture": {
               "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
               "type": [
                 "string",
                 "null"

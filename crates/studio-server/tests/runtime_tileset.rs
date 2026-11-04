@@ -243,8 +243,10 @@ fn textures_ship_beside_the_tiles_that_reference_them() {
     let store = ProjectStore::create(workspace).unwrap();
 
     let image = b"\x89PNG\r\n\x1a\nnot-really-a-png".to_vec();
+    let orm_image = b"\x89PNG\r\n\x1a\npacked-orm".to_vec();
     std::fs::create_dir_all(store.project_dir().join("textures")).unwrap();
     std::fs::write(store.project_dir().join("textures/steel.png"), &image).unwrap();
+    std::fs::write(store.project_dir().join("textures/steel-orm.png"), &orm_image).unwrap();
 
     let mut document = fixture_document();
     document.revision = Revision::new(0);
@@ -258,6 +260,7 @@ fn textures_ship_beside_the_tiles_that_reference_them() {
         shading: None,
         surface: Some(MaterialSurface {
             base_color_texture: Some("textures/steel.png".into()),
+            orm_texture: Some("textures/steel-orm.png".into()),
             ..MaterialSurface::dielectric()
         }),
     });
@@ -273,6 +276,11 @@ fn textures_ship_beside_the_tiles_that_reference_them() {
 
     let copied = output.join("parts/textures/steel.png");
     assert_eq!(std::fs::read(&copied).unwrap(), image);
+    // ORM 图与底色图同样随瓦片落盘；导出器按 images[].uri 复制，不认槽位名。
+    assert_eq!(
+        std::fs::read(output.join("parts/textures/steel-orm.png")).unwrap(),
+        orm_image
+    );
     // Every directory that holds tiles needs its own copy: glTF resolves an
     // image relative to the file that references it, and the same source GLB is
     // baked into both the detailed and the coarse LOD.

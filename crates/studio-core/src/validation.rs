@@ -318,6 +318,10 @@ pub fn validate_document(document: &Document) -> Vec<Diagnostic> {
                 && surface
                     .normal_texture
                     .as_ref()
+                    .is_none_or(|path| texture_path_is_relative(path))
+                && surface
+                    .orm_texture
+                    .as_ref()
                     .is_none_or(|path| texture_path_is_relative(path));
             let normal_scale_valid = surface
                 .normal_scale

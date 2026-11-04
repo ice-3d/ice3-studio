@@ -33,4 +33,11 @@ normal_texture: string | null,
 /**
  * Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.
  */
-normal_scale: number | null, };
+normal_scale: number | null, 
+/**
+ * Relative path of a packed occlusion/roughness/metallic image:
+ * R = ambient occlusion, G = roughness, B = metallic. One file drives both
+ * glTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a
+ * second copy of the same bytes would only waste bandwidth.
+ */
+orm_texture: string | null, };

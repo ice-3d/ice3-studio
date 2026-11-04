@@ -188,6 +188,12 @@ pub struct MaterialSurface {
     /// Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub normal_scale: Option<f32>,
+    /// Relative path of a packed occlusion/roughness/metallic image:
+    /// R = ambient occlusion, G = roughness, B = metallic. One file drives both
+    /// glTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a
+    /// second copy of the same bytes would only waste bandwidth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub orm_texture: Option<String>,
 }
 
 impl MaterialSurface {
@@ -201,6 +207,7 @@ impl MaterialSurface {
             base_color_texture: None,
             normal_texture: None,
             normal_scale: None,
+            orm_texture: None,
         }
     }
 }

@@ -58,6 +58,7 @@ pub fn export_glb_from_scene(
             for path in [
                 surface.base_color_texture.as_ref(),
                 surface.normal_texture.as_ref(),
+                surface.orm_texture.as_ref(),
             ]
             .into_iter()
             .flatten()
@@ -84,6 +85,7 @@ pub fn export_glb_from_scene(
             Some(MaterialShading::Directional) | None => "directional",
         };
         let surface = surface_of(material);
+        let mut orm_occlusion: Option<Value> = None;
         let mut pbr = json!({
             "baseColorFactor": base_color,
             "metallicFactor": surface.metallic,
@@ -97,6 +99,19 @@ pub fn export_glb_from_scene(
                     "KHR_texture_transform": { "scale": surface.uv_scale }
                 }
             });
+        }
+        // ORM：同一张图同时写进两个槽位。glTF 把遮蔽放 R、粗糙度放 G、金属度放 B，
+        // 分两次引用同一 index 只多两个 JSON 对象，不会复制图片本身。
+        if let Some(path) = &surface.orm_texture {
+            let index = image_indices.get(path).copied().unwrap_or(0);
+            let slot = json!({
+                "index": index,
+                "extensions": {
+                    "KHR_texture_transform": { "scale": surface.uv_scale }
+                }
+            });
+            pbr["metallicRoughnessTexture"] = slot.clone();
+            orm_occlusion = Some(slot);
         }
         let normal_texture = surface
             .normal_texture
@@ -123,6 +138,9 @@ pub fn export_glb_from_scene(
                 "index": index,
                 "scale": surface.normal_scale.unwrap_or(1.0)
             });
+        }
+        if let Some(slot) = orm_occlusion {
+            value["occlusionTexture"] = slot;
         }
         materials.push(value);
     }
