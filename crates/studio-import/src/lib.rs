@@ -88,6 +88,7 @@ pub fn to_canonical(source: &SourceScene) -> studio_assets::canonical::Canonical
                 base_color: material.base_color,
                 opacity: material.opacity,
                 extras: material.extras.clone(),
+                texture: None,
             })
             .collect(),
         asset_extras: source.asset_extras.clone(),

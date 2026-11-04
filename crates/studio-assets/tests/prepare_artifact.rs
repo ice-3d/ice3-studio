@@ -83,6 +83,7 @@ fn unused_materials_do_not_gain_edge_materials() {
         base_color: [0.1, 0.2, 0.3],
         opacity: 1.0,
         extras: json!({"ice3": {"id": "unused"}}),
+        texture: None,
     });
     let artifact = studio_assets::prepare_canonical(
         &scene,
@@ -382,6 +383,7 @@ fn triangle_scene() -> CanonicalScene {
             base_color: [0.2, 0.5, 0.9],
             opacity: 1.0,
             extras: json!({"ice3": {"id": "glass"}}),
+            texture: None,
         }],
         asset_extras: json!({"coordinateSystem": {"upAxis": "y"}}),
     }

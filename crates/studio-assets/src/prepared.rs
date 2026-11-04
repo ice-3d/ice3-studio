@@ -70,9 +70,6 @@ pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProf
         ("animations", "animations are unsupported"),
         ("skins", "skins are unsupported"),
         ("cameras", "cameras are unsupported"),
-        ("textures", "textures are unsupported"),
-        ("images", "images are unsupported"),
-        ("samplers", "samplers are unsupported"),
     ] {
         if source
             .json
@@ -83,6 +80,7 @@ pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProf
             return Err(profile_invalid(code));
         }
     }
+    validate_textures(&source.json)?;
     validate_unique_ids(source, "nodes")?;
     validate_unique_ids(source, "meshes")?;
     validate_unique_ids(source, "materials")?;
@@ -613,4 +611,58 @@ fn array_len(json: &Value, field: &str) -> usize {
 
 fn profile_invalid(message: &str) -> AssetError {
     AssetError::ProfileInvalid(message.to_owned())
+}
+
+/// Base-colour textures are allowed, but only as relative files next to the asset.
+///
+/// The profile keeps exactly one buffer, so an embedded `bufferView` image would
+/// hide the image inside the binary where the renderer cannot address it; a
+/// relative `uri` keeps the asset streamable and portable.
+fn validate_textures(json: &Value) -> AssetResult<()> {
+    let images = array(json.get("images"));
+    for image in &images {
+        let uri = image.get("uri").and_then(Value::as_str);
+        let valid = uri.is_some_and(|value| {
+            !value.is_empty()
+                && !value.starts_with('/')
+                && !value.contains("..")
+                && !value.contains("://")
+        }) && image.get("bufferView").is_none();
+        if !valid {
+            return Err(profile_invalid(
+                "texture images must be relative file paths",
+            ));
+        }
+    }
+    let textures = array(json.get("textures"));
+    let samplers = array(json.get("samplers"));
+    for texture in &textures {
+        let source = texture.get("source").and_then(Value::as_u64);
+        if source.is_none_or(|index| index as usize >= images.len()) {
+            return Err(profile_invalid("texture source is out of range"));
+        }
+        if let Some(sampler) = texture.get("sampler").and_then(Value::as_u64) {
+            if sampler as usize >= samplers.len() {
+                return Err(profile_invalid("texture sampler is out of range"));
+            }
+        }
+    }
+    for material in array(json.get("materials")) {
+        let index = material
+            .pointer("/pbrMetallicRoughness/baseColorTexture/index")
+            .and_then(Value::as_u64);
+        if let Some(index) = index {
+            if index as usize >= textures.len() {
+                return Err(profile_invalid("baseColorTexture index is out of range"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn array(value: Option<&Value>) -> Vec<Value> {
+    value
+        .and_then(Value::as_array)
+        .map(|values| values.to_vec())
+        .unwrap_or_default()
 }

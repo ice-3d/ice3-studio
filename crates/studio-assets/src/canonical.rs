@@ -19,6 +19,16 @@ pub struct CanonicalMaterial {
     pub base_color: [f32; 3],
     pub opacity: f32,
     pub extras: Value,
+    /// Base-colour texture written as a relative file next to the asset.
+    pub texture: Option<CanonicalTexture>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CanonicalTexture {
+    /// Relative path, resolved against the asset file.
+    pub uri: String,
+    /// Tiling over the metre-based UV projection.
+    pub uv_scale: [f32; 2],
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -185,8 +195,9 @@ fn build_canonical_document(
     let node_indices = node_indices(scene)?;
     let world_matrices = world_matrices(scene, &node_indices)?;
     let edge_materials = used_edge_materials(scene)?;
+    let image_indices = texture_images(&scene.materials);
     let (materials, material_indices) =
-        output_materials(&scene.materials, &edge_materials, asset_id)?;
+        output_materials(&scene.materials, &edge_materials, asset_id, &image_indices)?;
     let mut binary = BinaryBuilder::default();
     let mut mesh_context = MeshWriteContext {
         asset_id,
@@ -342,6 +353,19 @@ fn build_canonical_document(
         "bufferViews": binary.views,
         "buffers": [{"byteLength": byte_length}]
     });
+    if !image_indices.is_empty() {
+        let images = image_indices
+            .keys()
+            .map(|uri| json!({ "uri": uri }))
+            .collect::<Vec<_>>();
+        let textures = (0..images.len())
+            .map(|index| json!({ "sampler": 0, "source": index }))
+            .collect::<Vec<_>>();
+        gltf["images"] = json!(images);
+        gltf["samplers"] = json!([{ "wrapS": 10497, "wrapT": 10497 }]);
+        gltf["textures"] = json!(textures);
+        gltf["extensionsUsed"] = json!(["KHR_texture_transform"]);
+    }
     if binary.bytes.is_empty() {
         gltf.as_object_mut().expect("object").remove("buffers");
     }
@@ -508,10 +532,24 @@ struct MaterialIndices {
     vertex_colors: usize,
 }
 
+/// Unique texture images in material order, so `baseColorTexture.index` and
+/// `images[]` stay in sync without a second lookup table.
+fn texture_images(materials: &[CanonicalMaterial]) -> BTreeMap<&str, usize> {
+    let mut images = BTreeMap::new();
+    for material in materials {
+        if let Some(texture) = &material.texture {
+            let next = images.len();
+            images.entry(texture.uri.as_str()).or_insert(next);
+        }
+    }
+    images
+}
+
 fn output_materials(
     materials: &[CanonicalMaterial],
     edge_materials: &[bool],
     asset_id: &str,
+    image_indices: &BTreeMap<&str, usize>,
 ) -> AssetResult<(Vec<Value>, MaterialIndices)> {
     if edge_materials.len() != materials.len() {
         return Err(invalid(
@@ -528,18 +566,33 @@ fn output_materials(
                 &format!("{asset_id}/material/{}", material.id),
                 None,
             )?;
+            let mut pbr = json!({
+                "baseColorFactor": [
+                    material.base_color[0],
+                    material.base_color[1],
+                    material.base_color[2],
+                    material.opacity
+                ],
+                "metallicFactor": 0.0,
+                "roughnessFactor": 1.0
+            });
+            if let Some(texture) = &material.texture {
+                let index = image_indices
+                    .get(texture.uri.as_str())
+                    .copied()
+                    .ok_or_else(|| invalid("texture image index is missing"))?;
+                pbr["baseColorTexture"] = json!({
+                    "index": index,
+                    "extensions": {
+                        "KHR_texture_transform": {
+                            "scale": [texture.uv_scale[0], texture.uv_scale[1]]
+                        }
+                    }
+                });
+            }
             Ok(json!({
                 "name": material.name,
-                "pbrMetallicRoughness": {
-                    "baseColorFactor": [
-                        material.base_color[0],
-                        material.base_color[1],
-                        material.base_color[2],
-                        material.opacity
-                    ],
-                    "metallicFactor": 0.0,
-                    "roughnessFactor": 1.0
-                },
+                "pbrMetallicRoughness": pbr,
                 "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" },
                 "extras": extras
             }))

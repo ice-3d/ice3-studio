@@ -130,6 +130,7 @@ fn static_batching_preserves_vertex_colors() {
             base_color: [1.0, 0.25, 0.0],
             opacity: 1.0,
             extras: json!({"ice3": {"id": "orange"}}),
+            texture: None,
         }],
         asset_extras: json!({}),
     };

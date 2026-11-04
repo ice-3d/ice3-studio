@@ -109,6 +109,7 @@ fn fixture_scene() -> CanonicalScene {
             base_color: [0.2, 0.5, 0.9],
             opacity: 0.75,
             extras: json!({"ice3": {"id": "glass"}}),
+            texture: None,
         }],
         asset_extras: json!({"coordinateSystem": {"upAxis": "y"}}),
     }
