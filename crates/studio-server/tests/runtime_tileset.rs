@@ -273,6 +273,27 @@ fn textures_ship_beside_the_tiles_that_reference_them() {
 
     let copied = output.join("parts/textures/steel.png");
     assert_eq!(std::fs::read(&copied).unwrap(), image);
+    // Every directory that holds tiles needs its own copy: glTF resolves an
+    // image relative to the file that references it, and the same source GLB is
+    // baked into both the detailed and the coarse LOD.
+    for directory in ["parts", "coarse"] {
+        let path = output.join(directory);
+        let has_tiles = std::fs::read_dir(&path)
+            .map(|entries| {
+                entries
+                    .filter_map(Result::ok)
+                    .any(|entry| entry.path().extension().is_some_and(|ext| ext == "glb"))
+            })
+            .unwrap_or(false);
+        if !has_tiles {
+            continue;
+        }
+        assert_eq!(
+            std::fs::read(path.join("textures/steel.png")).unwrap(),
+            image,
+            "tile directory {directory} is missing its texture copy",
+        );
+    }
     let listed = export
         .files
         .iter()

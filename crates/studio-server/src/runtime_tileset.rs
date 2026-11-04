@@ -301,15 +301,19 @@ impl RuntimeTilesetExporter {
             byte_length: bindings.len(),
             digest: format!("{:x}", Sha256::digest(&bindings)),
         });
-        // Tiles live in `parts/`, and glTF resolves an image relative to the file
-        // that references it, so textures ship next to the tiles they belong to.
-        for texture in &textures {
-            let path = format!("parts/{}", texture.relative_path);
-            exported_files.push(ExportedFile {
-                path: path.clone(),
-                byte_length: texture.bytes.len(),
-                digest: format!("{:x}", Sha256::digest(&texture.bytes)),
-            });
+        // glTF resolves an image relative to the file that references it, and the
+        // same source GLB is baked into both `parts/` and `coarse/`, so every
+        // tile directory needs its own copy of the images.
+        let tile_dirs = tile_directories(&artifact.files);
+        for directory in &tile_dirs {
+            for texture in &textures {
+                let path = join_relative(directory, &texture.relative_path);
+                exported_files.push(ExportedFile {
+                    path,
+                    byte_length: texture.bytes.len(),
+                    digest: format!("{:x}", Sha256::digest(&texture.bytes)),
+                });
+            }
         }
         exported_files.sort_by(|left, right| left.path.cmp(&right.path));
         let export = RuntimeTilesetExport {
@@ -336,12 +340,14 @@ impl RuntimeTilesetExporter {
         for file in &artifact.files {
             write_relative(&staging, &file.relative_path, &file.bytes)?;
         }
-        for texture in &textures {
-            write_relative(
-                &staging,
-                &format!("parts/{}", texture.relative_path),
-                &texture.bytes,
-            )?;
+        for directory in &tile_dirs {
+            for texture in &textures {
+                write_relative(
+                    &staging,
+                    &join_relative(directory, &texture.relative_path),
+                    &texture.bytes,
+                )?;
+            }
         }
         write_file(&staging, "export.json", &pretty_json(&export)?)?;
         publish_directory(&staging, &self.output_dir, &backup, self.force)?;
@@ -489,4 +495,28 @@ fn collect_textures(
         });
     }
     Ok(textures)
+}
+
+/// Distinct directories that hold tile GLBs, taken from the artifact layout.
+fn tile_directories(files: &[studio_pipeline::PartitionFile]) -> Vec<String> {
+    let mut directories = files
+        .iter()
+        .filter_map(|file| {
+            std::path::Path::new(&file.relative_path)
+                .parent()
+                .map(|parent| parent.to_string_lossy().into_owned())
+        })
+        .filter(|directory| !directory.is_empty())
+        .collect::<Vec<_>>();
+    directories.sort();
+    directories.dedup();
+    directories
+}
+
+fn join_relative(directory: &str, relative: &str) -> String {
+    if directory.is_empty() {
+        relative.to_string()
+    } else {
+        format!("{directory}/{relative}")
+    }
 }
