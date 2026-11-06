@@ -307,7 +307,11 @@ export class StudioClient {
   }
 
   createChangeSet(baseRevision: number, title: string): Promise<{ id: string; version: number }> {
-    return this.rpc('changeset.create', { baseRevision, title });
+    return this.rpc('changeset.create', {
+      baseRevision,
+      title,
+      idempotencyKey: `viewer-create-${baseRevision}-${title}`,
+    });
   }
 
   addChangeSetOperations(
@@ -319,6 +323,7 @@ export class StudioClient {
     return this.rpc('changeset.addOperations', {
       changeSetId,
       expectedVersion,
+      idempotencyKey: `viewer-add-${changeSetId}-${expectedVersion}`,
       entries: operations.map((operation) => ({ source, operation })),
     });
   }
@@ -328,7 +333,12 @@ export class StudioClient {
     expectedVersion: number,
     entryIds: string[],
   ): Promise<{ version: number }> {
-    return this.rpc('changeset.removeOperations', { changeSetId, expectedVersion, entryIds });
+    return this.rpc('changeset.removeOperations', {
+      changeSetId,
+      expectedVersion,
+      entryIds,
+      idempotencyKey: `viewer-remove-${changeSetId}-${expectedVersion}`,
+    });
   }
 
   evaluateChangeSet(changeSetId: string, expectedVersion: number): Promise<ChangeSetEvaluation> {

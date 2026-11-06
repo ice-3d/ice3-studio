@@ -16,5 +16,5 @@ pub mod scene_contract;
 pub mod validation;
 
 pub const PROJECT_SCHEMA_VERSION: u32 = 2;
-pub const API_VERSION: &str = "1.1";
+pub const API_VERSION: &str = "1.2";
 pub use validation::DIAGNOSTIC_CODES;

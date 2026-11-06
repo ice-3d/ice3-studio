@@ -1,5 +1,5 @@
 {
-  "apiVersion": "1.1",
+  "apiVersion": "1.2",
   "methods": [
     "system.health",
     "system.capabilities",
@@ -10033,12 +10033,17 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "idempotencyKey": {
+          "description": "幂等键；同一键的相同请求只追加一次，重试时返回当前变更集。",
+          "type": "string"
         }
       },
       "required": [
         "changeSetId",
         "expectedVersion",
-        "entries"
+        "entries",
+        "idempotencyKey"
       ],
       "title": "ChangeSetAddParams",
       "type": "object"
@@ -10085,6 +10090,10 @@
           "minimum": 0,
           "type": "integer"
         },
+        "idempotencyKey": {
+          "description": "幂等键；同一键的相同请求返回首次创建的变更集，不会重复创建。",
+          "type": "string"
+        },
         "title": {
           "description": "人类可读标题，用于审阅列表。",
           "type": "string"
@@ -10092,7 +10101,8 @@
       },
       "required": [
         "baseRevision",
-        "title"
+        "title",
+        "idempotencyKey"
       ],
       "title": "ChangeSetCreateParams",
       "type": "object"
@@ -18145,12 +18155,17 @@
           "format": "uint64",
           "minimum": 0,
           "type": "integer"
+        },
+        "idempotencyKey": {
+          "description": "幂等键；同一键的相同请求只移除一次，重试时返回当前变更集。",
+          "type": "string"
         }
       },
       "required": [
         "changeSetId",
         "expectedVersion",
-        "entryIds"
+        "entryIds",
+        "idempotencyKey"
       ],
       "title": "ChangeSetRemoveParams",
       "type": "object"

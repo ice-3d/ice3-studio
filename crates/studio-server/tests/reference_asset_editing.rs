@@ -305,13 +305,20 @@ async fn create_change_set(
 ) -> serde_json::Value {
     let document = rpc_with_bearer(server, server.agent_token(), "document.get", json!({})).await;
     let base_revision = document["result"]["revision"].as_u64().unwrap();
+    // 每次调用都要独立的变更集，幂等键因此不能复用。
+    static NEXT_CREATE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let create_key = format!(
+        "reference-binding-edit-create-{}",
+        NEXT_CREATE.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    );
     let created = rpc_with_bearer(
         server,
         server.agent_token(),
         "changeset.create",
         json!({
             "baseRevision": base_revision,
-            "title": "Reference binding edit"
+            "title": "Reference binding edit",
+            "idempotencyKey": create_key
         }),
     )
     .await;
@@ -325,6 +332,11 @@ async fn create_change_set(
             })
         })
         .collect::<Vec<_>>();
+    static NEXT_ADD: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let add_key = format!(
+        "reference-binding-edit-add-{}",
+        NEXT_ADD.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    );
     let added = rpc_with_bearer(
         server,
         server.agent_token(),
@@ -332,6 +344,7 @@ async fn create_change_set(
         json!({
             "changeSetId": id,
             "expectedVersion": created["result"]["version"],
+            "idempotencyKey": add_key,
             "entries": entries
         }),
     )

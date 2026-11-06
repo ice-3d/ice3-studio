@@ -14,10 +14,17 @@ pub async fn rpc(
 }
 
 pub async fn create_and_evaluate_candidate(server: &TestServer) -> serde_json::Value {
+    // 每次调用必须拿到独立的变更集，幂等键因此要唯一。
+    static NEXT_CREATE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let create_seq = NEXT_CREATE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let created = rpc(
         server,
         "changeset.create",
-        serde_json::json!({ "baseRevision": 0, "title": "candidate preview" }),
+        serde_json::json!({
+            "baseRevision": 0,
+            "title": "candidate preview",
+            "idempotencyKey": format!("candidate-preview-create-{create_seq}")
+        }),
     )
     .await;
     let change_set_id = created["result"]["id"].as_str().unwrap();
@@ -27,6 +34,7 @@ pub async fn create_and_evaluate_candidate(server: &TestServer) -> serde_json::V
         serde_json::json!({
             "changeSetId": change_set_id,
             "expectedVersion": 0,
+            "idempotencyKey": format!("candidate-preview-add-{change_set_id}"),
             "entries": [{
                 "source": { "kind": "agent", "label": "native-preview" },
                 "operation": {

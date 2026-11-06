@@ -9,4 +9,8 @@ baseRevision: Revision,
 /**
  * 人类可读标题，用于审阅列表。
  */
-title: string, };
+title: string, 
+/**
+ * 幂等键；同一键的相同请求返回首次创建的变更集，不会重复创建。
+ */
+idempotencyKey: string, };

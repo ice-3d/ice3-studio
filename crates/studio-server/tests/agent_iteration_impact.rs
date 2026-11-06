@@ -139,6 +139,7 @@ async fn impact_digest_matches_evaluate_and_version_drift_fails_closed() {
         serde_json::json!({
             "changeSetId": changes["id"],
             "expectedVersion": changes["version"],
+            "idempotencyKey": "impact-drift-add",
             "entries": [{
                 "source": { "kind": "agent", "label": "drift" },
                 "operation": instance_patch_transform("node-000001")
@@ -269,7 +270,8 @@ async fn create_change_set_with_operations(
         "changeset.create",
         serde_json::json!({
             "baseRevision": 1,
-            "title": "Impact fixture"
+            "title": "Impact fixture",
+            "idempotencyKey": "impact-fixture-create"
         }),
     )
     .await;
@@ -280,6 +282,10 @@ async fn create_change_set_with_operations(
         serde_json::json!({
             "changeSetId": created["result"]["id"],
             "expectedVersion": created["result"]["version"],
+            "idempotencyKey": format!(
+                "{}-add",
+                created["result"]["id"].as_str().unwrap_or("impact")
+            ),
             "entries": operations.into_iter().map(|operation| {
                 serde_json::json!({
                     "source": { "kind": "agent", "label": "impact-test" },

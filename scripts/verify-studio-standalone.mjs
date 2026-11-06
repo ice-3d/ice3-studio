@@ -210,11 +210,13 @@ async function main() {
     const created = await rpc('changeset.create', {
       baseRevision: 1,
       title: 'independence candidate',
+      idempotencyKey: 'independence-create',
     });
     const changeSetId = created.result?.id;
     const added = await rpc('changeset.addOperations', {
       changeSetId,
       expectedVersion: created.result?.version,
+      idempotencyKey: 'independence-add',
       entries: [{
         source: { kind: 'agent', label: 'independence' },
         operation: {

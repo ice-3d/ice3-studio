@@ -3,6 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use rand::RngCore;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use studio_core::agent_contract::{
     ChangeImpactCounts, IterationImpact, IterationImpactReason, IterationImpactScope,
 };
@@ -17,6 +18,7 @@ use studio_project::changeset::{
     ChangeSet, ChangeSetEntry, ChangeSetEvaluation, ChangeSetId, ChangeSetSource, ChangeSetStatus,
     EntryId,
 };
+use studio_project::{ChangeSetIdempotencyRecord, ChangeSetStore};
 use ts_rs::TS;
 
 use crate::ServerEvent;
@@ -32,6 +34,8 @@ pub struct ChangeSetCreateParams {
     base_revision: Revision,
     /// 人类可读标题，用于审阅列表。
     title: String,
+    /// 幂等键；同一键的相同请求返回首次创建的变更集，不会重复创建。
+    idempotency_key: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
@@ -65,6 +69,8 @@ pub struct ChangeSetAddParams {
     expected_version: u64,
     /// 要追加的候选条目。
     entries: Vec<ChangeSetNewEntry>,
+    /// 幂等键；同一键的相同请求只追加一次，重试时返回当前变更集。
+    idempotency_key: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
@@ -78,6 +84,19 @@ pub struct ChangeSetRemoveParams {
     expected_version: u64,
     /// 要移除的条目 ID；不存在的 ID 会被忽略。
     entry_ids: Vec<EntryId>,
+    /// 幂等键；同一键的相同请求只移除一次，重试时返回当前变更集。
+    idempotency_key: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ChangeSetDiscardParams {
+    /// 要丢弃的变更集 ID。
+    change_set_id: ChangeSetId,
+    /// 幂等键；同一键的相同请求只丢弃一次。
+    idempotency_key: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
@@ -158,6 +177,7 @@ pub(crate) fn dispatch(
         "changeset.getCandidate" => candidate_rpc(session, parse(params)?),
         "changeset.commit" => commit(session, parse(params)?),
         "changeset.discard" => discard(session, parse(params)?),
+
         _ => unreachable!("filtered change set method"),
     }
 }
@@ -241,10 +261,42 @@ pub(crate) fn record_candidate_preview_failure(
     store.save(&change_set).map_err(project_error)
 }
 
+/// 把请求的语义部分折算成稳定摘要，用于识别"同一请求"。
+fn request_digest<T: Serialize>(value: &T) -> Result<String, RpcError> {
+    let bytes = serde_json::to_vec(value).map_err(serialize_error)?;
+    Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
+/// 幂等命中时返回既有变更集；同一个键被复用于不同请求时拒绝。
+///
+/// 命中优先于版本校验：重试通常带着已经过期的 `expectedVersion`，
+/// 先比版本会把合法的重试误判成冲突。
+fn replay_change_set(
+    store: &ChangeSetStore,
+    key: &str,
+    digest: &str,
+) -> Result<Option<ChangeSet>, RpcError> {
+    let Some(record) = store.idempotency_lookup(key).map_err(project_error)? else {
+        return Ok(None);
+    };
+    if record.request_digest != digest {
+        return Err(operation_error(
+            "idempotency key was reused for a different change-set request",
+        ));
+    }
+    let change_set = store.load(&record.change_set_id).map_err(project_error)?;
+    Ok(Some(change_set))
+}
+
 fn create(
     session: &mut Session,
     params: ChangeSetCreateParams,
 ) -> Result<serde_json::Value, RpcError> {
+    let store = session.store.change_set_store();
+    let digest = request_digest(&(&params.base_revision, &params.title))?;
+    if let Some(existing) = replay_change_set(&store, &params.idempotency_key, &digest)? {
+        return serde_json::to_value(existing).map_err(serialize_error);
+    }
     let base = session
         .store
         .load_revision(params.base_revision)
@@ -256,8 +308,14 @@ fn create(
         params.title,
         now_ms(),
     );
-    let store = session.store.change_set_store();
     store.save(&change_set).map_err(project_error)?;
+    store
+        .idempotency_remember(ChangeSetIdempotencyRecord {
+            key: params.idempotency_key,
+            request_digest: digest,
+            change_set_id: change_set.id.clone(),
+        })
+        .map_err(project_error)?;
     emit_created(session, &change_set);
     serde_json::to_value(change_set).map_err(serialize_error)
 }
@@ -287,6 +345,14 @@ fn add_operations(
     params: ChangeSetAddParams,
 ) -> Result<serde_json::Value, RpcError> {
     let store = session.store.change_set_store();
+    let digest = request_digest(&(
+        &params.change_set_id,
+        params.expected_version,
+        &params.entries,
+    ))?;
+    if let Some(existing) = replay_change_set(&store, &params.idempotency_key, &digest)? {
+        return serde_json::to_value(existing).map_err(serialize_error);
+    }
     let mut change_set = store.load(&params.change_set_id).map_err(project_error)?;
     let mut next = change_set
         .entries
@@ -316,6 +382,13 @@ fn add_operations(
         .add_entries(params.expected_version, entries, now)
         .map_err(changeset_error)?;
     store.save(&change_set).map_err(project_error)?;
+    store
+        .idempotency_remember(ChangeSetIdempotencyRecord {
+            key: params.idempotency_key,
+            request_digest: digest,
+            change_set_id: change_set.id.clone(),
+        })
+        .map_err(project_error)?;
     emit_updated(session, &change_set);
     serde_json::to_value(change_set).map_err(serialize_error)
 }
@@ -325,11 +398,26 @@ fn remove_operations(
     params: ChangeSetRemoveParams,
 ) -> Result<serde_json::Value, RpcError> {
     let store = session.store.change_set_store();
+    let digest = request_digest(&(
+        &params.change_set_id,
+        params.expected_version,
+        &params.entry_ids,
+    ))?;
+    if let Some(existing) = replay_change_set(&store, &params.idempotency_key, &digest)? {
+        return serde_json::to_value(existing).map_err(serialize_error);
+    }
     let mut change_set = store.load(&params.change_set_id).map_err(project_error)?;
     change_set
         .remove_entries(params.expected_version, &params.entry_ids, now_ms())
         .map_err(changeset_error)?;
     store.save(&change_set).map_err(project_error)?;
+    store
+        .idempotency_remember(ChangeSetIdempotencyRecord {
+            key: params.idempotency_key,
+            request_digest: digest,
+            change_set_id: change_set.id.clone(),
+        })
+        .map_err(project_error)?;
     emit_updated(session, &change_set);
     serde_json::to_value(change_set).map_err(serialize_error)
 }
@@ -505,9 +593,13 @@ fn commit(
 
 fn discard(
     session: &mut Session,
-    params: ChangeSetGetParams,
+    params: ChangeSetDiscardParams,
 ) -> Result<serde_json::Value, RpcError> {
     let store = session.store.change_set_store();
+    let digest = request_digest(&params.change_set_id)?;
+    if let Some(existing) = replay_change_set(&store, &params.idempotency_key, &digest)? {
+        return serde_json::to_value(existing).map_err(serialize_error);
+    }
     let mut change_set = store.load(&params.change_set_id).map_err(project_error)?;
     if matches!(
         change_set.status,
@@ -517,6 +609,13 @@ fn discard(
     }
     change_set.discard(now_ms());
     store.save(&change_set).map_err(project_error)?;
+    store
+        .idempotency_remember(ChangeSetIdempotencyRecord {
+            key: params.idempotency_key,
+            request_digest: digest,
+            change_set_id: change_set.id.clone(),
+        })
+        .map_err(project_error)?;
     let _ = session.events.send(ServerEvent::ChangeSetDiscarded {
         change_set_id: change_set.id.clone(),
         version: change_set.version,

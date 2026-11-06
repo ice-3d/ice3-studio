@@ -9,9 +9,10 @@
 Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
 路径；所有修改都必须进入事务或 ChangeSet。
 
-`API_VERSION` 当前为 `1.1`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
-读回显从 snake_case 变为 camelCase（见 [ADR-003](../decisions/0003-wire-format-camel-case.md)）。
-历史 API 曾包含
+`API_VERSION` 当前为 `1.2`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
+读回显从 snake_case 变为 camelCase（见 [ADR-003](../decisions/0003-wire-format-camel-case.md)）；
+1.2 要求 `changeset.create`、`addOperations`、`removeOperations`、`discard` 携带
+`idempotencyKey`。历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`，客户端必须按当前 generated schema 解析 capabilities。该形状变化
 不承诺向后兼容，不能把 `1.0` 当作兼容性承诺。
@@ -86,16 +87,16 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | `evaluation.visibleInstances` | 否 | `{ targetRevision, planes[6][4] }` | 可见实例与稳定 Node ID |
 | `export.sourceGlb` | 是 | 无 | Source GLB metadata |
 | `export.runtimePreview` | 是 | `RuntimePreviewRequest` | committed/candidate preview metadata |
-| `changeset.create` | 是 | `{ baseRevision, title }` | 新 draft ChangeSet |
-| `changeset.addOperations` | 是 | `{ changeSetId, expectedVersion, entries }` | 更新后的 ChangeSet |
-| `changeset.removeOperations` | 是 | `{ changeSetId, expectedVersion, entryIds }` | 更新后的 ChangeSet |
+| `changeset.create` | 是 | `{ baseRevision, title, idempotencyKey }` | 新 draft ChangeSet；同键同请求返回既有 ChangeSet |
+| `changeset.addOperations` | 是 | `{ changeSetId, expectedVersion, entries, idempotencyKey }` | 更新后的 ChangeSet；重试只追加一次 |
+| `changeset.removeOperations` | 是 | `{ changeSetId, expectedVersion, entryIds, idempotencyKey }` | 更新后的 ChangeSet；重试只移除一次 |
 | `changeset.evaluate` | 是 | `{ changeSetId, expectedVersion, includeCandidate? }` | 状态、Diagnostic、digest |
 | `changeset.commit` | 是 | `{ changeSetId, expectedVersion, approvedDigest, idempotencyKey }` | committed revision |
 | `changeset.get` | 否 | `{ changeSetId }` | 持久 ChangeSet |
 | `changeset.getCandidate` | 否 | `{ changeSetId }` | candidate Document |
 | `changeset.impact` | 否 | `{ changeSetId, expectedVersion }` | 影响范围与 Geometry 复用证据 |
 | `changeset.list` | 否 | 无 | ChangeSet 列表 |
-| `changeset.discard` | 是 | `{ changeSetId }` | 丢弃结果 |
+| `changeset.discard` | 是 | `{ changeSetId, idempotencyKey }` | 丢弃结果；重试返回同一已丢弃状态 |
 
 实验方法必须先从 `system.capabilities.methods` 确认，再由调用方准备 CPU fallback。
 

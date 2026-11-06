@@ -14,4 +14,8 @@ expectedVersion: bigint,
 /**
  * 要移除的条目 ID；不存在的 ID 会被忽略。
  */
-entryIds: Array<EntryId>, };
+entryIds: Array<EntryId>, 
+/**
+ * 幂等键；同一键的相同请求只移除一次，重试时返回当前变更集。
+ */
+idempotencyKey: string, };

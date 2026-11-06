@@ -41,7 +41,11 @@ async fn agent_inspects_proposes_and_waits_for_human_approval() {
     let created = agent_rpc(
         &server,
         "changeset.create",
-        serde_json::json!({ "baseRevision": 1, "title": "Agent pump update" }),
+        serde_json::json!({
+            "baseRevision": 1,
+            "title": "Agent pump update",
+            "idempotencyKey": "agent-workflow-create"
+        }),
     )
     .await;
     let change_set_id = created["result"]["id"].as_str().unwrap();
@@ -53,6 +57,7 @@ async fn agent_inspects_proposes_and_waits_for_human_approval() {
         serde_json::json!({
             "changeSetId": change_set_id,
             "expectedVersion": 0,
+            "idempotencyKey": "agent-workflow-add",
             "entries": [{
                 "source": { "kind": "agent", "label": "test-agent" },
                 "operation": {

@@ -223,6 +223,7 @@ try {
     const created = await rpc('changeset.create', {
       baseRevision: 11,
       title: `Benchmark proposal ${sample + 1}`,
+      idempotencyKey: `benchmark-create-${sample + 1}`,
     });
     const operations = nodeIds.map((nodeId) => ({
       type: 'node.update',
@@ -236,6 +237,7 @@ try {
       await rpc('changeset.addOperations', {
         changeSetId: created.id,
         expectedVersion: 0,
+        idempotencyKey: `benchmark-add-${sample + 1}`,
         entries: operations.map((operation) => ({
           source: { kind: 'agent', label: 'benchmark' },
           operation,

@@ -60,11 +60,24 @@ Geometry cache；它不会把候选合并到 active scene snapshot。提交后�
 - 调用方拥有 approval capability；
 - 提供唯一 idempotency key。
 
+### 写操作的幂等
+
+`changeset.create`、`changeset.addOperations`、`changeset.removeOperations` 和
+`changeset.discard` 都要求 `idempotencyKey`，语义与 `document.apply` 一致：
+
+- 同一个键配同一份请求（`baseRevision` + `title`、`entries`、`entryIds` 或 `changeSetId`）
+  只执行一次；重试返回该变更集的当前状态，不产生第二次副作用。
+- 同一个键配不同请求会被拒绝，返回 `ICE3_STUDIO_OPERATION_INVALID`。
+- 幂等命中先于 `expectedVersion` 校验。重试通常带着已经过期的版本，
+  先比版本会把合法重试误判成冲突。
+- 键由调用方负责唯一；不要跨变更集复用同一个键。
+
 ## 3. 持久化
 
 ```text
 project/
 ├── changesets/<change-set-id>.json
+├── changesets/idempotency/keys.json
 ├── cache/candidates/<digest>-source.glb
 └── cache/preview/<digest>.glb
 ```

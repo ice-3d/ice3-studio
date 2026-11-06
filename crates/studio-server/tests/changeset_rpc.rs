@@ -52,7 +52,8 @@ async fn stages_evaluates_and_commits_one_change_set() {
         "changeset.create",
         serde_json::json!({
             "baseRevision": 0,
-            "title": "Add assembly"
+            "title": "Add assembly",
+            "idempotencyKey": "add-assembly-create"
         }),
     )
     .await;
@@ -64,6 +65,7 @@ async fn stages_evaluates_and_commits_one_change_set() {
         serde_json::json!({
             "changeSetId": change_set_id,
             "expectedVersion": 0,
+            "idempotencyKey": format!("add-{change_set_id}"),
             "entries": [{
                 "source": { "kind": "agent", "label": "test-agent" },
                 "operation": {
@@ -130,7 +132,11 @@ async fn evaluated_node_change_set(
     let created = rpc(
         server,
         "changeset.create",
-        serde_json::json!({ "baseRevision": 0, "title": title }),
+        serde_json::json!({
+            "baseRevision": 0,
+            "title": title,
+            "idempotencyKey": format!("create-{title}")
+        }),
     )
     .await;
     let change_set_id = created["result"]["id"].as_str().unwrap();
@@ -140,6 +146,7 @@ async fn evaluated_node_change_set(
         serde_json::json!({
             "changeSetId": change_set_id,
             "expectedVersion": 0,
+            "idempotencyKey": format!("add-{change_set_id}"),
             "entries": [{
                 "source": { "kind": "agent", "label": "test-agent" },
                 "operation": {
@@ -229,11 +236,18 @@ async fn unknown_candidate_preview_preserves_previous_candidate() {
 }
 
 async fn create_and_evaluate_with_token(server: &TestServer, token: &str) -> serde_json::Value {
+    // 每次调用必须拿到独立的变更集，幂等键因此要唯一。
+    static NEXT_CREATE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let create_seq = NEXT_CREATE.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let created = rpc_with_bearer(
         server,
         token,
         "changeset.create",
-        serde_json::json!({ "baseRevision": 0, "title": "Protected proposal" }),
+        serde_json::json!({
+            "baseRevision": 0,
+            "title": "Protected proposal",
+            "idempotencyKey": format!("protected-proposal-create-{create_seq}")
+        }),
     )
     .await;
     let change_set_id = created["result"]["id"].as_str().unwrap();
@@ -244,6 +258,7 @@ async fn create_and_evaluate_with_token(server: &TestServer, token: &str) -> ser
         serde_json::json!({
             "changeSetId": change_set_id,
             "expectedVersion": 0,
+            "idempotencyKey": format!("add-{change_set_id}"),
             "entries": [{
                 "source": { "kind": "agent" },
                 "operation": {
@@ -387,7 +402,11 @@ async fn empty_change_set_is_blocked_instead_of_ready() {
         &server,
         server.agent_token(),
         "changeset.create",
-        serde_json::json!({ "baseRevision": 0, "title": "Empty" }),
+        serde_json::json!({
+            "baseRevision": 0,
+            "title": "Empty",
+            "idempotencyKey": "empty-proposal-create"
+        }),
     )
     .await;
     let evaluated = rpc_with_bearer(
@@ -419,4 +438,85 @@ async fn repeated_commit_returns_the_original_result() {
     assert_eq!(first["result"], second["result"]);
     let current = rpc(&server, "document.get", serde_json::json!({})).await;
     assert_eq!(current["result"]["revision"], 1);
+}
+
+#[tokio::test]
+async fn change_set_writes_replay_instead_of_repeating_side_effects() {
+    let server = start_test_server(ServerConfig::review_required("idempotent-writes")).await;
+
+    let create_params = serde_json::json!({
+        "baseRevision": 0,
+        "title": "Idempotent proposal",
+        "idempotencyKey": "idem-create"
+    });
+    let first = rpc(&server, "changeset.create", create_params.clone()).await;
+    let replay = rpc(&server, "changeset.create", create_params.clone()).await;
+    assert_eq!(
+        first["result"]["id"], replay["result"]["id"],
+        "{first}\n{replay}"
+    );
+
+    let reused = rpc(
+        &server,
+        "changeset.create",
+        serde_json::json!({
+            "baseRevision": 0,
+            "title": "A different proposal",
+            "idempotencyKey": "idem-create"
+        }),
+    )
+    .await;
+    assert_eq!(
+        reused["error"]["diagnosticCode"], "ICE3_STUDIO_OPERATION_INVALID",
+        "{reused}"
+    );
+
+    let change_set_id = first["result"]["id"].as_str().unwrap();
+    let add_params = || {
+        serde_json::json!({
+            "changeSetId": change_set_id,
+            "expectedVersion": 0,
+            "idempotencyKey": "idem-add",
+            "entries": [{
+                "source": { "kind": "agent", "label": "idempotent" },
+                "operation": {
+                    "type": "node.create",
+                    "nodeId": "node-000001",
+                    "parentId": null,
+                    "name": "Idempotent node",
+                    "transform": {
+                        "translation": { "x": 0, "y": 0, "z": 0 },
+                        "rotation": [0, 0, 0, 1],
+                        "scale": { "x": 1, "y": 1, "z": 1 }
+                    },
+                    "content": { "type": "group" },
+                    "materialId": null,
+                    "metadata": {}
+                }
+            }]
+        })
+    };
+    let added = rpc(&server, "changeset.addOperations", add_params()).await;
+    let retried = rpc(&server, "changeset.addOperations", add_params()).await;
+    assert_eq!(added["result"]["version"], 1, "{added}");
+    assert_eq!(retried["result"]["version"], 1, "{retried}");
+    assert_eq!(
+        added["result"]["entries"].as_array().unwrap().len(),
+        retried["result"]["entries"].as_array().unwrap().len(),
+        "a replayed add must not append a second entry:\n{added}\n{retried}"
+    );
+
+    let discard_params = serde_json::json!({
+        "changeSetId": change_set_id,
+        "idempotencyKey": "idem-discard"
+    });
+    let discarded =
+        rpc_with_approval_cookie(&server, "changeset.discard", discard_params.clone()).await;
+    let discarded_again =
+        rpc_with_approval_cookie(&server, "changeset.discard", discard_params).await;
+    assert_eq!(discarded["result"]["status"], "discarded", "{discarded}");
+    assert_eq!(
+        discarded_again["result"]["status"], "discarded",
+        "{discarded_again}"
+    );
 }

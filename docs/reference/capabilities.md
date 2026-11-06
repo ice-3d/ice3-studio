@@ -9,9 +9,10 @@
 本文件是 Studio 对外能力的**代码镜像**。内容逐项来自 `crates/` 与 `apps/viewer/src/`，
 实现变更时同步更新；与其它文档冲突时以本文件和代码为准。
 
-`API_VERSION` 当前为 `1.1`，但项目仍是 pre-release。1.1 把 Operation 字段名统一为
+`API_VERSION` 当前为 `1.2`，但项目仍是 pre-release。1.1 把 Operation 字段名统一为
 camelCase，并保留历史 snake_case 别名双读（见
-[ADR-003](../decisions/0003-wire-format-camel-case.md)）。历史 API 曾包含
+[ADR-003](../decisions/0003-wire-format-camel-case.md)）；1.2 要求四个变更集写方法
+携带 `idempotencyKey`，重试不再产生重复副作用。历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`。capabilities 调用方必须按当前 generated schema 解析，不能把版本
 字符串视为兼容性承诺。

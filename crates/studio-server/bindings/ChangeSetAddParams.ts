@@ -14,4 +14,8 @@ expectedVersion: bigint,
 /**
  * 要追加的候选条目。
  */
-entries: Array<ChangeSetNewEntry>, };
+entries: Array<ChangeSetNewEntry>, 
+/**
+ * 幂等键；同一键的相同请求只追加一次，重试时返回当前变更集。
+ */
+idempotencyKey: string, };

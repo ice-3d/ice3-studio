@@ -374,10 +374,12 @@ async function commitBatch(title, operations, idempotencyKey) {
   const created = await rpc('changeset.create', {
     baseRevision: document.revision,
     title,
+    idempotencyKey: `${idempotencyKey}-create`,
   });
   const added = await rpc('changeset.addOperations', {
     changeSetId: created.id,
     expectedVersion: created.version,
+    idempotencyKey: `${idempotencyKey}-add`,
     entries: operations.map((operation) => ({
       source: { kind: 'agent', label: 'codex-large-wwtp-recreation' },
       operation,

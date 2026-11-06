@@ -11,6 +11,6 @@ pub mod reference_asset_store;
 pub mod snapshot;
 mod store;
 
-pub use changeset_store::{ChangeSetStore, ChangeSetStoreDiagnostic};
+pub use changeset_store::{ChangeSetIdempotencyRecord, ChangeSetStore, ChangeSetStoreDiagnostic};
 pub use path::WorkspacePath;
 pub use store::{HistoryEntry, MAX_UNDO_DEPTH, ProjectError, ProjectStore};
