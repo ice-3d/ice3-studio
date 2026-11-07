@@ -188,6 +188,28 @@ enum Command {
         write_mode: String,
         #[arg(long, default_value = "cpu", value_parser = parse_compute_mode)]
         native_gpu: GeometryBackendMode,
+        /// Fixed session token; falls back to STUDIO_TOKEN. Use it so MCP client
+        /// configs survive a server restart, which would otherwise mint a new token.
+        #[arg(long)]
+        token: Option<String>,
+    },
+    /// Expose the Studio agent contract as a Model Context Protocol server over stdio.
+    Mcp {
+        /// Base URL of a running `studio serve` instance.
+        #[arg(long, default_value = "http://127.0.0.1:8120")]
+        url: String,
+        /// Session token printed by `studio serve`; falls back to STUDIO_TOKEN.
+        #[arg(long)]
+        token: Option<String>,
+        /// Start Studio for `--workspace` when nothing answers on `--url`.
+        #[arg(long)]
+        spawn: bool,
+        /// Workspace root passed to the spawned `studio serve`.
+        #[arg(long, requires = "spawn")]
+        workspace: Option<PathBuf>,
+        /// Project ID passed to the spawned `studio serve`.
+        #[arg(long, requires = "spawn")]
+        project: Option<String>,
     },
 }
 
@@ -296,8 +318,54 @@ fn load_committed_document(
     Ok(store.load_current_read_only()?)
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// MCP speaks stdio through a blocking HTTP client, so it must stay outside the
+/// Tokio runtime: dropping that client inside an async context panics.
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if run_mcp_if_requested()? {
+        return Ok(());
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(run())
+}
+
+fn run_mcp_if_requested() -> Result<bool, Box<dyn std::error::Error>> {
+    if std::env::args().nth(1).as_deref() != Some("mcp") {
+        return Ok(false);
+    }
+    let Command::Mcp {
+        url,
+        token,
+        spawn,
+        workspace,
+        project,
+    } = Cli::parse().command
+    else {
+        return Ok(false);
+    };
+    let token = token
+        .or_else(|| std::env::var("STUDIO_TOKEN").ok())
+        .ok_or("a session token is required: pass --token or set STUDIO_TOKEN")?;
+    let spawn = if spawn {
+        let port = url
+            .rsplit(':')
+            .next()
+            .and_then(|value| value.trim_end_matches('/').parse::<u16>().ok())
+            .ok_or("--url must carry a port when --spawn is used")?;
+        Some(studio_cli::mcp::SpawnTarget {
+            workspace: workspace.ok_or("--spawn requires --workspace")?,
+            project: project.ok_or("--spawn requires --project")?,
+            port,
+        })
+    } else {
+        None
+    };
+    studio_cli::mcp::run(studio_cli::mcp::McpConfig { url, token, spawn })?;
+    Ok(true)
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "jt")]
     if studio_import::jt::run_jt_converter_supervisor(std::env::args_os().skip(1))? {
         return Ok(());
@@ -664,12 +732,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             port,
             write_mode,
             native_gpu,
+            token,
         } => {
             let write_mode = WriteMode::parse(&write_mode)?;
             serve(ServerConfig {
                 workspace_root: workspace,
                 project_id: project,
-                token: None,
+                token: token.or_else(|| std::env::var("STUDIO_TOKEN").ok()),
                 fixture,
                 port,
                 approval_token: None,
@@ -685,6 +754,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })
             .await?;
         }
+        // Handled by `run_mcp_if_requested` before the runtime exists.
+        Command::Mcp { .. } => unreachable!("mcp runs before the Tokio runtime starts"),
     }
     Ok(())
 }

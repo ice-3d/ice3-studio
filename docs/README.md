@@ -23,6 +23,7 @@
 | `ICE3-STUDIO-GUIDE-002` | [大型工业夹具](guides/large-industrial-fixture.md) | Implemented | 程序化大型工业场景、共享几何、拓扑与性能夹具 |
 | `ICE3-STUDIO-GUIDE-003` | [污水处理厂工程](../projects/README.md) | Implemented | 默认开发工程、总平面、工艺拓扑、统计与扩展方式 |
 | `ICE3-STUDIO-GUIDE-004` | [本地入门](guides/getting-started.md) | Implemented | 本地启动、API、Source Import、Prepare、partition、导出和验证 |
+| `ICE3-STUDIO-GUIDE-005` | [MCP 适配器](guides/mcp.md) | Implemented | 把 Agent manifest 暴露为 MCP tools，供 Claude Desktop / Cursor 直接加载 |
 
 ## 3. 参考与决策
 
