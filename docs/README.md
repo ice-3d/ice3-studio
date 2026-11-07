@@ -24,6 +24,7 @@
 | `ICE3-STUDIO-GUIDE-003` | [污水处理厂工程](../projects/README.md) | Implemented | 默认开发工程、总平面、工艺拓扑、统计与扩展方式 |
 | `ICE3-STUDIO-GUIDE-004` | [本地入门](guides/getting-started.md) | Implemented | 本地启动、API、Source Import、Prepare、partition、导出和验证 |
 | `ICE3-STUDIO-GUIDE-005` | [MCP 适配器](guides/mcp.md) | Implemented | 把 Agent manifest 暴露为 MCP tools，供 Claude Desktop / Cursor 直接加载 |
+| `ICE3-STUDIO-GUIDE-006` | [Agent 评测基线](guides/agent-eval.md) | Implemented | 20 条契约任务 × pass^3，覆盖读取、提案、幂等与权限边界 |
 
 ## 3. 参考与决策
 

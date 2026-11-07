@@ -140,6 +140,11 @@ const steps = [
     args: ['scripts/run-ai-fixture.mjs', '--fixture', 'fixtures/wastewater-mini'],
   },
   {
+    label: 'Agent evaluation',
+    command: 'node',
+    args: ['scripts/eval/run.mjs'],
+  },
+  {
     label: 'Wastewater plant asset contract',
     command: 'node',
     args: ['--test', 'scripts/tests/wastewater-plant-model.test.mjs'],
