@@ -29,7 +29,7 @@ node scripts/eval/run.mjs --attempts 5
 node scripts/eval/run.mjs --json /tmp/report.json
 ```
 
-`npm run verify` 已经包含这一道门禁（第 32 道），所以契约回归会直接被拦住。
+`npm run verify` 已经包含这一道门禁，所以契约回归会直接被拦住。
 
 ## 3. 接入模型
 

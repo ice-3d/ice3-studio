@@ -120,6 +120,11 @@ const steps = [
     args: ['scripts/check-docs.mjs'],
   },
   {
+    label: 'Reference method coverage',
+    command: 'node',
+    args: ['scripts/check-method-docs.mjs'],
+  },
+  {
     label: 'Generated schemas',
     command: 'cargo',
     args: [

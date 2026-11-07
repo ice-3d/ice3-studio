@@ -9,10 +9,11 @@
 Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
 路径；所有修改都必须进入事务或 ChangeSet。
 
-`API_VERSION` 当前为 `1.2`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
+`API_VERSION` 当前为 `1.3`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
 读回显从 snake_case 变为 camelCase（见 [ADR-003](../decisions/0003-wire-format-camel-case.md)）；
 1.2 要求 `changeset.create`、`addOperations`、`removeOperations`、`discard` 携带
-`idempotencyKey`。历史 API 曾包含
+`idempotencyKey`；1.3 在 `changeset.evaluate` 的返回里增加 `spatial` 预检摘要，
+它是可选字段，不参与状态判定。历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`，客户端必须按当前 generated schema 解析 capabilities。该形状变化
 不承诺向后兼容，不能把 `1.0` 当作兼容性承诺。
@@ -76,6 +77,9 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | `scene.search` | 否 | `SceneSearchRequest` | revision-bound page |
 | `component.get` | 否 | `ComponentGetParams` | 单个组件定义的有界摘要 |
 | `scene.bounds` | 否 | 无 | 按 Node ID 的 world bounds |
+| `scene.measure` | 否 | `MeasureRequest` | 距离、逐轴差值与净空 |
+| `scene.bom` | 否 | `BomRequest` | 按定义/材质/宿主/属性聚合的物料表 |
+| `scene.clashes` | 否 | `ClashRequest` | 干涉与净空违规对 |
 | `validation.run` | 否 | `ValidationRunRequest` | Diagnostic |
 | `referenceAsset.register` | 是 | 四个 workspace-relative path | asset ID 和 descriptor |
 | `referenceAsset.get` | 否 | `{ assetId }` | descriptor 和 URL |
@@ -90,7 +94,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | `changeset.create` | 是 | `{ baseRevision, title, idempotencyKey }` | 新 draft ChangeSet；同键同请求返回既有 ChangeSet |
 | `changeset.addOperations` | 是 | `{ changeSetId, expectedVersion, entries, idempotencyKey }` | 更新后的 ChangeSet；重试只追加一次 |
 | `changeset.removeOperations` | 是 | `{ changeSetId, expectedVersion, entryIds, idempotencyKey }` | 更新后的 ChangeSet；重试只移除一次 |
-| `changeset.evaluate` | 是 | `{ changeSetId, expectedVersion, includeCandidate? }` | 状态、Diagnostic、digest |
+| `changeset.evaluate` | 是 | `{ changeSetId, expectedVersion, includeCandidate? }` | 状态、Diagnostic、digest、`spatial` 预检摘要 |
 | `changeset.commit` | 是 | `{ changeSetId, expectedVersion, approvedDigest, idempotencyKey }` | committed revision |
 | `changeset.get` | 否 | `{ changeSetId }` | 持久 ChangeSet |
 | `changeset.getCandidate` | 否 | `{ changeSetId }` | candidate Document |

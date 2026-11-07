@@ -17,5 +17,5 @@ pub mod spatial_preflight;
 pub mod validation;
 
 pub const PROJECT_SCHEMA_VERSION: u32 = 2;
-pub const API_VERSION: &str = "1.2";
+pub const API_VERSION: &str = "1.3";
 pub use validation::DIAGNOSTIC_CODES;
