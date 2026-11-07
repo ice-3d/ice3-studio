@@ -13,6 +13,7 @@ pub mod operation;
 pub mod patch;
 pub mod reference_asset;
 pub mod scene_contract;
+pub mod spatial_preflight;
 pub mod validation;
 
 pub const PROJECT_SCHEMA_VERSION: u32 = 2;

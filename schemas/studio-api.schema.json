@@ -12981,6 +12981,21 @@
           ],
           "type": "object"
         },
+        "Bounds": {
+          "properties": {
+            "max": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "min": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "type": "object"
+        },
         "BoxCut": {
           "additionalProperties": false,
           "description": "一次长方体挖除：中心 + 尺寸，相对部件自身坐标系。",
@@ -14851,6 +14866,50 @@
           ],
           "type": "object"
         },
+        "SpatialPreflight": {
+          "description": "Spatial summary of a candidate revision.",
+          "properties": {
+            "changedBounds": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Bounds"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "改动覆盖的世界包围盒；改动没有可计算几何时为 null。"
+            },
+            "changedVisibleNodes": {
+              "description": "改动涉及的可见节点数；为 0 说明这次变更不会产生可见几何。",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "outsideNodeCount": {
+              "description": "新增节点中完全落在场景包围盒之外的个数。",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sceneBounds": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Bounds"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "已提交场景的包围盒，用于对照。"
+            }
+          },
+          "required": [
+            "outsideNodeCount",
+            "changedVisibleNodes"
+          ],
+          "type": "object"
+        },
         "SphereCut": {
           "additionalProperties": false,
           "description": "球形挖除。",
@@ -15044,6 +15103,17 @@
         "diff": {
           "$ref": "#/$defs/DocumentDiff",
           "description": "候选相对基线的结构化差异。"
+        },
+        "spatial": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SpatialPreflight"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "候选的空间预检摘要；用于审阅时判断改动落在哪里、是否跑出场景。\n它是信息性的，不影响 `status`。"
         },
         "status": {
           "$ref": "#/$defs/ChangeSetStatus",

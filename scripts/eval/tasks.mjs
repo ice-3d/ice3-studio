@@ -45,6 +45,7 @@ async function createChangeSet(client, idempotencyKey, title = 'Eval proposal') 
 export const tasks = [
   {
     id: 'context-summary',
+    finalMethod: 'scene.context',
     goal: 'Read the scene summary and confirm project, units and a committed revision.',
     async run({ client }) {
       return client.call('scene.context', {});
@@ -59,6 +60,7 @@ export const tasks = [
   },
   {
     id: 'search-by-name',
+    finalMethod: 'scene.search',
     goal: 'Find the aeration tanks by name.',
     async run({ client }) {
       return client.call('scene.search', { query: 'Tank' });
@@ -87,6 +89,7 @@ export const tasks = [
   },
   {
     id: 'search-projection',
+    finalMethod: 'scene.search',
     goal: 'Project only the requested fields.',
     async run({ client }) {
       return client.call('scene.search', { limit: 3, fields: ['id', 'scope', 'kind', 'name'] });
@@ -104,6 +107,7 @@ export const tasks = [
   },
   {
     id: 'search-kind-filter',
+    finalMethod: 'scene.search',
     goal: 'List only the swept pipe routes.',
     async run({ client }) {
       return client.call('scene.search', { contentKind: 'sweep' });
@@ -115,6 +119,7 @@ export const tasks = [
   },
   {
     id: 'measure-distance',
+    finalMethod: 'scene.measure',
     goal: 'Measure the distance between the ground and a tank.',
     async run({ client }) {
       return client.call('scene.measure', {
@@ -130,6 +135,7 @@ export const tasks = [
   },
   {
     id: 'bom-grouping',
+    finalMethod: 'scene.bom',
     goal: 'Group the evaluated scene into a bill of materials.',
     async run({ client }) {
       return client.call('scene.bom', { groupBy: 'material' });
@@ -142,6 +148,7 @@ export const tasks = [
   },
   {
     id: 'clash-audit',
+    finalMethod: 'scene.clashes',
     goal: 'Run a clearance audit and get a structured answer.',
     async run({ client }) {
       return client.call('scene.clashes', { clearance: 0 });
@@ -154,6 +161,7 @@ export const tasks = [
   },
   {
     id: 'evaluation-query',
+    finalMethod: 'evaluation.query',
     goal: 'Read the evaluated summary of one node.',
     async run({ client }) {
       return client.call('evaluation.query', {
@@ -170,6 +178,7 @@ export const tasks = [
   },
   {
     id: 'changeset-create',
+    finalMethod: 'changeset.create',
     goal: 'Open a proposal on the committed revision.',
     async run({ client }) {
       return createChangeSet(client, 'eval-create');
@@ -183,6 +192,7 @@ export const tasks = [
   },
   {
     id: 'changeset-add-node',
+    finalMethod: 'changeset.addOperations',
     goal: 'Append one node to the proposal.',
     async run({ client }) {
       const changeSet = await createChangeSet(client, 'eval-add-create');
@@ -204,6 +214,7 @@ export const tasks = [
   },
   {
     id: 'changeset-evaluate',
+    finalMethod: 'changeset.evaluate',
     goal: 'Evaluate the candidate and obtain a digest for review.',
     async run({ client }) {
       const changeSet = await createChangeSet(client, 'eval-eval-create');
@@ -227,10 +238,20 @@ export const tasks = [
       assert(result.status === 'ready', `expected ready, got ${result.status}`);
       assert(/^[0-9a-f]{64}$/.test(result.candidateDigest), 'digest is a sha256 hex string');
       assert(result.diagnostics.length === 0, 'a valid box produces no diagnostics');
+      assert(result.spatial, 'the evaluation carries a spatial preflight');
+      assert(
+        result.spatial.changedVisibleNodes === 1,
+        `the added box counts as one visible node, got ${result.spatial?.changedVisibleNodes}`,
+      );
+      assert(
+        result.spatial.changedBounds !== null,
+        'a box has bounds even though the group scene may not',
+      );
     },
   },
   {
     id: 'changeset-impact',
+    finalMethod: 'changeset.impact',
     goal: 'Predict the cost of the candidate before asking a human to review it.',
     async run({ client }) {
       const changeSet = await createChangeSet(client, 'eval-impact-create');
@@ -262,6 +283,7 @@ export const tasks = [
   },
   {
     id: 'changeset-remove',
+    finalMethod: 'changeset.removeOperations',
     goal: 'Remove an entry and keep the proposal consistent.',
     async run({ client }) {
       const changeSet = await createChangeSet(client, 'eval-remove-create');
@@ -377,6 +399,7 @@ export const tasks = [
   },
   {
     id: 'invalid-operation',
+    finalMethod: 'changeset.evaluate',
     goal: 'A malformed operation must come back as a structured diagnostic.',
     async run({ client }) {
       const changeSet = await createChangeSet(client, 'eval-invalid-create');
@@ -426,6 +449,7 @@ export const tasks = [
   },
   {
     id: 'discard-proposal',
+    finalMethod: 'changeset.get',
     goal: 'Discard a proposal and confirm the terminal state is readable.',
     async run({ client, approvalClient }) {
       const changeSet = await createChangeSet(client, 'eval-discard-create');

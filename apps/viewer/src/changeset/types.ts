@@ -1,6 +1,6 @@
-import type { ChangeSetEvaluation, DocumentDiff } from '../api/StudioClient';
+import type { ChangeSetEvaluation, ChangeSetImpact, DocumentDiff } from '../api/StudioClient';
 
-export type { ChangeSetEvaluation, DocumentDiff };
+export type { ChangeSetEvaluation, ChangeSetImpact, DocumentDiff };
 
 export type ChangeSetClient = {
   createChangeSet(baseRevision: number, title: string): Promise<{ id: string; version: number }>;
@@ -23,4 +23,6 @@ export type ChangeSetClient = {
     idempotencyKey: string,
   ): Promise<{ revision: number }>;
   candidatePreview?(candidateDigest: string): Promise<{ url: string }>;
+  /** 代价预测；旧客户端可以省略，面板会退化成只显示 diff。 */
+  changeSetImpact?(changeSetId: string, expectedVersion: number): Promise<ChangeSetImpact>;
 };

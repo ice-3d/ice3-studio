@@ -1,4 +1,4 @@
-import type { ChangeSetClient, ChangeSetEvaluation } from './types';
+import type { ChangeSetClient, ChangeSetEvaluation, ChangeSetImpact } from './types';
 import { ExternalStore } from '../shared/ExternalStore';
 
 export type ChangeSetSnapshot = {
@@ -7,6 +7,8 @@ export type ChangeSetSnapshot = {
   canApprove: boolean;
   status: 'idle' | 'staging' | 'evaluating' | 'ready' | 'blocked' | 'error';
   candidateUrl: string | null;
+  /** 代价预测；拉不到时为 null，面板退化为只显示 diff。 */
+  impact: ChangeSetImpact | null;
 };
 
 export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
@@ -17,6 +19,7 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
       canApprove: false,
       status: 'idle',
       candidateUrl: null,
+      impact: null,
     });
   }
 
@@ -41,9 +44,10 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
   async evaluate(): Promise<void> {
     const active = this.snapshot.active;
     if (!active) return;
-    this.update({ ...this.snapshot, status: 'evaluating', canApprove: false });
+    this.update({ ...this.snapshot, status: 'evaluating', canApprove: false, impact: null });
     const evaluation = await this.client.evaluateChangeSet(active.changeSetId, active.version);
     this.acceptEvaluation(evaluation);
+    await this.loadImpact(evaluation.changeSetId, evaluation.version);
   }
 
   async addOperations(
@@ -80,11 +84,23 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
     return result.revision;
   }
 
+  /// Cost prediction is advisory: a failure must not block review.
+  private async loadImpact(changeSetId: string, version: number): Promise<void> {
+    if (!this.client.changeSetImpact) return;
+    try {
+      const impact = await this.client.changeSetImpact(changeSetId, version);
+      this.update({ ...this.snapshot, impact });
+    } catch {
+      this.update({ ...this.snapshot, impact: null });
+    }
+  }
+
   private async evaluateAt(changeSetId: string, version: number): Promise<void> {
-    this.update({ ...this.snapshot, status: 'evaluating', canApprove: false });
+    this.update({ ...this.snapshot, status: 'evaluating', canApprove: false, impact: null });
     const evaluation = await this.client.evaluateChangeSet(changeSetId, version);
     this.update({ ...this.snapshot, reviewedDigest: null, active: evaluation });
     this.acceptEvaluation(evaluation);
+    await this.loadImpact(changeSetId, version);
     if (evaluation.candidateDigest && this.client.candidatePreview) {
       const preview = await this.client.candidatePreview(evaluation.candidateDigest);
       this.update({ ...this.snapshot, candidateUrl: preview.url });

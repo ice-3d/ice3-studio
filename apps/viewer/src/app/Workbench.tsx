@@ -78,6 +78,29 @@ export function Workbench() {
                 <span>Change set</span>
                 <strong>{changeSet.status}</strong>
               </div>
+              {changeSet.impact && (
+                <div className="review-actions__impact">
+                  <span>Impact</span>
+                  <strong>{changeSet.impact.impact.scope}</strong>
+                  <span>
+                    +{changeSet.impact.impact.sourceNodes.added} / ~
+                    {changeSet.impact.impact.sourceNodes.updated} source
+                  </span>
+                  {changeSet.impact.impact.fullSceneRebuildRequired && (
+                    <span className="review-actions__warning">full scene rebuild</span>
+                  )}
+                </div>
+              )}
+              {changeSet.active?.spatial && (
+                <div className="review-actions__spatial">
+                  <span>{changeSet.active.spatial.changedVisibleNodes} visible objects</span>
+                  {changeSet.active.spatial.outsideNodeCount > 0 && (
+                    <span className="review-actions__warning">
+                      {changeSet.active.spatial.outsideNodeCount} outside the scene
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="review-actions__buttons">
                 <button
                   type="button"

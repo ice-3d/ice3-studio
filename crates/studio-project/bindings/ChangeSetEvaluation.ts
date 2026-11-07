@@ -5,6 +5,7 @@ import type { Diagnostic } from "./Diagnostic";
 import type { Document } from "./Document";
 import type { DocumentDiff } from "./DocumentDiff";
 import type { Revision } from "./Revision";
+import type { SpatialPreflight } from "./SpatialPreflight";
 
 export type ChangeSetEvaluation = { 
 /**
@@ -38,4 +39,9 @@ diff: DocumentDiff,
 /**
  * 校验诊断；存在 error 时状态为 `blocked`。
  */
-diagnostics: Array<Diagnostic>, };
+diagnostics: Array<Diagnostic>, 
+/**
+ * 候选的空间预检摘要；用于审阅时判断改动落在哪里、是否跑出场景。
+ * 它是信息性的，不影响 `status`。
+ */
+spatial: SpatialPreflight | null, };

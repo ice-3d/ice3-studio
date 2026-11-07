@@ -646,6 +646,7 @@ fn evaluate(
             candidate: None,
             diff: DocumentDiff::default(),
             diagnostics: Vec::new(),
+            spatial: None,
         });
     }
     let base = session
@@ -680,6 +681,7 @@ fn evaluate(
             candidate: None,
             diff: DocumentDiff::default(),
             diagnostics,
+            spatial: None,
         });
     }
     let mut candidate = evaluate_operations(&base, &operations).map_err(transaction_error)?;
@@ -709,6 +711,14 @@ fn evaluate(
         status: change_set.status.clone(),
         candidate_digest: digest.clone(),
     });
+    let changed: Vec<_> = candidate
+        .diff
+        .added_node_ids
+        .iter()
+        .chain(candidate.diff.updated_node_ids.iter())
+        .cloned()
+        .collect();
+    let spatial = studio_core::spatial_preflight::preflight(&base, &candidate.document, &changed);
     Ok(ChangeSetEvaluation {
         change_set_id: change_set.id,
         version: change_set.version,
@@ -718,6 +728,7 @@ fn evaluate(
         candidate: include_candidate.then_some(candidate.document),
         diff: candidate.diff,
         diagnostics: candidate.diagnostics,
+        spatial: Some(spatial),
     })
 }
 

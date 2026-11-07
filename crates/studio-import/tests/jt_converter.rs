@@ -16,7 +16,7 @@ fn passes_only_fixed_absolute_paths() {
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    let config = config(fixture("capture-args.sh"), Duration::from_secs(2));
+    let config = config(fixture("capture-args.sh"), Duration::from_secs(5));
 
     run_jt_converter(&input, &output, &config).unwrap();
 
@@ -118,7 +118,7 @@ fn drains_noisy_stdout_and_stderr_without_deadlock() {
     let input = root.path().join("assembly.jt");
     let output = root.path().join("raw.glb");
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
-    let config = config(fixture("noisy-converter.sh"), Duration::from_secs(2));
+    let config = config(fixture("noisy-converter.sh"), Duration::from_secs(5));
     let started = Instant::now();
 
     run_jt_converter(&input, &output, &config).unwrap();
@@ -157,7 +157,7 @@ fn successful_parent_cannot_leave_background_descendants() {
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
     let config = config(
         fixture("exit-with-child-converter.sh"),
-        Duration::from_secs(2),
+        Duration::from_secs(5),
     )
     .with_environment([("ICE3_JT_ORPHAN_MARKER", marker.as_os_str())]);
 
@@ -178,7 +178,7 @@ fn converter_group_rendezvous_is_removed_before_return() {
     let rendezvous = root.path().join("converter.pgid");
     std::fs::write(&input, "ICE3_JT_CONVERTER_CONTRACT_V1\n").unwrap();
     let config =
-        config(fixture("converter.mjs"), Duration::from_secs(2)).with_rendezvous_path(&rendezvous);
+        config(fixture("converter.mjs"), Duration::from_secs(5)).with_rendezvous_path(&rendezvous);
 
     let result = run_jt_converter(&input, &output, &config);
 

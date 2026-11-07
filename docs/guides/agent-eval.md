@@ -31,7 +31,23 @@ node scripts/eval/run.mjs --json /tmp/report.json
 
 `npm run verify` 已经包含这一道门禁（第 32 道），所以契约回归会直接被拦住。
 
-## 3. 覆盖范围
+## 3. 接入模型
+
+```bash
+OPENAI_API_KEY=... node scripts/eval/run.mjs --client scripts/eval/clients/openai.mjs
+```
+
+可选变量：`OPENAI_BASE_URL`（默认官方端点，任意兼容实现均可）、`EVAL_MODEL`（默认
+`gpt-4o-mini`）、`EVAL_MAX_TURNS`（默认 8）。
+
+外部 solver 拿到的是 `goal` 和 `call(method, params)`，自己决定调什么。它与 grader 的
+唯一约定是 `finalMethod`：runner 记录该方法的最后一次返回，再交给 `check` 断言。
+
+没有 `finalMethod` 的任务是比较多次响应的复合断言（分页是否重不漏、重试是否重复追加、
+越权是否被拒），外部 solver 无法把它们交回来，因此会被跳过并在报告的 `skipped` 里列出。
+参考实现跑满 20 条，外部 solver 跑 15 条。
+
+## 4. 覆盖范围
 
 | 类别 | 任务 |
 |---|---|
@@ -41,7 +57,7 @@ node scripts/eval/run.mjs --json /tmp/report.json
 
 断言写在 `check(result, { assert })` 里，全部是代码判断，不含自然语言评分。
 
-## 4. 加一条任务
+## 5. 加一条任务
 
 ```js
 {
@@ -59,7 +75,7 @@ node scripts/eval/run.mjs --json /tmp/report.json
 `approvalClient` 是惰性的：只有需要人工权限的任务才触发 bootstrap，其余任务不会
 为一次 303 往返付代价。
 
-## 5. 判读报告
+## 6. 判读报告
 
 `target/eval-report.json`：
 
@@ -73,7 +89,7 @@ node scripts/eval/run.mjs --json /tmp/report.json
 `stable` 为 false 时，`attempts` 里能看到具体哪一次失败、错误是什么。反复不稳定的任务
 通常说明契约里有非确定性行为，而不是 grader 写错了。
 
-## 6. 关联文档
+## 7. 关联文档
 
 - `ICE3-STUDIO-IDX-001` — [Studio 文档索引](../README.md)
 - `ICE3-STUDIO-REF-002` — [本地 API](../reference/api.md)

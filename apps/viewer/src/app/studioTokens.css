@@ -866,6 +866,27 @@ h2 {
   font-size: 11px;
 }
 
+.review-actions__impact,
+.review-actions__spatial {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.review-actions__impact strong {
+  color: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.review-actions__warning {
+  color: var(--warning);
+  font-weight: 600;
+}
+
 .review-actions__status strong {
   color: var(--warning);
   font-family: "SFMono-Regular", "Menlo", monospace;

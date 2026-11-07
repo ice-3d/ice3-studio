@@ -72,6 +72,24 @@ Geometry cache；它不会把候选合并到 active scene snapshot。提交后�
   先比版本会把合法重试误判成冲突。
 - 键由调用方负责唯一；不要跨变更集复用同一个键。
 
+### 空间预检
+
+`changeset.evaluate` 在 diff 与诊断之外，附带一份 `spatial` 摘要：
+
+| 字段 | 含义 |
+|---|---|
+| `changedBounds` | 改动节点覆盖的世界包围盒 |
+| `sceneBounds` | 已提交场景的包围盒，用于对照 |
+| `outsideNodeCount` | 完全落在场景之外的新增节点数 |
+| `changedVisibleNodes` | 改动涉及的可见节点数；为 0 说明这次变更不产生可见几何 |
+
+它按节点 AABB 计算，忽略旋转，也不做精确干涉——精确判定是 `scene.clashes` 的职责。
+字段是信息性的，**不参与 `status` 判定**：预检发现问题不会把候选标成 `blocked`，
+审阅者仍可批准，只是能看到改动落在哪里、有没有跑出场景。
+
+Viewer 的审阅面板同时展示 `changeset.impact` 的代价预测（`scope`、源节点与派生节点
+的增删改计数、是否需要全场景重建），让批准前就能看到代价。
+
 ## 3. 持久化
 
 ```text

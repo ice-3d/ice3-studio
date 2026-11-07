@@ -210,6 +210,35 @@ export type StudioPreview = {
   glbUrl: string;
 };
 
+export type ImpactCounts = { added: number; updated: number; removed: number };
+
+export type Vec3Like = { x: number; y: number; z: number };
+
+export type SpatialPreflight = {
+  changedBounds: { min: Vec3Like; max: Vec3Like } | null;
+  sceneBounds: { min: Vec3Like; max: Vec3Like } | null;
+  outsideNodeCount: number;
+  changedVisibleNodes: number;
+};
+
+export type ChangeSetImpact = {
+  changeSetId: string;
+  version: number;
+  baseRevision: number;
+  status: string;
+  candidateDigest: string | null;
+  diagnosticCount: number;
+  impact: {
+    scope: string;
+    fullSceneRebuildRequired: boolean;
+    sourceNodes: ImpactCounts;
+    derivedNodes: ImpactCounts;
+    relations: ImpactCounts;
+    components: ImpactCounts;
+    materials: ImpactCounts;
+  };
+};
+
 export type ChangeSetEvaluation = {
   changeSetId: string;
   version: number;
@@ -218,6 +247,7 @@ export type ChangeSetEvaluation = {
   candidateDigest: string | null;
   diff: DocumentDiff;
   diagnostics: Diagnostic[];
+  spatial?: SpatialPreflight | null;
   previewUrl?: string;
 };
 
@@ -339,6 +369,10 @@ export class StudioClient {
       entryIds,
       idempotencyKey: `viewer-remove-${changeSetId}-${expectedVersion}`,
     });
+  }
+
+  changeSetImpact(changeSetId: string, expectedVersion: number): Promise<ChangeSetImpact> {
+    return this.rpc('changeset.impact', { changeSetId, expectedVersion });
   }
 
   evaluateChangeSet(changeSetId: string, expectedVersion: number): Promise<ChangeSetEvaluation> {

@@ -5,6 +5,7 @@ use studio_core::diff::DocumentDiff;
 use studio_core::document::Document;
 use studio_core::ids::Revision;
 use studio_core::operation::Operation;
+use studio_core::spatial_preflight::SpatialPreflight;
 use studio_core::validation::Diagnostic;
 use thiserror::Error;
 use ts_rs::TS;
@@ -313,6 +314,10 @@ pub struct ChangeSetEvaluation {
     pub diff: DocumentDiff,
     /// 校验诊断；存在 error 时状态为 `blocked`。
     pub diagnostics: Vec<Diagnostic>,
+    /// 候选的空间预检摘要；用于审阅时判断改动落在哪里、是否跑出场景。
+    /// 它是信息性的，不影响 `status`。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spatial: Option<SpatialPreflight>,
 }
 
 #[derive(Debug, Error)]

@@ -11,9 +11,9 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { cp, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { tasks } from './tasks.mjs';
 
@@ -28,6 +28,16 @@ function argument(name, fallback) {
 
 const attempts = Number(argument('attempts', '3'));
 const reportPath = argument('json', join(repositoryRoot, 'target', 'eval-report.json'));
+const clientPath = argument('client', null);
+
+/// An external solver reads the goal and decides what to call. Without it the
+/// built-in reference implementation runs, and every task is exercised.
+const externalSolver = clientPath
+  ? (await import(pathToFileURL(resolve(clientPath)).href)).solve
+  : null;
+if (clientPath && typeof externalSolver !== 'function') {
+  throw new Error(`${clientPath} must export a solve(task, context) function`);
+}
 
 class RpcClient {
   constructor(baseUrl, { token, cookie } = {}) {
@@ -109,7 +119,7 @@ function startServer(workspace) {
   });
 }
 
-async function runAttempt(task) {
+async function runAttempt(task, solver) {
   const workspace = await mkdtemp(join(tmpdir(), 'studio-eval-'));
   await cp(fixture, join(workspace, 'seed'), { recursive: true });
   let server;
@@ -129,7 +139,29 @@ async function runAttempt(task) {
       if (!condition) throw new Error(message);
     };
 
-    const result = await task.run({ client, approvalClient });
+    // Record every result so an external solver can be graded on the method the
+    // task declares, regardless of how many exploratory calls it made.
+    const recorded = new Map();
+    const record = (method, result) => {
+      recorded.set(method, result);
+      return result;
+    };
+    const context = {
+      baseUrl: server.baseUrl,
+      client: { call: async (method, params) => record(method, await client.call(method, params)) },
+      approvalClient: async () => ({
+        call: async (method, params) => {
+          const approver = await approvalClient();
+          return record(method, await approver.call(method, params));
+        },
+      }),
+    };
+
+    const returned = solver ? await solver(task, context) : await task.run(context);
+    const result = task.finalMethod ? recorded.get(task.finalMethod) : returned;
+    if (result === undefined) {
+      throw new Error(`task never produced ${task.finalMethod ?? 'a result'}`);
+    }
     task.check(result, { assert });
     return { passed: true };
   } catch (error) {
@@ -152,11 +184,19 @@ async function main() {
 
   const started = Date.now();
   const report = [];
+  const skipped = [];
 
   for (const [index, task] of tasks.entries()) {
+    // Composite checks compare several responses against each other. An external
+    // solver has no way to hand those back, so they stay reference-only.
+    if (externalSolver && !task.finalMethod) {
+      skipped.push(task.id);
+      console.log(`[${index + 1}/${tasks.length}] SKIP ${task.id} (reference-only check)`);
+      continue;
+    }
     const results = [];
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-      results.push(await runAttempt(task));
+      results.push(await runAttempt(task, externalSolver));
     }
     const stable = results.every((result) => result.passed);
     report.push({ id: task.id, goal: task.goal, stable, attempts: results });
@@ -167,10 +207,12 @@ async function main() {
 
   const stable = report.filter((entry) => entry.stable).length;
   const summary = {
+    client: clientPath ? resolve(clientPath) : 'reference',
     tasks: report.length,
     attemptsPerTask: attempts,
     stable,
     unstable: report.filter((entry) => !entry.stable).map((entry) => entry.id),
+    skipped,
     durationMs: Date.now() - started,
   };
 
