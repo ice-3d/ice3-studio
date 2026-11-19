@@ -99,6 +99,7 @@
 | `ICE3-STUDIO-PLAN-015` | [工程评审级污水处理厂资产实施计划](plans/2026-11-01-realistic-wastewater-plant-asset.md) | Historical | 工程拆分、细节组件、管线支撑和材质验收的历史记录 |
 | `ICE3-STUDIO-PLAN-016` | [污水处理厂工艺拓扑校正实施计划](plans/2026-11-01-wastewater-process-topology-correction.md) | Historical | P&ID 端口、污泥和沼气链路的历史记录 |
 | `ICE3-STUDIO-PLAN-017` | [工程管线圆滑路径与功能配色实施计划](plans/2026-11-01-engineered-pipe-routing-color.md) | Historical | 连续弯头、扫掠防扭转和功能配色的历史记录 |
+| `ICE3-STUDIO-PLAN-030` | [管线工程安全门禁实施计划](plans/2026-11-19-route-safety-gate.md) | Proposed | 管线碰撞、净空面、端点接入、支撑间距、性能与资产迁移步骤 |
 | `ICE3-STUDIO-PLAN-018` | [Agent 主导工作台实施计划](plans/2026-11-01-agent-led-workbench.md) | Implemented | Agent 默认 tab、上下文、实体选择、人工接手和响应式验收 |
 | `ICE3-STUDIO-PLAN-019` | [Studio 原生 Asset Pipeline Phase 1](plans/2026-11-01-native-asset-pipeline-phase-1.md) | Implemented | Rust GLB、partition、LOD、Tileset、binding manifest 和 CLI 导出 |
 | `ICE3-STUDIO-PLAN-020` | [Studio 原生 Asset Pipeline Phase 2](plans/2026-11-01-native-asset-pipeline-phase-2.md) | Implemented | glTF/GLB、OBJ/MTL Source Import 和 OBJ Toolchain 退役 |
