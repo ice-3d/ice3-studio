@@ -95,6 +95,21 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_GEOMETRY_OVERLAP")]
     #[ts(rename = "ICE3_STUDIO_GEOMETRY_OVERLAP")]
     GeometryOverlap,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_COLLISION")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_COLLISION")]
+    RouteCollision,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT")]
+    RouteClearanceInsufficient,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_SUPPORT_MISSING")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_SUPPORT_MISSING")]
+    RouteSupportMissing,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_SUPPORT_SPACING")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_SUPPORT_SPACING")]
+    RouteSupportSpacing,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_SAFETY_BUDGET")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_SAFETY_BUDGET")]
+    RouteSafetyBudget,
 }
 
 pub const DIAGNOSTIC_CODES: &[&str] = &[
@@ -126,6 +141,11 @@ pub const DIAGNOSTIC_CODES: &[&str] = &[
     "ICE3_STUDIO_GPU_DEVICE_LOST",
     "ICE3_STUDIO_GPU_PARITY_FAILED",
     "ICE3_STUDIO_GEOMETRY_OVERLAP",
+    "ICE3_STUDIO_ROUTE_COLLISION",
+    "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT",
+    "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
+    "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
+    "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
 ];
 
 impl DiagnosticCode {
@@ -159,6 +179,11 @@ impl DiagnosticCode {
             Self::GpuDeviceLost => "ICE3_STUDIO_GPU_DEVICE_LOST",
             Self::GpuParityFailed => "ICE3_STUDIO_GPU_PARITY_FAILED",
             Self::GeometryOverlap => "ICE3_STUDIO_GEOMETRY_OVERLAP",
+            Self::RouteCollision => "ICE3_STUDIO_ROUTE_COLLISION",
+            Self::RouteClearanceInsufficient => "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT",
+            Self::RouteSupportMissing => "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
+            Self::RouteSupportSpacing => "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
+            Self::RouteSafetyBudget => "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
         }
     }
 }

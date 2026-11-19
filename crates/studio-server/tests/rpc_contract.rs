@@ -363,6 +363,11 @@ async fn rejects_an_unsupported_json_rpc_version() {
     );
 }
 
+#[test]
+fn health_reports_route_safety_api_version() {
+    assert_eq!(studio_core::API_VERSION, "1.4");
+}
+
 #[tokio::test]
 async fn revision_conflicts_expose_a_stable_diagnostic_code() {
     let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;
