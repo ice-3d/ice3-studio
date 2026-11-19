@@ -1,6 +1,7 @@
 import type {
   ComputeStatus,
   Diagnostic,
+  HistoryEntry,
   StudioCapabilities,
   StudioDocument,
   StudioReferenceAsset,
@@ -12,6 +13,7 @@ import { ExternalStore } from '../shared/ExternalStore';
 
 type DocumentSource = {
   document(): Promise<StudioDocument>;
+  history?(): Promise<HistoryEntry[]>;
   validation(): Promise<Diagnostic[]>;
   preview?(revision: number): Promise<{ url: string }>;
   capabilities?(): Promise<StudioCapabilities>;
@@ -41,6 +43,7 @@ export type SessionSnapshot = {
   revision: number;
   document: StudioDocument | null;
   diagnostics: Diagnostic[];
+  history: HistoryEntry[];
   selectionIds: string[];
   connection: 'connecting' | 'connected' | 'error';
   previewUrl: string | null;
@@ -57,6 +60,7 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
       revision: 0,
       document: null,
       diagnostics: [],
+      history: [],
       selectionIds: [],
       connection: 'connecting',
       previewUrl: null,
@@ -68,10 +72,11 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
   async refresh(): Promise<void> {
     const generation = ++this.generation;
     try {
-      const [document, diagnostics, capabilities] = await Promise.all([
+      const [document, diagnostics, capabilities, history] = await Promise.all([
         this.source.document(),
         this.source.validation(),
         this.source.capabilities?.() ?? Promise.resolve(null),
+        this.source.history?.() ?? Promise.resolve([]),
       ]);
       const reference = await loadReference(this.source, document);
       if (generation !== this.generation) return;
@@ -81,6 +86,7 @@ export class SessionStore extends ExternalStore<SessionSnapshot> {
         revision: document.revision,
         document,
         diagnostics,
+        history,
         connection: 'connected',
         previewUrl: this.snapshot.previewUrl,
         compute: capabilities?.compute ?? this.snapshot.compute,

@@ -9,6 +9,9 @@ import { useChangeSet, useChangeSetStore } from '../changeset/ChangeSetProvider'
 import { AgentPanel } from '../agent/AgentPanel';
 import { useState } from 'react';
 import { ComputePanel } from '../compute/ComputePanel';
+import { ChangesPanel } from '../changeset/ChangesPanel';
+import { EvidenceDrawer, type EvidenceTab } from './EvidenceDrawer';
+import { mergeDiagnostics } from '../changeset/reviewModel';
 
 export function Workbench() {
   const session = useSession();
@@ -16,7 +19,8 @@ export function Workbench() {
   const changeSetStore = useChangeSetStore();
   const changeSet = useChangeSet();
   const [dock, setDock] = useState<'agent' | 'inspect' | 'changes'>('agent');
-  const [drawer, setDrawer] = useState<'operations' | 'timeline' | 'diagnostics'>('operations');
+  const [evidenceTab, setEvidenceTab] = useState<EvidenceTab>('operations');
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const nodes = session.document?.scene.nodes ?? [];
   const selected = nodes.find((node) => node.id === session.selectionIds[0]);
   const definitionId = typeof selected?.content?.definitionId === 'string'
@@ -25,6 +29,20 @@ export function Workbench() {
   const selectedDefinition = definitionId
     ? session.document?.components.find((definition) => definition.id === definitionId)
     : undefined;
+  const changeSetEntries = changeSet.record?.entries ?? [];
+  const diagnostics = mergeDiagnostics(
+    session.diagnostics,
+    changeSet.active?.diagnostics ?? [],
+    changeSet.record?.diagnostics ?? [],
+  );
+  const selectEvidence = (tab: EvidenceTab) => {
+    if (evidenceOpen && evidenceTab === tab) {
+      setEvidenceOpen(false);
+      return;
+    }
+    setEvidenceTab(tab);
+    setEvidenceOpen(true);
+  };
   return (
     <main className="workbench">
       <WorkbenchHeader />
@@ -128,32 +146,60 @@ export function Workbench() {
             </div>
           </div>
           <div className="review-dock__panel" hidden={dock !== 'changes'}>
-            <span className="panel-kicker">Current proposal</span>
-            <h2>Changes</h2>
-            <p>{changeSet.active ? `${changeSet.active.diff.updatedNodeIds.length} updated objects` : 'No staged changes'}</p>
+            <ChangesPanel
+              active={changeSet.active}
+              record={changeSet.record}
+              status={changeSet.status}
+              nodes={nodes}
+              error={changeSet.error}
+              onRemove={(entryId) => void changeSetStore.removeEntry(entryId)}
+            />
           </div>
         </aside>
       </section>
-      <footer role="tablist" aria-label="Evidence" className="evidence-bar">
-        {(['operations', 'timeline', 'diagnostics'] as const).map((tab) => (
-          <button
-            role="tab"
-            aria-selected={drawer === tab}
-            className="evidence-bar__tab"
-            key={tab}
-            onClick={() => setDrawer(tab)}
-          >
-            {tab[0]!.toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
-        <span className="evidence-bar__status">
-          {drawer === 'diagnostics'
-            ? `${session.diagnostics.length} diagnostics`
-            : drawer === 'timeline'
-              ? `Current revision ${session.revision}`
-              : changeSet.status}
-        </span>
-      </footer>
+      <section className="workbench__evidence">
+        {evidenceOpen && (
+          <EvidenceDrawer
+            tab={evidenceTab}
+            history={session.history}
+            diagnostics={diagnostics}
+            entries={changeSetEntries}
+            nodes={nodes}
+            onClose={() => setEvidenceOpen(false)}
+            onFocusDiagnostic={(objectId) => {
+              sessionStore.select([objectId]);
+              setDock('inspect');
+            }}
+          />
+        )}
+        <footer role="tablist" aria-label="Evidence" className="evidence-bar">
+          {(['operations', 'timeline', 'diagnostics'] as const).map((tab) => (
+            <button
+              role="tab"
+              aria-selected={evidenceOpen && evidenceTab === tab}
+              aria-controls="evidence-drawer"
+              className="evidence-bar__tab"
+              key={tab}
+              onClick={() => selectEvidence(tab)}
+            >
+              {tab[0]!.toUpperCase() + tab.slice(1)}
+              {tab === 'operations' && changeSetEntries.length > 0 && (
+                <span className="evidence-bar__count">{changeSetEntries.length}</span>
+              )}
+              {tab === 'diagnostics' && diagnostics.length > 0 && (
+                <span className="evidence-bar__count">{diagnostics.length}</span>
+              )}
+            </button>
+          ))}
+          <span className="evidence-bar__status">
+            {evidenceTab === 'diagnostics'
+              ? `${diagnostics.length} diagnostics`
+              : evidenceTab === 'timeline'
+                ? `Current revision ${session.revision}`
+                : changeSet.status}
+          </span>
+        </footer>
+      </section>
     </main>
   );
 }

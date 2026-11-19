@@ -26,12 +26,46 @@ test('stages, reviews, and commits a form change', async ({ page }) => {
   await page.getByLabel('Name').fill('Secondary Clarifier Renamed');
   await page.getByRole('button', { name: 'Stage changes' }).click();
   await expect(
-    page.getByRole('complementary', { name: 'Review dock' }).getByText('ready'),
+    page
+      .getByRole('complementary', { name: 'Review dock' })
+      .locator('.review-actions__status')
+      .getByText('ready'),
   ).toBeVisible();
+  await page.getByRole('tab', { name: 'Changes' }).click();
+  const changes = page.getByRole('region', { name: 'ChangeSet review' });
+  await expect(changes).toContainText('Workbench form edits');
+  await expect(changes).toContainText('node.update');
+  await expect(changes).toContainText('Secondary Clarifier B');
+  await expect(changes).toContainText('1 updated object');
+  await page.getByRole('tab', { name: 'Operations' }).click();
+  await expect(page.getByRole('region', { name: 'Evidence drawer' })).toContainText(
+    'Secondary Clarifier B',
+  );
+  await page.getByRole('tab', { name: 'Inspect' }).click();
   await page.getByRole('button', { name: 'Review candidate' }).click();
   await page.getByRole('button', { name: 'Approve & commit' }).click();
   await expect(page.getByRole('status')).toContainText('Revision 3');
   await expect(page.getByRole('button', { name: 'Secondary Clarifier Renamed' })).toBeVisible();
+});
+
+test('removes a staged operation and invalidates the candidate', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Secondary Clarifier A' }).click();
+  await page.getByRole('button', { name: 'Inspect selected object' }).click();
+  await page.getByLabel('Name').fill('Secondary Clarifier Temporary');
+  await page.getByRole('button', { name: 'Stage changes' }).click();
+  await page.getByRole('tab', { name: 'Changes' }).click();
+
+  const changes = page.getByRole('region', { name: 'ChangeSet review' });
+  await expect(changes).toContainText('Secondary Clarifier Temporary');
+  await page.getByRole('button', {
+    name: 'Remove node.update for Secondary Clarifier A',
+  }).click();
+
+  await expect(changes).toContainText('No staged operations');
+  await expect(changes).toContainText('blocked');
+  await page.getByRole('tab', { name: 'Inspect' }).click();
+  await expect(page.getByRole('button', { name: 'Approve & commit' })).toBeDisabled();
 });
 
 test('keeps review available when Agent Gateway is offline', async ({ page }) => {

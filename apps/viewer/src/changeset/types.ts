@@ -1,6 +1,11 @@
-import type { ChangeSetEvaluation, ChangeSetImpact, DocumentDiff } from '../api/StudioClient';
+import type {
+  ChangeSetEvaluation,
+  ChangeSetImpact,
+  ChangeSetRecord,
+  DocumentDiff,
+} from '../api/StudioClient';
 
-export type { ChangeSetEvaluation, ChangeSetImpact, DocumentDiff };
+export type { ChangeSetEvaluation, ChangeSetImpact, ChangeSetRecord, DocumentDiff };
 
 export type ChangeSetClient = {
   createChangeSet(baseRevision: number, title: string): Promise<{ id: string; version: number }>;
@@ -16,6 +21,7 @@ export type ChangeSetClient = {
     entryIds: string[],
   ): Promise<{ version: number }>;
   evaluateChangeSet(changeSetId: string, expectedVersion: number): Promise<ChangeSetEvaluation>;
+  changeSet?(changeSetId: string): Promise<ChangeSetRecord>;
   commitChangeSet(
     changeSetId: string,
     expectedVersion: number,

@@ -106,8 +106,61 @@ export type StudioMaterial = {
 
 export type Diagnostic = {
   code: string;
+  operationIndex?: number | null;
+  objectId?: string | null;
   pointer: string;
   message: string;
+};
+
+export type Operation = Record<string, unknown> & {
+  type: string;
+};
+
+export type ChangeSetStatus =
+  | 'draft'
+  | 'evaluating'
+  | 'ready'
+  | 'blocked'
+  | 'stale'
+  | 'committed'
+  | 'discarded';
+
+export type ChangeSetSource = {
+  kind: 'agent' | 'human';
+  label?: string | null;
+};
+
+export type ChangeSetEntry = {
+  id: string;
+  source: ChangeSetSource;
+  operation: Operation;
+  createdAt: number;
+};
+
+export type ChangeSetRecord = {
+  schemaVersion: number;
+  id: string;
+  projectId: string;
+  baseRevision: number;
+  version: number;
+  status: ChangeSetStatus;
+  title: string;
+  entries: ChangeSetEntry[];
+  candidateDigest: string | null;
+  diagnostics: Diagnostic[];
+  committedRevision: number | null;
+  commitResult: unknown | null;
+  commitIdempotencyKey: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type HistoryEntry = {
+  revision: number;
+  digest: string;
+  event: Record<string, unknown> & {
+    kind?: string;
+  };
 };
 
 export type DocumentDiff = {
@@ -243,7 +296,7 @@ export type ChangeSetEvaluation = {
   changeSetId: string;
   version: number;
   baseRevision: number;
-  status: string;
+  status: ChangeSetStatus | string;
   candidateDigest: string | null;
   diff: DocumentDiff;
   diagnostics: Diagnostic[];
@@ -289,6 +342,10 @@ export class StudioClient {
 
   document(): Promise<StudioDocument> {
     return this.rpc('document.get', {});
+  }
+
+  documentHistory(): Promise<HistoryEntry[]> {
+    return this.rpc('document.history', {});
   }
 
   validation(): Promise<Diagnostic[]> {
@@ -342,6 +399,10 @@ export class StudioClient {
       title,
       idempotencyKey: `viewer-create-${baseRevision}-${title}`,
     });
+  }
+
+  changeSet(changeSetId: string): Promise<ChangeSetRecord> {
+    return this.rpc('changeset.get', { changeSetId });
   }
 
   addChangeSetOperations(
