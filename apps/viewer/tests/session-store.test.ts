@@ -79,3 +79,35 @@ test('loads capabilities without retired driver state', async () => {
 
   assert.equal('toolchain' in store.snapshot, false);
 });
+
+test('loads committed operation history for the evidence timeline', async () => {
+  const store = new SessionStore({
+    document: async () => ({
+      projectId: 'timeline-project',
+      revision: 2,
+      scene: { nodes: [] },
+      components: [],
+    }),
+    validation: async () => [],
+    history: async () => [
+      {
+        revision: 2,
+        digest: 'sha256:revision-2',
+        event: { kind: 'changeset.commit', changeSetId: 'changeset-0000000000000001' },
+      },
+      {
+        revision: 1,
+        digest: 'sha256:revision-1',
+        event: { kind: 'apply', request: { operations: [] } },
+      },
+    ],
+  });
+
+  await store.refresh();
+
+  assert.deepEqual(
+    store.snapshot.history.map((entry) => entry.revision),
+    [2, 1],
+  );
+  assert.equal(store.snapshot.history[0]?.event.kind, 'changeset.commit');
+});

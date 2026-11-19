@@ -521,6 +521,11 @@ object；选择对象只更新 Agent 上下文，用户点击 `Inspect selected 
 参数编辑。Agent Gateway 离线不会禁用对象搜索、Inspect、Changes、candidate review 或
 人工提交。
 
+Changes 页展示当前 ChangeSet 的标题、状态、条目来源、操作类型、目标对象、提案字段和
+结构化 diff；`draft`、`ready`、`blocked` 状态可按条目移除 Operation 并重新求值。底部
+Evidence 可在 Operations、Timeline 和 Diagnostics 间切换；诊断显示稳定 code、message、
+JSON Pointer，并在存在 `objectId` 时直接定位对象。
+
 Selection 以完整业务实体或 source object 为单位。参考资产中多个派生 selection 会归并到
 同一 binding；视口和对象树使用同一实体身份，不把池壁、栏杆或其它面片当成独立实体。
 

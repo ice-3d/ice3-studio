@@ -1,39 +1,75 @@
-import type { ChangeSetClient, ChangeSetEvaluation, ChangeSetImpact } from './types';
+import type {
+  ChangeSetClient,
+  ChangeSetEvaluation,
+  ChangeSetImpact,
+  ChangeSetRecord,
+} from './types';
+import { canMutateChangeSet } from './reviewModel';
 import { ExternalStore } from '../shared/ExternalStore';
+
+export type ChangeSetViewStatus =
+  | 'idle'
+  | 'staging'
+  | 'evaluating'
+  | 'draft'
+  | 'ready'
+  | 'blocked'
+  | 'stale'
+  | 'committed'
+  | 'discarded'
+  | 'error';
 
 export type ChangeSetSnapshot = {
   active: ChangeSetEvaluation | null;
+  record: ChangeSetRecord | null;
   reviewedDigest: string | null;
   canApprove: boolean;
-  status: 'idle' | 'staging' | 'evaluating' | 'ready' | 'blocked' | 'error';
+  status: ChangeSetViewStatus;
   candidateUrl: string | null;
   /** 代价预测；拉不到时为 null，面板退化为只显示 diff。 */
   impact: ChangeSetImpact | null;
+  error: string | null;
 };
 
 export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
   constructor(private readonly client: ChangeSetClient) {
     super({
       active: null,
+      record: null,
       reviewedDigest: null,
       canApprove: false,
       status: 'idle',
       candidateUrl: null,
       impact: null,
+      error: null,
     });
   }
 
   acceptEvaluation(evaluation: ChangeSetEvaluation): void {
-    const canApprove = evaluation.status === 'ready'
+    const status = normalizeStatus(evaluation.status);
+    const canApprove = status === 'ready'
       && evaluation.candidateDigest !== null
       && evaluation.candidateDigest === this.snapshot.reviewedDigest;
     this.update({
       ...this.snapshot,
       active: evaluation,
       canApprove,
-      status: evaluation.status === 'ready' ? 'ready' : 'blocked',
-      candidateUrl: this.snapshot.candidateUrl,
+      status,
+      candidateUrl: status === 'ready' ? this.snapshot.candidateUrl : null,
+      error: null,
     });
+  }
+
+  updateRecord(record: ChangeSetRecord): void {
+    this.update({
+      ...this.snapshot,
+      record,
+      status: normalizeStatus(record.status),
+    });
+  }
+
+  updateCandidatePreview(url: string | null): void {
+    this.update({ ...this.snapshot, candidateUrl: url });
   }
 
   markReviewed(digest: string): void {
@@ -44,10 +80,19 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
   async evaluate(): Promise<void> {
     const active = this.snapshot.active;
     if (!active) return;
-    this.update({ ...this.snapshot, status: 'evaluating', canApprove: false, impact: null });
+    this.update({
+      ...this.snapshot,
+      status: 'evaluating',
+      canApprove: false,
+      candidateUrl: null,
+      impact: null,
+    });
     const evaluation = await this.client.evaluateChangeSet(active.changeSetId, active.version);
     this.acceptEvaluation(evaluation);
-    await this.loadImpact(evaluation.changeSetId, evaluation.version);
+    await Promise.all([
+      this.loadImpact(evaluation.changeSetId, evaluation.version),
+      this.refreshRecord(evaluation.changeSetId),
+    ]);
   }
 
   async addOperations(
@@ -70,6 +115,35 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
     await this.evaluateAt(changeSet.changeSetId, updated.version);
   }
 
+  async removeEntry(entryId: string): Promise<void> {
+    const active = this.snapshot.active;
+    const record = this.snapshot.record;
+    if (!active || !record || !canMutateChangeSet(record.status)) {
+      throw new Error('ChangeSet is not mutable');
+    }
+    this.update({
+      ...this.snapshot,
+      status: 'evaluating',
+      candidateUrl: null,
+      canApprove: false,
+      error: null,
+    });
+    try {
+      const updated = await this.client.removeChangeSetOperations(
+        active.changeSetId,
+        active.version,
+        [entryId],
+      );
+      await this.evaluateAt(active.changeSetId, updated.version);
+    } catch (error) {
+      this.update({
+        ...this.snapshot,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'ChangeSet update failed',
+      });
+    }
+  }
+
   async commit(): Promise<number> {
     const active = this.snapshot.active;
     if (!active?.candidateDigest || !this.snapshot.canApprove) {
@@ -81,6 +155,26 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
       active.candidateDigest,
       `approval-${active.changeSetId}-${active.candidateDigest}`,
     );
+    await this.refreshRecord(active.changeSetId);
+    this.update({
+      ...this.snapshot,
+      active: null,
+      status: 'committed',
+      reviewedDigest: null,
+      canApprove: false,
+      candidateUrl: null,
+      impact: null,
+      error: null,
+      ...(this.snapshot.record
+        ? {
+            record: {
+              ...this.snapshot.record,
+              status: 'committed',
+              committedRevision: result.revision,
+            },
+          }
+        : {}),
+    });
     return result.revision;
   }
 
@@ -96,14 +190,67 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
   }
 
   private async evaluateAt(changeSetId: string, version: number): Promise<void> {
-    this.update({ ...this.snapshot, status: 'evaluating', canApprove: false, impact: null });
+    this.update({
+      ...this.snapshot,
+      status: 'evaluating',
+      canApprove: false,
+      candidateUrl: null,
+      impact: null,
+      error: null,
+    });
     const evaluation = await this.client.evaluateChangeSet(changeSetId, version);
-    this.update({ ...this.snapshot, reviewedDigest: null, active: evaluation });
+    this.update({
+      ...this.snapshot,
+      reviewedDigest: null,
+      active: evaluation,
+    });
+    await Promise.all([
+      this.loadImpact(changeSetId, version),
+      this.refreshRecord(changeSetId),
+    ]);
     this.acceptEvaluation(evaluation);
-    await this.loadImpact(changeSetId, version);
     if (evaluation.candidateDigest && this.client.candidatePreview) {
-      const preview = await this.client.candidatePreview(evaluation.candidateDigest);
-      this.update({ ...this.snapshot, candidateUrl: preview.url });
+      try {
+        const preview = await this.client.candidatePreview(evaluation.candidateDigest);
+        this.update({ ...this.snapshot, candidateUrl: preview.url });
+      } catch (error) {
+        this.update({
+          ...this.snapshot,
+          candidateUrl: null,
+          error: error instanceof Error ? error.message : 'Candidate preview failed',
+        });
+      }
     }
   }
+
+  private async refreshRecord(changeSetId: string): Promise<void> {
+    if (!this.client.changeSet) return;
+    try {
+      this.update({
+        ...this.snapshot,
+        record: await this.client.changeSet(changeSetId),
+      });
+    } catch (error) {
+      this.update({
+        ...this.snapshot,
+        error: error instanceof Error ? error.message : 'ChangeSet refresh failed',
+      });
+    }
+  }
+}
+
+function normalizeStatus(status: string): ChangeSetViewStatus {
+  const normalized = status.toLowerCase();
+  if (
+    normalized === 'draft'
+    || normalized === 'evaluating'
+    || normalized === 'ready'
+    || normalized === 'blocked'
+    || normalized === 'stale'
+    || normalized === 'committed'
+    || normalized === 'discarded'
+  ) {
+    return normalized;
+  }
+  return 'error';
 }
