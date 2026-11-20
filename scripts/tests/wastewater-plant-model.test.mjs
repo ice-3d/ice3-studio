@@ -1307,6 +1307,17 @@ test('above-ground pipe supports are two-column assemblies', () => {
   assert.ok([...groups.values()].every((count) => count === 3));
 });
 
+test('pipe support layout stays sparse while covering every route', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const beams = plan.operations.filter(({ type, metadata }) => (
+    type === 'node.create'
+    && metadata?.role === 'pipe-support'
+    && metadata.supportPart === 'beam'
+  ));
+  assert.ok(beams.length <= 650, `${beams.length} support groups exceed the visual density gate`);
+  assert.deepEqual(validatePipeSupportSpacing(plan, { maxSpacing: 6, tolerance: 1 }).issues, []);
+});
+
 test('pipe supports sit on the routed pipe instead of open lawn', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   assert.deepEqual(validatePipeAccessoryAlignment(plan), { ok: true, issues: [] });

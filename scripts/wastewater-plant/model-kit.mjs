@@ -60,6 +60,7 @@ export function planSupportStations(route, maxSpacing = 6) {
     return [];
   }
   const distances = new Set();
+  const turns = [];
   const total = routeLength(route);
   for (let distance = maxSpacing; distance < total - 1e-5; distance += maxSpacing) {
     distances.add(Math.round(distance * 1e6) / 1e6);
@@ -72,8 +73,11 @@ export function planSupportStations(route, maxSpacing = 6) {
       incoming.x * outgoing.x + incoming.y * outgoing.y + incoming.z * outgoing.z
     ))));
     if (angle > 15 * Math.PI / 180) {
-      distances.add(routeDistanceAtPoint(route, index));
+      turns.push(routeDistanceAtPoint(route, index));
     }
+  }
+  for (const turn of turns) {
+    distances.add(turn);
   }
   return [...distances]
     .sort((left, right) => left - right)
@@ -588,7 +592,7 @@ function createBuilder() {
         // unexplained debris at site scale, so expose buried access only when
         // a cutaway or detail view can provide surrounding context.
       } else {
-        const stations = planSupportStations(coarseRoute, 4);
+        const stations = planSupportStations(coarseRoute, 5);
         stations.forEach((station, index) => {
           const attachment = chooseSupportStation(station, 1.4);
           if (!attachment) return;
