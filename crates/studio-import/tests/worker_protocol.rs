@@ -1,6 +1,6 @@
 use studio_import::{
     ImportWarning, NativeImportLimits, SourceFormat, SourceMesh, SourceNode, SourcePrimitive,
-    SourceScene, WorkerResponse, decode_worker_response, validate_scene_limits,
+    SourceResource, SourceScene, WorkerResponse, decode_worker_response, validate_scene_limits,
 };
 
 fn fixture_scene() -> SourceScene {
@@ -50,6 +50,28 @@ fn scene_with_triangles(count: usize) -> SourceScene {
 }
 
 #[test]
+fn protocol_two_round_trips_image_resources() {
+    let mut scene = fixture_scene();
+    scene.resources.push(SourceResource {
+        digest: "a".repeat(64),
+        media_type: "image/png".into(),
+        bytes: vec![0x89, b'P', b'N', b'G', 0, 1, 2, 3],
+    });
+    let response = WorkerResponse::V2 {
+        source_scene: scene,
+        warnings: Vec::new(),
+    };
+    let encoded = bincode::serde::encode_to_vec(&response, bincode::config::standard()).unwrap();
+
+    let decoded = decode_worker_response(&encoded).unwrap();
+
+    assert_eq!(
+        decoded.resources[0].bytes,
+        [0x89, b'P', b'N', b'G', 0, 1, 2, 3]
+    );
+}
+
+#[test]
 fn rejects_a_scene_above_the_triangle_limit() {
     let scene = scene_with_triangles(11);
     let limits = NativeImportLimits {
@@ -90,7 +112,7 @@ fn rejects_a_scene_above_the_memory_limit() {
 
 #[test]
 fn rejects_a_worker_with_the_wrong_protocol_version() {
-    let response = WorkerResponse::V2 {
+    let response = WorkerResponse::V1 {
         source_scene: fixture_scene(),
         warnings: Vec::new(),
     };
@@ -103,7 +125,7 @@ fn rejects_a_worker_with_the_wrong_protocol_version() {
 
 #[test]
 fn preserves_a_structured_worker_failure_code() {
-    let response = WorkerResponse::V1Failure {
+    let response = WorkerResponse::V2Failure {
         code: "ICE3_STUDIO_IMPORT_INVALID_SOURCE".into(),
         message: "truncated source".into(),
     };
@@ -117,7 +139,7 @@ fn preserves_a_structured_worker_failure_code() {
 
 #[test]
 fn rejects_a_worker_response_with_trailing_bytes() {
-    let response = WorkerResponse::V1 {
+    let response = WorkerResponse::V2 {
         source_scene: fixture_scene(),
         warnings: Vec::new(),
     };
