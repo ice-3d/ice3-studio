@@ -318,6 +318,40 @@ fn route_facts(
             cumulative.push(total);
         }
         stats.route_segments += segment_count;
+        let line_id = match connection.metadata.get("lineId") {
+            Some(value) if value.trim().is_empty() => {
+                diagnostics.push(Diagnostic {
+                    code: DiagnosticCode::OperationInvalid,
+                    operation_index: None,
+                    object_id: Some(node.id.to_string()),
+                    pointer: format!("/scene/nodes/{index}/metadata/lineId"),
+                    message: "connection lineId must not be empty".into(),
+                });
+                None
+            }
+            Some(value) => Some(value.clone()),
+            None => None,
+        };
+        let max_support_spacing = match connection.metadata.get("maxSupportSpacing") {
+            None => DEFAULT_MAX_SUPPORT_SPACING_M,
+            Some(value) => match value
+                .parse::<f32>()
+                .ok()
+                .filter(|value| value.is_finite() && *value > 0.0)
+            {
+                Some(value) => value,
+                None => {
+                    diagnostics.push(Diagnostic {
+                        code: DiagnosticCode::OperationInvalid,
+                        operation_index: None,
+                        object_id: Some(node.id.to_string()),
+                        pointer: format!("/scene/nodes/{index}/metadata/maxSupportSpacing"),
+                        message: "maxSupportSpacing must be a finite positive number".into(),
+                    });
+                    DEFAULT_MAX_SUPPORT_SPACING_M
+                }
+            },
+        };
         routes.push(RouteFact {
             node_index: index,
             node_id: node.id.clone(),
@@ -325,11 +359,8 @@ fn route_facts(
             to_owner: connection_owner(&connection.to),
             radius: connection.diameter / 2.0,
             policy: connection.route_policy.clone(),
-            line_id: connection.metadata.get("lineId").cloned(),
-            max_support_spacing: parse_positive(
-                connection.metadata.get("maxSupportSpacing"),
-                DEFAULT_MAX_SUPPORT_SPACING_M,
-            ),
+            line_id,
+            max_support_spacing,
             points,
             cumulative,
         });
@@ -943,13 +974,6 @@ fn connection_owner(reference: &InstancePortRef) -> NodeId {
         InstancePortRef::Instance { node_id, .. } => node_id.clone(),
         InstancePortRef::SetItem { set_node_id, .. } => set_node_id.clone(),
     }
-}
-
-fn parse_positive(value: Option<&String>, fallback: f32) -> f32 {
-    value
-        .and_then(|value| value.parse::<f32>().ok())
-        .filter(|value| value.is_finite() && *value > 0.0)
-        .unwrap_or(fallback)
 }
 
 fn distance(left: [f32; 3], right: [f32; 3]) -> f32 {

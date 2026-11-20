@@ -172,6 +172,33 @@ fn support_layout_rejects_missing_sparse_and_off_route_stations() {
 }
 
 #[test]
+fn empty_connection_line_id_is_invalid() {
+    let mut document = support_document();
+    connection_metadata_mut(&mut document).insert("lineId".into(), String::new());
+    let diagnostics = run_route_safety(&document).0;
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::OperationInvalid
+            && diagnostic.object_id.as_deref() == Some("node-000003")
+    }));
+}
+
+#[test]
+fn invalid_max_support_spacing_is_invalid() {
+    for spacing in ["0", "-1", "NaN", "infinity"] {
+        let mut document = support_document();
+        connection_metadata_mut(&mut document).insert("maxSupportSpacing".into(), spacing.into());
+        let diagnostics = run_route_safety(&document).0;
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == DiagnosticCode::OperationInvalid
+                    && diagnostic.pointer.ends_with("/metadata/maxSupportSpacing")
+            }),
+            "spacing {spacing:?} was accepted: {diagnostics:?}",
+        );
+    }
+}
+
+#[test]
 fn route_safety_budget_exhaustion_fails_closed() {
     let (diagnostics, _) = validate_with_segment_limit(0);
     assert!(
@@ -292,7 +319,11 @@ fn set_route_policy(document: &mut Document, policy: RoutePolicy) {
 }
 
 fn set_support_spacing(document: &mut Document, spacing: &str) {
-    let connection = document
+    connection_metadata_mut(document).insert("maxSupportSpacing".into(), spacing.into());
+}
+
+fn connection_metadata_mut(document: &mut Document) -> &mut BTreeMap<String, String> {
+    &mut document
         .scene
         .nodes_mut()
         .iter_mut()
@@ -300,10 +331,8 @@ fn set_support_spacing(document: &mut Document, spacing: &str) {
             NodeContent::Connection(connection) => Some(connection),
             _ => None,
         })
-        .expect("route fixture must contain a connection");
-    connection
+        .expect("route fixture must contain a connection")
         .metadata
-        .insert("maxSupportSpacing".into(), spacing.into());
 }
 
 fn add_support(document: &mut Document, id: &str, x: f32, y: f32, z: f32) {
