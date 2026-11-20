@@ -234,9 +234,15 @@ fn build_canonical_document(
     let node_indices = node_indices(scene)?;
     let world_matrices = world_matrices(scene, &node_indices)?;
     let edge_materials = used_edge_materials(scene)?;
-    let image_indices = texture_images(&scene.materials);
-    let (materials, material_indices) =
-        output_materials(&scene.materials, &edge_materials, asset_id, &image_indices)?;
+    let resources = resource_map(&scene.resources)?;
+    let mut texture_registry = TextureRegistry::default();
+    let (materials, material_indices) = output_materials(
+        &scene.materials,
+        &edge_materials,
+        asset_id,
+        &resources,
+        &mut texture_registry,
+    )?;
     let mut binary = BinaryBuilder::default();
     let mut mesh_context = MeshWriteContext {
         asset_id,
@@ -392,18 +398,10 @@ fn build_canonical_document(
         "bufferViews": binary.views,
         "buffers": [{"byteLength": byte_length}]
     });
-    if !image_indices.is_empty() {
-        let mut ordered = image_indices.iter().collect::<Vec<_>>();
-        ordered.sort_by_key(|(_, index)| **index);
-        let images = ordered
-            .into_iter()
-            .map(|(uri, _)| json!({ "uri": uri }))
-            .collect::<Vec<_>>();
-        let textures = (0..images.len())
-            .map(|index| json!({ "sampler": 0, "source": index }))
-            .collect::<Vec<_>>();
+    if !texture_registry.images.is_empty() {
+        let (images, samplers, textures) = texture_registry.output(&resources)?;
         gltf["images"] = json!(images);
-        gltf["samplers"] = json!([{ "wrapS": 10497, "wrapT": 10497 }]);
+        gltf["samplers"] = json!(samplers);
         gltf["textures"] = json!(textures);
         gltf["extensionsUsed"] = json!(["KHR_texture_transform"]);
     }
@@ -480,6 +478,40 @@ fn write_mesh(
         {
             return Err(invalid("primitive material index is out of range"));
         }
+        let material_uses_texture = source_material.is_some_and(|index| {
+            context.source_materials[index]
+                .surface
+                .as_ref()
+                .is_some_and(surface_has_texture)
+                || context.source_materials[index].texture.is_some()
+        });
+        if primitive.uvs.is_some() || material_uses_texture {
+            let uvs = match &primitive.uvs {
+                Some(uvs) => {
+                    if uvs.len() != primitive.positions.len()
+                        || uvs.iter().flatten().any(|value| !value.is_finite())
+                    {
+                        return Err(invalid("primitive UVs are invalid"));
+                    }
+                    uvs.clone()
+                }
+                None => box_projected_uvs(
+                    &primitive.positions,
+                    normals.map(Vec::as_slice).unwrap_or_default(),
+                ),
+            };
+            let values = uvs.iter().flat_map(|value| *value).collect::<Vec<_>>();
+            let view = context
+                .binary
+                .append(bytemuck::cast_slice(&values), Some(34962));
+            let accessor = context.binary.accessor(json!({
+                "bufferView": view,
+                "componentType": 5126,
+                "count": uvs.len(),
+                "type": "VEC2"
+            }));
+            attributes.insert("TEXCOORD_0".into(), Value::from(accessor));
+        }
         let triangle_material = source_material.unwrap_or_else(|| {
             if primitive.colors.is_some() {
                 context.material_indices.vertex_colors
@@ -538,6 +570,36 @@ fn write_mesh(
     }))
 }
 
+fn surface_has_texture(surface: &CanonicalSurface) -> bool {
+    surface.base_color_texture.is_some()
+        || surface.normal_texture.is_some()
+        || surface.occlusion_texture.is_some()
+        || surface.metallic_roughness_texture.is_some()
+}
+
+fn box_projected_uvs(positions: &[[f32; 3]], normals: &[[f32; 3]]) -> Vec<[f32; 2]> {
+    positions
+        .iter()
+        .enumerate()
+        .map(|(index, position)| {
+            let normal = normals.get(index).copied().unwrap_or([0.0, 0.0, 0.0]);
+            let [x, y, z] = *position;
+            let (ax, ay, az) = (normal[0].abs(), normal[1].abs(), normal[2].abs());
+            if ax + ay + az < 1e-6 {
+                [x, y]
+            } else if ax >= ay && ax >= az {
+                if normal[0] >= 0.0 { [-z, y] } else { [z, y] }
+            } else if ay >= az {
+                if normal[1] >= 0.0 { [x, z] } else { [x, -z] }
+            } else if normal[2] >= 0.0 {
+                [x, y]
+            } else {
+                [-x, y]
+            }
+        })
+        .collect()
+}
+
 fn write_indices(binary: &mut BinaryBuilder, indices: &[u32], vertex_count: usize) -> usize {
     let (index_bytes, component_type) = if vertex_count <= u16::MAX as usize {
         (
@@ -573,24 +635,184 @@ struct MaterialIndices {
     vertex_colors: usize,
 }
 
-/// Unique texture images in material order, so `baseColorTexture.index` and
-/// `images[]` stay in sync without a second lookup table.
-fn texture_images(materials: &[CanonicalMaterial]) -> BTreeMap<&str, usize> {
-    let mut images = BTreeMap::new();
-    for material in materials {
-        if let Some(texture) = &material.texture {
-            let next = images.len();
-            images.entry(texture.uri.as_str()).or_insert(next);
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum ImageKey {
+    Resource(String),
+    External(String),
+}
+
+#[derive(Default)]
+struct TextureRegistry {
+    images: Vec<ImageKey>,
+    image_indices: BTreeMap<ImageKey, usize>,
+    samplers: Vec<TextureSampler>,
+    sampler_indices: BTreeMap<TextureSampler, usize>,
+    textures: Vec<(usize, usize)>,
+    texture_indices: BTreeMap<(usize, usize), usize>,
+}
+
+impl TextureRegistry {
+    fn texture(&mut self, resource: &str, sampler: TextureSampler) -> usize {
+        self.texture_for_key(ImageKey::Resource(resource.into()), sampler)
+    }
+
+    fn external_texture(&mut self, uri: &str, sampler: TextureSampler) -> usize {
+        self.texture_for_key(ImageKey::External(uri.into()), sampler)
+    }
+
+    fn texture_for_key(&mut self, image_key: ImageKey, sampler: TextureSampler) -> usize {
+        let image = match self.image_indices.get(&image_key) {
+            Some(index) => *index,
+            None => {
+                let index = self.images.len();
+                self.images.push(image_key.clone());
+                self.image_indices.insert(image_key, index);
+                index
+            }
+        };
+        let sampler = match self.sampler_indices.get(&sampler) {
+            Some(index) => *index,
+            None => {
+                let index = self.samplers.len();
+                self.samplers.push(sampler);
+                self.sampler_indices.insert(sampler, index);
+                index
+            }
+        };
+        let key = (image, sampler);
+        match self.texture_indices.get(&key) {
+            Some(index) => *index,
+            None => {
+                let index = self.textures.len();
+                self.textures.push(key);
+                self.texture_indices.insert(key, index);
+                index
+            }
         }
     }
-    images
+
+    fn output(
+        &self,
+        resources: &BTreeMap<String, &CanonicalResource>,
+    ) -> AssetResult<(Vec<Value>, Vec<Value>, Vec<Value>)> {
+        let images = self
+            .images
+            .iter()
+            .map(|key| match key {
+                ImageKey::Resource(digest) => {
+                    let resource = resources
+                        .get(digest)
+                        .ok_or_else(|| invalid("texture resource is missing"))?;
+                    Ok(json!({
+                        "uri": resource_uri(resource)?,
+                        "mimeType": resource.media_type
+                    }))
+                }
+                ImageKey::External(uri) => Ok(json!({ "uri": uri })),
+            })
+            .collect::<AssetResult<Vec<_>>>()?;
+        let samplers = self
+            .samplers
+            .iter()
+            .map(|sampler| {
+                let mut value = json!({
+                    "wrapS": sampler.wrap_s,
+                    "wrapT": sampler.wrap_t
+                });
+                if let Some(filter) = sampler.mag_filter {
+                    value["magFilter"] = Value::from(filter);
+                }
+                if let Some(filter) = sampler.min_filter {
+                    value["minFilter"] = Value::from(filter);
+                }
+                value
+            })
+            .collect::<Vec<_>>();
+        let textures = self
+            .textures
+            .iter()
+            .map(|(image, sampler)| json!({ "sampler": sampler, "source": image }))
+            .collect::<Vec<_>>();
+        Ok((images, samplers, textures))
+    }
+}
+
+fn resource_map(
+    resources: &[CanonicalResource],
+) -> AssetResult<BTreeMap<String, &CanonicalResource>> {
+    let mut output = BTreeMap::new();
+    for resource in resources {
+        let valid_digest = resource.digest.len() == 64
+            && resource
+                .digest
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+        if !valid_digest
+            || format!("{:x}", Sha256::digest(&resource.bytes)) != resource.digest
+            || media_extension(&resource.media_type).is_none()
+            || output.insert(resource.digest.clone(), resource).is_some()
+        {
+            return Err(invalid("texture resource is invalid"));
+        }
+    }
+    Ok(output)
+}
+
+fn resource_uri(resource: &CanonicalResource) -> AssetResult<String> {
+    let extension = media_extension(&resource.media_type)
+        .ok_or_else(|| invalid("image media type is invalid"))?;
+    Ok(format!("textures/{}.{}", resource.digest, extension))
+}
+
+fn media_extension(media_type: &str) -> Option<&'static str> {
+    match media_type {
+        "image/png" => Some("png"),
+        "image/jpeg" => Some("jpg"),
+        "image/webp" => Some("webp"),
+        _ => None,
+    }
+}
+
+fn write_texture_info(
+    binding: &CanonicalTextureBinding,
+    resources: &BTreeMap<String, &CanonicalResource>,
+    registry: &mut TextureRegistry,
+) -> AssetResult<Value> {
+    if binding.tex_coord != 0 || !resources.contains_key(&binding.resource) {
+        return Err(invalid("texture binding is invalid"));
+    }
+    let index = registry.texture(&binding.resource, binding.sampler);
+    Ok(json!({
+        "index": index,
+        "texCoord": 0,
+        "extensions": {
+            "KHR_texture_transform": {
+                "offset": binding.transform.offset,
+                "rotation": binding.transform.rotation,
+                "scale": binding.transform.scale
+            }
+        }
+    }))
+}
+
+fn legacy_texture_info(texture: &CanonicalTexture, registry: &mut TextureRegistry) -> Value {
+    let index = registry.external_texture(&texture.uri, TextureSampler::default());
+    json!({
+        "index": index,
+        "extensions": {
+            "KHR_texture_transform": {
+                "scale": texture.uv_scale
+            }
+        }
+    })
 }
 
 fn output_materials(
     materials: &[CanonicalMaterial],
     edge_materials: &[bool],
     asset_id: &str,
-    image_indices: &BTreeMap<&str, usize>,
+    resources: &BTreeMap<String, &CanonicalResource>,
+    texture_registry: &mut TextureRegistry,
 ) -> AssetResult<(Vec<Value>, MaterialIndices)> {
     if edge_materials.len() != materials.len() {
         return Err(invalid(
@@ -607,6 +829,7 @@ fn output_materials(
                 &format!("{asset_id}/material/{}", material.id),
                 None,
             )?;
+            let surface = material.surface.as_ref();
             let mut pbr = json!({
                 "baseColorFactor": [
                     material.base_color[0],
@@ -614,29 +837,76 @@ fn output_materials(
                     material.base_color[2],
                     material.opacity
                 ],
-                "metallicFactor": 0.0,
-                "roughnessFactor": 1.0
+                "metallicFactor": surface.map_or(0.0, |value| value.metallic),
+                "roughnessFactor": surface.map_or(1.0, |value| value.roughness)
             });
-            if let Some(texture) = &material.texture {
-                let index = image_indices
-                    .get(texture.uri.as_str())
-                    .copied()
-                    .ok_or_else(|| invalid("texture image index is missing"))?;
-                pbr["baseColorTexture"] = json!({
-                    "index": index,
-                    "extensions": {
-                        "KHR_texture_transform": {
-                            "scale": [texture.uv_scale[0], texture.uv_scale[1]]
-                        }
+            if let Some(surface) = surface {
+                if let (Some(legacy), Some(binding)) = (
+                    material.texture.as_ref(),
+                    surface.base_color_texture.as_ref(),
+                ) {
+                    let resource = resources
+                        .get(&binding.resource)
+                        .ok_or_else(|| invalid("texture resource is missing"))?;
+                    let equivalent = legacy.uri == resource_uri(resource)?
+                        && legacy.uv_scale == binding.transform.scale
+                        && binding.transform.offset == [0.0, 0.0]
+                        && binding.transform.rotation == 0.0
+                        && binding.sampler == TextureSampler::default()
+                        && binding.tex_coord == 0;
+                    if !equivalent {
+                        return Err(invalid("legacy and surface base-color textures conflict"));
                     }
-                });
+                }
+                if let Some(texture) = &surface.base_color_texture {
+                    pbr["baseColorTexture"] =
+                        write_texture_info(texture, resources, texture_registry)?;
+                } else if let Some(texture) = &material.texture {
+                    pbr["baseColorTexture"] = legacy_texture_info(texture, texture_registry);
+                }
+                if let Some(texture) = &surface.metallic_roughness_texture {
+                    pbr["metallicRoughnessTexture"] =
+                        write_texture_info(texture, resources, texture_registry)?;
+                }
+                if let Some(emissive) = surface.emissive {
+                    pbr["emissiveFactor"] = json!(emissive);
+                }
+            } else if let Some(texture) = &material.texture {
+                pbr["baseColorTexture"] = legacy_texture_info(texture, texture_registry);
             }
-            Ok(json!({
+            let alpha_mode = if surface.is_some() {
+                material.alpha_mode
+            } else if material.opacity < 1.0 {
+                AlphaMode::Blend
+            } else {
+                AlphaMode::Opaque
+            };
+            let mut output_material = json!({
                 "name": material.name,
                 "pbrMetallicRoughness": pbr,
-                "alphaMode": if material.opacity < 1.0 { "BLEND" } else { "OPAQUE" },
+                "alphaMode": match alpha_mode {
+                    AlphaMode::Opaque => "OPAQUE",
+                    AlphaMode::Mask => "MASK",
+                    AlphaMode::Blend => "BLEND",
+                },
                 "extras": extras
-            }))
+            });
+            if alpha_mode == AlphaMode::Mask {
+                output_material["alphaCutoff"] = json!(material.alpha_cutoff);
+            }
+            if material.double_sided {
+                output_material["doubleSided"] = Value::Bool(true);
+            }
+            if let Some(normal) = surface.and_then(|value| value.normal_texture.as_ref()) {
+                let mut texture = write_texture_info(&normal.binding, resources, texture_registry)?;
+                texture["scale"] = json!(normal.scale);
+                output_material["normalTexture"] = texture;
+            }
+            if let Some(texture) = surface.and_then(|value| value.occlusion_texture.as_ref()) {
+                output_material["occlusionTexture"] =
+                    write_texture_info(texture, resources, texture_registry)?;
+            }
+            Ok(output_material)
         })
         .collect::<AssetResult<Vec<_>>>()?;
 
