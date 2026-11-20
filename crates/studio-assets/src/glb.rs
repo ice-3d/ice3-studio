@@ -196,19 +196,47 @@ fn pack_glb(json: &[u8], binary: &[u8]) -> Vec<u8> {
 }
 
 pub fn read_bounded_uri(uri: &str, base_dir: &Path) -> AssetResult<Vec<u8>> {
+    read_bounded_uri_with_limit(uri, base_dir, usize::MAX)
+}
+
+pub fn read_bounded_uri_with_limit(
+    uri: &str,
+    base_dir: &Path,
+    max_bytes: usize,
+) -> AssetResult<Vec<u8>> {
     if let Some(payload) = uri.strip_prefix("data:") {
         let (metadata, data) = payload
             .split_once(',')
             .ok_or_else(|| invalid("data URI is invalid"))?;
-        if metadata.ends_with(";base64") {
-            return base64::engine::general_purpose::STANDARD
-                .decode(data)
-                .map_err(|_| invalid("data URI payload is invalid"));
+        let maximum_encoded = if max_bytes == usize::MAX {
+            None
+        } else {
+            Some(
+                max_bytes
+                    .checked_mul(4)
+                    .and_then(|value| value.checked_div(3))
+                    .and_then(|value| value.checked_add(8))
+                    .ok_or_else(|| invalid("data URI size overflowed"))?,
+            )
+        };
+        if maximum_encoded.is_some_and(|maximum| data.len() > maximum) {
+            return Err(invalid("external resource exceeds its size limit"));
         }
-        return percent_decode_str(data)
-            .decode_utf8()
-            .map(|value| value.into_owned().into_bytes())
-            .map_err(|_| invalid("data URI payload is invalid"));
+        let bytes = if metadata.ends_with(";base64") {
+            base64::engine::general_purpose::STANDARD
+                .decode(data)
+                .map_err(|_| invalid("data URI payload is invalid"))?
+        } else {
+            percent_decode_str(data)
+                .decode_utf8()
+                .map_err(|_| invalid("data URI payload is invalid"))?
+                .into_owned()
+                .into_bytes()
+        };
+        if bytes.len() > max_bytes {
+            return Err(invalid("external resource exceeds its size limit"));
+        }
+        return Ok(bytes);
     }
     if Path::new(uri).is_absolute() || looks_like_scheme(uri) {
         return Err(invalid("external resource URI must be relative"));
@@ -235,12 +263,23 @@ pub fn read_bounded_uri(uri: &str, base_dir: &Path) -> AssetResult<Vec<u8>> {
     let base =
         std::fs::canonicalize(base_dir).map_err(|_| invalid("source directory is missing"))?;
     let target = base.join(relative);
+    let metadata =
+        std::fs::symlink_metadata(&target).map_err(|_| invalid("external resource is missing"))?;
+    if metadata.file_type().is_symlink() {
+        return Err(invalid("external resource must not be a symbolic link"));
+    }
     let canonical = std::fs::canonicalize(&target)
         .map_err(|_| invalid(&format!("external resource is missing: {uri}")))?;
     if !canonical.starts_with(&base) {
         return Err(invalid(
             "external resource URI escapes the source directory",
         ));
+    }
+    let size = std::fs::metadata(&canonical)
+        .map_err(|_| invalid("external resource is unreadable"))?
+        .len();
+    if size > max_bytes as u64 {
+        return Err(invalid("external resource exceeds its size limit"));
     }
     std::fs::read(canonical)
         .map_err(|_| invalid(&format!("external resource is unreadable: {uri}")))

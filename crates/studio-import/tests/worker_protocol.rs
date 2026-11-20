@@ -111,6 +111,40 @@ fn rejects_a_scene_above_the_memory_limit() {
 }
 
 #[test]
+fn rejects_image_resources_above_the_scene_memory_limit() {
+    let mut scene = empty_scene();
+    scene.resources.push(SourceResource {
+        digest: "a".repeat(64),
+        media_type: "image/png".into(),
+        bytes: vec![0; 8 * 1024],
+    });
+    let limits = NativeImportLimits {
+        max_memory_bytes: 4 * 1024,
+        ..NativeImportLimits::default()
+    };
+
+    let error = validate_scene_limits(&scene, &limits).unwrap_err();
+
+    assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+}
+
+#[test]
+fn rejects_more_image_resources_than_the_protocol_allows() {
+    let mut scene = empty_scene();
+    scene.resources = (0..=studio_assets::MAX_TEXTURE_COUNT)
+        .map(|index| SourceResource {
+            digest: format!("{index:064x}"),
+            media_type: "image/png".into(),
+            bytes: Vec::new(),
+        })
+        .collect();
+
+    let error = validate_scene_limits(&scene, &NativeImportLimits::default()).unwrap_err();
+
+    assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED");
+}
+
+#[test]
 fn rejects_a_worker_with_the_wrong_protocol_version() {
     let response = WorkerResponse::V1 {
         source_scene: fixture_scene(),
@@ -121,6 +155,19 @@ fn rejects_a_worker_with_the_wrong_protocol_version() {
     let error = decode_worker_response(&encoded).unwrap_err();
 
     assert_eq!(error.code(), "ICE3_STUDIO_IMPORT_WORKER_PROTOCOL_INVALID");
+}
+
+fn empty_scene() -> SourceScene {
+    SourceScene {
+        asset_id: "empty".into(),
+        source_format: SourceFormat::Gltf,
+        nodes: Vec::new(),
+        meshes: Vec::new(),
+        materials: Vec::new(),
+        resources: Vec::new(),
+        warnings: Vec::new(),
+        asset_extras: serde_json::Value::Null,
+    }
 }
 
 #[test]
