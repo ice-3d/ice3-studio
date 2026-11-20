@@ -470,7 +470,11 @@ function buildPlan(projectId) {
       road.maxZ,
       road.material,
       road.material === 'paving' ? siteLevels.paving : siteLevels.asphalt,
-      { roadClass: 'site-access' },
+      {
+        roadClass: 'site-access',
+        routeObstacle: 'clearance-surface',
+        routeClearance: '5',
+      },
     );
   }
   b.ground('广场（入口）', 6, 60, 140, 168, 'paving', siteLevels.paving);

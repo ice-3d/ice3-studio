@@ -297,50 +297,250 @@ export function validatePipeAccessoryAlignment(plan, tolerance = 1) {
       continue;
     }
     const lineId = operation.metadata.lineId;
-    accessories.set(lineId, operation);
+    accessories.set(lineId, [...(accessories.get(lineId) ?? []), operation]);
   }
-  const resolvePort = (reference) => {
-    const node = instances.get(reference.nodeId);
-    const definition = node && definitions.get(node.instance.definitionId);
-    const port = definition?.ports.find(({ name }) => name === reference.port);
-    if (!node || !port) return null;
-    const rotation = node.transform.rotation;
-    const position = rotateByQuaternion(
-      [port.position.x, port.position.y, port.position.z],
-      rotation,
-    );
-    const direction = rotateByQuaternion(
-      [port.direction.x, port.direction.y, port.direction.z],
-      rotation,
-    );
-    return {
-      position: {
-        x: node.transform.translation.x + position[0],
-        y: node.transform.translation.y + position[1],
-        z: node.transform.translation.z + position[2],
-      },
-      direction: { x: direction[0], y: direction[1], z: direction[2] },
-    };
-  };
   for (const operation of plan.operations) {
     if (operation.type !== 'connection.create') continue;
-    const from = resolvePort(operation.connection.from);
-    const to = resolvePort(operation.connection.to);
-    const accessory = accessories.get(operation.connection.metadata.lineId);
-    if (!from || !to || !accessory) continue;
+    const from = resolvePlanPort(instances, definitions, operation.connection.from);
+    const to = resolvePlanPort(instances, definitions, operation.connection.to);
+    const lineAccessories = accessories.get(operation.connection.metadata.lineId) ?? [];
+    if (!from || !to || lineAccessories.length === 0) continue;
     const route = coarsePipeRoute(operation.connection, from, to);
-    const distance = distanceToHorizontalRoute(
-      accessory.transform.translation,
-      route,
-    );
-    if (!Number.isFinite(distance) || distance > tolerance) {
-      issues.push({
-        code: 'PIPE_ACCESSORY_OFF_ROUTE',
-        message: `${accessory.name} is ${distance.toFixed(2)} m off ${operation.name}`,
-      });
+    for (const accessory of lineAccessories) {
+      const distance = distanceToHorizontalRoute(
+        accessory.transform.translation,
+        route,
+      );
+      if (!Number.isFinite(distance) || distance > tolerance) {
+        issues.push({
+          code: 'PIPE_ACCESSORY_OFF_ROUTE',
+          message: `${accessory.name} is ${distance.toFixed(2)} m off ${operation.name}`,
+        });
+      }
     }
   }
   return { ok: issues.length === 0, issues };
+}
+
+export function validatePipeSupportSpacing(
+  plan,
+  { maxSpacing = 6, tolerance = 1 } = {},
+) {
+  const definitions = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'component.define')
+      .map(({ definition }) => [definition.id, definition]),
+  );
+  const instances = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'instance.create')
+      .map((operation) => [operation.node_id, operation]),
+  );
+  const supports = new Map();
+  for (const operation of plan.operations) {
+    if (operation.type !== 'node.create') continue;
+    if (operation.metadata?.role !== 'pipe-support') continue;
+    if (operation.metadata.supportPart !== 'beam') continue;
+    const lineId = operation.metadata.lineId;
+    supports.set(lineId, [...(supports.get(lineId) ?? []), operation]);
+  }
+  const clearanceSurfaces = plan.operations
+    .filter(({ type, metadata }) => (
+      type === 'node.create'
+      && metadata?.routeObstacle === 'clearance-surface'
+    ))
+    .map(({ transform, content }) => ({
+      minX: transform.translation.x - content.width / 2,
+      maxX: transform.translation.x + content.width / 2,
+      minZ: transform.translation.z - content.depth / 2,
+      maxZ: transform.translation.z + content.depth / 2,
+    }));
+  const issues = [];
+  for (const operation of plan.operations) {
+    if (operation.type !== 'connection.create') continue;
+    if (operation.connection.routePolicy.kind === 'buried') continue;
+    const lineId = operation.connection.metadata?.lineId;
+    const from = resolvePlanPort(instances, definitions, operation.connection.from);
+    const to = resolvePlanPort(instances, definitions, operation.connection.to);
+    if (!lineId || !from || !to) continue;
+    const configured = Number(operation.connection.metadata?.maxSupportSpacing);
+    const spacing = Number.isFinite(configured) && configured > 0 ? configured : maxSpacing;
+    const route = coarsePipeRoute(operation.connection, from, to);
+    const projected = (supports.get(lineId) ?? []).map((support) => (
+      projectPointToRoute(support.transform.translation, route)
+    ));
+    const valid = projected.filter(({ distance }) => distance <= tolerance);
+    if (valid.length === 0) {
+      issues.push({
+        code: 'PIPE_SUPPORT_MISSING',
+        message: `${operation.name} has no support on ${lineId}`,
+      });
+      continue;
+    }
+    if (valid.length !== projected.length) {
+      issues.push({
+        code: 'PIPE_SUPPORT_OFF_ROUTE',
+        message: `${operation.name} has a support more than ${tolerance} m off-route`,
+      });
+    }
+    const total = routeLength(route);
+    const positions = [0, ...valid.map(({ arc }) => arc), total]
+      .sort((left, right) => left - right);
+    for (let index = 1; index < positions.length; index += 1) {
+      if (positions[index] - positions[index - 1] > spacing + 1e-5) {
+        if (routeIntervalCrossesSurface(
+          route,
+          positions[index - 1],
+          positions[index],
+          clearanceSurfaces,
+          tolerance,
+        )) {
+          continue;
+        }
+        issues.push({
+          code: 'PIPE_SUPPORT_SPACING',
+          message: `${operation.name} support gap ${(
+            positions[index] - positions[index - 1]
+          ).toFixed(2)} m exceeds ${spacing} m between ${positions[index - 1].toFixed(2)} and ${
+            positions[index].toFixed(2)
+          } m`,
+        });
+        break;
+      }
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
+function routeIntervalCrossesSurface(route, start, end, surfaces, clearance) {
+  let travelled = 0;
+  for (let index = 1; index < route.length; index += 1) {
+    const from = route[index - 1];
+    const to = route[index];
+    const length = Math.hypot(
+      to.x - from.x,
+      to.y - from.y,
+      to.z - from.z,
+    );
+    const segmentStart = travelled;
+    const segmentEnd = travelled + length;
+    travelled = segmentEnd;
+    if (segmentEnd < start || segmentStart > end) continue;
+    const localStart = Math.max(start, segmentStart);
+    const localEnd = Math.min(end, segmentEnd);
+    if (localEnd <= localStart) continue;
+    const ratioStart = length <= Number.EPSILON ? 0 : (localStart - segmentStart) / length;
+    const ratioEnd = length <= Number.EPSILON ? 0 : (localEnd - segmentStart) / length;
+    const clipped = [
+      {
+        x: from.x + (to.x - from.x) * ratioStart,
+        z: from.z + (to.z - from.z) * ratioStart,
+      },
+      {
+        x: from.x + (to.x - from.x) * ratioEnd,
+        z: from.z + (to.z - from.z) * ratioEnd,
+      },
+    ];
+    if (surfaces.some((surface) => segmentCrossesRect(clipped, surface, clearance))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function segmentCrossesRect(segment, rect, clearance) {
+  let minimum = 0;
+  let maximum = 1;
+  const axes = [
+    [segment[0].x, segment[1].x - segment[0].x, rect.minX, rect.maxX],
+    [segment[0].z, segment[1].z - segment[0].z, rect.minZ, rect.maxZ],
+  ];
+  for (const [origin, direction, low, high] of axes) {
+    const min = low - clearance;
+    const max = high + clearance;
+    if (Math.abs(direction) <= Number.EPSILON) {
+      if (origin < min || origin > max) return false;
+      continue;
+    }
+    let near = (min - origin) / direction;
+    let far = (max - origin) / direction;
+    if (near > far) [near, far] = [far, near];
+    minimum = Math.max(minimum, near);
+    maximum = Math.min(maximum, far);
+    if (minimum > maximum) return false;
+  }
+  return true;
+}
+
+function resolvePlanPort(instances, definitions, reference) {
+  const node = instances.get(reference.nodeId);
+  const definition = node && definitions.get(node.instance.definitionId);
+  const port = definition?.ports.find(({ name }) => name === reference.port);
+  if (!node || !port) return null;
+  const rotation = node.transform.rotation;
+  const position = rotateByQuaternion(
+    [port.position.x, port.position.y, port.position.z],
+    rotation,
+  );
+  const direction = rotateByQuaternion(
+    [port.direction.x, port.direction.y, port.direction.z],
+    rotation,
+  );
+  return {
+    position: {
+      x: node.transform.translation.x + position[0],
+      y: node.transform.translation.y + position[1],
+      z: node.transform.translation.z + position[2],
+    },
+    direction: { x: direction[0], y: direction[1], z: direction[2] },
+  };
+}
+
+function routeLength(route) {
+  let total = 0;
+  for (let index = 1; index < route.length; index += 1) {
+    total += Math.hypot(
+      route[index].x - route[index - 1].x,
+      route[index].y - route[index - 1].y,
+      route[index].z - route[index - 1].z,
+    );
+  }
+  return total;
+}
+
+function projectPointToRoute(point, route) {
+  let best = { arc: 0, distance: Infinity, score: Infinity };
+  let travelled = 0;
+  for (let index = 1; index < route.length; index += 1) {
+    const from = route[index - 1];
+    const to = route[index];
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dz = to.z - from.z;
+    const length = Math.hypot(dx, dy, dz);
+    const denominator = dx * dx + dy * dy + dz * dz;
+    const ratio = denominator <= Number.EPSILON
+      ? 0
+      : Math.max(0, Math.min(1, (
+        (point.x - from.x) * dx
+        + (point.y - from.y) * dy
+        + (point.z - from.z) * dz
+      ) / denominator));
+    const projectedX = from.x + dx * ratio;
+    const projectedY = from.y + dy * ratio;
+    const projectedZ = from.z + dz * ratio;
+    const distance = Math.hypot(point.x - projectedX, point.z - projectedZ);
+    const score = Math.hypot(
+      point.x - projectedX,
+      point.y - projectedY,
+      point.z - projectedZ,
+    );
+    if (score < best.score) {
+      best = { arc: travelled + length * ratio, distance, score };
+    }
+    travelled += length;
+  }
+  return best;
 }
 
 export function validateProcessGraph(plan, requirements) {

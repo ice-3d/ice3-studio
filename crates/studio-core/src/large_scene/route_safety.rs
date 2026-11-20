@@ -656,24 +656,38 @@ fn validate_support_layout(
 
 fn project_to_route(position: [f32; 3], route: &RouteFact) -> Option<(f32, f32)> {
     let mut best: Option<(f32, f32)> = None;
+    let mut best_score = f32::INFINITY;
     for (index, pair) in route.points.windows(2).enumerate() {
         let from = pair[0];
         let to = pair[1];
         let dx = to[0] - from[0];
+        let dy = to[1] - from[1];
         let dz = to[2] - from[2];
-        let denominator = dx * dx + dz * dz;
+        let denominator = dx * dx + dy * dy + dz * dz;
         if denominator <= f32::EPSILON {
             continue;
         }
-        let ratio = (((position[0] - from[0]) * dx + (position[2] - from[2]) * dz) / denominator)
+        let ratio = (((position[0] - from[0]) * dx
+            + (position[1] - from[1]) * dy
+            + (position[2] - from[2]) * dz)
+            / denominator)
             .clamp(0.0, 1.0);
-        let nearest = [from[0] + dx * ratio, from[1], from[2] + dz * ratio];
-        let distance =
+        let nearest = [
+            from[0] + dx * ratio,
+            from[1] + dy * ratio,
+            from[2] + dz * ratio,
+        ];
+        let horizontal_distance =
             ((position[0] - nearest[0]).powi(2) + (position[2] - nearest[2]).powi(2)).sqrt();
+        let score = ((position[0] - nearest[0]).powi(2)
+            + (position[1] - nearest[1]).powi(2)
+            + (position[2] - nearest[2]).powi(2))
+        .sqrt();
         let length = route.cumulative[index + 1] - route.cumulative[index];
         let arc = route.cumulative[index] + length * ratio;
-        if best.is_none_or(|(_, current)| distance < current) {
-            best = Some((arc, distance));
+        if score < best_score {
+            best = Some((arc, horizontal_distance));
+            best_score = score;
         }
     }
     best
@@ -880,5 +894,25 @@ mod tests {
             obstacle_class(&metadata),
             Err("routeObstacle must be solid, ignored, or clearance-surface"),
         );
+    }
+
+    #[test]
+    fn support_projection_uses_vertical_arc_position() {
+        let route = RouteFact {
+            node_index: 0,
+            node_id: NodeId::from("node-000001"),
+            from_owner: NodeId::from("node-000002"),
+            to_owner: NodeId::from("node-000003"),
+            radius: 0.1,
+            policy: RoutePolicy::Rack { elevation: 10.0 },
+            line_id: Some("L-001".into()),
+            max_support_spacing: 6.0,
+            points: vec![[0.0, 0.0, 0.0], [0.0, 10.0, 0.0]],
+            cumulative: vec![0.0, 10.0],
+        };
+        let (arc, distance) =
+            project_to_route([0.0, 5.0, 0.0], &route).expect("support projects onto route");
+        assert!((arc - 5.0).abs() < 1e-5, "{arc}");
+        assert!(distance < 1e-5);
     }
 }

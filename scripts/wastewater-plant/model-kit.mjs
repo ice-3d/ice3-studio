@@ -55,6 +55,88 @@ const cylinder = (r, h, segments = 40) => ({
 // 每团多两级细分就是几万个三角形，远景看不出差别。
 const sphere = (radius, segments = 10, rings = 6) => ({ kind: 'sphere', radius, segments, rings });
 
+export function planSupportStations(route, maxSpacing = 6) {
+  if (!Array.isArray(route) || route.length < 2 || !Number.isFinite(maxSpacing) || maxSpacing <= 0) {
+    return [];
+  }
+  const distances = new Set();
+  const total = routeLength(route);
+  for (let distance = maxSpacing; distance < total - 1e-5; distance += maxSpacing) {
+    distances.add(Math.round(distance * 1e6) / 1e6);
+  }
+  for (let index = 1; index < route.length - 1; index += 1) {
+    const incoming = unitVector(route[index - 1], route[index]);
+    const outgoing = unitVector(route[index], route[index + 1]);
+    if (!incoming || !outgoing) continue;
+    const angle = Math.acos(Math.max(-1, Math.min(1, (
+      incoming.x * outgoing.x + incoming.y * outgoing.y + incoming.z * outgoing.z
+    ))));
+    if (angle > 15 * Math.PI / 180) {
+      distances.add(routeDistanceAtPoint(route, index));
+    }
+  }
+  return [...distances]
+    .sort((left, right) => left - right)
+    .map((distance) => pointAtRouteDistance(route, distance));
+}
+
+function pointAtRouteDistance(route, target) {
+  let travelled = 0;
+  for (let index = 1; index < route.length; index += 1) {
+    const from = route[index - 1];
+    const to = route[index];
+    const length = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
+    if (travelled + length + 1e-9 >= target || index === route.length - 1) {
+      const ratio = length <= Number.EPSILON
+        ? 0
+        : Math.max(0, Math.min(1, (target - travelled) / length));
+      return {
+        point: vec(
+          from.x + (to.x - from.x) * ratio,
+          from.y + (to.y - from.y) * ratio,
+          from.z + (to.z - from.z) * ratio,
+        ),
+        run: { from, to },
+      };
+    }
+    travelled += length;
+  }
+  const run = { from: route.at(-2), to: route.at(-1) };
+  return { point: route.at(-1), run };
+}
+
+function routeLength(route) {
+  let total = 0;
+  for (let index = 1; index < route.length; index += 1) {
+    total += Math.hypot(
+      route[index].x - route[index - 1].x,
+      route[index].y - route[index - 1].y,
+      route[index].z - route[index - 1].z,
+    );
+  }
+  return total;
+}
+
+function routeDistanceAtPoint(route, pointIndex) {
+  let total = 0;
+  for (let index = 1; index <= pointIndex; index += 1) {
+    total += Math.hypot(
+      route[index].x - route[index - 1].x,
+      route[index].y - route[index - 1].y,
+      route[index].z - route[index - 1].z,
+    );
+  }
+  return total;
+}
+
+function unitVector(from, to) {
+  const x = to.x - from.x;
+  const y = to.y - from.y;
+  const z = to.z - from.z;
+  const length = Math.hypot(x, y, z);
+  return length <= Number.EPSILON ? null : { x: x / length, y: y / length, z: z / length };
+}
+
 // 构件登记表：几何与材质角色分离，材质在实例上覆盖。
 function createBuilder() {
   const state = {
@@ -298,7 +380,10 @@ function createBuilder() {
       transform,
       content: { type: 'primitive', ...content },
       material_id: state.materials.get(materialKey),
-      metadata,
+      metadata: {
+        ...metadata,
+        routeObstacle: 'ignored',
+      },
     });
   };
 
@@ -381,32 +466,26 @@ function createBuilder() {
           point.z - points[index - 1].z,
         ) > 1e-5
       ));
-    const horizontalRuns = coarseRoute.slice(1)
-      .map((point, index) => ({ from: coarseRoute[index], to: point }))
-      .map((run) => ({
-        ...run,
-        length: Math.hypot(run.to.x - run.from.x, run.to.z - run.from.z),
-      }))
-      .filter(({ length }) => length > 1e-5)
-      .sort((left, right) => right.length - left.length);
-    const chooseAttachmentPoint = (radius) => {
-      for (const run of horizontalRuns) {
-        for (const ratio of [0.5, 0.35, 0.65, 0.2, 0.8, 0.1, 0.9]) {
+    const chooseSupportStation = (station, radius) => {
+      const dx = station.run.to.x - station.run.from.x;
+      const dz = station.run.to.z - station.run.from.z;
+      const runLength = Math.hypot(dx, dz);
+      const directionX = runLength > Number.EPSILON ? dx / runLength : 0;
+      const directionZ = runLength > Number.EPSILON ? dz / runLength : 1;
+      for (let distance = 0; distance <= 8; distance += 0.5) {
+        for (const side of distance === 0 ? [1] : [-1, 1]) {
+          const offset = distance * side;
           const point = vec(
-            run.from.x + (run.to.x - run.from.x) * ratio,
-            run.from.y,
-            run.from.z + (run.to.z - run.from.z) * ratio,
+            station.point.x + directionX * offset,
+            station.point.y,
+            station.point.z + directionZ * offset,
           );
-          if (clearOfRoads(point.x, point.z, radius)) return { ...point, run };
+          if (clearOfRoads(point.x, point.z, radius)) {
+            return { point, directionX, directionZ };
+          }
         }
       }
-      return {
-        ...fromEndpoint.position,
-        run: horizontalRuns[0] ?? {
-          from: fromEndpoint.position,
-          to: toEndpoint.position,
-        },
-      };
+      return null;
     };
     const lineId = options.lineId ?? `L-${String(++state.lineSequence).padStart(3, '0')}`;
     const flow = options.flow ?? 'forward';
@@ -439,6 +518,7 @@ function createBuilder() {
           flow,
           service: name,
           medium,
+          maxSupportSpacing: '6',
         },
       },
       material_id: state.materials.get(PIPE_MATERIAL[medium] ?? 'pipe-process'),
@@ -504,53 +584,52 @@ function createBuilder() {
         // unexplained debris at site scale, so expose buried access only when
         // a cutaway or detail view can provide surrounding context.
       } else {
-        const attachment = chooseAttachmentPoint(1.4);
-        const dx = attachment.run.to.x - attachment.run.from.x;
-        const dz = attachment.run.to.z - attachment.run.from.z;
-        const horizontalLength = Math.hypot(dx, dz);
-        const normalX = horizontalLength > Number.EPSILON ? -dz / horizontalLength : 0;
-        const normalZ = horizontalLength > Number.EPSILON ? dx / horizontalLength : 1;
-        const supportTop = routePolicy.kind === 'rack'
-          ? routePolicy.elevation
-          : Math.max(fromEndpoint.position.y, toEndpoint.position.y) + 0.5;
-        const columnHeight = Math.max(0.5, supportTop - 0.12);
-        const supportGroup = `${lineId}-mid`;
-        const supportMetadata = {
-          role: 'pipe-support',
-          lineId,
-          supportGroup,
-          stage: fromEndpoint.metadata.stage,
-        };
-        for (const side of [-1, 1]) {
+        const stations = planSupportStations(coarseRoute, 6);
+        stations.forEach((station, index) => {
+          const attachment = chooseSupportStation(station, 1.4);
+          if (!attachment) return;
+          const normalX = attachment.directionZ;
+          const normalZ = -attachment.directionX;
+          const supportTop = attachment.point.y;
+          const columnHeight = Math.max(0.5, supportTop - 0.12);
+          const supportGroup = `${lineId}-${index}`;
+          const supportMetadata = {
+            role: 'pipe-support',
+            lineId,
+            supportGroup,
+            stage: fromEndpoint.metadata.stage,
+          };
+          for (const side of [-1, 1]) {
+            addPipeAccessory(
+              `${name} 管道支架 ${index + 1} 立柱 ${side < 0 ? 'A' : 'B'}`,
+              box(0.16, columnHeight, 0.16),
+              vec(
+                attachment.point.x + normalX * side * 0.95,
+                columnHeight / 2,
+                attachment.point.z + normalZ * side * 0.95,
+              ),
+              'steel',
+              { ...supportMetadata, supportPart: 'column' },
+            );
+          }
+          const beamYaw = Math.atan2(normalZ, normalX);
           addPipeAccessory(
-            `${name} 管道支架立柱 ${side < 0 ? 'A' : 'B'}`,
-            box(0.16, columnHeight, 0.16),
-            vec(
-              attachment.x + normalX * side * 0.95,
-              columnHeight / 2,
-              attachment.z + normalZ * side * 0.95,
-            ),
+            `${name} 管道支架 ${index + 1} 横梁`,
+            box(2.2, 0.22, 0.22),
+            vec(attachment.point.x, supportTop, attachment.point.z),
             'steel',
-            { ...supportMetadata, supportPart: 'column' },
+            { ...supportMetadata, supportPart: 'beam' },
+            [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
           );
-        }
-        const beamYaw = Math.atan2(normalZ, normalX);
-        addPipeAccessory(
-          `${name} 管道支架横梁`,
-          box(2.2, 0.22, 0.22),
-            vec(attachment.x, supportTop, attachment.z),
-          'steel',
-          { ...supportMetadata, supportPart: 'beam' },
-          [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
-        );
-        addPipeAccessory(
-          `${name} 管道夹`,
-          box(0.42, 0.14, 0.42),
-          vec(attachment.x, supportTop + 0.16, attachment.z),
-          'steel-dark',
-          { ...supportMetadata, role: 'pipe-clamp', supportPart: 'clamp' },
-          [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
-        );
+          addPipeAccessory(
+            `${name} 管道支架 ${index + 1} 管道夹`,
+            box(0.42, 0.14, 0.42),
+            vec(attachment.point.x, supportTop + 0.16, attachment.point.z),
+            'steel-dark',
+            { ...supportMetadata, role: 'pipe-clamp', supportPart: 'clamp' },
+            [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
+          );
+        });
       }
     }
     return lineId;

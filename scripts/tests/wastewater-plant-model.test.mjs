@@ -16,6 +16,7 @@ import {
   assertProjectStats,
   validateConnectionPorts,
   validatePipeAccessoryAlignment,
+  validatePipeSupportSpacing,
   validateProcessGraph,
   validateProjectStats,
   validateSiteRoadClearance,
@@ -194,6 +195,25 @@ test('engineering detail kit emits reusable fittings and access structures', () 
   assert.ok(ids.some((id) => id.startsWith('stair-a')));
   assert.ok(ids.some((id) => id.startsWith('rail-a')));
   assert.ok(ids.some((id) => id.startsWith('support-a')));
+});
+
+test('pipe supports cover every above-ground route at six metre intervals', () => {
+  const result = validatePipeSupportSpacing(buildLegacyPlan('wastewater-plant'), {
+    maxSpacing: 6,
+    tolerance: 1,
+  });
+  assert.deepEqual(result.issues, []);
+});
+
+test('roads declare generic route clearance surfaces', () => {
+  const roads = buildLegacyPlan('wastewater-plant').operations.filter((operation) => (
+    operation.type === 'node.create' && operation.metadata?.roadClass
+  ));
+  assert.ok(roads.length > 0);
+  for (const road of roads) {
+    assert.equal(road.metadata.routeObstacle, 'clearance-surface');
+    assert.equal(road.metadata.routeClearance, '5');
+  }
 });
 
 test('close-up detail kit emits framing, weather protection and roof services', () => {
