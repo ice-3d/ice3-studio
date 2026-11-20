@@ -203,27 +203,32 @@ pub fn validate_route_safety_with_limits(
                     continue;
                 }
                 let hit = if let Some(triangles) = &triangles {
-                    if stats.triangle_pairs >= limits.max_triangle_pairs {
-                        diagnostics.push(Diagnostic {
-                            code: DiagnosticCode::RouteSafetyBudget,
-                            operation_index: None,
-                            object_id: Some(route.node_id.to_string()),
-                            pointer: format!("/scene/nodes/{}/content", route.node_index),
-                            message: format!(
-                                "route safety triangle-pair budget {} exceeded",
-                                limits.max_triangle_pairs
-                            ),
-                        });
-                        validate_support_layout(&routes, &stations, &obstacles, &mut diagnostics);
-                        return (diagnostics, stats);
-                    }
-                    let mut hit = triangles.iter().any(|triangle| {
+                    let mut hit = false;
+                    let mut exhausted = false;
+                    for triangle in triangles {
+                        if stats.triangle_pairs >= limits.max_triangle_pairs {
+                            exhausted = true;
+                            break;
+                        }
                         stats.triangle_pairs += 1;
-                        segment_triangle_distance(segment, *triangle)
+                        if segment_triangle_distance(segment, *triangle)
                             <= route.radius + crate::geometry::CLASH_EPSILON
-                    });
-                    if !hit {
+                        {
+                            hit = true;
+                            break;
+                        }
+                    }
+                    if !hit && !exhausted {
                         for step in 1..=5 {
+                            if triangles.len()
+                                > limits
+                                    .max_triangle_pairs
+                                    .saturating_sub(stats.triangle_pairs)
+                            {
+                                stats.triangle_pairs = limits.max_triangle_pairs;
+                                exhausted = true;
+                                break;
+                            }
                             let ratio = step as f32 / 6.0;
                             let sample = [
                                 segment[0][0] + (segment[1][0] - segment[0][0]) * ratio,
@@ -237,6 +242,20 @@ pub fn validate_route_safety_with_limits(
                                 break;
                             }
                         }
+                    }
+                    if exhausted {
+                        diagnostics.push(Diagnostic {
+                            code: DiagnosticCode::RouteSafetyBudget,
+                            operation_index: None,
+                            object_id: Some(route.node_id.to_string()),
+                            pointer: format!("/scene/nodes/{}/content", route.node_index),
+                            message: format!(
+                                "route safety triangle-pair budget {} exceeded",
+                                limits.max_triangle_pairs
+                            ),
+                        });
+                        validate_support_layout(&routes, &stations, &obstacles, &mut diagnostics);
+                        return (diagnostics, stats);
                     }
                     hit
                 } else {

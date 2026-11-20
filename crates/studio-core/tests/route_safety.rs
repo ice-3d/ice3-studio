@@ -208,6 +208,26 @@ fn route_safety_budget_exhaustion_fails_closed() {
     );
 }
 
+#[test]
+fn triangle_budget_exhaustion_fails_closed_before_scanning_past_the_limit() {
+    let document = rotated_part_clearance_document();
+    let definitions = definitions(&document);
+    let (diagnostics, stats) = validate_route_safety_with_limits(
+        &document,
+        &definitions,
+        RouteSafetyLimits {
+            max_triangle_pairs: 5,
+            ..RouteSafetyLimits::default()
+        },
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::RouteSafetyBudget)
+    );
+    assert!(stats.triangle_pairs <= 5, "{stats:?}");
+}
+
 fn validate_with_segment_limit(limit: usize) -> (Vec<Diagnostic>, RouteSafetyStats) {
     let document = route_collision_document();
     let definitions = definitions(&document);
