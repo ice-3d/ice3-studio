@@ -71,6 +71,37 @@ fn rotated_component_part_uses_narrow_phase_after_box_overlap() {
     assert!(stats.triangle_pairs > 0);
 }
 
+#[test]
+fn clearance_surface_rejects_a_low_crossing() {
+    for (surface_y, clearance, expected) in [(0.0, 5.0, true), (4.0, 1.0, true), (3.9, 0.5, false)]
+    {
+        let diagnostics = clearance_diagnostics(surface_y, clearance);
+        assert_eq!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == DiagnosticCode::RouteClearanceInsufficient
+            }),
+            expected,
+        );
+    }
+}
+
+fn clearance_diagnostics(surface_y: f32, clearance: f32) -> Vec<Diagnostic> {
+    let mut document = collision_document();
+    for node in document.scene.nodes_mut() {
+        if node.name.starts_with("Pump") {
+            node.transform.translation.y = 5.0;
+        }
+        if node.name == "Obstacle" {
+            node.transform.translation.y = surface_y;
+            node.metadata
+                .insert("routeObstacle".into(), "clearance-surface".into());
+            node.metadata
+                .insert("routeClearance".into(), clearance.to_string());
+        }
+    }
+    run_route_safety(&document).0
+}
+
 fn collision_document() -> Document {
     let mut document = shared_pump_document();
     document.components[0].ports = vec![

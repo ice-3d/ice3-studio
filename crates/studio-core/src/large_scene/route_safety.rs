@@ -105,6 +105,31 @@ pub fn validate_route_safety(
             let original_segment = [points[0], points[1]];
             let length = route.cumulative[segment_index + 1] - route.cumulative[segment_index];
             for obstacle in &obstacles {
+                if let ObstacleClass::ClearanceSurface { clearance } = obstacle.class {
+                    if !segment_crosses_footprint(original_segment, &obstacle.bounds) {
+                        continue;
+                    }
+                    let lowest = original_segment[0][1].min(original_segment[1][1]) - route.radius;
+                    let required = obstacle.bounds.max.y + clearance;
+                    if lowest + crate::geometry::CLASH_EPSILON >= required {
+                        continue;
+                    }
+                    if reported.insert(obstacle.source_id.clone()) {
+                        diagnostics.push(Diagnostic {
+                            code: DiagnosticCode::RouteClearanceInsufficient,
+                            operation_index: None,
+                            object_id: Some(route.node_id.to_string()),
+                            pointer: format!("/scene/nodes/{}/content", route.node_index),
+                            message: format!(
+                                "route clearance above {} is {:.3} m, requires {:.3} m",
+                                obstacle.source_id,
+                                lowest - obstacle.bounds.max.y,
+                                clearance,
+                            ),
+                        });
+                    }
+                    continue;
+                }
                 if !matches!(obstacle.class, ObstacleClass::Solid) {
                     continue;
                 }
@@ -424,6 +449,42 @@ fn point_in_mesh(point: [f32; 3], triangles: &[[[f32; 3]; 3]]) -> (bool, usize) 
         .filter(|triangle| segment_triangle([point, far], **triangle))
         .count();
     (crossings % 2 == 1, triangles.len())
+}
+
+fn segment_crosses_footprint(segment: [[f32; 3]; 2], bounds: &Bounds) -> bool {
+    let mut minimum = 0.0_f32;
+    let mut maximum = 1.0_f32;
+    for axis in [0_usize, 2] {
+        let direction = segment[1][axis] - segment[0][axis];
+        let low = if axis == 0 {
+            bounds.min.x
+        } else {
+            bounds.min.z
+        };
+        let high = if axis == 0 {
+            bounds.max.x
+        } else {
+            bounds.max.z
+        };
+        if direction.abs() <= f32::EPSILON {
+            if segment[0][axis] < low || segment[0][axis] > high {
+                return false;
+            }
+            continue;
+        }
+        let inverse = 1.0 / direction;
+        let mut near = (low - segment[0][axis]) * inverse;
+        let mut far = (high - segment[0][axis]) * inverse;
+        if near > far {
+            std::mem::swap(&mut near, &mut far);
+        }
+        minimum = minimum.max(near);
+        maximum = maximum.min(far);
+        if minimum > maximum {
+            return false;
+        }
+    }
+    true
 }
 
 fn transform_bounds(bounds: Bounds, matrix: Mat4) -> Bounds {
