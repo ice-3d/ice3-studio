@@ -1,8 +1,10 @@
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use studio_assets::canonical::{
     CanonicalMaterial, CanonicalMesh, CanonicalNode, CanonicalPrimitive, CanonicalScene,
-    PreparedGlbOptions, write_prepared_glb,
+    CanonicalSurface, PreparedGlbOptions, write_prepared_glb,
 };
+use studio_assets::surface::AlphaMode;
 use studio_assets::{read_glb_bytes, validate_prepared_profile};
 
 #[test]
@@ -55,6 +57,45 @@ fn generates_normals_when_the_source_has_none() {
     );
 }
 
+#[test]
+fn canonical_material_defaults_keep_legacy_texture_behavior() {
+    let scene = fixture_scene();
+    let bytes = write_prepared_glb(&scene, &options("writer-fixture")).unwrap();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bytes)),
+        "e3da988f73c5955b395b89d28268ff93a0004ddfd17def9a3765a66b24768d6d"
+    );
+    let parsed = read_glb_bytes(&bytes, &std::env::temp_dir()).unwrap();
+
+    assert_eq!(parsed.json["materials"][0]["alphaMode"], "BLEND");
+    assert_eq!(
+        parsed.json["materials"][0]["pbrMetallicRoughness"]["metallicFactor"],
+        0.0
+    );
+    assert!(parsed.json["materials"][0].get("doubleSided").is_none());
+}
+
+#[test]
+fn rejects_invalid_alpha_and_surface_values() {
+    let mut scene = fixture_scene();
+    scene.materials[0].alpha_cutoff = f32::NAN;
+    let error = write_prepared_glb(&scene, &options("invalid")).unwrap_err();
+    assert_eq!(error.code(), "ICE3_ASSET_PROFILE_INVALID");
+
+    let mut scene = fixture_scene();
+    scene.materials[0].surface = Some(CanonicalSurface {
+        metallic: -0.1,
+        roughness: 1.0,
+        emissive: None,
+        base_color_texture: None,
+        normal_texture: None,
+        occlusion_texture: None,
+        metallic_roughness_texture: None,
+    });
+    let error = write_prepared_glb(&scene, &options("invalid")).unwrap_err();
+    assert_eq!(error.code(), "ICE3_ASSET_PROFILE_INVALID");
+}
+
 fn options(asset_id: &str) -> PreparedGlbOptions {
     PreparedGlbOptions {
         asset_id: asset_id.into(),
@@ -98,6 +139,7 @@ fn fixture_scene() -> CanonicalScene {
                 positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
                 normals: Some(vec![[0.0, 0.0, 1.0]; 3]),
                 colors: None,
+                uvs: None,
                 indices: vec![0, 1, 2],
                 material: Some(0),
             }],
@@ -109,8 +151,13 @@ fn fixture_scene() -> CanonicalScene {
             base_color: [0.2, 0.5, 0.9],
             opacity: 0.75,
             extras: json!({"ice3": {"id": "glass"}}),
+            alpha_mode: AlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+            double_sided: false,
+            surface: None,
             texture: None,
         }],
+        resources: Vec::new(),
         asset_extras: json!({"coordinateSystem": {"upAxis": "y"}}),
     }
 }

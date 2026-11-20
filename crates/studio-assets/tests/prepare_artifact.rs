@@ -3,6 +3,7 @@ use studio_assets::canonical::{
     CanonicalMaterial, CanonicalMesh, CanonicalNode, CanonicalPrimitive, CanonicalScene,
     PreparedGlbOptions, write_prepared_glb,
 };
+use studio_assets::surface::AlphaMode;
 use studio_assets::{
     BudgetProfile, BudgetStatus, PrepareOptions, SourceGlb, read_glb_bytes,
     validate_prepared_profile,
@@ -82,6 +83,10 @@ fn unused_materials_do_not_gain_edge_materials() {
         name: "Unused".into(),
         base_color: [0.1, 0.2, 0.3],
         opacity: 1.0,
+        alpha_mode: AlphaMode::Opaque,
+        alpha_cutoff: 0.5,
+        double_sided: false,
+        surface: None,
         extras: json!({"ice3": {"id": "unused"}}),
         texture: None,
     });
@@ -372,6 +377,7 @@ fn triangle_scene() -> CanonicalScene {
                 positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
                 normals: Some(vec![[0.0, 0.0, 1.0]; 3]),
                 colors: None,
+                uvs: None,
                 indices: vec![0, 1, 2],
                 material: Some(0),
             }],
@@ -382,9 +388,14 @@ fn triangle_scene() -> CanonicalScene {
             name: "Glass".into(),
             base_color: [0.2, 0.5, 0.9],
             opacity: 1.0,
+            alpha_mode: AlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+            double_sided: false,
+            surface: None,
             extras: json!({"ice3": {"id": "glass"}}),
             texture: None,
         }],
+        resources: Vec::new(),
         asset_extras: json!({"coordinateSystem": {"upAxis": "y"}}),
     }
 }

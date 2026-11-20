@@ -6,6 +6,7 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::prepare_canonical;
+use crate::surface::{AlphaMode, TextureSampler, TextureTransform};
 use crate::{
     AssetError, AssetMetrics, AssetResult, BudgetProfile, BudgetStatus, PreparationMetadata,
     PrepareArtifact, PrepareOptions, edge_color_from_material, evaluate_budget,
@@ -18,9 +19,45 @@ pub struct CanonicalMaterial {
     pub name: String,
     pub base_color: [f32; 3],
     pub opacity: f32,
+    pub alpha_mode: AlphaMode,
+    pub alpha_cutoff: f32,
+    pub double_sided: bool,
+    pub surface: Option<CanonicalSurface>,
     pub extras: Value,
     /// Base-colour texture written as a relative file next to the asset.
     pub texture: Option<CanonicalTexture>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CanonicalSurface {
+    pub metallic: f32,
+    pub roughness: f32,
+    pub emissive: Option<[f32; 3]>,
+    pub base_color_texture: Option<CanonicalTextureBinding>,
+    pub normal_texture: Option<CanonicalNormalTexture>,
+    pub occlusion_texture: Option<CanonicalTextureBinding>,
+    pub metallic_roughness_texture: Option<CanonicalTextureBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CanonicalNormalTexture {
+    pub binding: CanonicalTextureBinding,
+    pub scale: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CanonicalTextureBinding {
+    pub resource: String,
+    pub tex_coord: u32,
+    pub transform: TextureTransform,
+    pub sampler: TextureSampler,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalResource {
+    pub digest: String,
+    pub media_type: String,
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +73,7 @@ pub struct CanonicalPrimitive {
     pub positions: Vec<[f32; 3]>,
     pub normals: Option<Vec<[f32; 3]>>,
     pub colors: Option<Vec<[f32; 3]>>,
+    pub uvs: Option<Vec<[f32; 2]>>,
     pub indices: Vec<u32>,
     pub material: Option<usize>,
 }
@@ -65,6 +103,7 @@ pub struct CanonicalScene {
     pub nodes: Vec<CanonicalNode>,
     pub meshes: Vec<CanonicalMesh>,
     pub materials: Vec<CanonicalMaterial>,
+    pub resources: Vec<CanonicalResource>,
     pub asset_extras: Value,
 }
 
@@ -772,6 +811,17 @@ fn validate_materials(materials: &[CanonicalMaterial]) -> AssetResult<()> {
             || !ids.insert(&material.id)
             || !unit_value(material.opacity)
             || material.base_color.iter().any(|value| !unit_value(*value))
+            || !material.alpha_cutoff.is_finite()
+            || !(0.0..=1.0).contains(&material.alpha_cutoff)
+            || material.surface.as_ref().is_some_and(|surface| {
+                !unit_value(surface.metallic)
+                    || !unit_value(surface.roughness)
+                    || surface.emissive.is_some_and(|value| {
+                        value
+                            .iter()
+                            .any(|component| !component.is_finite() || *component < 0.0)
+                    })
+            })
         {
             return Err(invalid("material is invalid"));
         }

@@ -5,6 +5,7 @@ use studio_assets::canonical::{
     CanonicalMaterial, CanonicalMesh, CanonicalNode, CanonicalPrimitive, CanonicalScene,
     CanonicalTexture,
 };
+use studio_assets::surface::AlphaMode;
 use studio_assets::{BudgetProfile, PrepareOptions, read_glb_bytes, validate_prepared_profile};
 
 fn scene_with(texture: Option<CanonicalTexture>) -> CanonicalScene {
@@ -28,6 +29,7 @@ fn scene_with(texture: Option<CanonicalTexture>) -> CanonicalScene {
                 positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
                 normals: Some(vec![[0.0, 0.0, 1.0]; 3]),
                 colors: None,
+                uvs: None,
                 indices: vec![0, 1, 2],
                 material: Some(0),
             }],
@@ -38,9 +40,14 @@ fn scene_with(texture: Option<CanonicalTexture>) -> CanonicalScene {
             name: "Steel".into(),
             base_color: [0.6, 0.6, 0.62],
             opacity: 1.0,
+            alpha_mode: AlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+            double_sided: false,
+            surface: None,
             extras: json!({"ice3": {"id": "steel"}}),
             texture,
         }],
+        resources: Vec::new(),
         asset_extras: json!({"coordinateSystem": {"upAxis": "y"}}),
     }
 }

@@ -6,6 +6,7 @@ use studio_assets::canonical::{
     CanonicalMaterial, CanonicalMesh, CanonicalNode, CanonicalPrimitive, CanonicalScene,
     PreparedGlbOptions, write_prepared_glb,
 };
+use studio_assets::surface::AlphaMode;
 use studio_assets::{AccessorData, read_accessor, read_glb_bytes};
 use studio_pipeline::lod::{
     CoarseChunkUnit, FitSamples, SemanticProxyMode, Simplifier, SimplifyOptions,
@@ -119,6 +120,7 @@ fn static_batching_preserves_vertex_colors() {
                 positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
                 normals: Some(vec![[0.0, 0.0, 1.0]; 3]),
                 colors: Some(vec![[1.0, 0.25, 0.0]; 3]),
+                uvs: None,
                 indices: vec![0, 1, 2],
                 material: Some(0),
             }],
@@ -129,9 +131,14 @@ fn static_batching_preserves_vertex_colors() {
             name: "Orange".into(),
             base_color: [1.0, 0.25, 0.0],
             opacity: 1.0,
+            alpha_mode: AlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+            double_sided: false,
+            surface: None,
             extras: json!({"ice3": {"id": "orange"}}),
             texture: None,
         }],
+        resources: Vec::new(),
         asset_extras: json!({}),
     };
     let bytes = write_prepared_glb(
