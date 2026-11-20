@@ -78,6 +78,7 @@
 | `ICE3-STUDIO-SPEC-031` | [圆角与倒角（Fillet / Chamfer）](specs/2026-11-03-fillet-chamfer-design.md) | Implemented | 盒体 12 边倒角与圆角；任意 B-rep 圆角非目标 |
 | `ICE3-STUDIO-SPEC-032` | [材质表面、UV 与 PBR 导出](specs/2026-11-04-material-pbr-uv-design.md) | Implemented | 底色/法线/ORM 打包贴图与 uvScale，对齐 glTF metallic-roughness |
 | `ICE3-STUDIO-SPEC-033` | [管线工程安全门禁](specs/2026-11-19-route-safety-gate-design.md) | Implemented | 管线实体碰撞、净空面、端点接入、支撑间距、预算与性能门禁 |
+| `ICE3-STUDIO-SPEC-034` | [导入材质表面保真](specs/2026-11-20-import-material-surface-fidelity-design.md) | Proposed | glTF/GLB 四类贴图、源 UV、transform、sampler 与受控资源发布 |
 
 ## 5. 实施计划
 
