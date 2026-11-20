@@ -4,11 +4,14 @@ use std::path::Path;
 use glam::{Mat4, Quat, Vec3};
 use serde_json::{Map, Value, json};
 use studio_assets::surface::AlphaMode;
-use studio_assets::{AccessorData, SourceGlb, read_accessor, read_glb};
+use studio_assets::{
+    AccessorData, MAX_TEXTURE_BYTES, MAX_TEXTURE_COUNT, MAX_TEXTURE_TOTAL_BYTES, SourceGlb,
+    read_accessor, read_glb, read_image_buffer_view, read_image_uri,
+};
 
 use crate::{
     ImportError, ImportRequest, ImportWarning, SourceCapabilities, SourceFormat, SourceImporter,
-    SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceScene,
+    SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceResource, SourceScene,
 };
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -100,6 +103,9 @@ pub(crate) fn import_source_glb(
         }
     }
 
+    let mut warnings = BTreeSet::new();
+    let mut resources = BTreeMap::new();
+    load_referenced_images(source, &raw_materials, &mut resources)?;
     let materials = raw_materials
         .iter()
         .enumerate()
@@ -107,7 +113,6 @@ pub(crate) fn import_source_glb(
         .collect::<Result<Vec<_>, _>>()?;
     let mut mesh_map = BTreeMap::new();
     let mut output_meshes = Vec::new();
-    let mut warnings = BTreeSet::new();
     for (index, mesh) in meshes.iter().enumerate() {
         if !active.iter().any(|node| {
             nodes[*node]
@@ -184,7 +189,7 @@ pub(crate) fn import_source_glb(
         nodes: output_nodes,
         meshes: output_meshes,
         materials,
-        resources: Vec::new(),
+        resources: resources.into_values().collect(),
         warnings: warnings.into_iter().collect(),
         asset_extras: json!({
             "coordinateSystem": source
@@ -268,6 +273,112 @@ fn import_material(
     })
 }
 
+fn load_referenced_images(
+    source: &SourceGlb,
+    materials: &[Value],
+    resources: &mut BTreeMap<String, SourceResource>,
+) -> Result<(), ImportError> {
+    let Some(textures) = source.json.get("textures").and_then(Value::as_array) else {
+        return Ok(());
+    };
+    let mut texture_indices = BTreeSet::new();
+    for material in materials {
+        for info in [
+            material
+                .pointer("/pbrMetallicRoughness/baseColorTexture")
+                .and_then(Value::as_object),
+            material
+                .pointer("/pbrMetallicRoughness/metallicRoughnessTexture")
+                .and_then(Value::as_object),
+            material.get("normalTexture").and_then(Value::as_object),
+            material.get("occlusionTexture").and_then(Value::as_object),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let Some(index) = info.get("index").and_then(Value::as_u64) else {
+                continue;
+            };
+            texture_indices.insert(
+                usize::try_from(index)
+                    .map_err(|_| ImportError::InvalidSource("texture index is invalid".into()))?,
+            );
+        }
+    }
+    for texture_index in texture_indices {
+        let texture = textures
+            .get(texture_index)
+            .and_then(Value::as_object)
+            .ok_or_else(|| ImportError::InvalidSource("texture index is out of range".into()))?;
+        let image_index = texture
+            .get("source")
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok())
+            .ok_or_else(|| ImportError::InvalidSource("texture image is missing".into()))?;
+        load_image(source, resources, image_index)?;
+    }
+    Ok(())
+}
+
+fn load_image(
+    source: &SourceGlb,
+    resources: &mut BTreeMap<String, SourceResource>,
+    image_index: usize,
+) -> Result<SourceResource, ImportError> {
+    let image = source
+        .json
+        .get("images")
+        .and_then(Value::as_array)
+        .and_then(|images| images.get(image_index))
+        .ok_or_else(|| ImportError::InvalidSource("image index is out of range".into()))?;
+    let declared = image.get("mimeType").and_then(Value::as_str);
+    let imported = if let Some(uri) = image.get("uri").and_then(Value::as_str) {
+        read_image_uri(uri, &source.base_dir, declared, MAX_TEXTURE_BYTES)
+    } else if image.get("bufferView").is_some() {
+        read_image_buffer_view(source, image, MAX_TEXTURE_BYTES)
+    } else {
+        return Err(ImportError::InvalidSource(
+            "image has no data source".into(),
+        ));
+    }
+    .map_err(|error| ImportError::InvalidSource(error.to_string()))?;
+
+    if let Some(existing) = resources.get(&imported.digest) {
+        if existing.media_type != imported.media_type || existing.bytes != imported.bytes {
+            return Err(ImportError::InvalidSource(
+                "image digest has conflicting content".into(),
+            ));
+        }
+        return Ok(existing.clone());
+    }
+    if resources.len() >= MAX_TEXTURE_COUNT {
+        return Err(ImportError::LimitExceeded(format!(
+            "scene has more than {MAX_TEXTURE_COUNT} texture resources"
+        )));
+    }
+    let current_bytes = resources
+        .values()
+        .try_fold(0_usize, |total, resource| {
+            total.checked_add(resource.bytes.len())
+        })
+        .ok_or_else(|| ImportError::LimitExceeded("texture byte count overflowed".into()))?;
+    let next_bytes = current_bytes
+        .checked_add(imported.bytes.len())
+        .ok_or_else(|| ImportError::LimitExceeded("texture byte count overflowed".into()))?;
+    if next_bytes > MAX_TEXTURE_TOTAL_BYTES {
+        return Err(ImportError::LimitExceeded(format!(
+            "scene texture byte count exceeds {MAX_TEXTURE_TOTAL_BYTES}"
+        )));
+    }
+    let resource = SourceResource {
+        digest: imported.digest,
+        media_type: imported.media_type,
+        bytes: imported.bytes,
+    };
+    resources.insert(resource.digest.clone(), resource.clone());
+    Ok(resource)
+}
+
 fn import_mesh(
     source: &SourceGlb,
     value: &Value,
@@ -318,6 +429,7 @@ fn import_mesh(
             .collect::<Vec<_>>();
         let normals = optional_vec3(source, attributes.get("NORMAL"))?;
         let colors = optional_vec3(source, attributes.get("COLOR_0"))?;
+        let uvs = optional_triangle_uvs(source, attributes, warnings)?;
         let indices = match primitive.get("indices") {
             Some(value) => {
                 let index = value
@@ -331,7 +443,7 @@ fn import_mesh(
                 {
                     AccessorData::U16 { values, .. } => values.into_iter().map(u32::from).collect(),
                     AccessorData::U32 { values, .. } => values,
-                    AccessorData::F32 { .. } => {
+                    AccessorData::F32 { .. } | AccessorData::U8 { .. } => {
                         return Err(ImportError::InvalidSource(
                             "indices must be integers".into(),
                         ));
@@ -352,7 +464,7 @@ fn import_mesh(
             positions,
             normals,
             colors,
-            uvs: None,
+            uvs,
             indices,
             material: primitive
                 .get("material")
@@ -408,6 +520,61 @@ fn optional_vec3(
             .0
             .iter()
             .map(|value| [value[0], value[1], value[2]])
+            .collect(),
+    ))
+}
+
+fn optional_triangle_uvs(
+    source: &SourceGlb,
+    attributes: &Map<String, Value>,
+    warnings: &mut BTreeSet<ImportWarning>,
+) -> Result<Option<Vec<[f32; 2]>>, ImportError> {
+    let Some(value) = attributes.get("TEXCOORD_0") else {
+        return Ok(None);
+    };
+    let index = value
+        .as_u64()
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| ImportError::InvalidSource("TEXCOORD_0 accessor is invalid".into()))?;
+    let accessor = source
+        .json
+        .get("accessors")
+        .and_then(Value::as_array)
+        .and_then(|accessors| accessors.get(index))
+        .and_then(Value::as_object)
+        .ok_or_else(|| ImportError::InvalidSource("TEXCOORD_0 accessor is missing".into()))?;
+    let component_type = accessor.get("componentType").and_then(Value::as_u64);
+    let normalized = accessor.get("normalized").and_then(Value::as_bool) == Some(true);
+    let supported_components =
+        component_type == Some(5126) || (normalized && matches!(component_type, Some(5121 | 5123)));
+    if accessor.contains_key("sparse")
+        || accessor.get("type").and_then(Value::as_str) != Some("VEC2")
+        || !supported_components
+    {
+        warnings.insert(warning(
+            "ICE3_STUDIO_IMPORT_TEXTURE_COORDINATE_UNSUPPORTED",
+            "only dense float or normalized integer VEC2 TEXCOORD_0 accessors are imported",
+        ));
+        return Ok(None);
+    }
+    let AccessorData::F32 {
+        values,
+        components: 2,
+    } = read_accessor(source, index)
+        .map_err(|error| ImportError::InvalidSource(error.to_string()))?
+    else {
+        warnings.insert(warning(
+            "ICE3_STUDIO_IMPORT_TEXTURE_COORDINATE_UNSUPPORTED",
+            "TEXCOORD_0 accessor encoding is not imported",
+        ));
+        return Ok(None);
+    };
+    Ok(Some(
+        values
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|value| [value[0], value[1]])
             .collect(),
     ))
 }
@@ -616,14 +783,7 @@ fn ensure_ice3_object(extras: &mut Value) -> Result<&mut Map<String, Value>, Imp
 }
 
 fn add_unsupported_resource_warnings(json: &Value, warnings: &mut BTreeSet<ImportWarning>) {
-    for field in [
-        "animations",
-        "skins",
-        "cameras",
-        "textures",
-        "images",
-        "samplers",
-    ] {
+    for field in ["animations", "skins", "cameras"] {
         if json
             .get(field)
             .and_then(Value::as_array)

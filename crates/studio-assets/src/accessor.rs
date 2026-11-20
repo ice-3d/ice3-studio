@@ -1,5 +1,6 @@
 use crate::{AssetError, AssetResult, SourceGlb};
 
+const COMPONENT_U8: u64 = 5121;
 const COMPONENT_U16: u64 = 5123;
 const COMPONENT_U32: u64 = 5125;
 const COMPONENT_F32: u64 = 5126;
@@ -7,6 +8,7 @@ const COMPONENT_F32: u64 = 5126;
 #[derive(Debug, Clone, PartialEq)]
 pub enum AccessorData {
     F32 { values: Vec<f32>, components: usize },
+    U8 { values: Vec<u8>, components: usize },
     U16 { values: Vec<u16>, components: usize },
     U32 { values: Vec<u32>, components: usize },
 }
@@ -15,6 +17,7 @@ impl AccessorData {
     pub fn components(&self) -> usize {
         match self {
             Self::F32 { components, .. }
+            | Self::U8 { components, .. }
             | Self::U16 { components, .. }
             | Self::U32 { components, .. } => *components,
         }
@@ -23,6 +26,7 @@ impl AccessorData {
     pub fn len(&self) -> usize {
         match self {
             Self::F32 { values, .. } => values.len(),
+            Self::U8 { values, .. } => values.len(),
             Self::U16 { values, .. } => values.len(),
             Self::U32 { values, .. } => values.len(),
         }
@@ -46,6 +50,13 @@ impl AccessorData {
         }
     }
 
+    pub fn as_u8(&self) -> Option<&[u8]> {
+        match self {
+            Self::U8 { values, .. } => Some(values),
+            _ => None,
+        }
+    }
+
     pub fn as_u32(&self) -> Option<&[u32]> {
         match self {
             Self::U32 { values, .. } => Some(values),
@@ -62,16 +73,14 @@ pub fn read_accessor(source: &SourceGlb, accessor_index: usize) -> AssetResult<A
     if accessor.contains_key("sparse") {
         return Err(accessor_error("sparse accessors are unsupported"));
     }
-    if accessor
+    let normalized = accessor
         .get("normalized")
         .and_then(serde_json::Value::as_bool)
-        == Some(true)
-    {
-        return Err(accessor_error("normalized accessors are unsupported"));
-    }
+        == Some(true);
 
     let component_type = unsigned(accessor.get("componentType"), "componentType")?;
     let component_bytes = match component_type {
+        COMPONENT_U8 => 1,
         COMPONENT_U16 => 2,
         COMPONENT_U32 | COMPONENT_F32 => 4,
         other => {
@@ -142,12 +151,13 @@ pub fn read_accessor(source: &SourceGlb, accessor_index: usize) -> AssetResult<A
         let element_start = start + element * stride;
         for component in 0..components {
             let offset = element_start + component * component_bytes;
-            let value = match component_type {
+            let mut value = match component_type {
                 COMPONENT_F32 => f32::from_le_bytes(
                     buffer[offset..offset + 4]
                         .try_into()
                         .map_err(|_| AssetError::AccessorOutOfRange)?,
                 ),
+                COMPONENT_U8 => buffer[offset] as f32,
                 COMPONENT_U16 => u16::from_le_bytes(
                     buffer[offset..offset + 2]
                         .try_into()
@@ -160,12 +170,30 @@ pub fn read_accessor(source: &SourceGlb, accessor_index: usize) -> AssetResult<A
                 ) as f32,
                 _ => unreachable!(),
             };
+            if normalized {
+                value /= match component_type {
+                    COMPONENT_U8 => u8::MAX as f32,
+                    COMPONENT_U16 => u16::MAX as f32,
+                    _ => {
+                        return Err(accessor_error(
+                            "only unsigned integer accessors can be normalized",
+                        ));
+                    }
+                };
+            }
             values.push(value);
         }
     }
 
+    if normalized {
+        return Ok(AccessorData::F32 { values, components });
+    }
     match component_type {
         COMPONENT_F32 => Ok(AccessorData::F32 { values, components }),
+        COMPONENT_U8 => Ok(AccessorData::U8 {
+            values: values.into_iter().map(|value| value as u8).collect(),
+            components,
+        }),
         COMPONENT_U16 => Ok(AccessorData::U16 {
             values: values.into_iter().map(|value| value as u16).collect(),
             components,
