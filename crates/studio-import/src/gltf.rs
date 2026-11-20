@@ -667,7 +667,7 @@ fn import_mesh(
                 {
                     AccessorData::U16 { values, .. } => values.into_iter().map(u32::from).collect(),
                     AccessorData::U32 { values, .. } => values,
-                    AccessorData::F32 { .. } | AccessorData::U8 { .. } => {
+                    AccessorData::F32 { .. } => {
                         return Err(ImportError::InvalidSource(
                             "indices must be integers".into(),
                         ));
