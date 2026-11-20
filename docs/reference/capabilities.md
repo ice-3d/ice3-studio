@@ -9,11 +9,12 @@
 本文件是 Studio 对外能力的**代码镜像**。内容逐项来自 `crates/` 与 `apps/viewer/src/`，
 实现变更时同步更新；与其它文档冲突时以本文件和代码为准。
 
-`API_VERSION` 当前为 `1.3`，但项目仍是 pre-release。1.1 把 Operation 字段名统一为
+`API_VERSION` 当前为 `1.4`，但项目仍是 pre-release。1.1 把 Operation 字段名统一为
 camelCase，并保留历史 snake_case 别名双读（见
 [ADR-003](../decisions/0003-wire-format-camel-case.md)）；1.2 要求四个变更集写方法
 携带 `idempotencyKey`，重试不再产生重复副作用；1.3 让 `changeset.evaluate` 附带
-`spatial` 预检摘要（改动包围盒、越界节点数），它是信息性的，不影响 `status`。
+`spatial` 预检摘要（改动包围盒、越界节点数），它是信息性的，不影响 `status`；1.4
+增加五个稳定路由安全 Diagnostic code，method 和 Operation 不变。
 历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`。capabilities 调用方必须按当前 generated schema 解析，不能把版本
@@ -85,7 +86,18 @@ camelCase，并保留历史 snake_case 别名双读（见
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
-| `validation.run` | 否 | `ValidationRunRequest`（`includeOverlaps` 默认 false） | 诊断数组；重叠审计为 `ICE3_STUDIO_GEOMETRY_OVERLAP` warning（轴向深度 + 体积占比双阈值，重合上报） |
+| `validation.run` | 否 | `ValidationRunRequest`（`includeOverlaps` 默认 false） | 常规与管线安全诊断数组；重叠审计为 `ICE3_STUDIO_GEOMETRY_OVERLAP` warning（轴向深度 + 体积占比双阈值，重合上报） |
+
+管线安全预检同时进入 `document.apply`、dry run 和 ChangeSet evaluate。它对正式路由
+中心线执行实体碰撞、净空面、端点接入和支撑布局检查，并有确定性的宽相位、候选窄相位
+顺序。`routeObstacle` 支持 `solid`（缺省）、`ignored`、`clearance-surface`；
+`routeClearance`、`maxSupportSpacing` 和 `lineId` 的非法值失败关闭。
+connection 未声明 `lineId` 时不执行资产级支撑布局。
+
+端点接触段豁免为 `1.5m`。非 Buried 路线缺省最大支撑间距为 `6m`，支撑水平投影容差为
+`1m`；超过 `15°` 的转弯要求在 `max(1m, 4 × diameter)` 内有支撑。跨越净空面的支撑
+间隔豁免。预算为 50,000 个障碍 owner、50,000 个路由段、1,000,000 个三角形对和每条
+connection 32 条碰撞报告；耗尽时失败关闭。
 
 ### 2.7 evaluation（5）
 
@@ -172,7 +184,7 @@ Material 的 `opacity < 1` 导出为 alpha blend；`shading` 可为 `directional
 
 只有 `ready` 状态且提交时 digest 与审批时一致才会落为 revision。
 
-## 5. 诊断码（28）
+## 5. 诊断码（33）
 
 全部以 `ICE3_STUDIO_` 为前缀，稳定且不复用。
 
@@ -185,6 +197,7 @@ Material 的 `opacity < 1` 导出为 alpha blend；`shading` 可为 `directional
 | 引用资产 | `ICE3_STUDIO_REFERENCE_INVALID`、`ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED` |
 | 导出与预览 | `ICE3_STUDIO_EXPORT_FAILED`、`ICE3_STUDIO_RUNTIME_PREVIEW_FAILED` |
 | GPU | `ICE3_STUDIO_GPU_UNAVAILABLE`、`ICE3_STUDIO_GPU_INCOMPATIBLE`、`ICE3_STUDIO_GPU_DEVICE_LOST`、`ICE3_STUDIO_GPU_KERNEL_FAILED`、`ICE3_STUDIO_GPU_PARITY_FAILED`、`ICE3_STUDIO_GPU_BUDGET_EXCEEDED` |
+| 管线安全 | `ICE3_STUDIO_ROUTE_COLLISION`、`ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT`、`ICE3_STUDIO_ROUTE_SUPPORT_MISSING`、`ICE3_STUDIO_ROUTE_SUPPORT_SPACING`、`ICE3_STUDIO_ROUTE_SAFETY_BUDGET` |
 
 完整说明与恢复规则见 [Diagnostics](diagnostics.md)。
 
@@ -236,6 +249,7 @@ ice3-studio export stl --project <dir> --output <file.stl> [--force]
 ice3-studio export obj --project <dir> --output <file.obj> [--force]
 ice3-studio export ifc --project <dir> --output <file.ifc> [--force]
 ice3-studio export dxf --project <dir> --output <file.dxf> [--force]
+ice3-studio route-safety-report --project <dir> [--output <file>]
 ice3-studio serve --workspace <dir> --project <id>
                   [--fixture <dir>] [--port <u16>] [--write-mode <mode>]
                   [--native-gpu <cpu|auto|gpu>]
@@ -379,7 +393,16 @@ revision。
 `plant/equipment/<tag>`；无 tag 的独立场景对象使用 source owner ID。`nodeSelectionIds`
 按稳定 ID 排序，bounds 使用 world-space union，`area` 优先取 `train`，否则取 `stage`。
 
-### 6.4 STEP 导出
+### 6.4 路由安全基准
+
+`ice3-studio route-safety-report --project <dir> [--output <file>]` 只读打开 committed
+revision，输出 `{ revision, diagnostics, stats }`；diagnostics 非空时以非零状态退出。
+`npm run benchmark:route-safety` 在临时 workspace 重生成污水厂，预热 5 次后测量 20 次
+`validation.run`，写入 `output/route-safety-benchmark.json`。污水厂 p95 上限为 `150ms`，
+额外 RSS 上限为 `64 MiB`。大型工业 fixture 使用同样 20 次测量，p95 上限为 `250ms`，
+并在 `output/large-industrial-fixture.json` 同时记录路由计数。
+
+### 6.5 STEP 导出
 
 `export step` 读取当前 committed revision，求值后写出 AP242 三角化 STEP
 （`AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF`）：

@@ -9,11 +9,12 @@
 Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
 路径；所有修改都必须进入事务或 ChangeSet。
 
-`API_VERSION` 当前为 `1.3`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
+`API_VERSION` 当前为 `1.4`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
 读回显从 snake_case 变为 camelCase（见 [ADR-003](../decisions/0003-wire-format-camel-case.md)）；
 1.2 要求 `changeset.create`、`addOperations`、`removeOperations`、`discard` 携带
 `idempotencyKey`；1.3 在 `changeset.evaluate` 的返回里增加 `spatial` 预检摘要，
-它是可选字段，不参与状态判定。历史 API 曾包含
+它是可选字段，不参与状态判定；1.4 新增管线路径碰撞、净空面、支撑布局和路由安全预算
+五个 Diagnostic code，JSON-RPC method 与 Operation 形状不变。历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`，客户端必须按当前 generated schema 解析 capabilities。该形状变化
 不承诺向后兼容，不能把 `1.0` 当作兼容性承诺。
@@ -239,6 +240,48 @@ Document。
 单向包含（嵌套）与浅接触（室内设备突出建筑轮廓）不产生噪音；双向包含（实体重合）
 按冲突上报；至多 50 条并附总数汇总。重叠审计不参与事务校验，不会阻塞
 `document.apply` 或 ChangeSet 求值。
+
+### 8.1 管线安全预检
+
+`validation.run`、`document.apply`（包括 dry run）和 ChangeSet evaluate 使用同一套路由
+安全预检。预检从正式 `route_connection` 中心线出发，先以管线半径扩展 AABB 做宽相位，
+再只对命中的 Component Instance 构建窄相位三角形，检查实体碰撞、净空面和支撑布局。
+有 error Diagnostic 时事务或候选失败关闭，committed revision 不变。
+
+| 对象 | metadata | 约束 |
+|---|---|---|
+| 场景节点 | `routeObstacle` | `solid`（缺省）、`ignored` 或 `clearance-surface`；未知值失败关闭 |
+| 净空面 | `routeClearance` | 非负米数；缺省 `0`；非法值失败关闭 |
+| connection | `maxSupportSpacing` | 正米数；缺省 `6`；非法值失败关闭 |
+| connection / 支撑 | `lineId` | connection 的非空稳定标识；缺省 connection 时跳过资产级支撑布局，空值失败关闭 |
+| 支撑横梁 | `role=pipe-support`、`supportPart=beam` | `lineId` 必须匹配当前 Document 中的 connection |
+
+未声明 `routeObstacle` 的场景实体按 `solid` 处理；未声明该字段的 `role=site` 根节点是
+结构容器，不参与路由障碍检查。地上 `Rack` 路线默认在 `6.5m` 高度表示；污水厂主线按
+每 `6m` 规划支撑；回流污泥和初沉污泥因实际路径略长使用 `5.99m` 局部余量。可见横梁、
+托座和立柱位于管底，中心线定位点仅承载支撑校验事实。Core 的验收上限仍是
+`maxSupportSpacing`，缺省 `6m`。
+
+端点所属实例只在路线起点或终点连续接触的 `1.5m` 接入段内豁免实体碰撞；离开接触段后
+再次穿入仍报告。支撑中心必须落在水平投影容差 `1m` 内，起点、终点和相邻支撑间隔不得
+超过 `maxSupportSpacing`；方向变化超过 `15°` 时，转弯附近
+`max(1m, 4 × diameter)` 内必须有支撑。`Buried` 路线不要求地面支撑；跨越净空面的支撑
+间隔豁免。离线路面支撑、孤立 `lineId` 和错误的支撑 `lineId` 均失败关闭。
+
+预算为 `50,000` 个障碍 source owner、`50,000` 个路由段、`1,000,000` 个三角形对和
+单条 connection 最多 `32` 条碰撞报告。预算耗尽返回
+`ICE3_STUDIO_ROUTE_SAFETY_BUDGET`，不得视为 clean。
+
+只读基准入口：
+
+```bash
+ice3-studio route-safety-report --project <dir> [--output <file>]
+```
+
+stdout 与可选输出文件均为 `{ revision, diagnostics, stats }`；`stats` 包含
+`obstacleOwners`、`routeSegments`、`broadPhaseCandidates`、`narrowPhasePairs` 和
+`trianglePairs`。命令通过 `ProjectStore` 只读打开 committed revision，不创建 revision；
+存在诊断时以非零状态退出。
 
 ## 9. ChangeSet
 

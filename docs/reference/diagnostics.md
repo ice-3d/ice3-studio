@@ -58,6 +58,11 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_GPU_DEVICE_LOST` | The native GPU device was lost during derived-geometry evaluation |
 | `ICE3_STUDIO_GPU_PARITY_FAILED` | GPU output failed finite-value, topology, bounds, or CPU parity validation |
 | `ICE3_STUDIO_GEOMETRY_OVERLAP` | Two scene entities overlap in world space (opt-in warning audit; not a transaction failure) |
+| `ICE3_STUDIO_ROUTE_COLLISION` | A pipe centerline and collision radius intersect a solid scene obstacle |
+| `ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT` | A route crossing a clearance surface has less than the declared clearance |
+| `ICE3_STUDIO_ROUTE_SUPPORT_MISSING` | A non-buried connection with `lineId` has no valid support beam |
+| `ICE3_STUDIO_ROUTE_SUPPORT_SPACING` | Supports are sparse, off-route, or missing near a turn |
+| `ICE3_STUDIO_ROUTE_SAFETY_BUDGET` | Obstacle, route-segment, triangle-pair, or collision-report budget was exhausted |
 
 ## 3. 源导入 CLI 代码
 
@@ -121,6 +126,18 @@ Diagnostic code 仍是主要机器契约。
 ## 5. 恢复规则
 
 - validation 或 operation 失败保持当前 revision 不变。
+- 路由安全诊断要求修正 Document 中对应的 connection、障碍 metadata、净空面或支撑；
+  不要重试同一条违规路径。`objectId` 是 connection source node，`pointer` 指向相关
+  `content` 或 metadata 字段。
+- `ICE3_STUDIO_ROUTE_COLLISION` 表示管线半径已经进入实体；端点 owner 只在起止连续接触
+  的 `1.5m` 接入段内豁免。修复后必须重新提交完整事务或 ChangeSet。
+- `ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT` 要求抬高路线、降低净空要求或修改
+  `routeClearance`；不能把净空面误标为 `ignored` 来绕过真实约束。
+- `ICE3_STUDIO_ROUTE_SUPPORT_MISSING` / `..._SPACING` 要求添加或移动
+  `role=pipe-support`、`supportPart=beam` 节点，并保持 `lineId` 一致；Buried 路线和
+  跨越净空面的支撑间隔按本设计规则处理。
+- `ICE3_STUDIO_ROUTE_SAFETY_BUDGET` 是失败关闭状态，结果不是 clean；应减少范围、修正
+  异常庞大的几何或重新设计预算，不能忽略未检查区域。
 - revision 冲突要求先重新读取当前 revision，再重新提交。
 - Agent search cursor 过期或不匹配时，必须去掉 cursor 后重启 `scene.search`。
 - blocked 或 stale 的 `changeset.impact` 返回 `scope: "unavailable"`，不提供 candidate

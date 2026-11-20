@@ -57,7 +57,7 @@
 | `ICE3-STUDIO-SPEC-010` | [Agent Iteration Impact Analysis](specs/2026-10-31-agent-iteration-impact-design.md) | Historical | 局部影响、几何重建与缓存复用的已完成设计记录 |
 | `ICE3-STUDIO-SPEC-011` | [Large Reference Asset Editing](specs/2026-10-31-large-reference-assets-design.md) | Historical | 外部大型资产、轻量绑定和流式预览的已完成设计记录 |
 | `ICE3-STUDIO-SPEC-012` | [工程评审级污水处理厂资产](specs/2026-11-01-realistic-wastewater-plant-asset-design.md) | Historical | 默认污水厂资产的已完成设计记录 |
-| `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Approved | 工艺拓扑、连续弯头、防扭转扫掠和功能配色；碰撞校验已由 SPEC-030 交付，支吊架校验仍待补 |
+| `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Approved | 工艺拓扑、连续弯头、防扭转扫掠和功能配色；阶段二B路径碰撞、净空与支撑门禁已完成，穿墙套管、三通和异径管仍待补 |
 | `ICE3-STUDIO-SPEC-014` | [Agent 主导的 Studio 工作台](specs/2026-11-01-agent-led-workbench-design.md) | Implemented | Agent 默认入口、工作上下文、实体 Selection 和人工接手 |
 | `ICE3-STUDIO-SPEC-015` | [Studio Runtime Tileset 导出](specs/2026-11-01-studio-runtime-tileset-export-design.md) | Deprecated | 由 Studio 原生 Asset Pipeline 取代的 Sidecar 方案 |
 | `ICE3-STUDIO-SPEC-016` | [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md) | Implemented | Source Import、Asset、Partition、LOD 和 Tileset 已全部迁入 Studio |
@@ -77,7 +77,7 @@
 | `ICE3-STUDIO-SPEC-030` | [干涉与净空检测](specs/2026-11-03-clash-detection-design.md) | Implemented | 按严重度排序的干涉对与净空违规，可选三角窄相位 |
 | `ICE3-STUDIO-SPEC-031` | [圆角与倒角（Fillet / Chamfer）](specs/2026-11-03-fillet-chamfer-design.md) | Implemented | 盒体 12 边倒角与圆角；任意 B-rep 圆角非目标 |
 | `ICE3-STUDIO-SPEC-032` | [材质表面、UV 与 PBR 导出](specs/2026-11-04-material-pbr-uv-design.md) | Implemented | 底色/法线/ORM 打包贴图与 uvScale，对齐 glTF metallic-roughness |
-| `ICE3-STUDIO-SPEC-033` | [管线工程安全门禁](specs/2026-11-19-route-safety-gate-design.md) | Proposed | 管线实体碰撞、净空面、端点接入与支撑间距的提交前校验 |
+| `ICE3-STUDIO-SPEC-033` | [管线工程安全门禁](specs/2026-11-19-route-safety-gate-design.md) | Implemented | 管线实体碰撞、净空面、端点接入、支撑间距、预算与性能门禁 |
 
 ## 5. 实施计划
 
@@ -99,7 +99,7 @@
 | `ICE3-STUDIO-PLAN-015` | [工程评审级污水处理厂资产实施计划](plans/2026-11-01-realistic-wastewater-plant-asset.md) | Historical | 工程拆分、细节组件、管线支撑和材质验收的历史记录 |
 | `ICE3-STUDIO-PLAN-016` | [污水处理厂工艺拓扑校正实施计划](plans/2026-11-01-wastewater-process-topology-correction.md) | Historical | P&ID 端口、污泥和沼气链路的历史记录 |
 | `ICE3-STUDIO-PLAN-017` | [工程管线圆滑路径与功能配色实施计划](plans/2026-11-01-engineered-pipe-routing-color.md) | Historical | 连续弯头、扫掠防扭转和功能配色的历史记录 |
-| `ICE3-STUDIO-PLAN-030` | [管线工程安全门禁实施计划](plans/2026-11-19-route-safety-gate.md) | Proposed | 管线碰撞、净空面、端点接入、支撑间距、性能与资产迁移步骤 |
+| `ICE3-STUDIO-PLAN-030` | [管线工程安全门禁实施计划](plans/2026-11-19-route-safety-gate.md) | Implemented | 管线碰撞、净空面、端点接入、支撑间距、性能与资产迁移步骤 |
 | `ICE3-STUDIO-PLAN-018` | [Agent 主导工作台实施计划](plans/2026-11-01-agent-led-workbench.md) | Implemented | Agent 默认 tab、上下文、实体选择、人工接手和响应式验收 |
 | `ICE3-STUDIO-PLAN-019` | [Studio 原生 Asset Pipeline Phase 1](plans/2026-11-01-native-asset-pipeline-phase-1.md) | Implemented | Rust GLB、partition、LOD、Tileset、binding manifest 和 CLI 导出 |
 | `ICE3-STUDIO-PLAN-020` | [Studio 原生 Asset Pipeline Phase 2](plans/2026-11-01-native-asset-pipeline-phase-2.md) | Implemented | glTF/GLB、OBJ/MTL Source Import 和 OBJ Toolchain 退役 |
