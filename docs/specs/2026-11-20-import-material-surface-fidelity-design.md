@@ -153,8 +153,8 @@ pub struct SourceResource {
 ```
 
 `digest` 是图片原始字节 SHA-256 的小写 64 位十六进制字符串，不带算法前缀。binding 的
-`resource` 引用该摘要。资源表按摘要排序，相同字节只保留一项。图片字节在 Worker JSON
-中使用 base64 表示，并纳入场景预算。
+`resource` 引用该摘要。资源表按摘要排序，相同字节只保留一项。图片字节作为隔离 Worker
+版本 2 bincode 载荷中的有界二进制字段传输，并纳入场景预算。
 
 ### 4.3 UV
 
@@ -168,7 +168,8 @@ pub uvs: Option<Vec<[f32; 2]>>,
 导入时统一解码为 FLOAT VEC2。出现时，长度必须等于 `positions`，数值必须有限。Sparse
 accessor 或其它编码产生 `ICE3_STUDIO_IMPORT_TEXTURE_COORDINATE_UNSUPPORTED`，并跳过
 依赖该 UV 的贴图。Canonical writer 优先写入解码后的 `TEXCOORD_0`；没有 UV 时保留现有
-按主导轴盒投影的兜底行为，使没有任何 UV 的历史资产和程序化几何仍然可用。
+按主导轴盒投影的兜底行为，使没有任何 UV 的贴图资产和程序化几何仍然可用。既没有源 UV、
+也没有实际贴图引用的历史 primitive 不新增 `TEXCOORD_0`，以保持无贴图输出字节不变。
 
 ### 4.4 Canonical 材质与兼容
 
@@ -188,6 +189,10 @@ pub surface: Option<CanonicalSurface>,
 - 两者指向同一等效贴图时只输出一次；
 - 两者同时指定不同 base-color 贴图或不同 transform 时返回 profile error；
 - 无新 surface 的调用仍生成原有材质 JSON。
+
+旧 canonical 调用没有 alpha mode。`surface=None` 时 writer 继续使用
+`opacity < 1 => BLEND` 的历史规则；新导入材质总会带 surface，因此以显式 alpha mode
+为准。这样既保留旧字节，又能区分 glTF 的 `OPAQUE` 与底色 alpha 小于 1 的情况。
 
 现有 `orm_texture` 简写继续表示同一个资源同时用于 occlusion 和
 metallic-roughness。CanonicalSurface 可以分别设置两个槽；只有资源、UV 通道、transform
@@ -305,8 +310,8 @@ data URI 在解码前按编码长度估算输出上限。GLB `bufferView` 使用
 | 图片数量 | 4096 |
 | SourceScene 总估算内存 | `max_memory_bytes` |
 
-图片预算与现有节点、三角形和场景字节预算共同检查。资源字节、摘要、媒体类型、URI
-字符串和 Worker base64 开销进入 `estimated_scene_bytes`。
+图片预算与现有节点、三角形和场景字节预算共同检查。资源字节、摘要、媒体类型和 URI
+字符串进入 `estimated_scene_bytes`；Worker 输出再受既有编码长度上限约束。
 
 预算检查发生在完整读取、复制或编码之前，失败时不得留下输出。
 
@@ -472,7 +477,8 @@ parts/
 - 外部、data URI、内嵌图片都产生可复现的相对路径资源；
 - 输出目录在 GLB 出现前已包含全部所需图片；
 - 任一路径逃逸或预算超限都失败且没有部分输出；
-- 无贴图资产保持 byte-identical；
+- 未设置 Source surface 的 canonical 输入保持 byte-identical；glTF 材质会按规范补正
+  metallic-roughness 缺省值，因此不属于该兼容基线；
 - 诊断文档、资产流水线文档和文档索引同步更新；
 - Rust format、lint、workspace 测试、schema、文档检查和根级 `npm run verify` 通过。
 

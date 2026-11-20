@@ -113,6 +113,7 @@
 | `ICE3-STUDIO-PLAN-027` | [Studio Asset Prepare Core](plans/2026-11-02-studio-prepare-core.md) | Implemented | Phase 6A 共享 Prepare、edges、budget/report、build 和 inspect |
 | `ICE3-STUDIO-PLAN-028` | [Studio Partition 与 Runtime Tileset 功能等价](plans/2026-11-02-studio-partition-runtime-parity.md) | Implemented | Phase 6B 统一 AssetProfile、direct partition 和 parity |
 | `ICE3-STUDIO-PLAN-029` | [Studio Prepare Engine 集成与最终验收](plans/2026-11-02-studio-prepare-engine-finalization.md) | Implemented | Phase 6C Engine 消费、性能、文档和最终门禁 |
+| `ICE3-STUDIO-PLAN-031` | [导入材质表面保真实施计划](plans/2026-11-20-import-material-surface-fidelity.md) | Proposed | glTF/GLB 材质槽、UV、受控资源和事务发布 |
 
 ## 6. 状态说明
 
