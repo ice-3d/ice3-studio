@@ -62,6 +62,16 @@ JT 的唯一外部例外是部署方提供的 host-owned `ICE3_JT_CONVERTER`；S
 | `partition` | 开启 | 直接对任意已注册 source 生成 Tiled Runtime bundle |
 | `export tileset` | 由 `agent-console-v1` profile 固定 | 从 committed project revision 发布 Agent Runtime bundle |
 
+源模型重建还必须保留 Material Surface。默认污水处理厂在
+`scripts/wastewater-plant/site-plan.mjs` 中声明 36 个 surface preset；混凝土、沥青、
+金属、玻璃和不同水体分别携带 base color、normal、ORM、roughness、metallic、emissive
+和 `uvScale` 所需字段。材质颜色只决定基础色；缺少 surface 会得到“能打开但材质全平”的
+回归。
+
+`scripts/tests/wastewater-plant-model.test.mjs` 会确认确定性 rebuild 后至少 30 个材质仍带
+surface，混凝土和沥青的 base/normal/ORM 路径保持完整。重新生成项目后必须再执行
+`export tileset`，让这些 surface 进入 Prepared GLB。
+
 Render edge 使用 line primitive `mode=1`、`role="edges"`、`widthPx=3` 和独立 edge
 material。Edge bytes 计入 part、coarse chunk 和总 byte budget，但不计入 triangle
 count。

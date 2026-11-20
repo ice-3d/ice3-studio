@@ -119,6 +119,11 @@ cargo run -p studio-cli -- export tileset \
 asset id 一致（演示资产为 `ice3-virtual-wwtp`），否则设备剧本的 `focus_equipment` 命中
 不了 Selection。
 
+污水处理厂由参数化模型重建时，`site-plan.mjs` 会同时恢复 36 个 Material Surface
+（底图、法线、ORM、PBR factor 和 UV scale）。不要只复制旧 GLB 或旧贴图；重新生成工程后
+必须重新执行 `export tileset`，并用 Studio 模型测试和 Agent Console `assets:check`
+验证几何、材质和源 revision 一致。
+
 原生支持的源格式：glTF/GLB、OBJ/MTL、FBX（ASCII/Binary）、USD（ASCII/Binary）、
 STEP AP242、IFC4X3、JT。前六种由 Studio 自带 worker 解析，无需外部 DCC；JT 是唯一例外，
 由部署方通过 `ICE3_JT_CONVERTER` 提供组织批准的 converter，Studio 固定调用参数并校验

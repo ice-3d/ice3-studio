@@ -174,6 +174,11 @@ node scripts/build-wastewater-model.mjs --workspace ./projects
 **注意**：显式 `--workspace ./projects` 会替换同名工程并重新创建 Revision 1，不能保留
 旧修订历史。日常小改动用 RPC 增量修改或 ChangeSet，不要重跑生成脚本。
 
+重建是完整模型发布，不是只换几何。`site-plan.mjs` 会重新写入 36 个 Material Surface，
+包括底色、法线、ORM、roughness/metallic 和 UV 缩放；测试会阻止贴图材质在 rebuild 中
+静默丢失。重建完成后仍需从 Studio 重新执行 `export tileset`，下游才能得到新的几何和
+材质组合。
+
 ## 9. 已知问题
 
 **Studio 默认关闭方向光阴影。** 厂区尺度下，画面外构件和地面薄板会投出容易被误认为
