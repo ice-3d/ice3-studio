@@ -34,6 +34,15 @@ export interface ScenePreviewSource {
 
 export const SCENE_BACKGROUND_COLOR = '#14181c';
 
+export function resolveSceneShadows(search: string): boolean {
+  const params = new URLSearchParams(search);
+  const value = params.get('shadows');
+  if (value === '1' || value === 'on') return true;
+  if (value === '0' || value === 'off') return false;
+  const debug = Number(params.get('shadowdebug'));
+  return Number.isFinite(debug) && debug > 0;
+}
+
 type ReferenceSelectionBinding = {
   nodeId: string | null;
   selectionId: string;
@@ -84,6 +93,9 @@ export class SceneAdapter {
     this.viewportElement = container;
     const engine = await new ICE3({ renderer: 'webgl2' }).initAsync(container);
     engine.setBackgroundColor(SCENE_BACKGROUND_COLOR);
+    // Site-scale shadow maps can show long casts whose source is off-screen,
+    // which reads as geometry appearing in empty ground. Keep them opt-in.
+    engine.setShadows(resolveSceneShadows(window.location.search));
     const camera = new ICEPerspectiveCamera({
       id: 'studio-camera',
       fov: 42,
