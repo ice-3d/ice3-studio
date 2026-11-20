@@ -1,7 +1,7 @@
 // 污水处理厂资产命令入口。模型内容由 scripts/wastewater-plant/ 下的模块提供。
 
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -38,10 +38,12 @@ async function main() {
     ? resolve(process.argv[process.argv.indexOf('--workspace') + 1])
     : null;
   const workspace = explicitWorkspace ?? await mkdtemp(join(tmpdir(), 'ice3-wwtp-built-'));
+  const plan = buildPlan('wastewater-plant');
+  const projectDir = join(workspace, plan.projectId);
+  const textureBackup = join(workspace, '.wastewater-textures-backup');
   if (explicitWorkspace) {
     await mkdir(explicitWorkspace, { recursive: true });
   }
-  const plan = buildPlan('wastewater-plant');
   const server = spawn(
     resolve('target/release/studio-cli'),
     ['serve', '--workspace', workspace, '--project', 'bootstrap', '--port', '0', '--write-mode', 'autonomous'],
@@ -72,9 +74,15 @@ async function main() {
     };
 
     if (explicitWorkspace) {
-      await rm(join(workspace, plan.projectId), { recursive: true, force: true }).catch(() => {});
+      await rm(textureBackup, { recursive: true, force: true }).catch(() => {});
+      await cp(join(projectDir, 'textures'), textureBackup, { recursive: true }).catch(() => {});
+      await rm(projectDir, { recursive: true, force: true }).catch(() => {});
     }
     await rpc('project.create', { projectId: plan.projectId });
+    if (explicitWorkspace) {
+      await cp(textureBackup, join(projectDir, 'textures'), { recursive: true }).catch(() => {});
+      await rm(textureBackup, { recursive: true, force: true }).catch(() => {});
+    }
     const committed = await rpc('document.apply', {
       expectedRevision: 0,
       dryRun: false,

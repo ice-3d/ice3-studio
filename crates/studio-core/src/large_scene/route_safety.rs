@@ -129,79 +129,94 @@ pub fn validate_route_safety_with_limits(
 
     for route in &routes {
         let mut reported = BTreeSet::new();
-        for (segment_index, points) in route.points.windows(2).enumerate() {
-            let original_segment = [points[0], points[1]];
-            let length = route.cumulative[segment_index + 1] - route.cumulative[segment_index];
-            for obstacle in &obstacles {
-                if let ObstacleClass::ClearanceSurface { clearance } = obstacle.class {
-                    if !segment_crosses_footprint(original_segment, &obstacle.bounds) {
+        for obstacle in &obstacles {
+            if let ObstacleClass::ClearanceSurface { clearance } = obstacle.class {
+                for points in route.points.windows(2) {
+                    let segment = [points[0], points[1]];
+                    if !segment_crosses_footprint(segment, &obstacle.bounds) {
                         continue;
                     }
-                    let lowest = original_segment[0][1].min(original_segment[1][1]) - route.radius;
+                    let highest = segment[0][1].max(segment[1][1]) + route.radius;
+                    if highest + crate::geometry::CLASH_EPSILON <= obstacle.bounds.max.y {
+                        continue;
+                    }
+                    let lowest = segment[0][1].min(segment[1][1]) - route.radius;
                     let required = obstacle.bounds.max.y + clearance;
                     if lowest + crate::geometry::CLASH_EPSILON >= required {
                         continue;
                     }
-                    if reported.insert(obstacle.source_id.clone()) {
-                        diagnostics.push(Diagnostic {
-                            code: DiagnosticCode::RouteClearanceInsufficient,
-                            operation_index: None,
-                            object_id: Some(route.node_id.to_string()),
-                            pointer: format!("/scene/nodes/{}/content", route.node_index),
-                            message: format!(
-                                "route clearance above {} is {:.3} m, requires {:.3} m",
-                                obstacle.source_id,
-                                lowest - obstacle.bounds.max.y,
-                                clearance,
-                            ),
-                        });
-                    }
-                    continue;
-                }
-                if !matches!(obstacle.class, ObstacleClass::Solid) {
-                    continue;
-                }
-                let Some(clipped) = endpoint_clipped_segment(
-                    &route,
-                    segment_index,
-                    length,
-                    obstacle.source_id.as_str(),
-                    original_segment,
-                ) else {
-                    continue;
-                };
-                let segment = clipped;
-                let distance = segment_bounds_distance(segment, &obstacle.bounds);
-                if distance > route.radius + crate::geometry::CLASH_EPSILON {
-                    continue;
-                }
-                if stats.triangle_pairs >= limits.max_triangle_pairs {
                     diagnostics.push(Diagnostic {
-                        code: DiagnosticCode::RouteSafetyBudget,
+                        code: DiagnosticCode::RouteClearanceInsufficient,
                         operation_index: None,
                         object_id: Some(route.node_id.to_string()),
                         pointer: format!("/scene/nodes/{}/content", route.node_index),
                         message: format!(
-                            "route safety triangle-pair budget {} exceeded",
-                            limits.max_triangle_pairs
+                            "route clearance above {} is {:.3} m, requires {:.3} m",
+                            obstacle.source_id,
+                            lowest - obstacle.bounds.max.y,
+                            clearance,
                         ),
                     });
-                    validate_support_layout(&routes, &stations, &mut diagnostics);
-                    return (diagnostics, stats);
+                    break;
                 }
-                stats.broad_phase_candidates += 1;
-                if !reported.insert(obstacle.source_id.clone()) {
+                continue;
+            }
+            if !matches!(obstacle.class, ObstacleClass::Solid) {
+                continue;
+            }
+            let candidates = route
+                .points
+                .windows(2)
+                .enumerate()
+                .filter_map(|(index, points)| {
+                    let segment = [points[0], points[1]];
+                    let distance = segment_bounds_distance(segment, &obstacle.bounds);
+                    (distance <= route.radius + crate::geometry::CLASH_EPSILON)
+                        .then_some((index, segment, distance))
+                })
+                .collect::<Vec<_>>();
+            if candidates.is_empty() {
+                continue;
+            }
+            stats.broad_phase_candidates += candidates.len();
+            let exempt = endpoint_exempt_segments(
+                candidates.iter().map(|(index, _, _)| *index),
+                &route.cumulative,
+                route.from_owner.as_str() == obstacle.source_id.as_str(),
+                route.to_owner.as_str() == obstacle.source_id.as_str(),
+            );
+            let triangles = if obstacle.narrow_phase {
+                let Some(node) = document.scene.nodes().get(obstacle.source_index) else {
+                    continue;
+                };
+                let Some(definition) = component_definition(node, definitions) else {
+                    continue;
+                };
+                stats.narrow_phase_pairs += 1;
+                Some(component_triangles(document, node, definition))
+            } else {
+                None
+            };
+            let mut confirmed = Vec::new();
+            for (index, segment, distance) in candidates {
+                if exempt.contains(&index) {
                     continue;
                 }
-                let collides = if obstacle.narrow_phase {
-                    let Some(node) = document.scene.nodes().get(obstacle.source_index) else {
-                        continue;
-                    };
-                    let Some(definition) = component_definition(node, definitions) else {
-                        continue;
-                    };
-                    stats.narrow_phase_pairs += 1;
-                    let triangles = component_triangles(document, node, definition);
+                let hit = if let Some(triangles) = &triangles {
+                    if stats.triangle_pairs >= limits.max_triangle_pairs {
+                        diagnostics.push(Diagnostic {
+                            code: DiagnosticCode::RouteSafetyBudget,
+                            operation_index: None,
+                            object_id: Some(route.node_id.to_string()),
+                            pointer: format!("/scene/nodes/{}/content", route.node_index),
+                            message: format!(
+                                "route safety triangle-pair budget {} exceeded",
+                                limits.max_triangle_pairs
+                            ),
+                        });
+                        validate_support_layout(&routes, &stations, &obstacles, &mut diagnostics);
+                        return (diagnostics, stats);
+                    }
                     let mut hit = triangles.iter().any(|triangle| {
                         stats.triangle_pairs += 1;
                         segment_triangle_distance(segment, *triangle)
@@ -215,7 +230,7 @@ pub fn validate_route_safety_with_limits(
                                 segment[0][1] + (segment[1][1] - segment[0][1]) * ratio,
                                 segment[0][2] + (segment[1][2] - segment[0][2]) * ratio,
                             ];
-                            let (inside, pair_count) = point_in_mesh(sample, &triangles);
+                            let (inside, pair_count) = point_in_mesh(sample, triangles);
                             stats.triangle_pairs += pair_count;
                             if inside {
                                 hit = true;
@@ -227,38 +242,42 @@ pub fn validate_route_safety_with_limits(
                 } else {
                     true
                 };
-                if !collides {
-                    reported.remove(&obstacle.source_id);
-                    continue;
+                if hit {
+                    confirmed.push((index, distance));
                 }
-                if reported.len() > limits.max_collisions_per_route {
-                    diagnostics.push(Diagnostic {
-                        code: DiagnosticCode::RouteSafetyBudget,
-                        operation_index: None,
-                        object_id: Some(route.node_id.to_string()),
-                        pointer: format!("/scene/nodes/{}/content", route.node_index),
-                        message: format!(
-                            "route collision report budget {} exceeded",
-                            limits.max_collisions_per_route
-                        ),
-                    });
-                    break;
-                }
+            }
+            if confirmed.is_empty() {
+                continue;
+            }
+            let (_, distance) = confirmed[0];
+            if reported.len() >= limits.max_collisions_per_route {
                 diagnostics.push(Diagnostic {
-                    code: DiagnosticCode::RouteCollision,
+                    code: DiagnosticCode::RouteSafetyBudget,
                     operation_index: None,
                     object_id: Some(route.node_id.to_string()),
                     pointer: format!("/scene/nodes/{}/content", route.node_index),
                     message: format!(
-                        "route intersects obstacle {} at {:.3} m",
-                        obstacle.source_id, distance
+                        "route collision report budget {} exceeded",
+                        limits.max_collisions_per_route
                     ),
                 });
+                break;
             }
+            reported.insert(obstacle.source_id.clone());
+            diagnostics.push(Diagnostic {
+                code: DiagnosticCode::RouteCollision,
+                operation_index: None,
+                object_id: Some(route.node_id.to_string()),
+                pointer: format!("/scene/nodes/{}/content", route.node_index),
+                message: format!(
+                    "route intersects obstacle {} at {:.3} m",
+                    obstacle.source_id, distance
+                ),
+            });
         }
     }
 
-    validate_support_layout(&routes, &stations, &mut diagnostics);
+    validate_support_layout(&routes, &stations, &obstacles, &mut diagnostics);
     (diagnostics, stats)
 }
 
@@ -333,17 +352,23 @@ fn obstacle_owners(
         ) {
             continue;
         }
-        let class = match obstacle_class(&node.metadata) {
-            Ok(class) => class,
-            Err(message) => {
-                diagnostics.push(Diagnostic {
-                    code: DiagnosticCode::OperationInvalid,
-                    operation_index: None,
-                    object_id: Some(node.id.to_string()),
-                    pointer: format!("/scene/nodes/{index}/metadata/routeObstacle"),
-                    message: message.into(),
-                });
-                continue;
+        let class = if !node.metadata.contains_key("routeObstacle")
+            && node.metadata.get("role").map(String::as_str) == Some("site")
+        {
+            ObstacleClass::Ignored
+        } else {
+            match obstacle_class(&node.metadata) {
+                Ok(class) => class,
+                Err(message) => {
+                    diagnostics.push(Diagnostic {
+                        code: DiagnosticCode::OperationInvalid,
+                        operation_index: None,
+                        object_id: Some(node.id.to_string()),
+                        pointer: format!("/scene/nodes/{index}/metadata/routeObstacle"),
+                        message: message.into(),
+                    });
+                    continue;
+                }
             }
         };
         if matches!(class, ObstacleClass::Ignored) {
@@ -384,48 +409,59 @@ fn obstacle_owners(
     owners
 }
 
-fn endpoint_clipped_segment(
-    route: &RouteFact,
-    segment_index: usize,
-    length: f32,
-    owner: &str,
-    segment: [[f32; 3]; 2],
-) -> Option<[[f32; 3]; 2]> {
-    if length <= f32::EPSILON {
-        return None;
+fn endpoint_exempt_segments(
+    candidates: impl Iterator<Item = usize>,
+    cumulative: &[f32],
+    from_endpoint: bool,
+    to_endpoint: bool,
+) -> BTreeSet<usize> {
+    let candidates = candidates.collect::<BTreeSet<_>>();
+    let mut exempt = BTreeSet::new();
+    if from_endpoint {
+        collect_endpoint_cluster(&candidates, cumulative, false, &mut exempt);
     }
-    let segment_end_distance = route.cumulative[segment_index + 1];
-    let total = *route.cumulative.last().unwrap_or(&segment_end_distance);
-    let remaining_after = total - segment_end_distance;
-    let mut begin = 0.0_f32;
-    let mut end = 1.0_f32;
-    if route.from_owner.as_str() == owner && route.cumulative[segment_index] < ENDPOINT_EXCLUSION_M
-    {
-        begin = ((ENDPOINT_EXCLUSION_M - route.cumulative[segment_index]) / length).min(1.0);
+    if to_endpoint {
+        collect_endpoint_cluster(&candidates, cumulative, true, &mut exempt);
     }
-    if route.to_owner.as_str() == owner && remaining_after < ENDPOINT_EXCLUSION_M {
-        end = (1.0 - (ENDPOINT_EXCLUSION_M - remaining_after) / length).max(0.0);
+    exempt
+}
+
+fn collect_endpoint_cluster(
+    candidates: &BTreeSet<usize>,
+    cumulative: &[f32],
+    reverse: bool,
+    exempt: &mut BTreeSet<usize>,
+) {
+    let ordered: Vec<usize> = if reverse {
+        candidates.iter().rev().copied().collect()
+    } else {
+        candidates.iter().copied().collect()
+    };
+    let mut previous_arc = if reverse {
+        cumulative.last().copied().unwrap_or(0.0)
+    } else {
+        0.0
+    };
+    let mut started = false;
+    for index in ordered {
+        let segment_end = cumulative.get(index + 1).copied().unwrap_or(previous_arc);
+        let segment_start = cumulative.get(index).copied().unwrap_or(segment_end);
+        let gap = if reverse {
+            previous_arc - segment_end
+        } else {
+            segment_start - previous_arc
+        };
+        if !started {
+            if gap > ENDPOINT_EXCLUSION_M {
+                break;
+            }
+            started = true;
+        } else if gap > ENDPOINT_EXCLUSION_M {
+            break;
+        }
+        exempt.insert(index);
+        previous_arc = if reverse { segment_start } else { segment_end };
     }
-    if begin >= end {
-        return None;
-    }
-    let direction = [
-        segment[1][0] - segment[0][0],
-        segment[1][1] - segment[0][1],
-        segment[1][2] - segment[0][2],
-    ];
-    Some([
-        [
-            segment[0][0] + direction[0] * begin,
-            segment[0][1] + direction[1] * begin,
-            segment[0][2] + direction[2] * begin,
-        ],
-        [
-            segment[0][0] + direction[0] * end,
-            segment[0][1] + direction[1] * end,
-            segment[0][2] + direction[2] * end,
-        ],
-    ])
 }
 
 fn component_bounds(
@@ -575,6 +611,7 @@ fn support_stations(
 fn validate_support_layout(
     routes: &[RouteFact],
     stations: &BTreeMap<String, Vec<SupportStation>>,
+    obstacles: &[ObstacleOwner],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for route in routes {
@@ -631,10 +668,11 @@ fn validate_support_layout(
         let mut positions = vec![0.0];
         positions.extend(valid.iter().copied());
         positions.push(total);
-        if positions
-            .windows(2)
-            .any(|pair| pair[1] - pair[0] > route.max_support_spacing + 1e-5)
-        {
+        let invalid_gap = positions.windows(2).any(|pair| {
+            pair[1] - pair[0] > route.max_support_spacing + 1e-5
+                && !route_interval_crosses_surface(route, pair[0], pair[1], obstacles)
+        });
+        if invalid_gap {
             diagnostics.push(route_content_diagnostic(
                 DiagnosticCode::RouteSupportSpacing,
                 route,
@@ -652,6 +690,51 @@ fn validate_support_layout(
             }
         }
     }
+}
+
+fn route_interval_crosses_surface(
+    route: &RouteFact,
+    start: f32,
+    end: f32,
+    obstacles: &[ObstacleOwner],
+) -> bool {
+    for (index, pair) in route.points.windows(2).enumerate() {
+        let segment_start = route.cumulative[index];
+        let segment_end = route.cumulative[index + 1];
+        if segment_end < start || segment_start > end {
+            continue;
+        }
+        let local_start = start.max(segment_start);
+        let local_end = end.min(segment_end);
+        if local_end <= local_start {
+            continue;
+        }
+        let length = segment_end - segment_start;
+        if length <= f32::EPSILON {
+            continue;
+        }
+        let begin = (local_start - segment_start) / length;
+        let finish = (local_end - segment_start) / length;
+        let clipped = [
+            [
+                pair[0][0] + (pair[1][0] - pair[0][0]) * begin,
+                pair[0][1] + (pair[1][1] - pair[0][1]) * begin,
+                pair[0][2] + (pair[1][2] - pair[0][2]) * begin,
+            ],
+            [
+                pair[0][0] + (pair[1][0] - pair[0][0]) * finish,
+                pair[0][1] + (pair[1][1] - pair[0][1]) * finish,
+                pair[0][2] + (pair[1][2] - pair[0][2]) * finish,
+            ],
+        ];
+        if obstacles.iter().any(|obstacle| {
+            (matches!(obstacle.class, ObstacleClass::ClearanceSurface { .. })
+                && segment_crosses_footprint(clipped, &obstacle.bounds))
+        }) {
+            return true;
+        }
+    }
+    false
 }
 
 fn project_to_route(position: [f32; 3], route: &RouteFact) -> Option<(f32, f32)> {
@@ -914,5 +997,16 @@ mod tests {
             project_to_route([0.0, 5.0, 0.0], &route).expect("support projects onto route");
         assert!((arc - 5.0).abs() < 1e-5, "{arc}");
         assert!(distance < 1e-5);
+    }
+
+    #[test]
+    fn endpoint_exemption_stops_after_the_contact_run() {
+        let exempt = endpoint_exempt_segments(
+            [0, 1, 4, 5].into_iter(),
+            &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            true,
+            false,
+        );
+        assert_eq!(exempt, BTreeSet::from([0, 1]));
     }
 }

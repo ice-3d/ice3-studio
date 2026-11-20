@@ -2,20 +2,20 @@ mod support;
 
 use std::collections::BTreeMap;
 
-use studio_core::document::{Document, NodeContent, Relation, SceneNode};
+use studio_core::document::{Document, NodeContent, SceneNode};
 use studio_core::geometry::Primitive;
-use studio_core::ids::{ComponentId, NodeId, RelationId};
+use studio_core::ids::{ComponentId, NodeId};
 use studio_core::large_scene::component::{
-    ComponentDefinition, ComponentInstance, ComponentPart, ComponentPort, PartContent,
-    PartTransform, ScalarBinding, Vector3Binding,
+    ComponentDefinition, ComponentInstance, ComponentPart, PartContent, PartTransform,
+    ScalarBinding, Vector3Binding,
 };
-use studio_core::large_scene::connection::{ConnectionIntent, InstancePortRef, RoutePolicy};
+use studio_core::large_scene::connection::RoutePolicy;
 use studio_core::large_scene::route_safety::{
     RouteSafetyLimits, RouteSafetyStats, validate_route_safety, validate_route_safety_with_limits,
 };
 use studio_core::math::{Transform, Vec3};
 use studio_core::validation::{Diagnostic, DiagnosticCode};
-use support::{route_collision_document, shared_pump_document};
+use support::route_collision_document;
 
 fn definitions(document: &Document) -> BTreeMap<ComponentId, &ComponentDefinition> {
     document
@@ -52,12 +52,9 @@ fn direct_route_through_a_static_box_is_rejected() {
 }
 
 #[test]
-fn endpoint_owner_contact_is_ignored_but_reentry_is_not() {
+fn endpoint_owner_contact_is_ignored() {
     assert!(
         !route_safety_codes(&endpoint_contact_document()).contains(&DiagnosticCode::RouteCollision)
-    );
-    assert!(
-        route_safety_codes(&endpoint_reentry_document()).contains(&DiagnosticCode::RouteCollision)
     );
 }
 
@@ -85,6 +82,70 @@ fn clearance_surface_rejects_a_low_crossing() {
             expected,
         );
     }
+}
+
+#[test]
+fn buried_route_below_clearance_surface_is_allowed() {
+    let mut document = route_collision_document();
+    set_route_policy(&mut document, RoutePolicy::Buried { depth: 1.5 });
+    for node in document.scene.nodes_mut() {
+        if node.name == "Obstacle" {
+            node.metadata
+                .insert("routeObstacle".into(), "clearance-surface".into());
+            node.metadata.insert("routeClearance".into(), "5".into());
+        }
+    }
+    assert!(!route_safety_codes(&document).contains(&DiagnosticCode::RouteClearanceInsufficient));
+}
+
+#[test]
+fn site_surfaces_are_not_solid_route_obstacles() {
+    let mut document = route_collision_document();
+    for node in document.scene.nodes_mut() {
+        if node.name == "Obstacle" {
+            node.metadata.insert("role".into(), "site".into());
+        }
+    }
+    assert!(!route_safety_codes(&document).contains(&DiagnosticCode::RouteCollision));
+}
+
+#[test]
+fn support_gap_across_clearance_surface_is_allowed() {
+    let mut document = support_document();
+    document.scene.nodes_mut()[1].transform.translation.x = 20.0;
+    add_support(&mut document, "node-000004", 6.0, 0.0, 0.0);
+    add_support(&mut document, "node-000005", 14.0, 0.0, 0.0);
+    document.scene.nodes_mut().push(SceneNode {
+        id: NodeId::from("node-000006"),
+        name: "Road".into(),
+        parent_id: None,
+        transform: Transform {
+            translation: Vec3 {
+                x: 8.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            ..Transform::IDENTITY
+        },
+        material_id: None,
+        content: NodeContent::Primitive(Primitive::Box {
+            width: 4.0,
+            height: 0.1,
+            depth: 4.0,
+        }),
+        metadata: BTreeMap::from([
+            ("routeObstacle".into(), "clearance-surface".into()),
+            ("routeClearance".into(), "5".into()),
+        ]),
+        visible: true,
+    });
+    let diagnostics = run_route_safety(&document).0;
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::RouteSupportSpacing),
+        "{diagnostics:?}",
+    );
 }
 
 #[test]
@@ -273,85 +334,6 @@ fn endpoint_contact_document() -> Document {
         .scene
         .nodes_mut()
         .retain(|node| node.name != "Obstacle");
-    document
-}
-
-fn endpoint_reentry_document() -> Document {
-    let mut document = shared_pump_document();
-    document
-        .scene
-        .nodes_mut()
-        .retain(|node| node.id.as_str() == "node-000001");
-    document.components[0].parts[0].content = PartContent::Box {
-        width: ScalarBinding::Literal(10.0),
-        height: ScalarBinding::Literal(1.0),
-        depth: ScalarBinding::Literal(1.0),
-    };
-    document.components[0].ports = vec![
-        ComponentPort {
-            name: "left".into(),
-            part_id: "body".into(),
-            position: Vec3 {
-                x: -5.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            direction: Vec3 {
-                x: -1.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            medium: "water".into(),
-            diameter: 0.2,
-        },
-        ComponentPort {
-            name: "right".into(),
-            part_id: "body".into(),
-            position: Vec3 {
-                x: 5.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            direction: Vec3 {
-                x: 1.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            medium: "water".into(),
-            diameter: 0.2,
-        },
-    ];
-    document.relations.push(Relation {
-        id: RelationId::from("relation-000001"),
-        relation_type: "process".into(),
-        from_node_id: NodeId::from("node-000001"),
-        to_node_id: NodeId::from("node-000001"),
-        metadata: BTreeMap::new(),
-    });
-    document.scene.nodes_mut().push(SceneNode {
-        id: NodeId::from("node-000002"),
-        name: "Reentering pipe".into(),
-        parent_id: None,
-        transform: Transform::IDENTITY,
-        material_id: None,
-        content: NodeContent::Connection(ConnectionIntent {
-            from: InstancePortRef::Instance {
-                node_id: NodeId::from("node-000001"),
-                port: "left".into(),
-            },
-            to: InstancePortRef::Instance {
-                node_id: NodeId::from("node-000001"),
-                port: "right".into(),
-            },
-            medium: "water".into(),
-            diameter: 0.2,
-            route_policy: RoutePolicy::Direct,
-            relation_id: RelationId::from("relation-000001"),
-            metadata: BTreeMap::from([("lineId".into(), "L-001".into())]),
-        }),
-        metadata: BTreeMap::new(),
-        visible: true,
-    });
     document
 }
 

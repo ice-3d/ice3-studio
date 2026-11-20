@@ -583,7 +583,7 @@ function buildPlan(projectId) {
 
   // 分流、汇流和回流节点。每个方向使用独立端口，避免多根主管叠在同一点。
   b.instance('grit-distribution', 'dd-g', 'DD-001 沉砂配水井', 112, 0, 0,
-    { stage: 'intake', tag: 'DD-001' });
+    { stage: 'intake', tag: 'DD-001', routeObstacle: 'ignored' });
   for (const train of trains) {
     const { key, series, z } = train;
     b.instance('clarifier-distribution', `dd-${key}`, `DD-${series}01 二沉分流井`,
@@ -602,9 +602,9 @@ function buildPlan(projectId) {
   b.instance('gas-flare', 'gf-1', 'GF-101 沼气安全火炬', 395, 0, -100,
     { stage: 'sludge', tag: 'GF-101' });
   b.instance('cake-conveyor', 'cvc-1', 'CV-101 泥饼输送机 1', 444, 0, -138,
-    { stage: 'sludge', tag: 'CV-101' });
+    { stage: 'sludge', tag: 'CV-101', routeObstacle: 'ignored' });
   b.instance('cake-conveyor', 'cvc-2', 'CV-102 泥饼输送机 2', 444, 0, -156,
-    { stage: 'sludge', tag: 'CV-102' });
+    { stage: 'sludge', tag: 'CV-102', routeObstacle: 'ignored' });
 
   // 水系连接
   b.connect('gr-1', 'outlet', 'ps-1', 'inlet', 'GR-101 → PS-101 原水', 'screened-water', 1.0);

@@ -257,6 +257,9 @@ function createBuilder() {
       ...metadata,
       stage,
       clearanceRadius: String(clearanceRadius),
+      ...(['walkway', 'landscape'].includes(metadata.role)
+        ? { routeObstacle: 'ignored' }
+        : {}),
     };
     state.ops.push({
       type: 'instance.create',
@@ -359,8 +362,9 @@ function createBuilder() {
     'digested-sludge': { kind: 'buried', depth: 1.5 },
     // 二沉出水要横跨整排池子去滤池，同样埋地。
     'secondary-effluent': { kind: 'buried', depth: 1.8 },
-    'air': { kind: 'rack', elevation: 3.6 },
+    'air': { kind: 'rack', elevation: 6.5 },
   };
+  const DEFAULT_ROUTE_POLICY = { kind: 'rack', elevation: 6.5 };
 
   const addPipeAccessory = (
     name,
@@ -422,7 +426,7 @@ function createBuilder() {
       && z + radius > road.minZ
       && z - radius < road.maxZ
     ));
-    const routePolicy = ROUTE_POLICY[medium] ?? { kind: 'orthogonal' };
+    const routePolicy = ROUTE_POLICY[medium] ?? DEFAULT_ROUTE_POLICY;
     const elevated = routePolicy.kind === 'buried'
       ? -routePolicy.depth
       : routePolicy.kind === 'rack'
@@ -511,7 +515,7 @@ function createBuilder() {
         to: { kind: 'instance', nodeId: to, port: toPort },
         medium,
         diameter: diameter * 1.15,
-        routePolicy: ROUTE_POLICY[medium] ?? { kind: 'orthogonal' },
+        routePolicy: ROUTE_POLICY[medium] ?? DEFAULT_ROUTE_POLICY,
         relationId,
         metadata: {
           lineId,
@@ -584,7 +588,7 @@ function createBuilder() {
         // unexplained debris at site scale, so expose buried access only when
         // a cutaway or detail view can provide surrounding context.
       } else {
-        const stations = planSupportStations(coarseRoute, 6);
+        const stations = planSupportStations(coarseRoute, 4);
         stations.forEach((station, index) => {
           const attachment = chooseSupportStation(station, 1.4);
           if (!attachment) return;
@@ -708,7 +712,7 @@ function createBuilder() {
         depth: width,
       },
       material_id: state.materials.get(materialKey),
-      metadata: { role: 'walkway' },
+      metadata: { role: 'walkway', routeObstacle: 'ignored' },
     });
     // 两侧栏杆：沿栈桥法线方向各偏移半个桥宽。
     const normalX = -Math.sin(angle);
