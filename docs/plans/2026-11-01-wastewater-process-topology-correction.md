@@ -10,9 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [x]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** 通过 Studio 类型化 Operation 补全污水处理厂案例的初沉污泥、RAS、二沉池分流、
 沼气、泥饼输送和生化池设备拓扑，并通过 Studio API 重建可运行的最新资产。
@@ -33,7 +32,7 @@ JSON-RPC、React Viewer、Playwright、Google Chrome
 - Document、Operation history 和 ChangeSet 是唯一可持久修改路径。
 - 不直接编辑派生 GLB、Viewer 场景对象、revision 快照或 cache 文件。
 - 所有生产行为先写失败测试，再写最小实现。
-- Git author 和 committer 必须为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author 和 committer 必须为 `repository `AGENTS.md` identity policy`。
 - 不推送远端；当前任务只产生本地提交。
 - 新增资产源码只进入 `scripts/wastewater-plant/`，测试只进入现有 `scripts/tests/`。
 - 生成工程必须恢复 300,000 至 500,000 有效三角形、最多 150,000 唯一三角形、
@@ -88,7 +87,7 @@ JSON-RPC、React Viewer、Playwright、Google Chrome
 - Produces requirement shape:
   `{ code: string, fromTags: string[], toTags: string[], media: string[] }`.
 
-- [x] **Step 1: Write failing reachability tests**
+- **Step 1: Write failing reachability tests**
 
 Add to `scripts/tests/wastewater-plant-model.test.mjs`:
 
@@ -141,7 +140,7 @@ test('process graph validation requires reachable media paths', () => {
 });
 ```
 
-- [x] **Step 2: Run the focused test and verify RED**
+- **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -152,7 +151,7 @@ node --test --test-name-pattern="process graph validation" \
 
 Expected: FAIL because `validateProcessGraph` is not exported.
 
-- [x] **Step 3: Implement bounded graph reachability**
+- **Step 3: Implement bounded graph reachability**
 
 Add to `scripts/wastewater-plant/validate.mjs`:
 
@@ -207,7 +206,7 @@ export function validateProcessGraph(plan, requirements) {
 }
 ```
 
-- [x] **Step 4: Run the focused and complete asset tests**
+- **Step 4: Run the focused and complete asset tests**
 
 Run:
 
@@ -217,7 +216,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS 28 tests.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/validate.mjs \
@@ -241,7 +240,7 @@ git commit -m "test(wwtp): validate process media reachability"
 - Produces component keys:
   `anaerobic-basin`, `anoxic-basin`, `aerobic-basin`.
 
-- [x] **Step 1: Write failing basin-mode tests**
+- **Step 1: Write failing basin-mode tests**
 
 Add:
 
@@ -278,7 +277,7 @@ test('biological basins expose process-correct equipment for each zone', () => {
 });
 ```
 
-- [x] **Step 2: Run the focused test and verify RED**
+- **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -289,7 +288,7 @@ node --test --test-name-pattern="process-correct equipment" \
 
 Expected: FAIL because the three process-correct definitions do not exist.
 
-- [x] **Step 3: Add mode-specific equipment**
+- **Step 3: Add mode-specific equipment**
 
 Change `aerationBasin` to accept the `mode` option and gate the existing air block:
 
@@ -358,7 +357,7 @@ b.define('aerobic-basin', 'Aerobic basin',
 Use `anaerobic-basin` for AE-x01, `anoxic-basin` for AE-x02, and
 `aerobic-basin` for AE-x03.
 
-- [x] **Step 4: Run asset tests**
+- **Step 4: Run asset tests**
 
 Run:
 
@@ -369,7 +368,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 Expected: PASS; existing tests may be updated only where the old component names
 were an implementation detail.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/components.mjs \
@@ -400,7 +399,7 @@ git commit -m "refactor(wwtp): separate biological basin modes"
   `cvc-1`, `cvc-2`.
 - Produces `requiredProcessGraph` in `site-plan.mjs`.
 
-- [x] **Step 1: Write failing complete-topology tests**
+- **Step 1: Write failing complete-topology tests**
 
 Add:
 
@@ -441,7 +440,7 @@ test('asset exposes complete sludge, RAS, split, gas and cake topology', () => {
 });
 ```
 
-- [x] **Step 2: Run the focused test and verify RED**
+- **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -452,7 +451,7 @@ node --test --test-name-pattern="complete sludge" \
 
 Expected: FAIL because process nodes and required connections do not exist.
 
-- [x] **Step 3: Implement process node geometry**
+- **Step 3: Implement process node geometry**
 
 Create `scripts/wastewater-plant/process-nodes.mjs`:
 
@@ -512,7 +511,7 @@ export function cakeConveyor(b, prefix, { length = 14 } = {}) {
 }
 ```
 
-- [x] **Step 4: Wire explicit process ports and connections**
+- **Step 4: Wire explicit process ports and connections**
 
 Add a `relate` helper before using material handling:
 
@@ -577,7 +576,7 @@ Add a grit distribution box `dd-g` with one inlet and two outlets, and a filter
 collection box `fb-1` with six clarifier inlets and one outlet. Update water-side
 connections so no ordinary process port is reused.
 
-- [x] **Step 5: Add complete process requirements and fail closed**
+- **Step 5: Add complete process requirements and fail closed**
 
 Export and pass:
 
@@ -592,7 +591,7 @@ const graph = validateProcessGraph(plan, requiredProcessGraph);
 if (!graph.ok) throw new Error(graph.issues.map(({ code, message }) => `${code}: ${message}`).join('; '));
 ```
 
-- [x] **Step 6: Run asset tests**
+- **Step 6: Run asset tests**
 
 Run:
 
@@ -602,7 +601,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS with the complete topology test and all earlier tests.
 
-- [x] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add scripts/wastewater-plant/process-nodes.mjs \
@@ -628,7 +627,7 @@ git commit -m "feat(wwtp): complete process topology"
 - Produces:
   `validateConnectionPorts(plan) => { ok: boolean, issues: Array<{ code: string, message: string }> }`.
 
-- [x] **Step 1: Write failing material and port-usage tests**
+- **Step 1: Write failing material and port-usage tests**
 
 Extend the validator import:
 
@@ -671,7 +670,7 @@ expects `PORT_REUSED`.
 Add a third mutation test that changes a connection diameter to `20` and expects
 `PIPE_DIAMETER_MISMATCH`.
 
-- [x] **Step 2: Run focused tests and verify RED**
+- **Step 2: Run focused tests and verify RED**
 
 Run:
 
@@ -682,7 +681,7 @@ node --test --test-name-pattern="explicit material" \
 
 Expected: FAIL because media/material mappings and port validator are missing.
 
-- [x] **Step 3: Extend material mapping and port validation**
+- **Step 3: Extend material mapping and port validation**
 
 Add explicit materials in `site-plan.mjs` and map every medium:
 
@@ -778,7 +777,7 @@ Because `b.port` does not yet accept metadata, extend its final signature to
 include `metadata` only when provided. Header/collection ports that intentionally
 accept multiple branches must set `metadata.allowMultiple = true`.
 
-- [x] **Step 4: Run tests**
+- **Step 4: Run tests**
 
 Run:
 
@@ -788,7 +787,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/model-kit.mjs \
@@ -815,7 +814,7 @@ git commit -m "fix(wwtp): validate media and port usage"
 - Produces: a new Revision 1 project generated by `project.create` and
   `document.apply`, plus visual acceptance screenshots.
 
-- [x] **Step 1: Regenerate the project through Studio**
+- **Step 1: Regenerate the project through Studio**
 
 Run:
 
@@ -826,7 +825,7 @@ node scripts/build-wastewater-model.mjs --workspace ./projects
 Expected: `revision: 1`, no diagnostics, all process graph requirements pass, and
 `projects/wastewater-plant/**` is rewritten deterministically.
 
-- [x] **Step 2: Verify the active project through the RPC API**
+- **Step 2: Verify the active project through the RPC API**
 
 Restart the local Studio server, then verify:
 
@@ -842,7 +841,7 @@ Query `scene.context` and confirm the new component, instance and connection cou
 the configured bounds, and revision 1. Query `evaluation.stats` and confirm the
 budget remains valid.
 
-- [x] **Step 3: Capture the three Chrome acceptance views**
+- **Step 3: Capture the three Chrome acceptance views**
 
 Use the existing screenshot script with fixed targets around:
 
@@ -860,13 +859,13 @@ Save the screenshots at the exact paths listed in this task. Expected:
 - Gas collector connects digesters to holder and flare.
 - No dewatered-cake pipe sweep.
 
-- [x] **Step 4: Update generated statistics and status**
+- **Step 4: Update generated statistics and status**
 
 Update `projects/README.md` with final component, instance, connection, material,
 node and triangle counts and the corrected process description. In `docs/README.md`,
 change both SPEC-013 and PLAN-016 to `Implemented` only after every gate passes.
 
-- [x] **Step 5: Run complete verification**
+- **Step 5: Run complete verification**
 
 Run:
 
@@ -876,7 +875,7 @@ npm run verify
 
 Expected: all Studio gates pass.
 
-- [x] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add projects/wastewater-plant projects/README.md \
@@ -900,7 +899,7 @@ git commit -m "feat(wwtp): rebuild correct process topology"
 - Consumes: the completed asset and its validation report.
 - Produces: a review result that names any remaining Stage 1 defect before Stage 2.
 
-- [x] **Step 1: Run the full asset suite again from a clean process**
+- **Step 1: Run the full asset suite again from a clean process**
 
 Run:
 
@@ -911,7 +910,7 @@ npm run verify
 
 Expected: PASS.
 
-- [x] **Step 2: Audit the process graph independently**
+- **Step 2: Audit the process graph independently**
 
 List every connection by service, medium and endpoint. Confirm:
 
@@ -924,17 +923,17 @@ List every connection by service, medium and endpoint. Confirm:
 - no cake material uses `connection.create`;
 - no non-header port has multiple connections.
 
-- [x] **Step 3: Review the three screenshots at full resolution**
+- **Step 3: Review the three screenshots at full resolution**
 
 Reject the stage if any required process node is invisible, floating, intersecting
 the wrong structure, or connected by a visibly disconnected pipe.
 
-- [x] **Step 4: Record any remaining Stage 2-only issue**
+- **Step 4: Record any remaining Stage 2-only issue**
 
 If visual pipe corners still look angular but topology is correct, record them as
 Stage 2 work rather than hiding them with extra decorative geometry.
 
-- [x] **Step 5: Commit any review-only correction**
+- **Step 5: Commit any review-only correction**
 
 ```bash
 git add scripts/wastewater-plant scripts/tests/wastewater-plant-model.test.mjs \

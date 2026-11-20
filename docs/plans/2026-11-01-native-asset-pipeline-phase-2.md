@@ -6,6 +6,9 @@
 >
 > Owner: ICE3 Studio maintainers
 
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
+
 ## 1. Implementation Outcome
 
 Phase 2 已实现。Studio 新增 `studio-import`、Prepared GLB canonical writer、原生
@@ -35,7 +38,7 @@ reader；OBJ/MTL 使用 Rust parser，资源解析限制在源文件目录内。
 - OBJ 假定单位为米，并发出稳定 warning；顶点色与纹理不被静默保留。
 - 失败不得留下 partial GLB；输出使用同目录 temporary file 后原子 rename。
 - Prepared Profile 固定为 `profile=ice3-prepared`、`profileVersion=1.0`。
-- Git author/committer 为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author/committer 为 `repository `AGENTS.md` identity policy`。
 
 ## 3. Review Focus
 
@@ -71,7 +74,7 @@ reader；OBJ/MTL 使用 Rust parser，资源解析限制在源文件目录内。
   - `ImportRequest`
   - `ImportError`
 
-- [x] **Step 1: 写 registry 失败测试**
+- **Step 1: 写 registry 失败测试**
 
 ```rust
 #[test]
@@ -92,7 +95,7 @@ fn rejects_duplicate_importer_ids() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test registry
@@ -100,7 +103,7 @@ cargo test -p studio-import --test registry
 
 预期：`studio-import` crate 和 registry API 尚不存在，测试编译失败。
 
-- [x] **Step 3: 建立契约类型**
+- **Step 3: 建立契约类型**
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -198,13 +201,13 @@ pub enum ImportError {
 
 `ResourceIgnored` 默认是 warning 数据来源；只有调用方启用 `warnings-as-errors` 时才终止。
 
-- [x] **Step 4: 实现 registry 与稳定错误**
+- **Step 4: 实现 registry 与稳定错误**
 
 `resolve` 必须先按显式 adapter ID 和扩展名双重匹配，再按小写扩展名选择；未知扩展名返回
 `ICE3_STUDIO_IMPORT_UNSUPPORTED`。`ImportWarning` 必须包含稳定 `code`、`message` 和
 可选 `path`，并按 `(code, path, message)` 排序去重。
 
-- [x] **Step 5: 运行 crate 测试**
+- **Step 5: 运行 crate 测试**
 
 ```bash
 cargo test -p studio-import
@@ -212,7 +215,7 @@ cargo test -p studio-import
 
 预期：registry 测试全部通过。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-import
@@ -248,7 +251,7 @@ pub struct PreparedGlbOptions {
 Task 6 调用 `studio_import::to_canonical(&source_scene)`，该函数逐项复制 geometry、
 material、node 和 `asset_extras`，不读取文件系统。
 
-- [x] **Step 1: 写 hierarchy 与 material 测试**
+- **Step 1: 写 hierarchy 与 material 测试**
 
 ```rust
 #[test]
@@ -267,7 +270,7 @@ fn writes_hierarchy_selection_ids_and_materials() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-assets --test canonical_writer
@@ -275,7 +278,7 @@ cargo test -p studio-assets --test canonical_writer
 
 预期：canonical writer API 不存在。
 
-- [x] **Step 3: 实现 canonical binary writer**
+- **Step 3: 实现 canonical binary writer**
 
 writer 必须：
 
@@ -287,7 +290,7 @@ writer 必须：
 5. 拒绝空 mesh、越界 index、NaN/Infinity 和不存在的 parent。
 6. 输出确定性 JSON key 顺序与 GLB chunk padding。
 
-- [x] **Step 4: 运行 writer 和 reader 测试**
+- **Step 4: 运行 writer 和 reader 测试**
 
 ```bash
 cargo test -p studio-assets --test canonical_writer
@@ -296,7 +299,7 @@ cargo test -p studio-assets
 
 预期：writer 输出可被同一个 `read_glb` 和 `validate_prepared_profile` 接受。
 
-- [x] **Step 5: 提交**
+- **Step 5: 提交**
 
 ```bash
 git add crates/studio-assets
@@ -314,7 +317,7 @@ git commit -m "feat(studio): write canonical prepared GLBs"
 - Consumes: `studio_assets::{read_glb, read_accessor}`、Task 1 `SourceScene`。
 - Produces: `GltfImporter`，ID `gltf`，扩展名 `[".gltf", ".glb"]`。
 
-- [x] **Step 1: 写 GLB profile 与共享 Mesh 测试**
+- **Step 1: 写 GLB profile 与共享 Mesh 测试**
 
 ```rust
 #[test]
@@ -339,7 +342,7 @@ fn preserves_a_mesh_shared_by_two_nodes() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test gltf_import
@@ -347,7 +350,7 @@ cargo test -p studio-import --test gltf_import
 
 预期：`GltfImporter` 不存在。
 
-- [x] **Step 3: 实现 import**
+- **Step 3: 实现 import**
 
 read accessor 后执行：
 
@@ -357,7 +360,7 @@ read accessor 后执行：
 - 使用 node 的 `extras.ice3.selectionId`；缺失时生成 `<assetId>/node/<ordinal>`。
 - 外部资源继续使用 Preview 的 bounded resolver。
 
-- [x] **Step 4: 运行聚焦与全仓测试**
+- **Step 4: 运行聚焦与全仓测试**
 
 ```bash
 cargo test -p studio-import --test gltf_import
@@ -366,7 +369,7 @@ cargo test --workspace
 
 预期：全部通过。
 
-- [x] **Step 5: 提交**
+- **Step 5: 提交**
 
 ```bash
 git add crates/studio-import
@@ -387,7 +390,7 @@ git commit -m "feat(studio): import glTF through the native registry"
   - `read_obj_resources(path) -> Result<ObjResources, ImportError>`
   - `parse_mtl(bytes) -> Result<BTreeMap<String, SourceMaterial>, ImportError>`
 
-- [x] **Step 1: 写 path escape 与 material 测试**
+- **Step 1: 写 path escape 与 material 测试**
 
 ```rust
 #[test]
@@ -411,7 +414,7 @@ d 0.75
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test obj_resources
@@ -419,14 +422,14 @@ cargo test -p studio-import --test obj_resources
 
 预期：OBJ resource/MTL API 不存在。
 
-- [x] **Step 3: 实现资源解析**
+- **Step 3: 实现资源解析**
 
 读取每一行 `mtllib`，拒绝空值、绝对路径、URI scheme、`..` 和 symlink escape。缺失 MTL
 产生 `ICE3_STUDIO_IMPORT_OBJ_MATERIAL_UNAVAILABLE` warning。MTL 支持 `newmtl`、`Kd`、
 `d`、`Tr` 和 `map_Kd`；纹理引用只产生
 `ICE3_STUDIO_IMPORT_OBJ_TEXTURE_UNSUPPORTED`，不读取图像。
 
-- [x] **Step 4: 运行测试**
+- **Step 4: 运行测试**
 
 ```bash
 cargo test -p studio-import --test obj_resources
@@ -434,7 +437,7 @@ cargo test -p studio-import --test obj_resources
 
 预期：path escape、缺失 MTL、重复 material、opacity 和 material warning 全部通过。
 
-- [x] **Step 5: 提交**
+- **Step 5: 提交**
 
 ```bash
 git add crates/studio-import
@@ -453,7 +456,7 @@ git commit -m "feat(studio): parse bounded OBJ material resources"
 - Consumes: Task 4 `ObjResources`、Task 1 `SourceScene`。
 - Produces: `ObjImporter`，ID `obj`，扩展名 `[".obj"]`。
 
-- [x] **Step 1: 写 face 与 negative index 测试**
+- **Step 1: 写 face 与 negative index 测试**
 
 ```rust
 #[test]
@@ -482,7 +485,7 @@ fn shifts_large_world_coordinates_to_the_source_origin() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test obj_import
@@ -490,7 +493,7 @@ cargo test -p studio-import --test obj_import
 
 预期：OBJ importer 不存在。
 
-- [x] **Step 3: 实现 parser**
+- **Step 3: 实现 parser**
 
 parser 必须处理：
 
@@ -502,7 +505,7 @@ parser 必须处理：
 - 顶点色线格式发出 `ICE3_STUDIO_IMPORT_OBJ_VERTEX_COLORS_UNSUPPORTED`。
 - 空几何、越界 index、退化 face 和未终止数字报稳定错误。
 
-- [x] **Step 4: 生成 metadata**
+- **Step 4: 生成 metadata**
 
 OBJ node extras 固定为：
 
@@ -523,7 +526,7 @@ OBJ node extras 固定为：
 asset extras 记录 `coordinateSystem(right,y,meter)`、`unitAssumption`、
 `sourceOrigin` 和 `converter="native-rust"`。
 
-- [x] **Step 5: 运行测试**
+- **Step 5: 运行测试**
 
 ```bash
 cargo test -p studio-import --test obj_import
@@ -533,7 +536,7 @@ cargo test -p studio-import
 预期：OBJ hierarchy、negative index、polygon、normal、large-origin、empty 和 truncated
 测试全部通过。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add crates/studio-import
@@ -554,7 +557,7 @@ git commit -m "feat(studio): import OBJ geometry in Rust"
   - `ice3-studio import SOURCE --output FILE --asset-id ID [--adapter auto|gltf|obj]`
   - `ice3-studio validate FILE`
 
-- [x] **Step 1: 写 parser 与 output 测试**
+- **Step 1: 写 parser 与 output 测试**
 
 ```rust
 #[test]
@@ -582,7 +585,7 @@ fn imports_obj_to_a_readable_prepared_glb() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-cli parses_import_and_validate_commands
@@ -591,7 +594,7 @@ cargo test -p studio-cli --test import
 
 预期：命令尚未定义。
 
-- [x] **Step 3: 实现 import orchestration**
+- **Step 3: 实现 import orchestration**
 
 流程固定为：
 
@@ -603,12 +606,12 @@ cargo test -p studio-cli --test import
 6. 输出必须通过 `read_glb` 与 `validate_prepared_profile`。
 7. 写 sibling temporary file，`sync_all` 后 rename；默认拒绝已有 output，`--force` 才替换。
 
-- [x] **Step 4: 实现 validate**
+- **Step 4: 实现 validate**
 
 `validate` 对 GLB 调用 `read_glb` + `validate_prepared_profile`；对 `.gltf` 调用 source
 reader。成功输出机器可读 JSON，失败使用稳定 `AssetError.code()`。
 
-- [x] **Step 5: 运行 CLI 与全仓测试**
+- **Step 5: 运行 CLI 与全仓测试**
 
 ```bash
 cargo test -p studio-cli
@@ -617,7 +620,7 @@ cargo test --workspace
 
 预期：全部通过。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-cli crates/studio-import crates/studio-assets
@@ -641,7 +644,7 @@ git commit -m "feat(studio-cli): import and validate native sources"
 - Modify outside Studio: `ice3-toolchain/package-lock.json`
 - Delete outside Studio: `ice3-toolchain/packages/obj-importer/`
 
-- [x] **Step 1: 固化退役前 parity baseline**
+- **Step 1: 固化退役前 parity baseline**
 
 先用当前 Toolchain 对以下 checked-in fixture 运行：
 
@@ -656,7 +659,7 @@ node ../ice3-toolchain/packages/cli/dist/main.js import \
 `fixtures/parity/obj-baseline-v1.json` 记录 source digest、GLB digest、triangle/vertex/
 node/mesh/material counts、selection IDs、warnings、bounds 和 material colors。
 
-- [x] **Step 2: 写 parity script**
+- **Step 2: 写 parity script**
 
 `compare-source-imports.mjs`：
 
@@ -667,7 +670,7 @@ node/mesh/material counts、selection IDs、warnings、bounds 和 material color
 4. 允许 GLB byte digest 不同，但必须同时记录 baseline/new digest 和原因。
 5. 输出 `output/source-import-parity.json`，无法解释的差异 exit 1。
 
-- [x] **Step 3: 运行 parity**
+- **Step 3: 运行 parity**
 
 ```bash
 node scripts/compare-source-imports.mjs
@@ -676,7 +679,7 @@ node scripts/compare-source-imports.mjs
 预期：`status=pass`，OBJ semantic counts、Selection、bounds、material 和 warning code
 一致；byte digest 差异被报告。
 
-- [x] **Step 4: 退役 Toolchain OBJ 生产路径**
+- **Step 4: 退役 Toolchain OBJ 生产路径**
 
 在 `ice3-toolchain`：
 
@@ -695,7 +698,7 @@ rg -n "@ice3/obj-importer|createObjImporter|assimpjs" .
 
 预期：verify 通过；生产源码和 lockfile 不再引用 OBJ adapter 或 Assimp。
 
-- [x] **Step 5: 更新文档与阶段状态**
+- **Step 5: 更新文档与阶段状态**
 
 文档必须说明：
 
@@ -706,7 +709,7 @@ rg -n "@ice3/obj-importer|createObjImporter|assimpjs" .
 - Phase 2 milestone 标记 `Implemented`；整份 Spec-016 仍为 `Approved`。
 - Toolchain 只保留后续 FBX、USD、STEP、IFC、JT 迁移所需的兼容层。
 
-- [x] **Step 6: 运行完整验证**
+- **Step 6: 运行完整验证**
 
 ```bash
 node ../ice3-doc/scripts/check-docs.mjs --root .
@@ -722,7 +725,7 @@ node scripts/compare-source-imports.mjs
 - Phase 1 parity 继续通过。
 - Phase 2 source-import parity 通过。
 
-- [x] **Step 7: 提交**
+- **Step 7: 提交**
 
 ```bash
 git add scripts/compare-source-imports.mjs fixtures/parity \

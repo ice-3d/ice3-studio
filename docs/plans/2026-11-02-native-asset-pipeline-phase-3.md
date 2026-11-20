@@ -48,7 +48,7 @@ Node.js 24.22.1（仅 Viewer、E2E 和 parity）。
   120 秒；内存预算通过分配前预检和 post-decode accounting 执行，不等同于进程 RSS
   的字节级硬上限。
 - 所有 warning、Diagnostic 和输出必须确定性排序。
-- Git author/committer 为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author/committer 为 `repository `AGENTS.md` identity policy`。
 
 ## 3. Review Focus
 
@@ -79,7 +79,7 @@ Node.js 24.22.1（仅 Viewer、E2E 和 parity）。
   - `WorkerResponse`
   - `run_isolated_import(adapter, request, limits) -> Result<SourceScene, ImportError>`
 
-- [x] **Step 1: 写 worker 错误与限制测试**
+- **Step 1: 写 worker 错误与限制测试**
 
 ```rust
 #[test]
@@ -104,7 +104,7 @@ fn rejects_a_worker_with_the_wrong_protocol_version() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test worker_protocol
@@ -112,7 +112,7 @@ cargo test -p studio-import --test worker_protocol
 
 预期：worker 和 limits API 尚不存在。
 
-- [x] **Step 3: 定义限制**
+- **Step 3: 定义限制**
 
 ```rust
 #[derive(Debug, Clone, Copy)]
@@ -137,7 +137,7 @@ impl Default for NativeImportLimits {
 
 `validate_scene_limits` 在 worker 返回后再次统计 geometry，防止第三方库忽略预算。
 
-- [x] **Step 4: 定义固定 worker 协议**
+- **Step 4: 定义固定 worker 协议**
 
 ```rust
 #[derive(Serialize, Deserialize)]
@@ -166,14 +166,14 @@ pub enum WorkerResponse {
 全部增加 Serde 支持。worker 把且只把一个 bincode response 文件写到 request 指定的
 sibling 路径；日志写 stderr。parent 限制 response 为 512 MiB、stderr 为 1 MiB。
 
-- [x] **Step 5: 实现硬超时**
+- **Step 5: 实现硬超时**
 
 `run_isolated_import` 使用 `current_exe() --internal-import-worker REQUEST_PATH` 启动子进程，
 把 request 写入同目录临时文件。parent 轮询 `try_wait` 并以 `kill` 终止超时进程。成功时
 从 response sibling 文件读取；任何 exit code、协议版本、长度或 bincode 错误都映射为
 稳定错误。
 
-- [x] **Step 6: 运行协议测试**
+- **Step 6: 运行协议测试**
 
 ```bash
 cargo test -p studio-import --test worker_protocol
@@ -182,7 +182,7 @@ cargo test -p studio-import
 
 预期：限制、超时、崩溃和污染 stdout 测试全部通过。
 
-- [x] **Step 7: 提交**
+- **Step 7: 提交**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-import
@@ -201,7 +201,7 @@ git commit -m "feat(studio): isolate native source import workers"
 - Consumes: `fbx-rs` 的 owned Scene、Task 1 limits。
 - Produces: `FbxImporter`，ID `fbx`，扩展名 `[".fbx"]`。
 
-- [x] **Step 1: 写 ASCII、Binary、实例和单位测试**
+- **Step 1: 写 ASCII、Binary、实例和单位测试**
 
 ```rust
 #[test]
@@ -234,7 +234,7 @@ fn preserves_fbx_shared_mesh_instances() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test fbx_import
@@ -242,7 +242,7 @@ cargo test -p studio-import --test fbx_import
 
 预期：FBX adapter 不存在。
 
-- [x] **Step 3: 实现 FBX 映射**
+- **Step 3: 实现 FBX 映射**
 
 使用 `fbx_rs::load(bytes, &LoadOptions::default())`，并启用 native decoder 的
 memory/mesh/node limits。映射规则：
@@ -256,12 +256,12 @@ memory/mesh/node limits。映射规则：
 - `selectionId = <assetId>/fbx/node/<ordinal>`，metadata 写入 `extras.ice3.fbx`。
 - animation、skin、camera、light、NURBS 和 texture 进入稳定 warning。
 
-- [x] **Step 4: 实现大坐标归零**
+- **Step 4: 实现大坐标归零**
 
 按世界 bounds 计算 `[minX,0,minZ]`，只平移 scene root，不修改每个 mesh 的 source
 positions。asset extras 记录 `sourceOrigin` 和 `unitAssumption="meter"`。
 
-- [x] **Step 5: 运行 FBX 测试**
+- **Step 5: 运行 FBX 测试**
 
 ```bash
 cargo test -p studio-import --test fbx_import
@@ -271,7 +271,7 @@ cargo test -p studio-import
 预期：ASCII/Binary、实例、颜色、metadata、单位、large-origin、empty、truncated 和
 corrupt binary 测试全部通过。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-import
@@ -290,7 +290,7 @@ git commit -m "feat(studio): import FBX with a native decoder"
 - Consumes: `openusd` stage、source-directory resolver、Task 1 limits。
 - Produces: `UsdImporter`，ID `usd`，扩展名 `[".usda", ".usdc"]`。
 
-- [x] **Step 1: 写 ASCII、Binary、composition 和 instance 测试**
+- **Step 1: 写 ASCII、Binary、composition 和 instance 测试**
 
 ```rust
 #[test]
@@ -330,7 +330,7 @@ fn preserves_usd_point_instancer_identity() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test usd_import
@@ -338,7 +338,7 @@ cargo test -p studio-import --test usd_import
 
 预期：USD adapter 不存在。
 
-- [x] **Step 3: 实现 USD stage 映射**
+- **Step 3: 实现 USD stage 映射**
 
 使用 `openusd::usd::Stage` 打开 ASCII/Binary stage。遍历 active prims：
 
@@ -350,13 +350,13 @@ cargo test -p studio-import --test usd_import
 - `selectionId = <assetId>/usd/node/<ordinal>`。
 - texture、skeleton、camera、light、volume 和 unsupported schema 产生 warning。
 
-- [x] **Step 4: 限制 composition 资源**
+- **Step 4: 限制 composition 资源**
 
 为 Stage 配置 source-directory-confined resolver。扫描所有 resolved layer identifiers，
 拒绝绝对路径、URI scheme、`..` 和 symlink escape。composition depth 上限 32，总 layer
 数上限 1,024。缺失 layer/reference/payload 失败关闭。
 
-- [x] **Step 5: 运行 USD 测试**
+- **Step 5: 运行 USD 测试**
 
 ```bash
 cargo test -p studio-import --test usd_import
@@ -366,7 +366,7 @@ cargo test -p studio-import
 预期：USDA/USDC、composition、instance、color、metadata、unit、missing layer、
 truncated、empty 和 cycle 测试全部通过。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-import
@@ -384,7 +384,7 @@ git commit -m "feat(studio): import USD with a native stage"
 - Consumes: `FbxImporter`、`UsdImporter`、`run_isolated_import`。
 - Produces: `--adapter auto|gltf|obj|fbx|usd`。
 
-- [x] **Step 1: 写 CLI integration 测试**
+- **Step 1: 写 CLI integration 测试**
 
 ```rust
 #[test]
@@ -417,7 +417,7 @@ fn timeout_does_not_replace_existing_output() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-cli --test fbx_usd_import
@@ -425,7 +425,7 @@ cargo test -p studio-cli --test fbx_usd_import
 
 预期：registry 未注册 FBX/USD，worker 入口不存在。
 
-- [x] **Step 3: 注册 adapters**
+- **Step 3: 注册 adapters**
 
 registry 固定顺序为 `gltf`、`obj`、`fbx`、`usd`。FBX/USD 通过
 `run_isolated_import` 执行；glTF/OBJ 保持当前 in-process 路径。
@@ -438,7 +438,7 @@ ice3-studio --internal-import-worker REQUEST_PATH
 
 该命令不打印普通用户输出，只写 response 文件和 stderr diagnostic。
 
-- [x] **Step 4: 运行 CLI 测试**
+- **Step 4: 运行 CLI 测试**
 
 ```bash
 cargo test -p studio-cli --test fbx_usd_import
@@ -448,7 +448,7 @@ cargo test -p studio-cli
 预期：FBX/USD import、validate、force、timeout、worker crash 和 existing-output
 测试全部通过。
 
-- [x] **Step 5: 提交**
+- **Step 5: 提交**
 
 ```bash
 git add crates/studio-cli Cargo.lock
@@ -466,7 +466,7 @@ git commit -m "feat(studio-cli): import FBX and USD without external bridges"
 - Consumes: CLI `import` 输出和退役前 baseline。
 - Produces: `output/fbx-usd-import-parity.json`。
 
-- [x] **Step 1: 固化退役前 baseline**
+- **Step 1: 固化退役前 baseline**
 
 使用当前 Toolchain 对 checked-in synthetic fixtures 生成 baseline，记录：
 
@@ -476,12 +476,12 @@ git commit -m "feat(studio-cli): import FBX and USD without external bridges"
 
 baseline 在迁移前生成并提交，之后不依赖已删除 bridge。
 
-- [x] **Step 2: 实现 parity script**
+- **Step 2: 实现 parity script**
 
 脚本对比 native CLI 与 baseline。允许 output byte digest 和 vertex welding 差异，但必须
 报告；node/mesh/triangle、instance、Selection、bounds、material 和 warning 语义必须一致。
 
-- [x] **Step 3: 运行 parity 与负向 corpus**
+- **Step 3: 运行 parity 与负向 corpus**
 
 ```bash
 node scripts/compare-fbx-usd-imports.mjs
@@ -493,7 +493,7 @@ node scripts/compare-fbx-usd-imports.mjs
 - empty、truncated、corrupt binary、unsafe USD reference、deep composition、worker
   timeout 和 worker crash 全部失败关闭且不发布 output。
 
-- [x] **Step 4: 提交**
+- **Step 4: 提交**
 
 ```bash
 git add fixtures/parity scripts/compare-fbx-usd-imports.mjs
@@ -527,18 +527,18 @@ git commit -m "test(studio): add native FBX and USD parity"
 - Consumes: Studio native FBX/USD importer 和三份 parity report。
 - Produces: Toolchain bridge retirement、Phase 3 Implemented 状态和完整验证证据。
 
-- [x] **Step 1: 删除 Toolchain adapters 与 runtime dependencies**
+- **Step 1: 删除 Toolchain adapters 与 runtime dependencies**
 
 删除 FBX/USD npm adapters、Python bridge、bridge tests 和 lazy imports。移除
 `assimpjs`、外部 DCC runtime 环境变量、CLI help 项及 TypeScript project references。
 保留 fixtures 作为 parity corpus。
 
-- [x] **Step 2: 更新 Toolchain conformance**
+- **Step 2: 更新 Toolchain conformance**
 
 Toolchain conformance 缩减为 glTF/STEP/IFC/JT 四项。FBX/USD 改由 Studio native parity
 覆盖，不再出现在 Toolchain manifest。
 
-- [x] **Step 3: 更新 Studio 文档与阶段状态**
+- **Step 3: 更新 Studio 文档与阶段状态**
 
 文档必须说明：
 
@@ -548,12 +548,12 @@ Toolchain conformance 缩减为 glTF/STEP/IFC/JT 四项。FBX/USD 改由 Studio 
 - Phase 3 milestone 标记 `Implemented`；整份 Spec-016 仍为 `Approved`。
 - Toolchain 只保留 STEP、IFC、JT 迁移兼容能力。
 
-- [x] **Step 4: 更新 AGENTS 边界**
+- **Step 4: 更新 AGENTS 边界**
 
 Studio 架构规则改为 FBX/USD 由 `studio-import` worker 处理；不得恢复外部 DCC bridge。
 Toolchain 规则同步删除 FBX/USD 生产职责。
 
-- [x] **Step 5: 运行完整验证**
+- **Step 5: 运行完整验证**
 
 ```bash
 node ../ice3-doc/scripts/check-docs.mjs --root .
@@ -577,7 +577,7 @@ rg -n "fbx-importer|usd-importer|assimpjs|blender" packages tests tools package.
 - 三份 parity report 通过。
 - Toolchain 生产源码、package 和 conformance 不再引用 FBX/USD bridge 或外部 DCC。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 Studio：
 

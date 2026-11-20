@@ -10,7 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Deliver a local-first, Rust-backed, API-first modeling system that can construct, validate, revise, persist, export, and display a small wastewater treatment module without any external modeling application.
 
@@ -35,7 +36,7 @@
 - The only MVP acceptance fixture is `wastewater-mini`.
 - Source, tests, documentation, diagnostics, links, and commits must not contain competitor, vendor, or unapproved commercial product names.
 - Every behavior change starts with a failing test and ends with the complete relevant suite passing.
-- Git author and committer must be `damoqiongqiu <damoqiongqiu@126.com>`.
+- Git author and committer must be `repository `AGENTS.md` identity policy`.
 
 ## 2. Review Focus
 
@@ -64,7 +65,7 @@
 - Produces: `studio_core::PROJECT_SCHEMA_VERSION: u32` and `studio_core::API_VERSION: &str`.
 - Produces: `cargo test --workspace`, `cargo fmt --check`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
-- [ ] **Step 1: Write the failing workspace contract test**
+- **Step 1: Write the failing workspace contract test**
 
 ```rust
 // crates/studio-core/tests/workspace_contract.rs
@@ -77,13 +78,13 @@ fn exposes_the_initial_contract_versions() {
 }
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- **Step 2: Run the test and verify RED**
 
 Run: `cargo test -p studio-core --test workspace_contract`
 
 Expected: compilation fails because the package and exported constants do not exist.
 
-- [ ] **Step 3: Create the workspace and minimal core crate**
+- **Step 3: Create the workspace and minimal core crate**
 
 ```toml
 # Cargo.toml
@@ -134,7 +135,7 @@ Create empty `lib.rs`, `main.rs`, and `Cargo.toml` skeletons for the other three
 *.tmp
 ```
 
-- [ ] **Step 4: Run all foundation checks**
+- **Step 4: Run all foundation checks**
 
 Run: `cargo fmt --check`
 
@@ -144,7 +145,7 @@ Run: `cargo clippy --workspace --all-targets -- -D warnings`
 
 Expected: all commands pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock rustfmt.toml .gitignore crates README.md
@@ -168,7 +169,7 @@ git commit -m "build(studio): bootstrap rust workspace"
 - Produces: `Transform`, `Vec2`, `Vec3`, `Document`, `SceneNode`, `NodeContent`, `Material`, `Relation`, `Constraint`.
 - Produces: `NodeId::new(prefix: &str, ordinal: u64) -> Result<NodeId, IdError>`.
 
-- [ ] **Step 1: Write failing document model tests**
+- **Step 1: Write failing document model tests**
 
 ```rust
 use studio_core::document::{Document, Material, NodeContent, SceneNode};
@@ -204,13 +205,13 @@ fn stores_identity_independently_from_display_name() {
 }
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- **Step 2: Run the tests and verify RED**
 
 Run: `cargo test -p studio-core --test document_model`
 
 Expected: compilation fails with missing `document`, `ids`, and `math` modules.
 
-- [ ] **Step 3: Implement the model with strict construction**
+- **Step 3: Implement the model with strict construction**
 
 ```rust
 // crates/studio-core/src/ids.rs
@@ -267,13 +268,13 @@ impl Transform {
 Use `f64` only for cumulative validation calculations where needed; public Scene values
 remain finite `f32` meters and radians.
 
-- [ ] **Step 4: Run model tests and the full crate suite**
+- **Step 4: Run model tests and the full crate suite**
 
 Run: `cargo test -p studio-core`
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core
@@ -298,7 +299,7 @@ git commit -m "feat(studio-core): define stable document model"
 - Produces: `evaluate_node_content(content: &NodeContent) -> Result<EvaluatedMesh, GeometryError>`.
 - Produces: `vertices: Vec<Vertex>`, `indices: Vec<u32>`, and `bounds: Bounds` in every evaluated mesh.
 
-- [ ] **Step 1: Write failing geometry tests**
+- **Step 1: Write failing geometry tests**
 
 ```rust
 use studio_core::geometry::{Primitive, evaluate_node_content};
@@ -349,13 +350,13 @@ fn rejects_zero_sized_and_non_finite_primitives() {
 }
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- **Step 2: Run the tests and verify RED**
 
 Run: `cargo test -p studio-core --test geometry_evaluation`
 
 Expected: compilation fails because geometry types and evaluator do not exist.
 
-- [ ] **Step 3: Implement primitive and sweep evaluation**
+- **Step 3: Implement primitive and sweep evaluation**
 
 ```rust
 // crates/studio-core/src/geometry/mod.rs
@@ -389,7 +390,7 @@ Use deterministic ring orientation and stable triangle winding. Generate normals
 triangle winding. Reject fewer than two Sweep points, non-positive radii, fewer than
 three radial segments, repeated consecutive points, and non-finite input.
 
-- [ ] **Step 4: Run geometry, model, and workspace tests**
+- **Step 4: Run geometry, model, and workspace tests**
 
 Run: `cargo test -p studio-core`
 
@@ -397,7 +398,7 @@ Run: `cargo test --workspace`
 
 Expected: both commands pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core
@@ -423,7 +424,7 @@ git commit -m "feat(studio-core): evaluate modeling primitives"
 - Produces: `ApplyRequest`, `ApplyResult`, `Diagnostic`, `DiagnosticCode`, and `DocumentDiff`.
 - Produces: `apply_transaction(document: &mut Document, request: ApplyRequest) -> Result<ApplyResult, TransactionError>`.
 
-- [ ] **Step 1: Write failing transaction tests**
+- **Step 1: Write failing transaction tests**
 
 ```rust
 use studio_core::apply::{ApplyRequest, apply_transaction};
@@ -520,13 +521,13 @@ fn returns_the_original_result_for_a_repeated_idempotency_key() {
 }
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- **Step 2: Run the tests and verify RED**
 
 Run: `cargo test -p studio-core --test transactions`
 
 Expected: compilation fails because apply and operation types do not exist.
 
-- [ ] **Step 3: Implement transactional apply**
+- **Step 3: Implement transactional apply**
 
 ```rust
 pub fn apply_transaction(
@@ -575,7 +576,7 @@ Use an ordered `IdempotencyRecord` map backed by a vector in serialized form so 
 deterministic. Reapplying an existing key returns the original result and does not mutate.
 Implement every operation listed in the spec in its own match arm.
 
-- [ ] **Step 4: Implement validation and stable diagnostics**
+- **Step 4: Implement validation and stable diagnostics**
 
 Validation rejects duplicate IDs, missing parents/materials, hierarchy cycles, missing
 Relation endpoints, non-finite transforms, non-positive Primitive dimensions, invalid
@@ -588,7 +589,7 @@ Run: `cargo test -p studio-core`
 
 Expected: all tests pass and failed transactions leave `document` unchanged.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core
@@ -613,7 +614,7 @@ git commit -m "feat(studio-core): apply atomic modeling transactions"
   `undo`, `redo`, and `history`.
 - Produces: `WorkspacePath` and `ProjectError`.
 
-- [ ] **Step 1: Write failing persistence tests**
+- **Step 1: Write failing persistence tests**
 
 ```rust
 use studio_core::document::Document;
@@ -674,13 +675,13 @@ fn undo_and_redo_restore_document_content() {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- **Step 2: Run tests and verify RED**
 
 Run: `cargo test -p studio-project --test project_store`
 
 Expected: compilation fails because the persistence crate does not exist.
 
-- [ ] **Step 3: Implement the project store**
+- **Step 3: Implement the project store**
 
 Create `project.json`, `revisions/NNNNNNNN.json`, `history/operations.jsonl`, `resources/`,
 and `cache/preview/`. Serialize canonical JSON and write via a sibling temporary file plus
@@ -691,7 +692,7 @@ Undo restores the preceding snapshot as the next revision and records an `undo` 
 entry; redo restores the following snapshot the same way. A new write after undo truncates
 the redo branch. Object IDs and content remain stable across undo and redo.
 
-- [ ] **Step 4: Implement locking and failure restoration**
+- **Step 4: Implement locking and failure restoration**
 
 Create an exclusive lock file that records process ID and acquisition time. Reject a second
 writer. On a commit failure, remove only that attempt's temporary file and preserve the
@@ -701,7 +702,7 @@ Run: `cargo test -p studio-project`
 
 Expected: all tests pass, including escape rejection and failed-write recovery.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-project Cargo.toml Cargo.lock
@@ -733,7 +734,7 @@ git commit -m "feat(studio-project): persist revisions atomically"
 - Produces: `RpcRequest`, `RpcResponse`, `Capabilities`, and ordered `RevisionEvent`.
 - Produces: static schemas generated from Rust types.
 
-- [ ] **Step 1: Write failing API contract tests**
+- **Step 1: Write failing API contract tests**
 
 ```rust
 use studio_server::{ServerConfig, start_test_server};
@@ -795,13 +796,13 @@ async fn publishes_a_revision_event_after_a_successful_commit() {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- **Step 2: Run tests and verify RED**
 
 Run: `cargo test -p studio-server --test rpc_contract`
 
 Expected: compilation fails because the server crate and test server do not exist.
 
-- [ ] **Step 3: Implement the server**
+- **Step 3: Implement the server**
 
 Use `axum` and `tokio`. Bind only to `127.0.0.1`, generate a random 32-byte session token on
 startup, print the token to stdout, and require `Authorization: Bearer <token>` for mutating
@@ -851,7 +852,7 @@ Implement `system.health`, `system.capabilities`, `project.create`, `project.ope
 `validation.run`, `evaluation.evaluate`, `export.sourceGlb`, and
 `export.runtimePreview`.
 
-- [ ] **Step 4: Generate and verify schemas**
+- **Step 4: Generate and verify schemas**
 
 ```bash
 cargo run -p studio-cli -- schema --output schemas
@@ -861,7 +862,7 @@ cargo test -p studio-server
 Expected: API integration tests pass; generated schema files include every RPC method and
 Operation. A second generation must produce byte-identical output.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server schemas Cargo.toml Cargo.lock
@@ -885,7 +886,7 @@ git commit -m "feat(studio-server): expose local ai modeling api"
 - Produces: `export_glb(document: &Document) -> Result<Vec<u8>, ExportError>`.
 - Produces: `RuntimePreview { revision, source_digest, preview_path, diagnostics }`.
 
-- [ ] **Step 1: Write failing GLB and preview tests**
+- **Step 1: Write failing GLB and preview tests**
 
 ```rust
 use studio_core::document::Document;
@@ -910,19 +911,19 @@ fn exports_stable_bytes_for_the_same_revision() {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- **Step 2: Run tests and verify RED**
 
 Run: `cargo test -p studio-core --test glb_export`
 
 Expected: compilation fails because GLB export does not exist.
 
-- [ ] **Step 3: Implement deterministic standard GLB export**
+- **Step 3: Implement deterministic standard GLB export**
 
 Write a glTF 2.0 JSON chunk followed by a BIN chunk. Emit stable node order, matrices,
 triangle indices, positions, materials, and `extras.ice3` metadata. Every buffer view names
 its buffer explicitly. The exporter must not write the proprietary Prepared profile.
 
-- [ ] **Step 4: Add Toolchain preview orchestration**
+- **Step 4: Add Toolchain preview orchestration**
 
 `studio-server/src/preview.rs` writes a source GLB into the current revision cache and
 invokes only the approved local Toolchain command. The server requires
@@ -945,7 +946,7 @@ Run: `cargo test -p studio-server --test preview_pipeline`
 Expected: valid source GLB, successful fixture preview, and previous preview retained on
 adapter failure.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/export crates/studio-server scripts
@@ -968,7 +969,7 @@ git commit -m "feat(studio): export previewable glb assets"
 - Produces: a reproducible fixture transaction sequence with no model credentials.
 - Produces: one dry-run rejection, one corrected transaction, undo/redo, reload, and export.
 
-- [ ] **Step 1: Write the failing end-to-end test**
+- **Step 1: Write the failing end-to-end test**
 
 ```rust
 use studio_server::{ServerConfig, start_test_server};
@@ -987,20 +988,20 @@ async fn deterministic_ai_client_builds_and_reloads_wastewater_fixture() {
 }
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- **Step 2: Run test and verify RED**
 
 Run: `cargo test -p studio-server --test ai_fixture`
 
 Expected: fixture and client runner do not exist.
 
-- [ ] **Step 3: Author the deterministic AI transaction plan**
+- **Step 3: Author the deterministic AI transaction plan**
 
 The plan contains material creation, ground, two aeration tanks, two secondary clarifiers,
 two pumps, and at least four typed process connections. Every node and relation has an
 explicit stable ID and metadata. The first attempt includes one missing target and must be
 rejected. The second attempt fixes only that target.
 
-- [ ] **Step 4: Run the AI fixture and inspect diagnostics**
+- **Step 4: Run the AI fixture and inspect diagnostics**
 
 Run: `cargo test -p studio-server --test ai_fixture`
 
@@ -1009,7 +1010,7 @@ Run: `node scripts/run-ai-fixture.mjs --fixture fixtures/wastewater-mini`
 Expected: one structured rejection, one successful revision, undo/redo parity, reload
 identity parity, preview GLB creation, and no credentials.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add fixtures scripts/run-ai-fixture.mjs crates/studio-server/tests/ai_fixture.rs docs/guides
@@ -1039,7 +1040,7 @@ git commit -m "test(studio): prove ai-driven wastewater modeling"
 - Produces: Viewer showing the latest prepared preview, revision, tree, selection, diagnostics.
 - Produces: `npm run dev`, `npm run build`, `npm test`, `npm run test:e2e`, and `npm run verify`.
 
-- [ ] **Step 1: Write failing API and viewer tests**
+- **Step 1: Write failing API and viewer tests**
 
 ```ts
 // apps/viewer/e2e/viewer.spec.ts
@@ -1062,13 +1063,13 @@ test('shows a revision event without unmounting the scene', async ({ page }) => 
 });
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- **Step 2: Run tests and verify RED**
 
 Run: `cd apps/viewer && npm run test:e2e`
 
 Expected: Viewer package and DOM contracts do not exist.
 
-- [ ] **Step 3: Implement the API client and scene adapter**
+- **Step 3: Implement the API client and scene adapter**
 
 Use this exact package dependency set:
 
@@ -1116,7 +1117,7 @@ export type StudioClient = {
 Studio. `panel.ts` renders project ID, revision, node tree, selected node metadata, and
 diagnostics. It never constructs an `Operation` directly.
 
-- [ ] **Step 4: Implement revision-safe preview updates**
+- **Step 4: Implement revision-safe preview updates**
 
 Keep the current canvas mounted. When a new revision arrives, fetch its preview, load the
 new scene off-stage, and replace the scene only after success. On failure, retain the prior
@@ -1135,7 +1136,7 @@ Run: `cd apps/viewer && npm run build`
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add apps/viewer README.md
@@ -1164,7 +1165,7 @@ git commit -m "feat(studio-viewer): display api-driven models"
 - Produces: one root `npm run verify` orchestration command that invokes Rust and Viewer gates.
 - Produces: machine-readable benchmark JSON with p50/p95 for project open, transaction, evaluation, and export.
 
-- [ ] **Step 1: Write failing verification contract test**
+- **Step 1: Write failing verification contract test**
 
 ```rust
 // crates/studio-server/tests/verification_contract.rs
@@ -1177,13 +1178,13 @@ fn documents_every_public_diagnostic_code() {
 }
 ```
 
-- [ ] **Step 2: Run test and verify RED**
+- **Step 2: Run test and verify RED**
 
 Run: `cargo test -p studio-server --test verification_contract`
 
 Expected: reference documentation and exported diagnostic codes do not exist.
 
-- [ ] **Step 3: Implement the root verification and benchmark scripts**
+- **Step 3: Implement the root verification and benchmark scripts**
 
 `scripts/verify.mjs` runs sequentially:
 
@@ -1200,7 +1201,7 @@ cd apps/viewer && npm run typecheck && npm run build && npm run test:e2e
 operations, evaluates, exports, and writes JSON with p50/p95. It must fail if the spec's
 performance limits are exceeded.
 
-- [ ] **Step 4: Complete documentation and run the full gate**
+- **Step 4: Complete documentation and run the full gate**
 
 Document startup, the AI API workflow, operation semantics, diagnostics, revision recovery,
 and the difference between source GLB and Runtime preview. Run:
@@ -1212,7 +1213,7 @@ node benchmarks/studio-mvp.mjs
 
 Expected: all checks pass and the benchmark report is written under `output/`.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add scripts benchmarks docs README.md AGENTS.md

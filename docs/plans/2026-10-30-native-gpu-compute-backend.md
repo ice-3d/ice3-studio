@@ -10,8 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan
-> task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Add a native GPU backend that accelerates large derived-geometry batches while preserving
 CPU-authoritative documents, validation, caching, canonical export, and safe fallback.
@@ -77,7 +77,7 @@ on CPU until a measured crossover is established.
 - Produces: `trait GeometryBackend`
 - Later tasks use these exact names.
 
-- [ ] **Step 1: Write failing contract tests**
+- **Step 1: Write failing contract tests**
 
 Create `crates/studio-core/tests/gpu_contract.rs`:
 
@@ -111,7 +111,7 @@ fn reports_safe_capability_defaults() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -121,7 +121,7 @@ cargo test -p studio-core --test gpu_contract
 
 Expected: module-not-found failure.
 
-- [ ] **Step 3: Add the contracts**
+- **Step 3: Add the contracts**
 
 Add `async-trait.workspace = true` and implement:
 
@@ -204,7 +204,7 @@ and parity failures. Add `BackendCapabilities::cpu()` with `health: "ready"`,
 `backendFamily`, `memoryBudgetBytes`, and `fallbackReason`; adapter names and machine identifiers
 are never serialized.
 
-- [ ] **Step 4: Run focused tests and clippy**
+- **Step 4: Run focused tests and clippy**
 
 Run:
 
@@ -215,7 +215,7 @@ cargo clippy -p studio-core --all-targets -- -D warnings
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add Cargo.toml crates/studio-core/src/lib.rs \
@@ -241,7 +241,7 @@ git commit -m "feat(studio-core): define native GPU geometry contract"
   `NativeGpuBackend::for_test_gpu()`, and `CapabilityProbe`
 - Produces bounded adapter selection and device-loss state.
 
-- [ ] **Step 1: Write failing discovery tests**
+- **Step 1: Write failing discovery tests**
 
 Create `crates/studio-gpu/tests/device_contract.rs`:
 
@@ -274,7 +274,7 @@ fn gpu_discovery_is_bounded_and_returns_structured_state() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -284,7 +284,7 @@ cargo test -p studio-gpu --test device_contract
 
 Expected: package/module-not-found failure.
 
-- [ ] **Step 3: Add the crate and bounded initialization**
+- **Step 3: Add the crate and bounded initialization**
 
 Add workspace dependencies:
 
@@ -325,7 +325,7 @@ pub struct GpuHostLimits {
 Do not expose raw adapter identifiers. Report only a sanitized acceleration tier and backend
 family.
 
-- [ ] **Step 4: Verify**
+- **Step 4: Verify**
 
 Run:
 
@@ -336,7 +336,7 @@ cargo clippy -p studio-gpu --all-targets -- -D warnings
 
 Expected: PASS on CPU-only and GPU-capable machines without panicking.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-gpu
@@ -359,7 +359,7 @@ git commit -m "feat(studio-gpu): add bounded native device lifecycle"
 - Produces: `evaluate_box` and `evaluate_plane`.
 - Produces: `PrimitiveGpuParams` and `MeshReadback`.
 
-- [ ] **Step 1: Add failing parity tests**
+- **Step 1: Add failing parity tests**
 
 Create `crates/studio-gpu/tests/primitive_parity.rs`:
 
@@ -390,7 +390,7 @@ fn box_and_plane_match_cpu_reference() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -400,7 +400,7 @@ cargo test -p studio-gpu --test primitive_parity
 
 Expected: missing GPU primitive API.
 
-- [ ] **Step 3: Implement compute pipelines**
+- **Step 3: Implement compute pipelines**
 
 Use storage buffers for parameters, vertices, and indices. WGSL kernels must generate:
 
@@ -411,7 +411,7 @@ Use fixed `@workgroup_size(64)` and reject zero groups before dispatch. Create s
 buffers with `MAP_READ`, map asynchronously, validate finite values, and unmap before returning.
 The CPU implementation remains the parity oracle.
 
-- [ ] **Step 4: Run parity and all existing geometry tests**
+- **Step 4: Run parity and all existing geometry tests**
 
 Run:
 
@@ -422,7 +422,7 @@ cargo test -p studio-core --test geometry_evaluation
 
 Expected: PASS when GPU is available; tests skip cleanly when it is unavailable.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-gpu/src/kernels crates/studio-gpu/src/lib.rs \
@@ -444,7 +444,7 @@ git commit -m "feat(studio-gpu): compute boxes and planes natively"
 - Produces: `evaluate_cylinder`, `evaluate_sphere`, and `evaluate_sweep`.
 - Reuses the readback and parity validation from Task 3.
 
-- [ ] **Step 1: Add failing radial and sweep parity tests**
+- **Step 1: Add failing radial and sweep parity tests**
 
 Test representative values:
 
@@ -467,7 +467,7 @@ assert_sweep_parity(&[
 ], 0.35, 24);
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -477,7 +477,7 @@ cargo test -p studio-gpu --test radial_parity
 
 Expected: missing radial GPU implementation.
 
-- [ ] **Step 3: Implement radial WGSL kernels**
+- **Step 3: Implement radial WGSL kernels**
 
 Match CPU winding and segment/ring limits exactly. Generate side walls and end caps with stable
 ring orientation. Sweep kernels compute deterministic tangent frames from neighboring points,
@@ -486,7 +486,7 @@ generate parallel-transport-compatible rings, and cap both ends.
 Reject invalid point counts, duplicate adjacent points, non-positive radius, non-finite values,
 and unsupported segment counts before creating buffers.
 
-- [ ] **Step 4: Verify parity and existing tests**
+- **Step 4: Verify parity and existing tests**
 
 Run:
 
@@ -497,7 +497,7 @@ cargo test -p studio-core --test geometry_evaluation
 
 Expected: PASS or capability skip, as in Task 3.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-gpu/src/kernels crates/studio-gpu/tests/radial_parity.rs
@@ -518,7 +518,7 @@ git commit -m "feat(studio-gpu): compute radial primitives and sweeps"
 - Produces: `evaluate_custom_mesh(mesh: &TriangleMesh) -> Result<EvaluatedMesh, BackendError>`.
 - Preserves input positions and indices; computes accumulated normals and bounds.
 
-- [ ] **Step 1: Add failing mesh parity tests**
+- **Step 1: Add failing mesh parity tests**
 
 ```rust
 #[test]
@@ -536,7 +536,7 @@ fn custom_mesh_normals_and_bounds_match_cpu_reference() {
 
 Use a deterministic indexed grid rather than unindexed triangle soup.
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -546,13 +546,13 @@ cargo test -p studio-gpu --test mesh_parity
 
 Expected: missing mesh kernel.
 
-- [ ] **Step 3: Implement normal and bounds kernels**
+- **Step 3: Implement normal and bounds kernels**
 
 Upload validated positions and indices. Accumulate face normals into an output normal buffer,
 normalize on readback, and compute bounds through bounded per-workgroup partial reductions.
 Never mutate input buffers. Reject non-indexed or out-of-range indices before dispatch.
 
-- [ ] **Step 4: Run parity at 50k, 500k, and 2M triangles**
+- **Step 4: Run parity at 50k, 500k, and 2M triangles**
 
 Run:
 
@@ -562,7 +562,7 @@ cargo test -p studio-gpu --test mesh_parity --release
 
 Expected: PASS on the reference GPU; capability-dependent skips are recorded in test output.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-gpu/src/kernels crates/studio-gpu/src/lib.rs \
@@ -589,7 +589,7 @@ git commit -m "feat(studio-gpu): accelerate mesh normals and bounds"
 - Adds cache metadata `backend: cpu|gpu`, `kernelVersion`, `parityStatus`
 - Existing CPU evaluation remains default when GPU is unavailable.
 
-- [ ] **Step 1: Add failing scheduler tests**
+- **Step 1: Add failing scheduler tests**
 
 Test with a deterministic fake backend:
 
@@ -600,7 +600,7 @@ Test with a deterministic fake backend:
 - a GPU kernel failure in `auto` reruns on CPU and returns `fallbackReason`;
 - device loss preserves the committed revision.
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -610,7 +610,7 @@ cargo test -p studio-server --test compute_scheduler
 
 Expected: missing `ComputeService` and capability fields.
 
-- [ ] **Step 3: Implement scheduler policy**
+- **Step 3: Implement scheduler policy**
 
 Use one mutex-free read-mostly scheduler with:
 
@@ -631,7 +631,7 @@ Priority ordering is Interactive, Throughput, Background. The scheduler checks e
 
 Do not run GPU work on the async request loop. Evaluation enters bounded blocking workers.
 
-- [ ] **Step 4: Integrate into large-scene evaluation**
+- **Step 4: Integrate into large-scene evaluation**
 
 Add a backend-neutral optional evaluator hook used by `evaluate_large_scene_with_cache`. The hook
 only accelerates geometry-producing part content; CPU remains responsible for parameter
@@ -640,7 +640,7 @@ resolution, identities, connections, validation, and canonical GLB.
 Cache metadata records backend, kernel version, and parity state. CPU and GPU cache entries never
 silently mix.
 
-- [ ] **Step 5: Verify scheduler and server**
+- **Step 5: Verify scheduler and server**
 
 Run:
 
@@ -652,7 +652,7 @@ cargo test -p studio-core
 
 Expected: PASS, including forced fallback.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-server/src/compute.rs crates/studio-server/src/lib.rs \
@@ -680,7 +680,7 @@ git commit -m "feat(studio-server): schedule native GPU geometry work"
 - Produces `output/native-gpu-benchmark.json`
 - Displays backend, tier, kernel time, transfer bytes, cache hits, memory, queue, and fallback.
 
-- [ ] **Step 1: Add failing UI status test**
+- **Step 1: Add failing UI status test**
 
 The formatter returns:
 
@@ -694,12 +694,12 @@ The formatter returns:
 
 for a ready GPU status, and a CPU fallback reason when unavailable.
 
-- [ ] **Step 2: Implement status display**
+- **Step 2: Implement status display**
 
 Add a compact compute section beside Toolchain status. Display the selected backend, adapter tier,
 memory budget, and fallback reason. Do not add controls that choose arbitrary adapters.
 
-- [ ] **Step 3: Add the native benchmark**
+- **Step 3: Add the native benchmark**
 
 The benchmark uses deterministic indexed meshes at 50k, 500k, and 2M triangles. Run two warmups and
 nine measured samples per backend. Record:
@@ -727,7 +727,7 @@ Add:
 "benchmark:gpu": "node benchmarks/native-gpu.mjs"
 ```
 
-- [ ] **Step 4: Run UI and performance tests**
+- **Step 4: Run UI and performance tests**
 
 Run:
 
@@ -740,7 +740,7 @@ npm run benchmark:gpu
 
 Expected: PASS with a native GPU; CPU-only CI verifies status and skip reporting.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add benchmarks/native-gpu.mjs package.json scripts/verify.mjs \
@@ -762,7 +762,7 @@ git commit -m "feat(studio-workbench): expose native GPU evidence"
 - Modify: `docs/README.md`
 - Modify: `docs/plans/2026-10-30-native-gpu-compute-backend.md`
 
-- [ ] **Step 1: Document implemented behavior**
+- **Step 1: Document implemented behavior**
 
 Document:
 
@@ -776,7 +776,7 @@ Document:
 
 Update the native GPU spec to `Implemented` only when all acceptance tests and GPU benchmarks pass.
 
-- [ ] **Step 2: Run all gates**
+- **Step 2: Run all gates**
 
 Run:
 
@@ -790,7 +790,7 @@ npm run benchmark:gpu
 
 Expected: all functional gates pass and all performance gates fail closed when gains are absent.
 
-- [ ] **Step 3: Audit and commit**
+- **Step 3: Audit and commit**
 
 ```bash
 git status --short

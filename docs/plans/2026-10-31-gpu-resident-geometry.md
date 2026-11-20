@@ -10,7 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Keep derived geometry resident across native GPU evaluations and browser preview revisions, update only dirty channels, batch GPU work, and preserve CPU-authoritative validation, snapshots, export, and fallback.
 
@@ -113,7 +114,7 @@ Browser work occurs in `../ice3-engine` and is committed there separately.
   `GeometryEvaluationEvidence`, `GeometrySnapshotRequest`, and default trait methods
   `GeometryBackend::evaluate_resident` and `GeometryBackend::snapshot`.
 
-- [ ] **Step 1: Write failing contract tests**
+- **Step 1: Write failing contract tests**
 
 ```rust
 use studio_core::gpu_contract::{
@@ -168,13 +169,13 @@ fn resident_backend_defaults_are_explicitly_unsupported() {
 }
 ```
 
-- [ ] **Step 2: Run the contract tests to verify RED**
+- **Step 2: Run the contract tests to verify RED**
 
 Run: `cargo test -p studio-core --test gpu_residency_contract`
 
 Expected: compile failure because the residency types and methods do not exist.
 
-- [ ] **Step 3: Add the backend-neutral types and default methods**
+- **Step 3: Add the backend-neutral types and default methods**
 
 ```rust
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -261,7 +262,7 @@ pub struct GeometrySnapshotRequest {
 Add trait defaults that return `BackendError::Incompatible` with reason containing
 `"resident geometry is unsupported"` and `"geometry snapshots are unsupported"`.
 
-- [ ] **Step 4: Run focused and full Core tests**
+- **Step 4: Run focused and full Core tests**
 
 Run: `cargo test -p studio-core --test gpu_residency_contract`
 
@@ -271,7 +272,7 @@ Run: `cargo test -p studio-core`
 
 Expected: all existing Core tests pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/gpu_contract.rs crates/studio-core/tests/gpu_residency_contract.rs \
@@ -301,7 +302,7 @@ git commit -m "feat(studio-core): define resident geometry contract"
   `StagingRing::{acquire, complete, ready_count}`,
   `NativeGpuBackend::{resource_stats, warm_pipelines_for_test}`.
 
-- [ ] **Step 1: Write failing lifecycle tests**
+- **Step 1: Write failing lifecycle tests**
 
 ```rust
 use studio_gpu::{BufferClass, NativeGpuBackend};
@@ -329,13 +330,13 @@ fn repeated_device_evaluations_reuse_pipelines_and_buffers() {
 }
 ```
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run: `cargo test -p studio-gpu --test resource_lifecycle`
 
 Expected: compile failure for missing resource types.
 
-- [ ] **Step 3: Implement explicit pipelines**
+- **Step 3: Implement explicit pipelines**
 
 Create `PipelineCache` with a `BTreeMap<PipelineKey, Arc<ComputePipeline>>` behind `RwLock`.
 `DeviceResources::create` compiles Box/Plane, Cylinder/Sphere/Sweep, face-normal, normal
@@ -354,25 +355,25 @@ pub struct ResourceStats {
 }
 ```
 
-- [ ] **Step 4: Implement bounded buffer pooling**
+- **Step 4: Implement bounded buffer pooling**
 
 `BufferPool` allocates only in the capacity classes from the spec. Each lease records role,
 capacity, offset, generation, and in-flight count. `release` returns a zero-user lease to the
 matching class; non-zero leases enter a delayed-release queue. The pool must reject a lease if the
 requested bytes exceed the effective host/adapter cap.
 
-- [ ] **Step 5: Implement the staging ring**
+- **Step 5: Implement the staging ring**
 
 `StagingRing` starts with three host-visible slots. `acquire` rejects when all slots are busy.
 `complete(submission_index)` releases slots whose GPU work is complete. No resident evaluation may
 acquire a staging slot.
 
-- [ ] **Step 6: Wire resources into device discovery**
+- **Step 6: Wire resources into device discovery**
 
 `CapabilityProbe` owns `Arc<DeviceResources>`. `NativeGpuBackend` stores that same instance in
 `DeviceState`. Re-initialization and device loss replace the whole resource set.
 
-- [ ] **Step 7: Run focused and full tests**
+- **Step 7: Run focused and full tests**
 
 Run: `cargo test -p studio-gpu --test resource_lifecycle`
 
@@ -382,7 +383,7 @@ Run: `cargo test -p studio-gpu`
 
 Expected: all parity tests pass; exact allocations are unchanged.
 
-- [ ] **Step 8: Commit**
+- **Step 8: Commit**
 
 ```bash
 git add crates/studio-gpu/src/resources crates/studio-gpu/src/device.rs crates/studio-gpu/src/lib.rs \
@@ -406,7 +407,7 @@ git commit -m "feat(studio-gpu): pool native device resources"
 - Produces: `ResidencyKey`, `DirtyPlan::for_transition(previous, next)`, and
   `DirtyPlan::requires_topology_rebuild()`.
 
-- [ ] **Step 1: Write failing dirty-channel tests**
+- **Step 1: Write failing dirty-channel tests**
 
 ```rust
 use studio_core::document::NodeContent;
@@ -442,13 +443,13 @@ fn cylinder_segment_change_rebuilds_topology() {
 }
 ```
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run: `cargo test -p studio-gpu --test residency_keys`
 
 Expected: compile failure for missing `DirtyPlan`.
 
-- [ ] **Step 3: Implement deterministic hashing**
+- **Step 3: Implement deterministic hashing**
 
 Use SHA-256 over versioned serde tuples. Define:
 
@@ -463,13 +464,13 @@ pub struct ResidencyKey {
 
 No hash may include addresses, absolute paths, adapter serials, or timestamps.
 
-- [ ] **Step 4: Implement kernel transition rules**
+- **Step 4: Implement kernel transition rules**
 
 Encode the invalidation matrix from the spec in typed match arms. Unknown transitions mark all
 geometry channels dirty. Transform-only transitions set `Transform` and `Bounds`; material-only
 transitions set `Material` only.
 
-- [ ] **Step 5: Verify**
+- **Step 5: Verify**
 
 Run: `cargo test -p studio-gpu --test residency_keys`
 
@@ -479,7 +480,7 @@ Run: `cargo clippy -p studio-gpu --all-targets -- -D warnings`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-gpu/src/residency crates/studio-gpu/src/lib.rs \
@@ -509,7 +510,7 @@ git commit -m "feat(studio-gpu): plan resident geometry invalidation"
   and
   `snapshot_geometry(&ResidentGeometryId) -> Result<EvaluatedMesh, BackendError>`.
 
-- [ ] **Step 1: Write failing residency tests**
+- **Step 1: Write failing residency tests**
 
 ```rust
 use studio_core::gpu_contract::GeometryEvaluationMode;
@@ -542,31 +543,31 @@ fn snapshot_is_the_only_custom_mesh_path_that_reads_back() {
 }
 ```
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run: `cargo test -p studio-gpu --test resident_evaluation`
 
 Expected: missing resident APIs.
 
-- [ ] **Step 3: Implement the store**
+- **Step 3: Implement the store**
 
 `GpuGeometryResidency` uses `RwLock<BTreeMap<String, Arc<ResidentGeometryRecord>>>`. An entry stores
 keys, generation, topology CSR, typed buffer leases, output buffers, bounds, counts, pinned
 references, last-used generation, and cached evidence. Pin/unpin and eviction use RAII guards.
 
-- [ ] **Step 4: Refactor kernels to resident workspaces**
+- **Step 4: Refactor kernels to resident workspaces**
 
 Primitive kernels write into existing output leases when topology/counts match. Custom meshes reuse
 positions, indices, offsets, incidence, face normals, normals, and bounds buffers when their keys
 match. A topology change destroys the old generation only after a replacement succeeds.
 
-- [ ] **Step 5: Separate resident completion from snapshots**
+- **Step 5: Separate resident completion from snapshots**
 
 Resident evaluation returns opaque IDs and evidence without mapping a staging buffer. Snapshot maps
 the requested geometry through Task 2's staging ring, validates parity, and returns
 `EvaluatedMesh`.
 
-- [ ] **Step 6: Verify**
+- **Step 6: Verify**
 
 Run: `cargo test -p studio-gpu --test resident_evaluation --release`
 
@@ -576,7 +577,7 @@ Run: `cargo test -p studio-gpu`
 
 Expected: all CPU parity and legacy tests pass.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add crates/studio-gpu/src/residency crates/studio-gpu/src/kernels \
@@ -602,7 +603,7 @@ git commit -m "feat(studio-gpu): keep derived geometry resident"
   `NativeGpuBackend::evaluate_resident(GeometryBatch) ->
   Result<GeometryResidentBatchResult, BackendError>`, and cancellation checkpoints.
 
-- [ ] **Step 1: Write failing batch tests**
+- **Step 1: Write failing batch tests**
 
 ```rust
 #[test]
@@ -624,25 +625,25 @@ fn cancelled_background_batch_never_publishes_entries() {
 }
 ```
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run: `cargo test -p studio-gpu --test resident_batch`
 
 Expected: missing submission and cancellation behavior.
 
-- [ ] **Step 3: Implement batch planning and one encoded submission**
+- **Step 3: Implement batch planning and one encoded submission**
 
 Group nodes by kernel family and compatible layout. Encode all passes into one
 `CommandEncoder`. Submit once and return a submission handle. Publish resident entries only after
 the completion worker observes success for the whole submission.
 
-- [ ] **Step 4: Implement polling and cancellation**
+- **Step 4: Implement polling and cancellation**
 
 `poll_resident` checks completion without blocking. `wait_resident` blocks a dedicated worker, not
 the async request loop. Cancellation marks queued jobs cancelled before encoding and checked jobs
 cancelled before publication.
 
-- [ ] **Step 5: Verify**
+- **Step 5: Verify**
 
 Run: `cargo test -p studio-gpu --test resident_batch`
 
@@ -652,7 +653,7 @@ Run: `cargo test -p studio-gpu`
 
 Expected: all existing tests pass.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-gpu/src/residency crates/studio-gpu/src/device.rs \
@@ -678,7 +679,7 @@ git commit -m "feat(studio-gpu): batch resident geometry submissions"
 - Produces `GeometryEvaluationPurpose::{Preview, Candidate, SourceExport, Diagnostics}` and exact
   `ComputeService` methods `evaluate_transform_only`, `evaluate_for`, and `snapshot_for`.
 
-- [ ] **Step 1: Write failing scheduler tests**
+- **Step 1: Write failing scheduler tests**
 
 ```rust
 #[tokio::test]
@@ -711,31 +712,31 @@ async fn export_requests_snapshot_while_preview_uses_residency() {
 }
 ```
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run: `cargo test -p studio-server --test resident_scheduler`
 
 Expected: compile failure for missing modes and purposes.
 
-- [ ] **Step 3: Add scheduler mode selection**
+- **Step 3: Add scheduler mode selection**
 
 Extend `ComputePolicy` with `resident_enabled` and `preview_packet_enabled`, both false by default
 until measured gates pass. Mode selection uses cold/warm/resident evidence plus health, budget, and
 priority. Snapshot policy is determined by API purpose, not by request-controlled backend flags.
 
-- [ ] **Step 4: Extend large-scene evaluation**
+- **Step 4: Extend large-scene evaluation**
 
 Large-scene expansion stores opaque resident IDs in evaluation metadata alongside mesh keys.
 Transform-only nodes update node matrices without re-evaluating part geometry. Material-only
 changes update materials without invoking the geometry evaluator.
 
-- [ ] **Step 5: Expand capabilities and diagnostics**
+- **Step 5: Expand capabilities and diagnostics**
 
 Add resident counts, bytes, mode, packet version, pipeline warm-up state, topology hits, and eviction
 counters. Device loss invalidates resident IDs and reports
 `ICE3_STUDIO_GPU_DEVICE_LOST` without altering committed revision.
 
-- [ ] **Step 6: Verify**
+- **Step 6: Verify**
 
 Run: `cargo test -p studio-server --test resident_scheduler`
 
@@ -745,7 +746,7 @@ Run: `cargo test -p studio-server`
 
 Expected: all existing scheduler, ChangeSet, Toolchain, and RPC tests pass.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add crates/studio-server/src/compute.rs crates/studio-server/src/rpc.rs \
@@ -773,7 +774,7 @@ git commit -m "feat(studio-server): schedule resident geometry modes"
   `decode_preview_packet`, `build_preview_delta`, `/preview-packets/{revision}`, and
   `/preview-packets/candidates/{digest}`.
 
-- [ ] **Step 1: Write failing packet tests**
+- **Step 1: Write failing packet tests**
 
 ```rust
 #[test]
@@ -804,30 +805,30 @@ fn invalid_ranges_are_rejected_before_upload() {
 }
 ```
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run: `cargo test -p studio-server --test preview_packet`
 
 Expected: missing module and packet endpoints.
 
-- [ ] **Step 3: Implement packet encoding**
+- **Step 3: Implement packet encoding**
 
 Write the `ICE3PGP1` header, aligned JSON manifest, and binary chunk. Validate counts, alignment,
 digest, ranges, finite metadata, and a default 256 MiB transport cap before allocation.
 
-- [ ] **Step 4: Implement full and delta packet generation**
+- **Step 4: Implement full and delta packet generation**
 
 Use stable node and geometry IDs. Full packets contain create records and payloads. Deltas contain
 only changed nodes, materials, dirty ranges, replacements, and explicit removals. A transform-only
 delta has an empty binary chunk.
 
-- [ ] **Step 5: Add endpoints and negotiation**
+- **Step 5: Add endpoints and negotiation**
 
 Advertise `previewGeometryPacket: "1"` in compute capabilities. Return a `packetUrl` beside the GLB
 preview URL when enabled. Packet endpoints require existing local authentication when writes or
 temporary authorization are involved and serve a versioned local media type.
 
-- [ ] **Step 6: Verify**
+- **Step 6: Verify**
 
 Run: `cargo test -p studio-server --test preview_packet`
 
@@ -837,7 +838,7 @@ Run: `cargo test -p studio-server`
 
 Expected: all existing preview and GLB tests pass.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add crates/studio-server/src/preview_packet.rs crates/studio-server/src/preview.rs \
@@ -870,7 +871,7 @@ git commit -m "feat(studio-server): publish incremental preview packets"
 - Produces test fixtures `fullPacketFixture()`, `transformOnlyDeltaFixture()`, and
   `attributeDeltaFixture()` in the fixture file above.
 
-- [ ] **Step 1: Write failing parser and identity tests**
+- **Step 1: Write failing parser and identity tests**
 
 ```ts
 it('applies a transform-only delta without geometry payload', () => {
@@ -890,29 +891,29 @@ it('preserves stable geometry identity across packet revisions', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run in `../ice3-engine`: `npm test -- --test-name-pattern PreviewGeometryPacket`
 
 Expected: parser module not found.
 
-- [ ] **Step 3: Implement parser and validation**
+- **Step 3: Implement parser and validation**
 
 Validate magic, versions, manifest length, binary length, count caps, index widths, ranges,
 digests, and finite metadata before creating typed arrays. Reject a delta whose parent revision does
 not match the current packet.
 
-- [ ] **Step 4: Add geometry identity metadata**
+- **Step 4: Add geometry identity metadata**
 
 Add optional immutable identity fields to `ICEGeometry` and `ICEIndexedGeometry`. Existing
 constructors remain valid with identity defaulting from `id` for compatibility.
 
-- [ ] **Step 5: Implement packet-to-scene conversion**
+- **Step 5: Implement packet-to-scene conversion**
 
 Create or reuse `ICEIndexedGeometry` objects by `geometryId`. Reuse unchanged arrays; create new
 typed views only for dirty ranges or replacements.
 
-- [ ] **Step 6: Verify**
+- **Step 6: Verify**
 
 Run in `../ice3-engine`: `npm test`
 
@@ -922,7 +923,7 @@ Run in `../ice3-engine`: `npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit in the browser repository**
+- **Step 7: Commit in the browser repository**
 
 ```bash
 git add packages/assets/src/ICEPreviewGeometryPacket.ts packages/assets/src/index.ts \
@@ -958,7 +959,7 @@ git commit -m "feat(engine): parse resident geometry packets"
 - Produces `ICEPreviewPacketLoader.load(url, current?) ->
   Promise<{ kind: 'packet'; packet } | { kind: 'fallback'; reason: string }>`.
 
-- [ ] **Step 1: Write failing cache behavior tests**
+- **Step 1: Write failing cache behavior tests**
 
 ```ts
 import { ICEIndexedGeometry } from '@ice3/core';
@@ -1025,13 +1026,13 @@ construct the literal three-vertex geometry above and wrap `fakeWebGL2()` with a
 `bufferSubData` method that throws. `fetchReturning` is a local helper in
 `PreviewPacketLoader.test.ts` that returns a successful response with the supplied bytes.
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run in `../ice3-engine`: `npm test -- --test-name-pattern GeometryResidency`
 
 Expected: stable-ID reuse and range update APIs do not exist.
 
-- [ ] **Step 3: Key browser caches by geometry identity**
+- **Step 3: Key browser caches by geometry identity**
 
 Use `geometryId` as the stable key and retain `topologyDigest`. Reuse the current entry when only
 attributes change. Allocate a replacement generation when topology or index format changes, then
@@ -1039,25 +1040,25 @@ swap atomically after upload succeeds. For legacy geometry without `ICEGeometryI
 concrete indexed-geometry `id`; if neither identity exists, retain the previous object-identity
 behavior.
 
-- [ ] **Step 4: Implement partial updates**
+- **Step 4: Implement partial updates**
 
 WebGL2 uses `bufferSubData` for position/color ranges. WebGPU packs dirty vertex ranges into the
 existing interleaved layout and uses `queue.writeBuffer`; it still avoids any write for
 transform-only changes. Expose uploaded and updated bytes in frame stats.
 
-- [ ] **Step 5: Add the public packet loader**
+- **Step 5: Add the public packet loader**
 
 `ICEPreviewPacketLoader.load(url, current?)` fetches, parses, applies a delta, builds or reuses the
 scene, pins changed geometries, and publishes atomically. It exposes a typed fallback result if the
 packet is unsupported or invalid.
 
-- [ ] **Step 6: Integrate Workbench**
+- **Step 6: Integrate Workbench**
 
 `StudioClient.preview` prefers `packetUrl` when advertised. `SceneAdapter.showPreview` uses the
 packet loader when available and falls back to `ICEAssetLoader` GLB loading. Preserve selection IDs,
 camera behavior, and disposal semantics.
 
-- [ ] **Step 7: Verify**
+- **Step 7: Verify**
 
 Run in `../ice3-engine`: `npm run verify`
 
@@ -1071,7 +1072,7 @@ Run in the Studio worktree: `npm --prefix apps/viewer run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- **Step 8: Commit**
 
 Commit browser changes in `../ice3-engine`:
 
@@ -1114,7 +1115,7 @@ git commit -m "feat(studio-workbench): consume resident preview packets"
 - Produces: machine-readable cold/warm/resident/snapshot/preview evidence and final capability
   documentation.
 
-- [ ] **Step 1: Write failing evidence tests**
+- **Step 1: Write failing evidence tests**
 
 ```ts
 test('reports resident mode and partial browser upload evidence', () => {
@@ -1144,7 +1145,7 @@ fn benchmark_report_contains_every_evaluation_mode() {
 }
 ```
 
-- [ ] **Step 2: Run to verify RED**
+- **Step 2: Run to verify RED**
 
 Run: `cargo test -p studio-gpu --test native_gpu_benchmark --no-run`
 
@@ -1154,19 +1155,19 @@ Run in the Studio worktree: `npm --prefix apps/viewer test`
 
 Expected: compute formatter lacks residency metrics.
 
-- [ ] **Step 3: Extend compute status and benchmark**
+- **Step 3: Extend compute status and benchmark**
 
 Report mode, resident bytes, peak bytes, topology hits, resident hits, evictions, packet bytes,
 browser upload bytes, and snapshot bytes. Benchmark cold, warm-topology, resident, snapshot, and
 preview for 50k, 500k, and 2M meshes.
 
-- [ ] **Step 4: Enforce release gates**
+- **Step 4: Enforce release gates**
 
 Keep `benchmark:gpu` fail-closed. Resident 500k/2M p50 must improve at least 10%; GPU p95 must be
 within 105% of CPU; transform-only preview must upload zero geometry; single-parameter deltas must
 be smaller than full packets.
 
-- [ ] **Step 5: Run all functional and performance gates**
+- **Step 5: Run all functional and performance gates**
 
 Run in the Studio worktree:
 
@@ -1181,7 +1182,7 @@ npm run benchmark:gpu
 Expected: functional gates pass. Performance commands pass only when their documented gates pass;
 otherwise the command exits nonzero and leaves Auto on CPU.
 
-- [ ] **Step 6: Verify browser repository**
+- **Step 6: Verify browser repository**
 
 Run in `../ice3-engine`:
 
@@ -1193,13 +1194,13 @@ npm run benchmark:renderers
 
 Expected: existing WebGL2 and experimental WebGPU behavior passes.
 
-- [ ] **Step 7: Finalize documentation**
+- **Step 7: Finalize documentation**
 
 Update implementation status only from measured evidence. The new spec becomes `Implemented` only
 after every functional and release performance gate passes. Otherwise it remains `Experimental`
 with separate cold, warm, resident, preview, and snapshot results.
 
-- [ ] **Step 8: Commit**
+- **Step 8: Commit**
 
 Commit browser documentation and evidence changes in each repository separately with:
 

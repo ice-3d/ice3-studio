@@ -10,7 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Replace the minimal Viewer with a generic AI-native Workbench that displays committed
 and candidate models, stages form edits, shows Agent activity, and supports digest-bound approval
@@ -45,7 +46,7 @@ Toolchain.
 - The visual system uses the tokens from spec section 17.
 - Text contrast must meet WCAG AA, keyboard focus must be visible, and color cannot be the only
   state signal.
-- Git author and committer must be `damoqiongqiu <damoqiongqiu@126.com>`.
+- Git author and committer must be `repository `AGENTS.md` identity policy`.
 
 ## 2. Review Focus
 
@@ -90,7 +91,7 @@ Toolchain.
   `npm run test:e2e` without a general-purpose frontend development server.
 - Produces: `STUDIO_VIEWER_DIR` static hosting and `/assets/*` file responses from Studio Server.
 
-- [ ] **Step 1: Write a failing same-origin asset test**
+- **Step 1: Write a failing same-origin asset test**
 
 ```rust
 #[tokio::test]
@@ -117,13 +118,13 @@ async fn serves_built_workbench_and_api_from_one_origin() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `cargo test -p studio-server --test rpc_contract serves_built_workbench_and_api_from_one_origin`
 
 Expected: compilation fails because the viewer-serving test helper and routes do not exist.
 
-- [ ] **Step 3: Add Rust static serving**
+- **Step 3: Add Rust static serving**
 
 Add `tower-http` with its filesystem feature. Store an optional viewer directory in the server
 state through `ServerConfig.viewer_dir`, then add:
@@ -144,7 +145,7 @@ let router = if let Some(viewer_dir) = viewer_dir {
 API, schema, WebSocket, and preview routes take precedence over the HTML fallback. A missing viewer
 directory returns the existing JSON health API but a plain `404` for page assets.
 
-- [ ] **Step 4: Write the esbuild scripts**
+- **Step 4: Write the esbuild scripts**
 
 ```js
 // apps/viewer/esbuild.mjs
@@ -185,7 +186,7 @@ framework.
 Change the HTML entry to `<script type="module" src="/assets/main.js"></script>`. Keep no frontend
 development-server client in the HTML.
 
-- [ ] **Step 5: Replace package scripts and dependencies**
+- **Step 5: Replace package scripts and dependencies**
 
 Use exact versions:
 
@@ -214,7 +215,7 @@ Use exact versions:
 
 Remove the deleted frontend development server dependency and Vite-specific TypeScript types.
 
-- [ ] **Step 6: Run the focused test and production build**
+- **Step 6: Run the focused test and production build**
 
 Run: `cargo test -p studio-server --test rpc_contract serves_built_workbench_and_api_from_one_origin`
 
@@ -224,7 +225,7 @@ Run: `npm --prefix apps/viewer run build`
 
 Expected: all pass and `apps/viewer/dist/index.html` plus `assets/` exist.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock apps/viewer crates/studio-server scripts
@@ -260,7 +261,7 @@ git commit -m "build(studio): serve react workbench with esbuild"
 - Produces: `SessionStore.refresh()`, `select(ids)`, and `applyRevision(revision)`.
 - Produces: `WorkbenchHeader` and the base shell used by all later panels.
 
-- [ ] **Step 1: Write a failing session-store test**
+- **Step 1: Write a failing session-store test**
 
 ```ts
 import assert from 'node:assert/strict';
@@ -287,13 +288,13 @@ test('revision events refresh the latest document without changing selection', a
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `npm --prefix apps/viewer test -- --test-name-pattern "revision events"`
 
 Expected: test compilation fails because `SessionStore` does not exist.
 
-- [ ] **Step 3: Implement the external store and Workbench shell**
+- **Step 3: Implement the external store and Workbench shell**
 
 Use a small `ExternalStore<T>` with `getSnapshot`, `subscribe`, and `update`. Build
 `SessionStore` so only a successful Document refresh replaces model data; transient Agent or
@@ -320,13 +321,13 @@ export function Workbench() {
 
 Temporary empty components render labeled areas; later tasks replace their internals.
 
-- [ ] **Step 4: Add layout and token CSS**
+- **Step 4: Add layout and token CSS**
 
 Move the spec's color, spacing, type, radius, and breakpoint values into `studioTokens.css`.
 Implement the desktop grid and narrow stacked layout. Use CSS custom properties only; no inline
 hardcoded colors in components.
 
-- [ ] **Step 5: Run unit, type, and build checks**
+- **Step 5: Run unit, type, and build checks**
 
 Run: `npm --prefix apps/viewer test`
 
@@ -336,7 +337,7 @@ Run: `npm --prefix apps/viewer run build`
 
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add apps/viewer
@@ -367,7 +368,7 @@ git commit -m "feat(studio-workbench): add react application shell"
 - Produces: `SceneAdapter.mount(container)`, `show(url)`, `setSelection(ids)`, `dispose()`.
 - Produces: viewport modes `current | proposal | diff`.
 
-- [ ] **Step 1: Write failing hierarchy tests**
+- **Step 1: Write failing hierarchy tests**
 
 ```ts
 import assert from 'node:assert/strict';
@@ -388,13 +389,13 @@ test('builds a generic hierarchy without industry assumptions', () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `npm --prefix apps/viewer test -- --test-name-pattern "generic hierarchy"`
 
 Expected: test compilation fails because `buildObjectTree` does not exist.
 
-- [ ] **Step 3: Implement generic tree construction and navigation**
+- **Step 3: Implement generic tree construction and navigation**
 
 Build the tree by stable IDs and parent references. Preserve Document order among siblings. Search
 filters names, IDs, and metadata values. Expose tree roles and keyboard behavior:
@@ -411,7 +412,7 @@ filters names, IDs, and metadata values. Expose tree roles and keyboard behavior
 
 The component contains no labels such as tank, pump, pipe, or plant.
 
-- [ ] **Step 4: Implement one persistent scene adapter**
+- **Step 4: Implement one persistent scene adapter**
 
 Move the existing Engine setup into `SceneAdapter`. `Viewport` mounts it once in `useEffect` with a
 stable container ref and calls `show` only when the preview URL changes. The toolbar exposes
@@ -421,7 +422,7 @@ create, translate, rotate, scale, delete, or topology controls.
 Selection arrives from Engine events and updates `SessionStore.selectionIds`; selection never
 writes a ChangeSet entry.
 
-- [ ] **Step 5: Run unit, type, and browser smoke tests**
+- **Step 5: Run unit, type, and browser smoke tests**
 
 Run: `npm --prefix apps/viewer test`
 
@@ -431,7 +432,7 @@ Run: `npm --prefix apps/viewer run test:e2e -- --grep "canvas"`
 
 Expected: hierarchy tests pass and the canvas remains present after a mocked revision update.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add apps/viewer
@@ -461,7 +462,7 @@ git commit -m "feat(studio-workbench): add generic navigation and read-only view
 - Produces: `compileFieldChanges(value, draft) -> Operation[]`.
 - Produces: generic forms and field-level Diagnostic mapping.
 
-- [ ] **Step 1: Write failing compiler tests**
+- **Step 1: Write failing compiler tests**
 
 ```ts
 import assert from 'node:assert/strict';
@@ -499,13 +500,13 @@ test('compiles generic node field changes into node.update', () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `npm --prefix apps/viewer test -- --test-name-pattern "generic node field"`
 
 Expected: test compilation fails because `compileNodeChanges` does not exist.
 
-- [ ] **Step 3: Implement operation compilers**
+- **Step 3: Implement operation compilers**
 
 Provide focused functions for:
 
@@ -519,7 +520,7 @@ Provide focused functions for:
 Each compares explicit form state with the candidate and emits no Operation for unchanged fields.
 Return errors for missing references or invalid synthetic state before an API request.
 
-- [ ] **Step 4: Implement fields and rendering**
+- **Step 4: Implement fields and rendering**
 
 Build the common field primitives from the spec. `FormRenderer` groups fields by generic content
 union and displays a stage action:
@@ -537,7 +538,7 @@ union and displays a stage action:
 
 No form action calls `document.apply` or mutates a Document object directly.
 
-- [ ] **Step 5: Run compiler and type tests**
+- **Step 5: Run compiler and type tests**
 
 Run: `npm --prefix apps/viewer test`
 
@@ -545,7 +546,7 @@ Run: `npm --prefix apps/viewer run typecheck`
 
 Expected: every compiler type has a passing test and no UI domain constants exist.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add apps/viewer
@@ -580,7 +581,7 @@ git commit -m "feat(studio-workbench): compile generic forms into operations"
   `removeOperations()`, `markReviewed(digest)`, and `commit()`.
 - Produces: `Stage`, `Remove`, `Evaluate`, `Approve`, `Revise`, and `Discard` UI actions.
 
-- [ ] **Step 1: Write failing ChangeSet-store tests**
+- **Step 1: Write failing ChangeSet-store tests**
 
 ```ts
 import assert from 'node:assert/strict';
@@ -636,13 +637,13 @@ test('blocks approval when evaluation changes the digest', async () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `npm --prefix apps/viewer test -- --test-name-pattern "blocks approval"`
 
 Expected: test compilation fails because `ChangeSetStore` does not exist.
 
-- [ ] **Step 3: Implement ChangeSet state and components**
+- **Step 3: Implement ChangeSet state and components**
 
 `ChangeSetStore` tracks version, entries, candidate, digest, preview URL, diagnostics, and the last
 human-reviewed digest. `canApprove` is true only when status is `ready`, version is current, and
@@ -658,13 +659,13 @@ viewport modes:
 
 Use the Engine's stable object IDs for selection, never screen coordinates.
 
-- [ ] **Step 4: Handle version, stale, and preview failures**
+- **Step 4: Handle version, stale, and preview failures**
 
 Use expected versions for every add/remove/evaluate request. On conflict, refresh the ChangeSet and
 disable approval. Keep the prior valid candidate preview on evaluation or Toolchain failure and
 render a blocked state.
 
-- [ ] **Step 5: Run unit, type, and browser checks**
+- **Step 5: Run unit, type, and browser checks**
 
 Run: `npm --prefix apps/viewer test`
 
@@ -674,7 +675,7 @@ Run: `npm --prefix apps/viewer run test:e2e -- --grep "proposal"`
 
 Expected: proposal tests pass and current preview remains when candidate generation fails.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add apps/viewer
@@ -703,7 +704,7 @@ git commit -m "feat(studio-workbench): review change sets and evidence"
 - Produces: Agent snapshots `{ connection, runId, messages, plan, linkedChangeSetId, error }`.
 - Produces: deterministic local transport for tests and fixture use.
 
-- [ ] **Step 1: Write failing Agent tests**
+- **Step 1: Write failing Agent tests**
 
 ```ts
 import assert from 'node:assert/strict';
@@ -742,13 +743,13 @@ test('deterministic transport emits a linked candidate plan', async () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `npm --prefix apps/viewer test -- --test-name-pattern "Agent failure"`
 
 Expected: compilation fails because the Agent modules do not exist.
 
-- [ ] **Step 3: Implement the transport and store**
+- **Step 3: Implement the transport and store**
 
 Define discriminated event types:
 
@@ -766,7 +767,7 @@ Reject late events from cancelled runs. Preserve the prior transcript and plan o
 Agent events never alter current Document, ChangeSet, selection, or viewport state directly; a
 linked ChangeSet is fetched through the Studio API.
 
-- [ ] **Step 4: Build the Agent dock**
+- **Step 4: Build the Agent dock**
 
 Render connection state, transcript, current plan, linked ChangeSet, and cancel action. When
 unavailable, render:
@@ -781,7 +782,7 @@ unavailable, render:
 The prompt field is disabled only when transport is unavailable; it never requests model credentials
 or write-mode changes.
 
-- [ ] **Step 5: Run Agent and complete viewer tests**
+- **Step 5: Run Agent and complete viewer tests**
 
 Run: `npm --prefix apps/viewer test`
 
@@ -789,7 +790,7 @@ Run: `npm --prefix apps/viewer run typecheck`
 
 Expected: both deterministic and offline behavior pass.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add apps/viewer
@@ -822,7 +823,7 @@ git commit -m "feat(studio-workbench): integrate generic agent sessions"
 - Produces: full browser acceptance, migration guide, implemented documentation, and verified
   performance baseline.
 
-- [ ] **Step 1: Write failing E2E acceptance tests**
+- **Step 1: Write failing E2E acceptance tests**
 
 ```ts
 import { expect, test } from '@playwright/test';
@@ -852,19 +853,19 @@ test('canvas selection does not create a staged operation', async ({ page }) => 
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `npm --prefix apps/viewer run test:e2e -- --grep "generic change"`
 
 Expected: current UI lacks Workbench roles, form actions, approval, and revision labels.
 
-- [ ] **Step 3: Implement the generic E2E fixture**
+- **Step 3: Implement the generic E2E fixture**
 
 Create a generic mechanical assembly fixture using only generic node and material concepts. Copy it
 into the E2E temporary workspace. Keep `wastewater-mini` as a compatibility fixture, not as the
 default title or test data.
 
-- [ ] **Step 4: Complete accessibility and responsive behavior**
+- **Step 4: Complete accessibility and responsive behavior**
 
 Add automated assertions for:
 
@@ -877,7 +878,7 @@ Add automated assertions for:
 
 Use reduced-motion media rules for proposal and commit transitions.
 
-- [ ] **Step 5: Update verification and documentation**
+- **Step 5: Update verification and documentation**
 
 Root verification must run:
 
@@ -897,7 +898,7 @@ npm --prefix apps/viewer audit --audit-level high
 Document generic-project usage, Agent Gateway configuration, ChangeSet approval, write modes,
 candidate previews, and recovery. Mark the Workbench spec Implemented only after every gate passes.
 
-- [ ] **Step 6: Run complete verification and benchmark**
+- **Step 6: Run complete verification and benchmark**
 
 Run: `npm run verify`
 
@@ -905,7 +906,7 @@ Run: `npm run benchmark`
 
 Expected: all gates pass, performance limits remain satisfied, and no browser console errors occur.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add apps/viewer scripts docs README.md AGENTS.md

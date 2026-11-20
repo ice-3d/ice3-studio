@@ -10,9 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [x]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** 让污水处理厂管线在近景连续、平滑、可辨，并按亮银普通水线、绿色出水、蓝色气体、
 红色污泥和黄色药剂分组着色。
@@ -32,7 +31,7 @@ Studio JSON-RPC、React Viewer、Playwright、Google Chrome
 - Document 和 operation history 是唯一真源；GLB、route mesh 和材质结果都是派生值。
 - 不增加 Studio Core、Viewer 或 Toolchain 的运行时依赖。
 - 所有生产行为先写失败测试，再写最小实现。
-- Git author 和 committer 必须为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author 和 committer 必须为 `repository `AGENTS.md` identity policy`。
 - 不推送远端；当前任务只产生本地提交。
 - 工程必须保持 300,000 至 500,000 有效三角形、最多 150,000 唯一三角形、
   15,000 展开节点、500 实例和 48 材质。
@@ -84,7 +83,7 @@ Studio JSON-RPC、React Viewer、Playwright、Google Chrome
 - Produces: material names and base colors grouped by `yellow`, `green`, `blue`,
   `red`, and `chemical`.
 
-- [x] **Step 1: Write failing functional-color tests**
+- **Step 1: Write failing functional-color tests**
 
 Add:
 
@@ -131,7 +130,7 @@ test('pipe materials use functional yellow, green, blue and red groups', () => {
 });
 ```
 
-- [x] **Step 2: Run the focused test and verify RED**
+- **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -143,7 +142,7 @@ node --test --test-name-pattern="functional yellow" \
 Expected: FAIL because the current muted materials do not satisfy the functional
 color contract.
 
-- [x] **Step 3: Replace pipe material colors**
+- **Step 3: Replace pipe material colors**
 
 Use these material colors in `site-plan.mjs`:
 
@@ -162,7 +161,7 @@ b.material('pipe-chemical', 'Pipe / chemical', srgb('#8b5fc0'));
 Retain the existing `PIPE_MATERIAL` medium mapping so every connection resolves to
 one of these names.
 
-- [x] **Step 4: Run color and complete asset tests**
+- **Step 4: Run color and complete asset tests**
 
 Run:
 
@@ -174,7 +173,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: PASS.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant/site-plan.mjs \
@@ -198,7 +197,7 @@ git commit -m "feat(wwtp): apply functional pipe colors"
 - Produces private:
   `smooth_route(points: &[[f32; 3]], bend_radius: f32) -> Result<Vec<[f32; 3]>, ConnectionError>`.
 
-- [x] **Step 1: Write failing bend-continuity tests**
+- **Step 1: Write failing bend-continuity tests**
 
 Add to `crates/studio-core/tests/connections.rs`:
 
@@ -237,7 +236,7 @@ fn direction(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
 }
 ```
 
-- [x] **Step 2: Run the focused test and verify RED**
+- **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -249,7 +248,7 @@ cargo test -p studio-core --test connections \
 Expected: FAIL because existing route joints turn by approximately 90 degrees in one
 step.
 
-- [x] **Step 3: Implement rounded route sampling**
+- **Step 3: Implement rounded route sampling**
 
 Change `build_route` to accept `diameter` and return `Result`.
 
@@ -328,7 +327,7 @@ fn smooth_route(
 Add private vector helpers `unit`, `subtract`, `scale`, `add3`, and `distance3`.
 Collinear adjacent segments should skip the fillet and append the next endpoint.
 
-- [x] **Step 4: Run route and geometry tests**
+- **Step 4: Run route and geometry tests**
 
 Run:
 
@@ -339,7 +338,7 @@ cargo test -p studio-core --test geometry_evaluation
 
 Expected: PASS.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route.rs \
@@ -359,7 +358,7 @@ git commit -m "feat(core): round orthogonal pipe bends"
 - Consumes: `evaluate_sweep(points, radius, radial_segments)`.
 - Produces: the same signature with parallel-transported ring frames.
 
-- [x] **Step 1: Write a failing parallel-frame test**
+- **Step 1: Write a failing parallel-frame test**
 
 Add:
 
@@ -390,7 +389,7 @@ fn swept_pipe_frames_do_not_twist_at_bends() {
 }
 ```
 
-- [x] **Step 2: Run the focused test and verify RED**
+- **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -402,7 +401,7 @@ cargo test -p studio-core --test geometry_evaluation \
 Expected: FAIL for at least one corresponding normal pair because each ring currently
 recomputes a global reference frame.
 
-- [x] **Step 3: Implement parallel transport**
+- **Step 3: Implement parallel transport**
 
 Initialize the first ring frame from the first tangent. For each next point:
 
@@ -427,7 +426,7 @@ v * cos + cross(axis, v) * sin + axis * dot(axis, v) * (1.0 - cos)
 Generate ring normals from the transported `side` and `up`, not from a fresh global
 reference. Keep endpoints capped and preserve triangle indexing.
 
-- [x] **Step 4: Run geometry and full Core tests**
+- **Step 4: Run geometry and full Core tests**
 
 Run:
 
@@ -438,7 +437,7 @@ cargo test -p studio-core
 
 Expected: PASS.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/geometry/sweep.rs \
@@ -461,7 +460,7 @@ git commit -m "fix(core): keep pipe sweeps from twisting"
 - Consumes: complete Core routing, sweep and asset color changes.
 - Produces: a Studio API-generated project and Chrome visual evidence.
 
-- [x] **Step 1: Rebuild the project through Studio**
+- **Step 1: Rebuild the project through Studio**
 
 Run:
 
@@ -472,7 +471,7 @@ node scripts/build-wastewater-model.mjs --workspace ./projects
 Expected: Revision 1, all process graph checks pass, and the triangle budget remains
 inside 300,000–500,000.
 
-- [x] **Step 2: Restart the Viewer against the new project**
+- **Step 2: Restart the Viewer against the new project**
 
 Start the server with the standard local command, then verify:
 
@@ -484,7 +483,7 @@ curl -s -X POST -H 'content-type: application/json' \
 
 Expected: `status: "ok"`.
 
-- [x] **Step 3: Capture overview and close pipe views**
+- **Step 3: Capture overview and close pipe views**
 
 Use:
 
@@ -501,13 +500,13 @@ Expected:
 - Pipe bends curve continuously without collapsed rings or open joints.
 - No black viewport or console errors.
 
-- [x] **Step 4: Update docs and status**
+- **Step 4: Update docs and status**
 
 Add the final functional color mapping and routing behavior to
 `projects/README.md`. Mark PLAN-017 Implemented after all gates pass. Keep SPEC-013
 Approved until path collision and support-spacing validation complete the remaining Stage 2 work.
 
-- [x] **Step 5: Run full verification**
+- **Step 5: Run full verification**
 
 Run:
 
@@ -517,7 +516,7 @@ npm run verify
 
 Expected: all Studio gates pass.
 
-- [x] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add projects/wastewater-plant projects/README.md docs/README.md \

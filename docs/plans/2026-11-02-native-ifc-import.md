@@ -10,10 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use
-> `superpowers:subagent-driven-development` (recommended) or
-> `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal：** 用 Studio 自带 worker 中的原生 Rust IFC parser/geometry pipeline 替换
 Toolchain IFC adapter，同时保留 IFC4X3 空间层级、产品、Pset/Qto/System、实例、颜色、
@@ -45,7 +43,7 @@ Serde、bincode 2、Cargo test、Node.js 24.22.1（仅 parity 与 E2E）。
 - source origin 固定为 `[minX,0,minZ]`，只平移 scene root。
 - metadata 数组最多 256 项，depth 最多 8，warning 和输出顺序必须确定。
 - `ifc` feature 关闭时不得注册 adapter，也不得链接 IFC parser/geometry engine。
-- Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author/committer 固定为 `repository `AGENTS.md` identity policy`。
 
 ## 2. Review Focus
 
@@ -69,7 +67,7 @@ Serde、bincode 2、Cargo test、Node.js 24.22.1（仅 parity 与 E2E）。
 - Consumes: Toolchain `packages/cli/src/main.ts import ... --adapter ifc`
 - Produces: checked-in IFC baseline，由后续 native parity 使用
 
-- [x] **Step 1: 写 capture 入口**
+- **Step 1: 写 capture 入口**
 
 `scripts/compare-ifc-imports.mjs` 先实现 `--capture`。固定读取：
 
@@ -119,7 +117,7 @@ const baseline = {
 脚本必须解析 Toolchain `--report`、Prepared GLB JSON 和 node extras，不得硬编码
 property/system 值。
 
-- [x] **Step 2: 运行 capture**
+- **Step 2: 运行 capture**
 
 ```bash
 node scripts/compare-ifc-imports.mjs --capture
@@ -129,7 +127,7 @@ Expected: 写出 baseline；主 fixture triangle count 为 `24`，mesh count 为
 包含 `Primary Pump`、`Buffer Tank`、`Pset_PumpTypeCommon`、`Qto_PumpBaseQuantities`
 和 `Sludge Transfer`。
 
-- [x] **Step 3: 增加 baseline invariants**
+- **Step 3: 增加 baseline invariants**
 
 ```javascript
 function assertBaseline(value) {
@@ -151,7 +149,7 @@ function assertBaseline(value) {
 }
 ```
 
-- [x] **Step 4: 提交**
+- **Step 4: 提交**
 
 ```bash
 git add scripts/compare-ifc-imports.mjs fixtures/parity/ifc-baseline-v1.json
@@ -180,7 +178,7 @@ git commit -m "test(studio): capture native IFC import baseline"
   - `extract_ifc_metadata(bytes, asset_id, limits) -> Result<IfcMetadata, ImportError>`
   - `IfcMetadata`、`IfcNodeMetadata`、`IfcProductMetadata`
 
-- [x] **Step 1: 写失败测试**
+- **Step 1: 写失败测试**
 
 ```rust
 use std::path::PathBuf;
@@ -215,7 +213,7 @@ fn fixture(relative: &str) -> PathBuf {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test ifc_metadata
@@ -223,7 +221,7 @@ cargo test -p studio-import --test ifc_metadata
 
 Expected: compile failure，IFC module 尚不存在。
 
-- [x] **Step 3: 添加 feature**
+- **Step 3: 添加 feature**
 
 `Cargo.toml`：
 
@@ -248,7 +246,7 @@ ifc-lite-processing = { workspace = true, optional = true }
 `SourceFormat` 增加 `Ifc`，字符串值为 `ifc`；`lib.rs` 增加
 `#[cfg(feature = "ifc")] mod ifc;`。
 
-- [x] **Step 4: 定义 metadata DTO**
+- **Step 4: 定义 metadata DTO**
 
 ```rust
 #[derive(Debug)]
@@ -290,7 +288,7 @@ pub struct IfcProductMetadata {
 }
 ```
 
-- [x] **Step 5: 实现 extraction**
+- **Step 5: 实现 extraction**
 
 ```rust
 pub fn extract_ifc_metadata(
@@ -337,7 +335,7 @@ let selection_id = match global_id {
   超过 8 或数组超过 256 项时省略并产生
   `ICE3_STUDIO_IMPORT_IFC_METADATA_TRUNCATED` warning。
 
-- [x] **Step 6: 运行 GREEN**
+- **Step 6: 运行 GREEN**
 
 ```bash
 cargo test -p studio-import --test ifc_metadata
@@ -346,7 +344,7 @@ cargo test -p studio-import
 
 Expected: all pass，metadata 输出固定。
 
-- [x] **Step 7: 提交**
+- **Step 7: 提交**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-import/src/ifc \
@@ -372,7 +370,7 @@ git commit -m "feat(studio): extract native IFC business metadata"
   - `IfcImporter::import_file(&Path, &str) -> Result<SourceScene, ImportError>`
   - shared geometry templates and occurrence nodes
 
-- [x] **Step 1: 写失败测试**
+- **Step 1: 写失败测试**
 
 ```rust
 use studio_import::{IfcImporter, SourceFormat};
@@ -403,7 +401,7 @@ fn imports_ifc4x3_hierarchy_geometry_and_metadata() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test ifc_import
@@ -411,7 +409,7 @@ cargo test -p studio-import --test ifc_import
 
 Expected: `IfcImporter` 尚未定义。
 
-- [x] **Step 3: 调用原生 geometry pipeline**
+- **Step 3: 调用原生 geometry pipeline**
 
 ```rust
 let args = ifc_lite_processing::ProcessingRequest::full_pass()
@@ -435,7 +433,7 @@ if !unit_scale.is_finite() || unit_scale <= 0.0 {
 若 `result.meshes` 无 triangle，返回 `EmptyGeometry`。triangle count 和 estimated
 memory 必须在构造输出前检查。
 
-- [x] **Step 4: 生成空间和产品节点**
+- **Step 4: 生成空间和产品节点**
 
 先按 Task 2 metadata 创建所有 spatial nodes，再引用 `result.meshes` 与
 `result.instances`。节点排序固定为：
@@ -449,7 +447,7 @@ world frame 和共享 origin。`IfcMappedItem` template mesh 只创建一次；�
 `InstanceRecord` 生成 occurrence node，`mesh` 指向 template index，
 `instanceGroup = ifc/instance/<rep_identity>`。
 
-- [x] **Step 5: 转换 geometry 和 material**
+- **Step 5: 转换 geometry 和 material**
 
 ```rust
 for mesh in &result.meshes {
@@ -476,7 +474,7 @@ for mesh in &result.meshes {
 所有 positions 加上 `mesh.origin` 后在 `f64` 中计算 bounds 和 origin subtraction；
 不得先转 f32 再减 origin。material 按 `[name, rounded rgba]` 去重并稳定排序。
 
-- [x] **Step 6: 写 metadata extras**
+- **Step 6: 写 metadata extras**
 
 产品 node extras 固定为 `extras.ice3.ifc`，包含 Task 2 的 `schema`、`expressId`、
 `globalId`、`ifcType`、`name`、`description`、`objectType`、`predefinedType`、
@@ -484,7 +482,7 @@ for mesh in &result.meshes {
 geometry 阶段产生的 `instanceGroup` 合并到同一对象。asset extras 写入
 `ice3.coordinateSystem`、`ice3.ifc.schema` 和 `ice3.ifc.sourceOrigin`。
 
-- [x] **Step 7: 运行 GREEN**
+- **Step 7: 运行 GREEN**
 
 ```bash
 cargo test -p studio-import --test ifc_import
@@ -494,7 +492,7 @@ cargo clippy -p studio-import --all-targets -- -D warnings
 
 Expected: all pass，Prepared GLB validation pass。
 
-- [x] **Step 8: 新增实例回归 fixture 和测试**
+- **Step 8: 新增实例回归 fixture 和测试**
 
 创建 `crates/studio-import/tests/fixtures/ifc/instanced.ifc`，包含两个
 `IFCMAPPEDITEM` product 引用同一 `IFCREPRESENTATIONMAP`。测试固定：
@@ -520,7 +518,7 @@ fn preserves_ifc_representation_map_instances() {
 
 运行 `cargo test -p studio-import --test ifc_import`，Expected: pass。
 
-- [x] **Step 9: 增加 unsupported resource warning**
+- **Step 9: 增加 unsupported resource warning**
 
 `MeshData.texture.is_some()` 时产生
 `ICE3_STUDIO_IMPORT_IFC_UNSUPPORTED_RESOURCE`，message 固定包含
@@ -530,7 +528,7 @@ fn preserves_ifc_representation_map_instances() {
 在 mapper unit test 中构造一个带 `texture` 的 `MeshData`，断言 warning code 和稳定
 message；再断言无 texture 的 mesh 不产生该 warning。
 
-- [x] **Step 10: 提交**
+- **Step 10: 提交**
 
 ```bash
 git add crates/studio-import/src/ifc crates/studio-import/tests/ifc_import.rs \
@@ -554,7 +552,7 @@ git commit -m "feat(studio): import IFC with native geometry"
 - Consumes: `IfcImporter`、`run_isolated_import`
 - Produces: `--adapter auto|...|ifc` 和 native IFC parity
 
-- [x] **Step 1: 写 CLI tests**
+- **Step 1: 写 CLI tests**
 
 ```rust
 #[test]
@@ -597,7 +595,7 @@ fn unsupported_ifc_schema_does_not_replace_output() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-cli --test ifc_import
@@ -605,7 +603,7 @@ cargo test -p studio-cli --test ifc_import
 
 Expected: adapter unavailable。
 
-- [x] **Step 3: 注册 feature、registry 和 worker**
+- **Step 3: 注册 feature、registry 和 worker**
 
 ```toml
 [features]
@@ -631,7 +629,7 @@ let imported = match selected_adapter {
 
 Clap value parser 和 hidden worker registry 顺序固定为最后加入 `ifc`。
 
-- [x] **Step 4: 扩展 parity**
+- **Step 4: 扩展 parity**
 
 `compare-ifc-imports.mjs` 比较：
 
@@ -645,7 +643,7 @@ Clap value parser 和 hidden worker registry 顺序固定为最后加入 `ifc`�
 
 triangle/vertex/digest 差值写入 report，不阻断。
 
-- [x] **Step 5: 运行 GREEN**
+- **Step 5: 运行 GREEN**
 
 ```bash
 cargo test -p studio-cli --test ifc_import
@@ -655,7 +653,7 @@ node scripts/compare-ifc-imports.mjs
 
 Expected: tests pass，parity `status=pass`。
 
-- [x] **Step 6: 增加负向 corpus**
+- **Step 6: 增加负向 corpus**
 
 对：
 
@@ -669,7 +667,7 @@ Expected: tests pass，parity `status=pass`。
 
 逐项断言不发布新输出，已有 sentinel 文件保持不变。
 
-- [x] **Step 7: 提交**
+- **Step 7: 提交**
 
 ```bash
 git add crates/studio-cli crates/studio-import/src/bin/studio-import-worker.rs \
@@ -704,13 +702,13 @@ git commit -m "feat(studio-cli): import IFC without external bridges"
 - Consumes: passing native IFC parity
 - Produces: Toolchain conformance 只剩 JT，Studio 默认加载 IFC
 
-- [x] **Step 1: 删除 IFC production bridge**
+- **Step 1: 删除 IFC production bridge**
 
 从 Toolchain CLI lazy imports、help、package dependencies、tsconfig references 和
 conformance manifest 删除 IFC。删除 `packages/ifc-importer`、`tests/ifc` 和
 IFC-only command tests，但保留 `tests/fixtures/ifc/`。
 
-- [x] **Step 2: 更新文档和状态**
+- **Step 2: 更新文档和状态**
 
 文档写明：
 
@@ -720,7 +718,7 @@ IFC-only command tests，但保留 `tests/fixtures/ifc/`。
 - Toolchain conformance 只剩 JT。
 - Phase 4B 和 Plan-023 标记 Implemented；Phase 4、Spec-017 一并标记 Implemented。
 
-- [x] **Step 3: 更新 notices 和 feature isolation**
+- **Step 3: 更新 notices 和 feature isolation**
 
 Studio `THIRD_PARTY_NOTICES.md` 添加 IFC parser/geometry MPL-2.0 完整 notice。
 `third_party_notices.rs` 断言三个 package/version 和 MPL 文本存在。
@@ -733,7 +731,7 @@ cargo tree -p studio-import --no-default-features
 
 Expected: 第四种依赖树不包含 `ifc-lite-core` 或 `ifc-lite-processing`。
 
-- [x] **Step 4: 运行完整门禁**
+- **Step 4: 运行完整门禁**
 
 Studio：
 
@@ -757,7 +755,7 @@ test -f tests/fixtures/ifc/synthetic-plant.ifc
 Expected: Studio 18/18 gates、Chrome E2E、五份 parity pass；Toolchain tests pass；
 production search 无 IFC bridge；fixture 保留。
 
-- [x] **Step 5: 提交**
+- **Step 5: 提交**
 
 Studio：
 

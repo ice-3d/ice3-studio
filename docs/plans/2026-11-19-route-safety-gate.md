@@ -6,9 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** 在 Document 写入 revision 前，对管线中心线执行实体碰撞、净空面、端点接入和
 支撑布局校验，并让污水厂资产满足这些硬门禁。
@@ -28,7 +27,7 @@ Studio JSON-RPC、React/WebGL2 Viewer、Playwright、Google Chrome
 - Studio Core 不增加道路、池体、泵站或其它行业业务类型。
 - Document 和 operation history 是唯一真源；路由、诊断和 GLB 均为派生结果。
 - 所有生产代码先写失败测试，再写最小实现。
-- Git author 和 committer 必须为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author 和 committer 必须为 `repository `AGENTS.md` identity policy`。
 - 不推送远端。
 - 障碍 owner 上限 `50,000`、路由段上限 `50,000`、窄相位上限 `1,000,000` 对。
 - 单条连接最多报告 `32` 条碰撞。
@@ -96,7 +95,7 @@ Studio JSON-RPC、React/WebGL2 Viewer、Playwright、Google Chrome
   - `pub fn segment_triangle_distance(segment: [[f32; 3]; 2], triangle: [[f32; 3]; 3]) -> f32`
   - `pub fn segment_bounds_distance(segment: [[f32; 3]; 2], bounds: &Bounds) -> f32`
 
-- [ ] **Step 1: Write the failing distance tests**
+- **Step 1: Write the failing distance tests**
 
 Add to `geometry/clash.rs` tests:
 
@@ -125,7 +124,7 @@ fn segment_triangle_distance_reports_crossing_and_clearance() {
 }
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -135,7 +134,7 @@ cargo test -p studio-core segment_triangle_distance_reports_crossing_and_clearan
 
 Expected: FAIL because `segment_triangle_distance` does not exist.
 
-- [ ] **Step 3: Implement the minimal distance primitive**
+- **Step 3: Implement the minimal distance primitive**
 
 Add helpers in `clash.rs` for point-triangle and segment-segment distance.
 
@@ -172,7 +171,7 @@ pub fn segment_triangle_distance(
 }
 ```
 
-- [ ] **Step 4: Export and verify GREEN**
+- **Step 4: Export and verify GREEN**
 
 Add both distance functions to `geometry/mod.rs` re-exports, then run:
 
@@ -183,7 +182,7 @@ cargo test -p studio-core --test clashes
 
 Expected: both commands PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/geometry/clash.rs \
@@ -210,7 +209,7 @@ git commit -m "feat(geometry): measure segment triangle distance"
   - five `DiagnosticCode` variants: `RouteCollision`, `RouteClearanceInsufficient`,
     `RouteSupportMissing`, `RouteSupportSpacing`, `RouteSafetyBudget`.
 
-- [ ] **Step 1: Write failing contract and metadata tests**
+- **Step 1: Write failing contract and metadata tests**
 
 Add tests in `route_safety.rs`:
 
@@ -244,7 +243,7 @@ fn health_reports_route_safety_api_version() {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- **Step 2: Run tests and verify RED**
 
 Run:
 
@@ -255,7 +254,7 @@ cargo test -p studio-server --test rpc_contract health_reports_route_safety_api_
 
 Expected: FAIL because the module, constants and API version are absent.
 
-- [ ] **Step 3: Add constants, metadata parser and DiagnosticCode variants**
+- **Step 3: Add constants, metadata parser and DiagnosticCode variants**
 
 Add:
 
@@ -288,7 +287,7 @@ ICE3_STUDIO_ROUTE_SAFETY_BUDGET
 
 Set `API_VERSION` to `1.4`.
 
-- [ ] **Step 4: Regenerate bindings and verify GREEN**
+- **Step 4: Regenerate bindings and verify GREEN**
 
 Refresh the generated TypeScript copies through the existing `ts-rs` export tests, then:
 
@@ -301,7 +300,7 @@ cargo run -p studio-cli -- schema --output schemas --check
 
 Expected: all PASS and generated files show only `1.4` plus new Diagnostic codes.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core crates/studio-server/tests/rpc_contract.rs \
@@ -320,7 +319,7 @@ git commit -m "feat(api): define route safety diagnostics"
 - Consumes: `route_connection`, `shared_pump_document`, `segment_bounds_distance`.
 - Produces: `validate_route_safety(document, definitions) -> (Vec<Diagnostic>, RouteSafetyStats)`.
 
-- [ ] **Step 1: Write a failing static-obstacle collision test**
+- **Step 1: Write a failing static-obstacle collision test**
 
 Use `shared_pump_document()`, add pipe/inlet ports at the two pump bodies, add a direct
 connection from `node-000001` to `node-000002`, and add a static box at `x=6`.
@@ -364,7 +363,7 @@ fn route_safety_codes(document: &Document) -> Vec<DiagnosticCode> {
 }
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -374,7 +373,7 @@ cargo test -p studio-core --test route_safety direct_route_through_a_static_box_
 
 Expected: FAIL because `validate_route_safety` does not exist.
 
-- [ ] **Step 3: Implement route facts and static owner AABBs**
+- **Step 3: Implement route facts and static owner AABBs**
 
 Build `RouteFact` from every `NodeContent::Connection`:
 
@@ -411,7 +410,7 @@ pub struct RouteSafetyStats {
 }
 ```
 
-- [ ] **Step 4: Integrate and verify GREEN**
+- **Step 4: Integrate and verify GREEN**
 
 Call `route_safety::validate_route_safety` at the end of `validate_large_scene`.
 Skip a connection when existing structural checks prevent port resolution.
@@ -423,7 +422,7 @@ cargo test -p studio-core --test connections
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_safety.rs \
@@ -442,7 +441,7 @@ git commit -m "feat(core): preflight routes against static obstacles"
 - Consumes: Task 1 `segment_triangle_distance`, `ResolvedPort`, `route_connection`.
 - Produces: owner-aware collision filtering and shared `RouteSafetyStats`.
 
-- [ ] **Step 1: Write failing endpoint and component-obstacle tests**
+- **Step 1: Write failing endpoint and component-obstacle tests**
 
 ```rust
 #[test]
@@ -463,7 +462,7 @@ fn rotated_component_part_uses_narrow_phase_after_box_overlap() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run:
 
@@ -475,7 +474,7 @@ cargo test -p studio-core --test route_safety rotated_component_part_uses_narrow
 Expected: first FAIL because endpoint owners are not excluded; second FAIL because
 component obstacles are not built.
 
-- [ ] **Step 3: Implement owner expansion and endpoint windows**
+- **Step 3: Implement owner expansion and endpoint windows**
 
 For each connection, resolve the actual endpoint node ID from `InstancePortRef`
 (`set_node_id` for set items). Ignore only collisions whose source owner equals an
@@ -485,7 +484,7 @@ Build component owner AABBs from resolved parameters, nested Part transforms and
 transform. Do not evaluate Part triangles until an owner enters the broad-phase candidate
 set.
 
-- [ ] **Step 4: Implement narrow phase and verify GREEN**
+- **Step 4: Implement narrow phase and verify GREEN**
 
 Evaluate only candidate owner mesh variants, transform triangles to world space, and call
 `segment_triangle_distance`. Count each triangle comparison in
@@ -499,7 +498,7 @@ cargo test -p studio-core --test route_safety
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_safety.rs \
@@ -517,7 +516,7 @@ git commit -m "feat(core): narrow route collisions with endpoint exemptions"
 - Consumes: `routeObstacle=clearance-surface`, `routeClearance`.
 - Produces: `ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT`.
 
-- [ ] **Step 1: Write failing clearance tests**
+- **Step 1: Write failing clearance tests**
 
 ```rust
 #[test]
@@ -538,7 +537,7 @@ fn clearance_surface_rejects_a_low_crossing() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 cargo test -p studio-core --test route_safety clearance_surface_rejects_a_low_crossing
@@ -546,14 +545,14 @@ cargo test -p studio-core --test route_safety clearance_surface_rejects_a_low_cr
 
 Expected: FAIL because clearance surfaces are not evaluated.
 
-- [ ] **Step 3: Implement footprint crossing and vertical clearance**
+- **Step 3: Implement footprint crossing and vertical clearance**
 
 Project each route segment onto XZ. When it intersects the surface AABB footprint, compare
 the segment's minimum center Y minus route radius with `surface.max.y + clearance`.
 `routeClearance` parsing accepts finite values `>= 0`; invalid values emit
 `DiagnosticCode::OperationInvalid`.
 
-- [ ] **Step 4: Verify GREEN**
+- **Step 4: Verify GREEN**
 
 ```bash
 cargo test -p studio-core --test route_safety clearance_surface_rejects_a_low_crossing
@@ -562,7 +561,7 @@ cargo test -p studio-core --test route_safety
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_safety.rs \
@@ -580,7 +579,7 @@ git commit -m "feat(core): enforce route clearance surfaces"
 - Consumes: `role=pipe-support`, `supportPart=beam`, `lineId`, `maxSupportSpacing`.
 - Produces: support-missing and support-spacing diagnostics.
 
-- [ ] **Step 1: Write failing support tests**
+- **Step 1: Write failing support tests**
 
 ```rust
 #[test]
@@ -593,7 +592,7 @@ fn support_layout_rejects_missing_sparse_and_off_route_stations() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 cargo test -p studio-core --test route_safety support_layout_rejects_missing_sparse_and_off_route_stations
@@ -601,7 +600,7 @@ cargo test -p studio-core --test route_safety support_layout_rejects_missing_spa
 
 Expected: FAIL because support stations are not indexed.
 
-- [ ] **Step 3: Implement support projection and spacing**
+- **Step 3: Implement support projection and spacing**
 
 Build a `BTreeMap<String, Vec<SupportStation>>` keyed by `lineId`. Reject orphan
 support IDs with `DiagnosticCode::OperationInvalid`. For non-Buried routes:
@@ -614,7 +613,7 @@ support IDs with `DiagnosticCode::OperationInvalid`. For non-Buried routes:
 - reject a turn when no valid station exists within
   `max(1.0, 4.0 * diameter)` of the turn.
 
-- [ ] **Step 4: Verify GREEN**
+- **Step 4: Verify GREEN**
 
 ```bash
 cargo test -p studio-core --test route_safety support_layout_rejects_missing_sparse_and_off_route_stations
@@ -623,7 +622,7 @@ cargo test -p studio-core --test route_safety
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_safety.rs \
@@ -642,7 +641,7 @@ git commit -m "feat(core): validate pipe support layout"
 - Consumes: `RouteSafetyStats`, `apply_transaction`.
 - Produces: deterministic budget failure and pre-persistence rejection.
 
-- [ ] **Step 1: Write failing budget and transaction tests**
+- **Step 1: Write failing budget and transaction tests**
 
 ```rust
 #[test]
@@ -663,7 +662,7 @@ fn route_collision_does_not_advance_revision() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 cargo test -p studio-core --test route_safety route_safety_budget_exhaustion_fails_closed
@@ -673,13 +672,13 @@ cargo test -p studio-core --test transactions route_collision_does_not_advance_r
 Expected: first FAIL because limits are not enforced; second FAIL because routing validation
 is not yet part of `validate_document`.
 
-- [ ] **Step 3: Enforce every limit before allocation**
+- **Step 3: Enforce every limit before allocation**
 
 Check obstacle owners, route segments and triangle pairs before extending vectors. Return
 `RouteSafetyBudget` and stop further route checks. Keep already-produced diagnostics in
 stable order and append the budget failure last.
 
-- [ ] **Step 4: Verify GREEN and deterministic ordering**
+- **Step 4: Verify GREEN and deterministic ordering**
 
 ```bash
 cargo test -p studio-core --test route_safety route_safety_budget_exhaustion_fails_closed
@@ -689,7 +688,7 @@ cargo test -p studio-core --test route_safety
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_safety.rs \
@@ -710,7 +709,7 @@ git commit -m "test(core): fail closed on route safety budgets"
 - Consumes: `buildPlan`, existing `connect`, `coarseRoute`.
 - Produces: `planSupportStations(route, maxSpacing = 6)` and `validatePipeSupportSpacing`.
 
-- [ ] **Step 1: Write failing asset tests**
+- **Step 1: Write failing asset tests**
 
 ```js
 test('pipe supports cover every above-ground route at six metre intervals', () => {
@@ -733,7 +732,7 @@ test('roads declare generic route clearance surfaces', () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 node --test scripts/tests/wastewater-plant-model.test.mjs \
@@ -742,7 +741,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs \
 
 Expected: FAIL because `validatePipeSupportSpacing` and road metadata are absent.
 
-- [ ] **Step 3: Add generic metadata and support stations**
+- **Step 3: Add generic metadata and support stations**
 
 For road `b.ground` calls in `site-plan.mjs`, merge:
 
@@ -801,7 +800,7 @@ Generate support groups for every returned station with unique
 `supportGroup = `${lineId}-${index}``. Mark every pipe accessory metadata with
 `routeObstacle: 'ignored'`. Add connection metadata `maxSupportSpacing: '6'`.
 
-- [ ] **Step 4: Update alignment validation and verify GREEN**
+- **Step 4: Update alignment validation and verify GREEN**
 
 Change `validatePipeAccessoryAlignment` to store an array of beam operations per `lineId`
 and validate every station. Add:
@@ -883,7 +882,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: all asset tests PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add scripts/wastewater-plant scripts/tests/wastewater-plant-model.test.mjs
@@ -900,7 +899,7 @@ git commit -m "feat(asset): generate route clearance and pipe supports"
 - Consumes: Task 8 generator.
 - Produces: public-API-created project satisfying route safety.
 
-- [ ] **Step 1: Generate into a temporary workspace**
+- **Step 1: Generate into a temporary workspace**
 
 ```bash
 route_workspace=$(mktemp -d)
@@ -910,12 +909,12 @@ printf '%s\n' "$route_workspace"
 
 Expected: `$route_workspace/wastewater-plant/project.json` exists.
 
-- [ ] **Step 2: Validate through Studio Server**
+- **Step 2: Validate through Studio Server**
 
 Start:
 
 ```bash
-STUDIO_SESSION_TOKEN=route-safety-review \
+export STUDIO_SESSION_TOKEN="${STUDIO_SESSION_TOKEN:-local-review-token}"
 STUDIO_VIEWER_DIR="$PWD/apps/viewer/dist" \
   target/release/studio-cli serve \
   --workspace "$route_workspace" \
@@ -928,14 +927,14 @@ Call:
 
 ```bash
 curl -s http://127.0.0.1:8151/rpc \
-  -H 'authorization: Bearer route-safety-review' \
+  -H "authorization: Bearer $STUDIO_SESSION_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"validation.run","params":{}}'
 ```
 
 Expected: `result` is an empty array.
 
-- [ ] **Step 3: Update the tracked fixture through the generator**
+- **Step 3: Update the tracked fixture through the generator**
 
 ```bash
 node scripts/build-wastewater-model.mjs --workspace ./projects
@@ -943,7 +942,7 @@ node scripts/build-wastewater-model.mjs --workspace ./projects
 
 Expected: only generated project files change; no revision JSON is hand-edited.
 
-- [ ] **Step 4: Verify project statistics and document revision**
+- **Step 4: Verify project statistics and document revision**
 
 ```bash
 node --test scripts/tests/wastewater-plant-model.test.mjs
@@ -952,7 +951,7 @@ cargo test -p studio-core --test route_safety
 
 Expected: PASS. Record old and new revision/statistics in the implementation report.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add projects/wastewater-plant projects/README.md
@@ -977,7 +976,7 @@ git commit -m "asset(wastewater): satisfy route safety gate"
     `{ revision, diagnostics, stats }`.
   - `output/route-safety-benchmark.json` with p50/p95 and counters.
 
-- [ ] **Step 1: Write failing benchmark report tests**
+- **Step 1: Write failing benchmark report tests**
 
 ```js
 test('route safety report enforces latency and memory limits', () => {
@@ -1019,7 +1018,7 @@ fn route_safety_report_serializes_counters_and_diagnostics() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 node --test scripts/tests/route-safety-benchmark.test.mjs
@@ -1027,7 +1026,7 @@ node --test scripts/tests/route-safety-benchmark.test.mjs
 
 Expected: FAIL because report helpers do not exist.
 
-- [ ] **Step 3: Implement benchmark execution**
+- **Step 3: Implement benchmark execution**
 
 Export `summarizeRouteSafetyRuns`. The script must:
 
@@ -1045,7 +1044,7 @@ The CLI report opens the project read-only through `ProjectStore`, calls
 `validate_route_safety`, serializes the report to stdout and prints the same evidence to the
 report file only when the benchmark script passes `--output`.
 
-- [ ] **Step 4: Add the large-fixture gate and verify GREEN**
+- **Step 4: Add the large-fixture gate and verify GREEN**
 
 In `run-large-industrial-fixture.mjs`, time 20 `validation.run` calls after commit and fail
 when p95 exceeds `250ms`. Close the server, run `route-safety-report` for counters, then
@@ -1058,7 +1057,7 @@ npm run benchmark:route-safety
 
 Expected: both PASS and machine-readable reports exist.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add scripts/benchmark-route-safety.mjs \
@@ -1082,21 +1081,21 @@ git commit -m "bench(route): gate route safety latency and memory"
 - Consumes: completed implementation and benchmark.
 - Produces: accurate Implemented status and Chrome evidence.
 
-- [ ] **Step 1: Update references**
+- **Step 1: Update references**
 
 Document API `1.4`, five diagnostics, metadata contract, default `6m` spacing, endpoint
 `1.5m` exemption, budget values and the read-only `route-safety-report` benchmark CLI.
 
-- [ ] **Step 2: Run Chrome visual review**
+- **Step 2: Run Chrome visual review**
 
 Start the latest wastewater project with `npm run dev`, then inspect in the installed
 Google Chrome:
 
 ```text
-http://127.0.0.1:8149/?token=wastewater-review&target=300,4,0&view=45,26,360
-http://127.0.0.1:8149/?token=wastewater-review&target=300,4,35&view=45,24,58
-http://127.0.0.1:8149/?token=wastewater-review&target=190,2,20&view=35,18,40
-http://127.0.0.1:8149/?token=wastewater-review&target=296,4,-125&view=25,16,70
+http://127.0.0.1:8149/?token=$STUDIO_SESSION_TOKEN&target=300,4,0&view=45,26,360
+http://127.0.0.1:8149/?token=$STUDIO_SESSION_TOKEN&target=300,4,35&view=45,24,58
+http://127.0.0.1:8149/?token=$STUDIO_SESSION_TOKEN&target=190,2,20&view=35,18,40
+http://127.0.0.1:8149/?token=$STUDIO_SESSION_TOKEN&target=296,4,-125&view=25,16,70
 ```
 
 Save screenshots as:
@@ -1108,7 +1107,7 @@ output/route-safety-supports.png
 output/route-safety-rack.png
 ```
 
-- [ ] **Step 3: Run full verification**
+- **Step 3: Run full verification**
 
 ```bash
 PLAYWRIGHT_CHANNEL=chrome npm run verify
@@ -1117,7 +1116,7 @@ PLAYWRIGHT_CHANNEL=chrome npm run verify
 Expected: all 34 existing gates plus route safety tests PASS; dependency audit reports zero
 high-severity vulnerabilities.
 
-- [ ] **Step 4: Close status and self-review**
+- **Step 4: Close status and self-review**
 
 Change PLAN-030 and SPEC-033 to `Implemented` only after Core, asset, benchmark and Chrome
 gates pass. Update SPEC-013 and `projects/README.md` to state that stage 2B safety checks
@@ -1132,7 +1131,7 @@ git diff --check
 
 Expected: documentation contract passes and no untracked test artifacts remain.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add docs projects/README.md
@@ -1156,4 +1155,4 @@ Expected:
 - no remote push;
 - every route safety test passes;
 - both performance reports are inside their limits;
-- author and committer are `damoqiongqiu <damoqiongqiu@126.com>`.
+- author and committer are `repository `AGENTS.md` identity policy`.

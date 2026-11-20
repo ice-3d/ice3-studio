@@ -6,10 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use
-> `superpowers:subagent-driven-development` (recommended) or
-> `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [x]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal：** 在 Studio 已独立支持全部 Source Import 和 preview 后，删除 Toolchain
 repository 中残留的 JT adapter、Studio Sidecar、Studio 发布入口和活动文档状态，使
@@ -42,7 +40,7 @@ surface 和当前文档入口已清理；Studio 在相邻 repository 不可发�
 - 不得提交客户模型、派生 GLB、绝对路径、日志或截图。
 - Historical docs 可以保留旧名称，但必须明确“已退役”，且不能作为当前接口。
 - Repository archive/delete 必须在本计划全部门禁后单独获得用户确认。
-- Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author/committer 固定为 `repository `AGENTS.md` identity policy`。
 
 ## 3. Review Focus
 
@@ -82,7 +80,7 @@ surface 和当前文档入口已清理；Studio 在相邻 repository 不可发�
 - 产出： Toolchain source tree with no `.jt` adapter, converter invocation,
   JT conformance case or release check.
 
-- [x] **Step 1: 先修改 architecture test 让现状失败**
+- **Step 1: 先修改 architecture test 让现状失败**
 
 `tests/architecture/layout.test.ts`：
 
@@ -109,7 +107,7 @@ test('JT import is owned by Studio', () => {
 同时把旧 layout test 中的 `expect(existsSync('packages/jt-importer/package.json')).toBe(true)`
 改为 `false`。
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 npm run test:architecture
@@ -117,7 +115,7 @@ npm run test:architecture
 
 Expected: FAIL；JT package、tests 和 corpus entry 仍存在。
 
-- [x] **Step 3: 删除 JT CLI path**
+- **Step 3: 删除 JT CLI path**
 
 从 `commands.ts` 删除：
 
@@ -136,7 +134,7 @@ throw new Error(
 
 `main.ts` 只保留 `runCli` 和 sidecar removal 由 Task 2 处理的入口。
 
-- [x] **Step 4: 删除 JT package、tests 和 fixtures**
+- **Step 4: 删除 JT package、tests 和 fixtures**
 
 ```bash
 git rm -r packages/jt-importer tests/jt tests/fixtures/jt
@@ -153,7 +151,7 @@ shasum -a 256 ../ice3-studio/fixtures/source-import/jt/*.jt
 
 Expected: 同名 `.jt` contract marker 与 negative scripts 的 hash 有对应副本。
 
-- [x] **Step 5: 清理 package、lock 和 tsconfig**
+- **Step 5: 清理 package、lock 和 tsconfig**
 
 从 `packages/cli/package.json` 删除 dependency：
 
@@ -168,7 +166,7 @@ Expected: 同名 `.jt` contract marker 与 negative scripts 的 hash 有对应�
 npm install --package-lock-only
 ```
 
-- [x] **Step 6: 清理 conformance 和 release check**
+- **Step 6: 清理 conformance 和 release check**
 
 从 `tools/conformance/corpus.ts` 删除 JT case。`manifest.json` 可以只保留 glTF case。
 `tools/conformance/build.mjs` 删除 `ICE3_JT_CONVERTER` 注入。
@@ -177,7 +175,7 @@ npm install --package-lock-only
 `ICE3_RELEASE_JT_REPORT_INVALID` 和 JT tarball assertions。发布包测试应只验证 Toolchain
 仍保留的通用 glTF/prepare/partition surface。
 
-- [x] **Step 7: 运行 Toolchain JT retirement gate**
+- **Step 7: 运行 Toolchain JT retirement gate**
 
 ```bash
 npm run typecheck
@@ -189,7 +187,7 @@ npm test
 
 Expected: typecheck/tests PASS；production search 无输出。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add -A package.json package-lock.json tsconfig.json packages tools tests scripts
@@ -219,7 +217,7 @@ git commit -m "refactor(toolchain): retire the JT source adapter"
 - 产出： CLI package without `sidecar` executable, `./sidecar` export,
   contract fixtures, cancellation queue or Studio package manifest.
 
-- [x] **Step 1: 写 Sidecar removal 失败测试**
+- **Step 1: 写 Sidecar removal 失败测试**
 
 在 `tests/architecture/layout.test.ts`：
 
@@ -250,7 +248,7 @@ npm run test:architecture
 
 Expected: FAIL。
 
-- [x] **Step 2: 删除 CLI sidecar entry**
+- **Step 2: 删除 CLI sidecar entry**
 
 `main.ts` 删除：
 
@@ -273,7 +271,7 @@ if (
 
 `commands.ts` help 中删除 `sidecar`。
 
-- [x] **Step 3: 删除 Sidecar source、tests 和 export**
+- **Step 3: 删除 Sidecar source、tests 和 export**
 
 ```bash
 git rm -r packages/cli/src/sidecar tests/sidecar
@@ -289,7 +287,7 @@ git rm tests/conformance/studio-sidecar.test.ts
 }
 ```
 
-- [x] **Step 4: 清理 release bundling**
+- **Step 4: 清理 release bundling**
 
 从 `scripts/build-release-package.mjs` 删除：
 
@@ -304,12 +302,12 @@ cancellation 和 Studio preview 验证。
 
 `tests/release/package.test.ts` 只检查剩余 CLI exports。
 
-- [x] **Step 5: 删除 Studio conformance wording**
+- **Step 5: 删除 Studio conformance wording**
 
 `tools/conformance/README.md` 删除侧车契约和 Studio preview 说明，只记录 Toolchain
 自身保留下来的 glTF prepare/partition tests。
 
-- [x] **Step 6: 运行 GREEN**
+- **Step 6: 运行 GREEN**
 
 ```bash
 npm run typecheck
@@ -322,7 +320,7 @@ npm run build:conformance
 
 Expected: PASS；production/test/script search 无输出。
 
-- [x] **Step 7: 提交**
+- **Step 7: 提交**
 
 ```bash
 git add -A packages tests scripts package.json package-lock.json tools
@@ -346,7 +344,7 @@ git commit -m "refactor(toolchain): remove the Studio sidecar server"
 - 输入： no JT or Sidecar package surface.
 - 产出： private historical workspace with no Studio release script.
 
-- [x] **Step 1: 写 release retirement 失败测试**
+- **Step 1: 写 release retirement 失败测试**
 
 更新 `workspace root remains a private orchestration manifest`：
 
@@ -365,7 +363,7 @@ test('workspace no longer publishes a Studio dependency', () => {
 });
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 npm run test:architecture
@@ -373,7 +371,7 @@ npm run test:architecture
 
 Expected: FAIL，release scripts 仍存在。
 
-- [x] **Step 3: 删除 publish/release surface**
+- **Step 3: 删除 publish/release surface**
 
 从 `package.json` 删除：
 
@@ -392,7 +390,7 @@ git rm tests/release/package.test.ts
 
 保留 `build`、`typecheck`、`test`、`verify`，使 repository archive 前仍能审计历史代码。
 
-- [x] **Step 4: 更新 README 的定位**
+- **Step 4: 更新 README 的定位**
 
 README 顶部改为：
 
@@ -405,7 +403,7 @@ README 顶部改为：
 删除安装、`npx ice3-tool` Studio workflow、Sidecar launch、JT converter 和 release
 命令作为当前能力。保留历史章节时加明确迁移链接。
 
-- [x] **Step 5: 更新 notices**
+- **Step 5: 更新 notices**
 
 移除只由 JT 或 Sidecar release bundle 使用、且已不在 dependency graph 中的声明。运行：
 
@@ -416,7 +414,7 @@ npm ls --all
 Expected: 只保留 toolchain-core/CLI 仍实际链接的包。不得为了“清空”删除仍被依赖的
 license notice。
 
-- [x] **Step 6: 运行 GREEN**
+- **Step 6: 运行 GREEN**
 
 ```bash
 npm run verify
@@ -426,7 +424,7 @@ node tools/conformance/build.mjs
 
 Expected: 全部 PASS，且不再发布 Studio package。
 
-- [x] **Step 7: 提交**
+- **Step 7: 提交**
 
 ```bash
 git add -A package.json README.md THIRD_PARTY_NOTICES.md \
@@ -457,7 +455,7 @@ git commit -m "build(toolchain): stop Studio release publication"
 - 输入： clean JT/Sidecar/release code.
 - 产出： accurate historical documentation and archive checklist.
 
-- [x] **Step 1: 更新 AGENTS 架构边界**
+- **Step 1: 更新 AGENTS 架构边界**
 
 把当前 JT 和 Studio Sidecar 当前职责改成历史说明：
 
@@ -469,7 +467,7 @@ git commit -m "build(toolchain): stop Studio release publication"
 - 保留的 glTF preprocessing CLI 仅用于历史代码审计，不是 Studio 产品入口。
 ```
 
-- [x] **Step 2: 标记已迁移规格和计划**
+- **Step 2: 标记已迁移规格和计划**
 
 JT Spec/Plan、多格式 Spec/Plan 和 Studio-owned authoring Spec/Plan 顶部统一加入：
 
@@ -480,7 +478,7 @@ JT Spec/Plan、多格式 Spec/Plan 和 Studio-owned authoring Spec/Plan 顶部�
 
 `docs/README.md` 状态改为 `Historical`。不得删除历史文档来伪造“从未存在”。
 
-- [x] **Step 3: 更新 CLI 和 capability guide**
+- **Step 3: 更新 CLI 和 capability guide**
 
 `docs/reference/cli.md`：
 
@@ -494,7 +492,7 @@ JT Spec/Plan、多格式 Spec/Plan 和 Studio-owned authoring Spec/Plan 顶部�
 - 保留“已迁移至 ICE3 Studio”的链接；
 - 删除会误导用户配置 `ICE3_JT_CONVERTER` 的 Toolchain 指令。
 
-- [x] **Step 4: 创建归档清单**
+- **Step 4: 创建归档清单**
 
 `docs/retirement-checklist.md`：
 
@@ -518,7 +516,7 @@ JT Spec/Plan、多格式 Spec/Plan 和 Studio-owned authoring Spec/Plan 顶部�
 - [x] User explicitly confirms archive/delete.
 ```
 
-- [x] **Step 5: 运行文档检查**
+- **Step 5: 运行文档检查**
 
 ```bash
 npm run docs:check
@@ -527,7 +525,7 @@ rg -n "当前.*(?:JT|Sidecar)|必然启动.*Sidecar|install.*sidecar" README.md 
 
 Expected: docs check PASS；没有把已退役能力描述为当前能力。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add AGENTS.md README.md docs
@@ -554,7 +552,7 @@ git commit -m "docs(toolchain): record final Studio migration"
 - 输入： all previous tasks.
 - 产出： Phase 5 Implemented evidence and a repository archive candidate.
 
-- [x] **Step 1: Studio standalone audit**
+- **Step 1: Studio standalone audit**
 
 在 Studio 中运行：
 
@@ -576,7 +574,7 @@ Expected:
 - no-default Studio dependency tree 不含 Toolchain、Node runtime 或 JT parser；
 - Chrome E2E 使用用户安装的 Chrome 并全部通过。
 
-- [x] **Step 2: Toolchain audit**
+- **Step 2: Toolchain audit**
 
 ```bash
 npm run verify
@@ -588,7 +586,7 @@ npm run build:conformance
 
 Expected: tests/build PASS；production surface search 无输出。
 
-- [x] **Step 3: 跨仓库引用审计**
+- **Step 3: 跨仓库引用审计**
 
 ```bash
 rg -n "ice3-toolchain|@ice3/toolchain|studio-toolchain-client|ice3-tool sidecar" \
@@ -599,7 +597,7 @@ rg -n "ice3-toolchain|@ice3/toolchain|studio-toolchain-client|ice3-tool sidecar"
 
 Expected: 无输出。Historical documents 和明确归档清单不在此 production scan。
 
-- [x] **Step 4: 客户数据和 Git 审计**
+- **Step 4: 客户数据和 Git 审计**
 
 在两个 repository 中运行：
 
@@ -617,7 +615,7 @@ Expected:
 - 没有客户路径或新生成的 output；
 - 未合并分支列表为空，或在 checklist 中逐项记录。
 
-- [x] **Step 5: 标记 Phase 5 Implemented**
+- **Step 5: 标记 Phase 5 Implemented**
 
 Studio 更新：
 
@@ -629,7 +627,7 @@ Studio 更新：
 
 Toolchain 只保留 Historical/Retired 状态，不宣称生产可用。
 
-- [x] **Step 6: 执行最终文档与提交**
+- **Step 6: 执行最终文档与提交**
 
 ```bash
 node ../ice3-doc/scripts/check-docs.mjs --root . 2>&1 \
@@ -653,7 +651,7 @@ git add docs/retirement-checklist.md
 git commit -m "docs(toolchain): mark the Studio migration complete"
 ```
 
-- [x] **Step 7: 停止并请求归档授权**
+- **Step 7: 停止并请求归档授权**
 
 不得在这一步自动 archive/delete repository。输出：
 

@@ -6,10 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use
-> `superpowers:subagent-driven-development` (recommended) or
-> `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [x]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal：** 完成 Phase 6C，用真实 Engine/Agent Console 消费验证 Studio edges 产物，
 建立性能资源基线，文档化为“Studio 已完整替代 Toolchain 且不依赖 Blender”。
@@ -32,7 +30,7 @@ Studio/Engine/Agent Console 测试命令。
 - Chrome 测试使用用户安装的 Google Chrome。
 - 不恢复 Toolchain、Blender、DCC、Node Asset Runtime 或任意动态 prepare executable。
 - 最终文档必须准确表述 Toolchain 能力替代边界，不能重新写出当前不存在的依赖。
-- Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author/committer 固定为 `repository `AGENTS.md` identity policy`。
 
 ## 2. Review Focus
 
@@ -61,7 +59,7 @@ Studio/Engine/Agent Console 测试命令。
   - Runtime Tileset export fixture。
 - 产出：checked-in Engine contract baseline and verification report.
 
-- [x] **Step 1: 加 Engine 构建到 verify**
+- **Step 1: 加 Engine 构建到 verify**
 
 Studio root verify 已有 Viewer pretypecheck 会构建 Engine。为独立 contract 增加明确
 步骤：
@@ -76,7 +74,7 @@ Studio root verify 已有 Viewer pretypecheck 会构建 Engine。为独立 contr
 
 路径以当前 workspace 结构为准；若目录不存在则失败并给出明确 prerequisite。
 
-- [x] **Step 2: 写 Node contract 测试**
+- **Step 2: 写 Node contract 测试**
 
 `scripts/tests/prepare-engine-contract.test.mjs`：
 
@@ -100,7 +98,7 @@ test('Engine consumes Studio edges and Preparation metadata', async () => {
 });
 ```
 
-- [x] **Step 3: 实现 Studio build + Engine read**
+- **Step 3: 实现 Studio build + Engine read**
 
 脚本流程：
 
@@ -120,7 +118,7 @@ const snapshot = engine.readPreparedGLB(bytes.buffer);
 4. 断言 line primitive 恢复、edge color、Selection、stats。
 5. 写 `output/prepare-engine-contract.json`。
 
-- [x] **Step 4: 加 Tileset/Agent Console 消费**
+- **Step 4: 加 Tileset/Agent Console 消费**
 
 对 `export tileset` fixture：
 
@@ -133,7 +131,7 @@ const snapshot = engine.readPreparedGLB(bytes.buffer);
 若现有 loader 需要浏览器环境，则使用 Chrome E2E 加载 synthetic Tileset，并额外从
 Node reader 验证 part GLB；必须在 report 中分别记录两段证据。
 
-- [x] **Step 5: 运行 RED/GREEN**
+- **Step 5: 运行 RED/GREEN**
 
 ```bash
 node scripts/verify-prepare-engine.mjs
@@ -143,7 +141,7 @@ node --test scripts/tests/prepare-engine-contract.test.mjs
 Plan-027/028 尚未完成时预期因 CLI/edges 缺失而 FAIL；完成后预期 PASS，
 `failures=[]`。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add scripts/verify-prepare-engine.mjs scripts/tests/prepare-engine-contract.test.mjs \
@@ -169,7 +167,7 @@ git commit -m "test(studio): verify engine consumption of prepared edges"
   - edge-off/edge-on deltas；
   - peak memory and output bytes。
 
-- [x] **Step 1: 写性能门禁测试**
+- **Step 1: 写性能门禁测试**
 
 ```javascript
 test('prepare performance remains inside the accepted envelope', async () => {
@@ -188,7 +186,7 @@ test('prepare performance remains inside the accepted envelope', async () => {
 });
 ```
 
-- [x] **Step 2: 实现 benchmark**
+- **Step 2: 实现 benchmark**
 
 用例：
 
@@ -209,13 +207,13 @@ test('prepare performance remains inside the accepted envelope', async () => {
 - output digest 必须每次相同；
 - 同参数 legacy baseline 从 `prepare-baseline-v1.json` / archived capture 取得。
 
-- [x] **Step 3: 添加 npm script**
+- **Step 3: 添加 npm script**
 
 ```json
 "benchmark:prepare": "node scripts/benchmark-prepare.mjs"
 ```
 
-- [x] **Step 4: 运行 baseline**
+- **Step 4: 运行 baseline**
 
 ```bash
 node scripts/benchmark-prepare.mjs --capture
@@ -225,7 +223,7 @@ node --test scripts/tests/prepare-performance.test.mjs
 
 预期：baseline 写出；重复 run p95 在 baseline budget 内；无 output digest drift。
 
-- [x] **Step 5: 加入 verify**
+- **Step 5: 加入 verify**
 
 verify 运行 contract 门禁，不重复运行完整 5× benchmark：
 
@@ -237,7 +235,7 @@ verify 运行 contract 门禁，不重复运行完整 5× benchmark：
 }
 ```
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add package.json scripts fixtures/parity/prepare-performance-v1.json
@@ -267,7 +265,7 @@ git commit -m "bench(studio): record asset prepare performance envelope"
 - 消费：Engine and performance evidence
 - 产出：code-as-truth documentation and Phase 6 exit state
 
-- [x] **Step 1: 更新架构和能力清单**
+- **Step 1: 更新架构和能力清单**
 
 明确：
 
@@ -278,12 +276,12 @@ git commit -m "bench(studio): record asset prepare performance envelope"
 - Engine/Agent Console 消费边界；
 - 不存在 Toolchain/Blender/DCC 运行时依赖。
 
-- [x] **Step 2: 更新 Diagnostics**
+- **Step 2: 更新 Diagnostics**
 
 列出全部 `ICE3_STUDIO_ASSET_*`，以及旧 baseline-only 的迁移映射。不得把
 `ICE3_TOOL_*` 标为当前 output code。
 
-- [x] **Step 3: 更新 README 产品边界**
+- **Step 3: 更新 README 产品边界**
 
 将“未实现”列表限定为布尔几何、自由曲线等后续建模能力，不再列 Toolchain
 preparation/build/inspect/partition 为缺口。
@@ -297,14 +295,14 @@ Agent 交付链；生产路径不依赖 Toolchain、Node Asset Runtime 或 Blend
 
 JT converter exception 紧邻说明，防止读者误以为零外部 executable。
 
-- [x] **Step 4: 标记阶段**
+- **Step 4: 标记阶段**
 
 - Spec-019: Implemented；
 - Plan-027/028/029: Implemented；
 - 所有 task checkbox 更新；
 - 说明 Phase6A/6B/6C 已完成。
 
-- [x] **Step 5: 文档检查**
+- **Step 5: 文档检查**
 
 ```bash
 node ../ice3-doc/scripts/check-docs.mjs --root . 2>&1 \
@@ -313,7 +311,7 @@ node ../ice3-doc/scripts/check-docs.mjs --root . 2>&1 \
 
 预期：本次文档无 Diagnostic。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add README.md AGENTS.md docs
@@ -332,7 +330,7 @@ git commit -m "docs(studio): complete asset prepare capability parity"
 - 消费：all Phase 6 deliverables
 - 产出：review-ready feature branch and complete evidence
 
-- [x] **Step 1: 全量 Studio 验证**
+- **Step 1: 全量 Studio 验证**
 
 ```bash
 PLAYWRIGHT_CHANNEL=chrome npm run verify
@@ -357,7 +355,7 @@ node scripts/benchmark-prepare.mjs
 - performance p95/memory/digest gate PASS；
 - dependency audit 0 vulnerability。
 
-- [x] **Step 2: standalone 验证**
+- **Step 2: standalone 验证**
 
 临时隐藏相邻 Toolchain repository：
 
@@ -367,7 +365,7 @@ PLAYWRIGHT_CHANNEL=chrome npm run verify
 
 预期：全部 PASS。不得通过 `node_modules` 或 test helper 读取 Toolchain/Blender。
 
-- [x] **Step 3: 依赖与命名审计**
+- **Step 3: 依赖与命名审计**
 
 ```bash
 rg -n -i "\bblender\b|\bbpy\b|BLENDER_BIN|@ice3/toolchain|ice3-toolchain" \
@@ -384,7 +382,7 @@ npm audit --audit-level high
 
 预期：no Toolchain/Blender dependency；0 vulnerability。
 
-- [x] **Step 4: 最终 self-review**
+- **Step 4: 最终 self-review**
 
 检查：
 
@@ -395,12 +393,12 @@ npm audit --audit-level high
 - 没有 TODO、TBD、未使用旧实现或 dead code；
 - worktree clean，只有预期 commits。
 
-- [x] **Step 5: final review**
+- **Step 5: final review**
 
 使用 `requesting-code-review` 对 Phase6 全分支做 whole-branch review。任何
 Critical/Important 修复后做一次 scoped re-review；不得跳过。
 
-- [x] **Step 6: 合并与归档状态**
+- **Step 6: 合并与归档状态**
 
 只有用户明确选择本地 merge 后才合并 `main`。
 

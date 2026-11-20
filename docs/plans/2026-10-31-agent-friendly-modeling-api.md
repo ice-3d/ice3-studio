@@ -10,9 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Add a bounded, permission-aware Agent capability layer for project inspection, derived
 scene discovery, targeted geometry queries, and sparse model updates without changing the
@@ -94,7 +93,7 @@ Viewer contracts, Node.js 24.22.1, and Playwright.
   `SceneSearchResult`, `SceneSearchItem`, `EvaluationQueryRequest`,
   `EvaluationQueryResult`, `AgentErrorData`, and their supporting enums and structs.
 
-- [ ] **Step 1: Write the failing contract test**
+- **Step 1: Write the failing contract test**
 
 ```rust
 use std::collections::BTreeMap;
@@ -142,7 +141,7 @@ fn agent_requests_serialize_with_camel_case_and_bounded_defaults() {
 }
 ```
 
-- [ ] **Step 2: Run the test and observe the missing module**
+- **Step 2: Run the test and observe the missing module**
 
 Run:
 
@@ -152,7 +151,7 @@ cargo test -p studio-core --test agent_contract
 
 Expected: compilation fails because `studio_core::agent_contract` does not exist.
 
-- [ ] **Step 3: Implement the contracts**
+- **Step 3: Implement the contracts**
 
 Use these concrete top-level definitions:
 
@@ -265,7 +264,7 @@ Add a TS export test for each exported type with the same
 `#[test] fn export_bindings_<snake_name>` pattern used by existing contract
 tests.
 
-- [ ] **Step 4: Run contract and schema tests**
+- **Step 4: Run contract and schema tests**
 
 Run:
 
@@ -277,7 +276,7 @@ cargo test -p studio-cli --test schema_output
 Expected: both commands pass; generated bindings show keys such as `nodeId`,
 `componentDefinitionId`, and `evaluationMaxNodes`.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/agent_contract.rs \
@@ -303,7 +302,7 @@ git commit -m "feat(studio-core): define agent modeling contracts"
 - Produces: `InstancePatch`, `MaterialPatch`, `Operation::InstancePatch`, and
   `Operation::MaterialPatch`.
 
-- [ ] **Step 1: Write failing patch tests**
+- **Step 1: Write failing patch tests**
 
 Create a component with one Number parameter and one instance with:
 
@@ -352,7 +351,7 @@ base color, name, and edge color remain unchanged.
 Add a third test where `clear_material` and `material_id` are both supplied;
 expect `ICE3_STUDIO_OPERATION_INVALID`.
 
-- [ ] **Step 2: Run the tests and observe missing variants**
+- **Step 2: Run the tests and observe missing variants**
 
 Run:
 
@@ -362,7 +361,7 @@ cargo test -p studio-core --test agent_patches
 
 Expected: compilation fails because `InstancePatch` and the new Operation variants do not exist.
 
-- [ ] **Step 3: Implement patch payloads**
+- **Step 3: Implement patch payloads**
 
 In `patch.rs` define:
 
@@ -414,7 +413,7 @@ InstancePatch(InstancePatch),
 MaterialPatch(MaterialPatch),
 ```
 
-- [ ] **Step 4: Implement sparse mutation semantics**
+- **Step 4: Implement sparse mutation semantics**
 
 In `apply_operation`, match the new variants.
 
@@ -453,7 +452,7 @@ material ID, apply only `Some` fields, and call `diff.material_updated`.
 Leave parameter type/range/unknown-name validation to the existing whole-document
 validation pass so the transaction remains atomic.
 
-- [ ] **Step 5: Run focused and full core tests**
+- **Step 5: Run focused and full core tests**
 
 Run:
 
@@ -464,7 +463,7 @@ cargo test -p studio-core
 
 Expected: all tests pass, including malformed/empty patch rejection.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-core/src/patch.rs \
@@ -490,7 +489,7 @@ git commit -m "feat(studio-core): patch instances and materials sparsely"
 - Consumes: Task 2 sparse-patch error and metadata rules.
 - Produces: `ComponentPatch`, `ConnectionPatch`, and their Operation variants.
 
-- [ ] **Step 1: Write failing tests**
+- **Step 1: Write failing tests**
 
 Add tests that:
 
@@ -502,7 +501,7 @@ Add tests that:
 - patch endpoint and route policy in one operation;
 - reject an empty component patch and an empty connection patch.
 
-- [ ] **Step 2: Run the tests and observe missing variants**
+- **Step 2: Run the tests and observe missing variants**
 
 Run:
 
@@ -513,7 +512,7 @@ cargo test -p studio-core --test agent_patches connection_patch
 
 Expected: compilation fails because the new patch types and variants are absent.
 
-- [ ] **Step 3: Implement patch payloads and variants**
+- **Step 3: Implement patch payloads and variants**
 
 Define:
 
@@ -540,7 +539,7 @@ ConnectionPatch {
 
 Add Operation variants with `type` names `component.patch` and `connection.patch`.
 
-- [ ] **Step 4: Implement mutations**
+- **Step 4: Implement mutations**
 
 For `ComponentPatch`, update only definition name/defaults/metadata and use
 `diff.component_updated`. Do not modify parts or ports.
@@ -551,7 +550,7 @@ connection content and node metadata, then use `diff.node_updated`.
 
 Set/remove overlap and empty-input rules apply.
 
-- [ ] **Step 5: Run tests**
+- **Step 5: Run tests**
 
 Run:
 
@@ -562,7 +561,7 @@ cargo test -p studio-core --test large_scene_transactions
 
 Expected: both pass.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-core/src/patch.rs \
@@ -590,7 +589,7 @@ git commit -m "feat(studio-core): patch components and connections sparsely"
 - Produces: `RequestAuthority`, `classify_request_authority`,
   `agent_access`, and `{agent,manifest}`.
 
-- [ ] **Step 1: Write failing manifest tests**
+- **Step 1: Write failing manifest tests**
 
 Start a review-required server and call `system.agentManifest` with:
 
@@ -612,7 +611,7 @@ For an autonomous server, agent access has `canApplyDirectly=true`,
 Assert the manifest includes `scene.context`, `scene.search`,
 `evaluation.query`, and every patch tool, with nonempty schema references.
 
-- [ ] **Step 2: Run tests and observe unknown method**
+- **Step 2: Run tests and observe unknown method**
 
 Run:
 
@@ -622,7 +621,7 @@ cargo test -p studio-server --test agent_api manifest_access
 
 Expected: `system.agentManifest` returns `-32601`.
 
-- [ ] **Step 3: Add authority classification**
+- **Step 3: Add authority classification**
 
 In `capabilities.rs` add:
 
@@ -691,7 +690,7 @@ pub fn agent_access(authority: RequestAuthority) -> AgentAccess {
 Keep `authorize_write` as the dispatch-time gate; do not replace its enforcement
 with manifest data.
 
-- [ ] **Step 4: Pass authority into dispatch**
+- **Step 4: Pass authority into dispatch**
 
 In the RPC handler, classify authority from the same headers and session values
 already used by `authorize_write`. Change the internal signature to:
@@ -707,7 +706,7 @@ fn dispatch(
 Pass the captured value through `spawn_blocking`. Update all direct internal calls
 and tests to pass an appropriate authority.
 
-- [ ] **Step 5: Implement `system.agentManifest`**
+- **Step 5: Implement `system.agentManifest`**
 
 In `agent.rs`, build a constant tool list with these names:
 
@@ -744,7 +743,7 @@ pub limits: AgentLimits,
 
 Populate them using the same request authority and `AgentLimits::default()`.
 
-- [ ] **Step 6: Run tests**
+- **Step 6: Run tests**
 
 Run:
 
@@ -756,7 +755,7 @@ cargo test -p studio-server --test rpc_contract
 
 Expected: all pass; proposal token still cannot direct apply or commit.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add crates/studio-server/src/capabilities.rs \
@@ -784,7 +783,7 @@ git commit -m "feat(studio-server): advertise agent capabilities"
 - Produces: `{agent,context}`, `{agent,source_search}`, and
   `{agent,normalize_query}`.
 
-- [ ] **Step 1: Write failing context and search tests**
+- **Step 1: Write failing context and search tests**
 
 Use the existing component-instance fixture and assert:
 
@@ -800,7 +799,7 @@ Use the existing component-instance fixture and assert:
 - a projection omitting `metadata` does not serialize `metadata`;
 - unknown projection names return `ICE3_STUDIO_API_INVALID`.
 
-- [ ] **Step 2: Run tests and observe unknown methods**
+- **Step 2: Run tests and observe unknown methods**
 
 Run:
 
@@ -811,7 +810,7 @@ cargo test -p studio-server --test agent_api source_search
 
 Expected: `scene.context` and `scene.search` return `-32601`.
 
-- [ ] **Step 3: Implement deterministic query fingerprint**
+- **Step 3: Implement deterministic query fingerprint**
 
 In `agent.rs` add:
 
@@ -853,7 +852,7 @@ v1.<revision>.<offset>.<query-digest>
 Validate exactly four dot-separated parts. The format contains only URL-safe
 characters.
 
-- [ ] **Step 4: Implement `scene.context`**
+- **Step 4: Implement `scene.context`**
 
 Call `ensure_scene_snapshot` and compute source bounds. Build:
 
@@ -866,7 +865,7 @@ Call `ensure_scene_snapshot` and compute source bounds. Build:
 Return errors through the existing `large_scene_error` mapping. Do not clone or
 serialize complete node/material/component collections.
 
-- [ ] **Step 5: Implement source `scene.search`**
+- **Step 5: Implement source `scene.search`**
 
 Apply filters in this order:
 
@@ -885,7 +884,7 @@ mesh or primitive represented by a cached mesh.
 When `fields` is present, require `id`, `scope`, and `kind`; serialize a projected
 item with omitted optional fields absent rather than zero/false placeholders.
 
-- [ ] **Step 6: Wire RPC dispatch and test**
+- **Step 6: Wire RPC dispatch and test**
 
 Add both method names to capabilities and dispatch:
 
@@ -903,7 +902,7 @@ cargo test -p studio-server --test agent_api source_search
 
 Expected: all focused tests pass.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add crates/studio-server/src/agent.rs \
@@ -928,7 +927,7 @@ git commit -m "feat(studio-server): expose bounded agent scene context"
 - Produces: derived-scope handling in `scene.search` and
   `evaluation.query`.
 
-- [ ] **Step 1: Write failing derived tests**
+- **Step 1: Write failing derived tests**
 
 Create one component instance and one instance set. Assert:
 
@@ -944,7 +943,7 @@ Create one component instance and one instance set. Assert:
 - duplicate node IDs are rejected;
 - one unknown node ID rejects the whole request.
 
-- [ ] **Step 2: Run tests and observe missing behavior**
+- **Step 2: Run tests and observe missing behavior**
 
 Run:
 
@@ -956,7 +955,7 @@ cargo test -p studio-server --test agent_api evaluation_query
 Expected: derived scope returns no items or unresolved nodes, and
 `evaluation.query` returns `-32601`.
 
-- [ ] **Step 3: Implement derived search**
+- **Step 3: Implement derived search**
 
 Ensure the evaluated scene once per request. Build derived items from
 `EvaluatedSceneNode`.
@@ -988,7 +987,7 @@ Reject relation filters when `scope=derived`.
 For `scope=both`, build source results then derived results and sort by
 `(scope, id)` before applying the cursor offset and limit.
 
-- [ ] **Step 4: Implement `evaluation.query`**
+- **Step 4: Implement `evaluation.query`**
 
 Reject duplicate IDs:
 
@@ -1014,7 +1013,7 @@ Use the evaluated scene node map. For a node with a mesh:
 For a node without a mesh, return zero counts, null geometry/digest/bounds, and
 null payload fields.
 
-- [ ] **Step 5: Wire dispatch and run tests**
+- **Step 5: Wire dispatch and run tests**
 
 Add `evaluation.query` to manifest and capabilities, then dispatch it.
 
@@ -1027,7 +1026,7 @@ cargo test -p studio-server --test large_scene_rpc
 
 Expected: all pass.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-server/src/agent.rs \
@@ -1058,7 +1057,7 @@ git commit -m "feat(studio-server): query derived agent scene data"
 - Produces: a deterministic proposal/approval workflow and machine-readable
   context/search byte evidence.
 
-- [ ] **Step 1: Write the failing Agent workflow test**
+- **Step 1: Write the failing Agent workflow test**
 
 Use a review-required `TestServer`. As the agent token:
 
@@ -1076,7 +1075,7 @@ Use a review-required `TestServer`. As the agent token:
 Do not require a Toolchain for the core workflow. If capabilities report Toolchain
 ready, also request candidate preview and assert a packet or GLB URL.
 
-- [ ] **Step 2: Run the workflow and observe failure**
+- **Step 2: Run the workflow and observe failure**
 
 Run:
 
@@ -1086,7 +1085,7 @@ cargo test -p studio-server --test agent_workflow
 
 Expected: failure until the fixture operations and generated fields are complete.
 
-- [ ] **Step 3: Implement the workflow fixture**
+- **Step 3: Implement the workflow fixture**
 
 Use the project's `apply_instance_and_set` pattern or a focused local fixture.
 The patch must change only:
@@ -1105,7 +1104,7 @@ The patch must change only:
 
 Assert unchanged parts, overrides, and transform after commit.
 
-- [ ] **Step 4: Extend the deterministic AI fixture script**
+- **Step 4: Extend the deterministic AI fixture script**
 
 Before its existing first write, call:
 
@@ -1128,7 +1127,7 @@ returns an items array. Include these evidence fields in the final JSON output:
 
 Use the actual returned lengths rather than hardcoding expected tools.
 
-- [ ] **Step 5: Add large-scene context/search gates**
+- **Step 5: Add large-scene context/search gates**
 
 In `benchmarks/large-industrial-scene.mjs`, after `coldStats`, call:
 
@@ -1163,7 +1162,7 @@ if (firstPage.items.length > 25) failures.push('agentSearchLimit');
 
 The three-way scene comparison must preserve the new Agent evidence in every mode.
 
-- [ ] **Step 6: Update user-facing documentation**
+- **Step 6: Update user-facing documentation**
 
 Update:
 
@@ -1177,7 +1176,7 @@ Update:
 Do not mark the feature Implemented while any new benchmark or permission test is
 disabled or returning untruthful zero samples.
 
-- [ ] **Step 7: Run focused verification**
+- **Step 7: Run focused verification**
 
 Run:
 
@@ -1192,7 +1191,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu-scene
 Expected: all tests pass; benchmark failures are empty and Agent byte evidence is
 within limits.
 
-- [ ] **Step 8: Run the complete verification gate**
+- **Step 8: Run the complete verification gate**
 
 Run:
 
@@ -1202,7 +1201,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 
 Expected: all 14 gates pass after schema and binding regeneration.
 
-- [ ] **Step 9: Commit**
+- **Step 9: Commit**
 
 ```bash
 git add crates/studio-server/tests/agent_workflow.rs \

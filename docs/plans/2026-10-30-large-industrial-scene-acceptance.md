@@ -10,8 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan
-> task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Build a deterministic 5.5M–7.5M-triangle generic industrial scene through the public
 Studio API, then verify object scale, topology, shared geometry, incremental cache behavior,
@@ -72,7 +72,7 @@ counts without transferring the full 5M-triangle payload to the benchmark.
 - Produces: public fields `sourceNodes`, `expandedNodes`, `uniqueMeshes`, `effectiveTriangles`,
   `uniqueTriangles`, `cacheHits`, `cacheMisses`, and `generatedMeshes`.
 
-- [ ] **Step 1: Add a failing large-scene stats test**
+- **Step 1: Add a failing large-scene stats test**
 
 Append to `crates/studio-server/tests/large_scene_rpc.rs`:
 
@@ -179,7 +179,7 @@ async fn apply_two_shared_instances(server: &TestServer) {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -189,7 +189,7 @@ cargo test -p studio-server --test large_scene_rpc reports_large_scene_statistic
 
 Expected: FAIL because `evaluation.stats` is not implemented.
 
-- [ ] **Step 3: Implement the stats method**
+- **Step 3: Implement the stats method**
 
 Add a serializable response type in `rpc.rs`:
 
@@ -231,7 +231,7 @@ Add this match arm beside `evaluation.evaluate`:
 Add `"evaluation.stats"` to `system.capabilities` and the schema method list. Add the response type
 to `studio-cli` schema generation as `EvaluatedSceneStats`.
 
-- [ ] **Step 4: Run the focused tests**
+- **Step 4: Run the focused tests**
 
 Run:
 
@@ -243,7 +243,7 @@ cargo test -p studio-server
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server/src/rpc.rs crates/studio-server/tests/large_scene_rpc.rs \
@@ -266,7 +266,7 @@ git commit -m "feat(studio-server): expose evaluated scene statistics"
   biologicalReactors, secondaryClarifiers, facilities, areas }`.
 - Later tasks consume the exact group keys and counts.
 
-- [ ] **Step 1: Write failing catalogue tests**
+- **Step 1: Write failing catalogue tests**
 
 Create `scripts/tests/large-industrial-fixture.test.mjs`:
 
@@ -304,7 +304,7 @@ test('catalogue keys are unique and industry-neutral at the API boundary', () =>
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -315,7 +315,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: module-not-found failure.
 
-- [ ] **Step 3: Implement the catalogue**
+- **Step 3: Implement the catalogue**
 
 Create `fixtures/large-industrial-site/catalog.mjs` with:
 
@@ -396,7 +396,7 @@ export function validateCatalogue({ areas, equipmentGroups, facilities, processT
 
 `biologicalReactors === 18` represents six trains with three generic reactor zones each.
 
-- [ ] **Step 4: Run the tests**
+- **Step 4: Run the tests**
 
 Run:
 
@@ -406,7 +406,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: PASS, 2/2.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add fixtures/large-industrial-site/catalog.mjs scripts/tests/large-industrial-fixture.test.mjs
@@ -428,7 +428,7 @@ git commit -m "test(studio-fixture): define large industrial scene catalogue"
 - Produces: `createEquipmentMesh(kind, ordinal) -> TriangleMesh`.
 - Produces: `TEMPLATE_TRIANGLE_BUDGETS: Record<string, number>`.
 
-- [ ] **Step 1: Add failing template tests**
+- **Step 1: Add failing template tests**
 
 Append:
 
@@ -449,7 +449,7 @@ test('every equipment kind has a reusable bounded template', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -459,7 +459,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: module-not-found failure.
 
-- [ ] **Step 3: Implement deterministic presentation-grade templates**
+- **Step 3: Implement deterministic presentation-grade templates**
 
 Create `geometry.mjs` with deterministic mesh helpers:
 
@@ -557,7 +557,7 @@ triangle count reaches the declared budget. Do not add invisible or degenerate t
 equipment template loop uses `EQUIPMENT_GROUPS`; after it, append one `process-building` definition
 using the same builder and the declared facility budget.
 
-- [ ] **Step 4: Add and run a total-budget test**
+- **Step 4: Add and run a total-budget test**
 
 Add:
 
@@ -580,7 +580,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: PASS, 4/4.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add fixtures/large-industrial-site/geometry.mjs \
@@ -604,7 +604,7 @@ git commit -m "feat(studio-fixture): build reusable industrial equipment templat
 - Every Operation type starts with `component.`, `instance`, or `connection`, or is
   `relation.create`.
 
-- [ ] **Step 1: Add failing operation-plan tests**
+- **Step 1: Add failing operation-plan tests**
 
 Append:
 
@@ -631,7 +631,7 @@ The `204` equipment instances plus `12` facility instances equal `216`. Instance
 covered by M1; this fixture keeps every primary object explicit so its stable identity is directly
 addressable in topology and benchmark updates.
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -641,7 +641,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: module-not-found failure.
 
-- [ ] **Step 3: Implement layout and Operations**
+- **Step 3: Implement layout and Operations**
 
 `layout.mjs` exports:
 
@@ -816,7 +816,7 @@ function chunkTransactions(operations, size) {
 }
 ```
 
-- [ ] **Step 4: Run plan tests and assert structural counts**
+- **Step 4: Run plan tests and assert structural counts**
 
 Add assertions that the individual equipment counters match Task 2, every `parent_id` references an
 earlier Node, all translations are within `SITE_BOUNDS`, and every Operation list is ≤80 items.
@@ -829,7 +829,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add fixtures/large-industrial-site/layout.mjs \
@@ -851,7 +851,7 @@ git commit -m "feat(studio-fixture): generate large industrial layout operations
 - Produces: `buildTopology(instances) -> { relations, connections, validation }`.
 - Produces deterministic IDs and route policies with no dangling endpoints.
 
-- [ ] **Step 1: Add failing topology tests**
+- **Step 1: Add failing topology tests**
 
 Append:
 
@@ -866,7 +866,7 @@ test('connects every process train without dangling ports', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -876,7 +876,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: `expected.topology` is undefined.
 
-- [ ] **Step 3: Implement topology**
+- **Step 3: Implement topology**
 
 Add inlet/outlet/branch/utility ports to the generated definitions and build:
 
@@ -928,7 +928,7 @@ const relation = (ordinal, fromNode, toNode, medium) => ({
 Connections and their Relations must be emitted in the same transaction, with the Relation before
 the connection so `connection.create` can reference it.
 
-- [ ] **Step 4: Run topology tests**
+- **Step 4: Run topology tests**
 
 Run:
 
@@ -938,7 +938,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add fixtures/large-industrial-site/topology.mjs \
@@ -960,7 +960,7 @@ git commit -m "feat(studio-fixture): connect large industrial process topology"
 - Consumes: all M1 Operations and `evaluation.stats`.
 - Produces JSON evidence: `output/large-industrial-fixture.json`.
 
-- [ ] **Step 1: Add a failing CLI test**
+- **Step 1: Add a failing CLI test**
 
 Append a test that runs the module's exported `verifyAppliedScene(stats, plan)`:
 
@@ -985,7 +985,7 @@ test('rejects evaluated output outside the accepted scale', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -995,7 +995,7 @@ node --test scripts/tests/large-industrial-fixture.test.mjs
 
 Expected: module-not-found failure.
 
-- [ ] **Step 3: Implement the API runner**
+- **Step 3: Implement the API runner**
 
 Create `scripts/run-large-industrial-fixture.mjs` by extracting the server startup and RPC helper
 pattern from `scripts/run-ai-fixture.mjs`. It must:
@@ -1037,7 +1037,7 @@ Add:
 "fixture:large-industrial": "node scripts/run-large-industrial-fixture.mjs"
 ```
 
-- [ ] **Step 4: Execute the complete fixture**
+- **Step 4: Execute the complete fixture**
 
 Run:
 
@@ -1049,7 +1049,7 @@ npm run fixture:large-industrial
 Expected: exit 0 and a report containing 216 primary objects, 5.5M–7.5M effective triangles,
 at most 40 unique meshes, and a valid source GLB path.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add scripts/run-large-industrial-fixture.mjs package.json \
@@ -1072,7 +1072,7 @@ git commit -m "test(studio-fixture): verify large industrial scene through publi
 - Compares cold build, warm build, full evaluation, one-instance update, source GLB export, and
   optional Runtime preview.
 
-- [ ] **Step 1: Implement the benchmark with explicit failure gates**
+- **Step 1: Implement the benchmark with explicit failure gates**
 
 The benchmark must use the fixture plan and public API, warm up twice, then collect at least seven
 samples for:
@@ -1109,7 +1109,7 @@ if (operations.length >= 100_000) {
 The one-instance update changes only a secondary instance transform. Its `evaluation.stats` call
 must reuse existing geometry and must not regenerate every mesh.
 
-- [ ] **Step 2: Add scripts**
+- **Step 2: Add scripts**
 
 Add:
 
@@ -1127,7 +1127,7 @@ Add a `Large industrial fixture` verification step after the existing AI fixture
 },
 ```
 
-- [ ] **Step 3: Run verification and benchmark**
+- **Step 3: Run verification and benchmark**
 
 Run:
 
@@ -1140,7 +1140,7 @@ npm run benchmark:large-industrial
 Expected: both pass; the benchmark report includes exact p50/p95 values and exceeds no documented
 memory or execution limit.
 
-- [ ] **Step 4: Commit**
+- **Step 4: Commit**
 
 ```bash
 git add benchmarks/large-industrial-scene.mjs package.json scripts/verify.mjs
@@ -1162,7 +1162,7 @@ git commit -m "perf(studio-fixture): benchmark large industrial authoring"
 - Produces reproducible instructions and updates the spec's implementation status to M1+M2
   complete while M3/M4 remain pending.
 
-- [ ] **Step 1: Write the guide**
+- **Step 1: Write the guide**
 
 Document:
 
@@ -1174,13 +1174,13 @@ Document:
 - triangle, object, mesh-sharing, topology, and incremental-cache acceptance;
 - distinction between Studio source generation and Toolchain Runtime preparation.
 
-- [ ] **Step 2: Update document status**
+- **Step 2: Update document status**
 
 This step originally kept the design `Approved` until GPU and Runtime publication were complete.
 Later GPU-scene and Toolchain integration plans delivered those capabilities; the design is now
 `Implemented` and native GPU execution remains experimental and default-off.
 
-- [ ] **Step 3: Run the full gate**
+- **Step 3: Run the full gate**
 
 Run:
 
@@ -1193,7 +1193,7 @@ npm run benchmark:large-industrial
 Expected: all repository gates pass; the generated scene remains within all scale and topology
 budgets; no generated asset or cache appears in `git status`.
 
-- [ ] **Step 4: Audit and commit**
+- **Step 4: Audit and commit**
 
 Run:
 

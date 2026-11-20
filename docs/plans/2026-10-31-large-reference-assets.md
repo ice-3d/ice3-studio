@@ -11,9 +11,8 @@
 > 为准。
 
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [x]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Open the existing 5.75M-triangle wastewater asset in Studio with its original visual
 appearance while keeping the editable Document small, revision-safe, and Agent-friendly.
@@ -99,7 +98,7 @@ Sidecar, TypeScript/React Viewer, `ice3` tileset loader, esbuild, Node.js 24.22.
   - `ReferenceInstanceContent`
   - `NodeContent::ReferenceInstance(ReferenceInstanceContent)`
 
-- [x] **Step 1: Write the failing contract test**
+- **Step 1: Write the failing contract test**
 
 ```rust
 #[test]
@@ -144,7 +143,7 @@ fn reference_instance_and_descriptor_round_trip() {
 }
 ```
 
-- [x] **Step 2: Run the test and verify it fails**
+- **Step 2: Run the test and verify it fails**
 
 Run:
 
@@ -154,7 +153,7 @@ cargo test -p studio-core --test reference_asset reference_instance_and_descript
 
 Expected: compilation fails because the reference contract and enum variant do not exist.
 
-- [x] **Step 3: Implement the contracts**
+- **Step 3: Implement the contracts**
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
@@ -215,7 +214,7 @@ Treat reference instances as geometryless binding nodes during local scene evalu
 checks non-empty IDs and selection IDs but does not evaluate external geometry. Export remains
 handled in Task 4.
 
-- [x] **Step 4: Run focused tests**
+- **Step 4: Run focused tests**
 
 Run:
 
@@ -228,7 +227,7 @@ cargo test -p studio-core export_bindings
 
 Expected: all pass and new TypeScript bindings are generated.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core
@@ -266,7 +265,7 @@ pub struct ReferenceAssetSource {
 }
 ```
 
-- [x] **Step 1: Write failing registration and security tests**
+- **Step 1: Write failing registration and security tests**
 
 ```rust
 #[test]
@@ -300,7 +299,7 @@ fn replacement_with_mismatched_digest_is_atomic() {
 }
 ```
 
-- [x] **Step 2: Run the tests and verify they fail**
+- **Step 2: Run the tests and verify they fail**
 
 Run:
 
@@ -310,7 +309,7 @@ cargo test -p studio-project --test reference_asset_store
 
 Expected: compilation fails because `ReferenceAssetStore` does not exist.
 
-- [x] **Step 3: Implement secure registration**
+- **Step 3: Implement secure registration**
 
 Create `references` in `ProjectStore::create` and `ProjectStore::open`. Resolve every supplied
 relative path, canonicalize it, require it to start with the canonical workspace root, reject
@@ -323,7 +322,7 @@ temporary directory to `references/<assetId>`.
 
 Do not store geometry buffers in `asset.json`.
 
-- [x] **Step 4: Run focused tests**
+- **Step 4: Run focused tests**
 
 Run:
 
@@ -334,7 +333,7 @@ cargo test -p studio-project
 
 Expected: all pass.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-project
@@ -392,7 +391,7 @@ pub struct ReferenceAssetEndpoint {
 }
 ```
 
-- [x] **Step 1: Write failing RPC tests**
+- **Step 1: Write failing RPC tests**
 
 ```rust
 #[tokio::test]
@@ -437,7 +436,7 @@ async fn reference_registration_requires_approval_and_rejects_escape() {
 }
 ```
 
-- [x] **Step 2: Run the tests and verify they fail**
+- **Step 2: Run the tests and verify they fail**
 
 Run:
 
@@ -447,7 +446,7 @@ cargo test -p studio-server --test reference_asset_rpc
 
 Expected: the methods are unknown and the test fails.
 
-- [x] **Step 3: Implement RPC, authorization, and routes**
+- **Step 3: Implement RPC, authorization, and routes**
 
 Add typed camelCase request/result structs with `deny_unknown_fields`. Add
 `referenceAsset.register` to approval methods, `referenceAsset.get` and
@@ -459,7 +458,7 @@ JSON or GLB content types.
 
 Bound binding pages to `1..=100`. Default to 25 and cursor by stable `selectionId`.
 
-- [x] **Step 4: Run focused tests**
+- **Step 4: Run focused tests**
 
 Run:
 
@@ -471,7 +470,7 @@ cargo test -p studio-cli --test schema_output
 
 Expected: all pass and the generated schema includes all three methods and request/result types.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server crates/studio-cli schemas
@@ -495,7 +494,7 @@ git commit -m "feat(studio-server): expose bounded reference asset APIs"
   `instance.patch`, and `material.assign` operations.
 - Produces: local ChangeSet edits over binding nodes and aggregate reference statistics.
 
-- [x] **Step 1: Write failing binding-edit tests**
+- **Step 1: Write failing binding-edit tests**
 
 ```rust
 #[tokio::test]
@@ -540,7 +539,7 @@ async fn context_aggregates_reference_stats_without_inline_geometry() {
 }
 ```
 
-- [x] **Step 2: Run tests and verify they fail**
+- **Step 2: Run tests and verify they fail**
 
 Run:
 
@@ -550,7 +549,7 @@ cargo test -p studio-server --test reference_asset_editing
 
 Expected: binding validation or aggregate statistics are not implemented.
 
-- [x] **Step 3: Implement binding behavior**
+- **Step 3: Implement binding behavior**
 
 Server-side validation verifies that every reference node's asset exists and selection ID exists
 in the manifest. `scene.context`, `evaluation.stats`, and search include binding counts and add the
@@ -564,7 +563,7 @@ generated reference geometry.
 If any reference binding differs from its manifest baseline, return
 `ICE3_STUDIO_REFERENCE_EXPORT_UNSUPPORTED`.
 
-- [x] **Step 4: Run focused tests**
+- **Step 4: Run focused tests**
 
 Run:
 
@@ -576,7 +575,7 @@ cargo test -p studio-server --test scene_session_rpc
 
 Expected: all pass.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/validation.rs crates/studio-server
@@ -602,7 +601,7 @@ git commit -m "feat(studio-server): edit reference bindings through changesets"
   - `SceneAdapter.showReference(asset, bindings)`
   - imported selection ID → Studio node ID translation.
 
-- [x] **Step 1: Write failing session tests**
+- **Step 1: Write failing session tests**
 
 ```ts
 test('loads reference metadata without requesting document geometry', async () => {
@@ -625,7 +624,7 @@ test('maps imported selection IDs back to Studio binding IDs', () => {
 });
 ```
 
-- [x] **Step 2: Run tests and verify they fail**
+- **Step 2: Run tests and verify they fail**
 
 Run:
 
@@ -636,7 +635,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm test
 
 Expected: compile/test failure because reference session fields and mapping do not exist.
 
-- [x] **Step 3: Implement metadata loading and tileset rendering**
+- **Step 3: Implement metadata loading and tileset rendering**
 
 Add `StudioClient.referenceAsset(assetId)` and binding-page calls with bounded requests.
 `SessionStore.refresh` loads descriptor metadata in parallel with the small Document.
@@ -649,7 +648,7 @@ Translate engine selection IDs through the binding map before calling `onSelecti
 binding transform/visibility overrides to loaded imported nodes by stable selection ID on every
 `TILESET_TILE_LOADED` event.
 
-- [x] **Step 4: Run focused tests**
+- **Step 4: Run focused tests**
 
 Run:
 
@@ -662,7 +661,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run build
 
 Expected: all pass.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add apps/viewer
@@ -684,7 +683,7 @@ git commit -m "feat(studio-viewer): stream reference assets"
   selection passes.
 - Produces: stable bounds framing and depth-safe selection color.
 
-- [x] **Step 1: Extend the failing framing and selection tests**
+- **Step 1: Extend the failing framing and selection tests**
 
 ```ts
 test('keeps all large-model corners inside the viewport after a portrait rotation', () => {
@@ -710,7 +709,7 @@ test('uses negative polygon offset for selected semantic batches', async ({ page
 });
 ```
 
-- [x] **Step 2: Run tests and verify the new selection test fails**
+- **Step 2: Run tests and verify the new selection test fails**
 
 Run:
 
@@ -721,7 +720,7 @@ Run:
 
 Expected: framing tests pass; batched semantic selection does not set negative polygon offset.
 
-- [x] **Step 3: Make selection bias uniform**
+- **Step 3: Make selection bias uniform**
 
 Before both `semanticProgram` highlight paths, set `gl.polygonOffset(-1, -4)`. Reset to
 `gl.polygonOffset(2, 4)` after selection rendering. Keep ordinary tint and selected-edge behavior
@@ -730,7 +729,7 @@ unchanged.
 Document the chosen camera clip range and verify the eight projected bounds corners remain within
 `[-0.9, 0.9]` on both axes.
 
-- [x] **Step 4: Run focused tests**
+- **Step 4: Run focused tests**
 
 Run:
 
@@ -741,7 +740,7 @@ Run:
 
 Expected: all pass.
 
-- [x] **Step 5: Commit both repositories**
+- **Step 5: Commit both repositories**
 
 ```bash
 git -C <workspace>/ice3-engine add \
@@ -769,7 +768,7 @@ git commit -m "test(studio-viewer): verify stable reference camera framing"
 - Consumes: all prior tasks and the existing Console source/Prepared/tileset/equipment files.
 - Produces: reproducible acceptance evidence and final status.
 
-- [x] **Step 1: Write a failing acceptance invariant test**
+- **Step 1: Write a failing acceptance invariant test**
 
 ```js
 test('accepts only a bounded reference project with complete equipment semantics', () => {
@@ -798,7 +797,7 @@ test('accepts only a bounded reference project with complete equipment semantics
 });
 ```
 
-- [x] **Step 2: Run it and verify it fails**
+- **Step 2: Run it and verify it fails**
 
 Run:
 
@@ -809,7 +808,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH \
 
 Expected: missing acceptance helper.
 
-- [x] **Step 3: Implement the acceptance workflow**
+- **Step 3: Implement the acceptance workflow**
 
 The script must:
 
@@ -828,7 +827,7 @@ The script must:
 
 Document regeneration and run commands.
 
-- [x] **Step 4: Run acceptance and full verification**
+- **Step 4: Run acceptance and full verification**
 
 Run:
 
@@ -850,7 +849,7 @@ Expected:
 - zero selected-surface flicker frames;
 - all 14 verification gates pass.
 
-- [x] **Step 5: Mark implemented and commit**
+- **Step 5: Mark implemented and commit**
 
 Only after Step 4 passes:
 

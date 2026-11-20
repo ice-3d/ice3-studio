@@ -6,6 +6,9 @@
 >
 > Owner: ICE3 Studio maintainers
 
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
+
 **目标：** 在不改变现有三栏结构和公开 API 的前提下，让 Agent 成为 Viewer 的默认工作
 入口，并保留人工定位、检查、修改和审批路径。
 
@@ -13,14 +16,14 @@
 
 ## 1. 实施结果
 
-- [x] 将 Review dock 默认 tab 从 `Inspect` 改为 `Agent`。
-- [x] 在 Agent 面板显示 project、revision、焦点 object 和 Gateway 状态。
-- [x] 将对象搜索、过滤、层级保留和匹配计数接入 Objects 面板。
-- [x] 保留 source/derived identity，并将 Selection 收敛到完整业务实体。
-- [x] 增加 Agent 到 Inspect 的显式人工接手入口。
-- [x] 保留 ChangeSet 审查、candidate preview 和人工提交流程。
-- [x] 按 untagged API format 处理直接 scalar、vector、color 和 enumeration 参数。
-- [x] 统一工作台 token、状态卡、表单、对象树和响应式布局。
+- 将 Review dock 默认 tab 从 `Inspect` 改为 `Agent`。
+- 在 Agent 面板显示 project、revision、焦点 object 和 Gateway 状态。
+- 将对象搜索、过滤、层级保留和匹配计数接入 Objects 面板。
+- 保留 source/derived identity，并将 Selection 收敛到完整业务实体。
+- 增加 Agent 到 Inspect 的显式人工接手入口。
+- 保留 ChangeSet 审查、candidate preview 和人工提交流程。
+- 按 untagged API format 处理直接 scalar、vector、color 和 enumeration 参数。
+- 统一工作台 token、状态卡、表单、对象树和响应式布局。
 
 ## 2. 验证结果
 

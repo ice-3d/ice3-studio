@@ -6,10 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 >
-> **For agentic workers:** REQUIRED SUB-SKILL: Use
-> `superpowers:subagent-driven-development` (recommended) or
-> `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 ## 1. Implementation Outcome
 
@@ -51,7 +49,7 @@ shared origin、资源限制和失败关闭迁入 Studio `studio-import`。
 - metadata arrays 最多 256 项，nesting depth 最多 8；warnings、materials 和 properties
   必须稳定排序。
 - 失败时不得发布部分 GLB，也不得泄漏 converter stderr、客户路径或临时目录。
-- Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author/committer 固定为 `repository `AGENTS.md` identity policy`。
 
 ## 3. Review Focus
 
@@ -90,7 +88,7 @@ shared origin、资源限制和失败关闭迁入 Studio `studio-import`。
   `fixtures/parity/jt-baseline-v1.json` and the `--capture` mode of
   `scripts/compare-jt-imports.mjs`.
 
-- [x] **Step 1: 验证源 fixture 的许可证和客户数据边界**
+- **Step 1: 验证源 fixture 的许可证和客户数据边界**
 
 运行：
 
@@ -102,7 +100,7 @@ rg -n "/Users/|\\\\Users\\\\|customer|confidential|客户" \
 
 Expected: 只有 repository 内合成 fixture；没有客户路径、客户名字或不可分发文件。
 
-- [x] **Step 2: 复制 corpus 到 Studio**
+- **Step 2: 复制 corpus 到 Studio**
 
 ```bash
 mkdir -p fixtures/source-import/{gltf,obj,fbx,usd,step,ifc,jt}
@@ -140,7 +138,7 @@ rg -n "../ice3-toolchain/tests/fixtures|../../../ice3-toolchain/tests/fixtures" 
 Expected: 无输出。baseline JSON 中的旧 Toolchain 数据保存在
 `retiredBaseline`，当前 fixture path 必须指向 Studio-local corpus。
 
-- [x] **Step 3: 生成不依赖旧 Node package 的 raw GLB contract fixtures**
+- **Step 3: 生成不依赖旧 Node package 的 raw GLB contract fixtures**
 
 在 Toolchain dependency 仍存在时运行：
 
@@ -159,7 +157,7 @@ shasum -a 256 fixtures/source-import/jt/*.raw.glb
 
 Expected: 三个文件都有 `glTF` magic；重复运行后 SHA-256 不变。
 
-- [x] **Step 4: 写无外部 npm dependency 的合成 converter**
+- **Step 4: 写无外部 npm dependency 的合成 converter**
 
 `fixtures/source-import/jt/converter.mjs`：
 
@@ -197,7 +195,7 @@ cmp fixtures/source-import/jt/synthetic-contract.raw.glb \
 
 Expected: exit 0，文件字节完全一致。
 
-- [x] **Step 5: 写 baseline capture 的失败测试**
+- **Step 5: 写 baseline capture 的失败测试**
 
 `scripts/tests/jt-baseline.test.mjs`：
 
@@ -241,7 +239,7 @@ node --test scripts/tests/jt-baseline.test.mjs
 
 预期：因 baseline 文件尚不存在而 FAIL。
 
-- [x] **Step 6: 实现 legacy baseline capture**
+- **Step 6: 实现 legacy baseline capture**
 
 `scripts/compare-jt-imports.mjs` 的 capture path：
 
@@ -285,7 +283,7 @@ assertBaseline(baseline);
 `summarizeLegacy` 从 GLB JSON 读取 nodes、meshes、materials、`extras.ice3.jt` 和
 `asset.extras.ice3.jt.sourceOrigin`，不得硬编码 node 名称、metadata 或 Selection。
 
-- [x] **Step 7: 运行 capture 和 baseline test**
+- **Step 7: 运行 capture 和 baseline test**
 
 ```bash
 node scripts/compare-jt-imports.mjs --capture
@@ -294,7 +292,7 @@ node --test scripts/tests/jt-baseline.test.mjs
 
 Expected: baseline 写出；node=4、mesh=2、triangle=36、instance=1；测试 PASS。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add fixtures/source-import fixtures/parity/jt-baseline-v1.json \
@@ -327,7 +325,7 @@ git commit -m "test(studio): capture native JT import baseline"
   - registry order `gltf, obj, fbx, usd, step, ifc, jt`
   - CLI adapter value `jt`
 
-- [x] **Step 1: 写 registry 失败测试**
+- **Step 1: 写 registry 失败测试**
 
 `crates/studio-import/tests/jt_registry.rs`：
 
@@ -369,7 +367,7 @@ fn rejects_explicit_jt_for_other_extensions() {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test jt_registry
@@ -377,7 +375,7 @@ cargo test -p studio-import --test jt_registry
 
 Expected: compile failure，`JtImporter`、`jt` feature 和 `SourceFormat::Jt` 不存在。
 
-- [x] **Step 3: 添加 feature、format 和空 adapter**
+- **Step 3: 添加 feature、format 和空 adapter**
 
 `crates/studio-import/Cargo.toml`：
 
@@ -440,7 +438,7 @@ pub use adapter::JtImporter;
 实际拆分为 `jt/mod.rs` 与 `jt/adapter.rs`，避免后续 converter、rebase 和 mapping
 堆在一个文件。
 
-- [x] **Step 4: 注册 CLI/worker**
+- **Step 4: 注册 CLI/worker**
 
 `source_importer_registry` 和 `studio-import-worker` 都在 `ifc` 后加入：
 
@@ -455,7 +453,7 @@ Clap value parser：
 value_parser = ["auto", "gltf", "obj", "fbx", "usd", "step", "ifc", "jt"]
 ```
 
-- [x] **Step 5: 运行 GREEN 和 feature-off gate**
+- **Step 5: 运行 GREEN 和 feature-off gate**
 
 ```bash
 cargo test -p studio-import --test jt_registry
@@ -465,7 +463,7 @@ cargo tree -p studio-import --no-default-features
 
 Expected: registry tests PASS；no-default tree 没有 JT-specific dependency。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add Cargo.toml crates/studio-import crates/studio-cli
@@ -494,7 +492,7 @@ git commit -m "feat(studio-import): register feature-gated JT adapter"
   - `run_jt_converter(input: &Path, output: &Path, config: &JtConverterConfig) -> Result<(), ImportError>`
   - `validate_jt_converter_output(output: &Path) -> Result<(), ImportError>`
 
-- [x] **Step 1: 写 converter 契约测试**
+- **Step 1: 写 converter 契约测试**
 
 `fixtures/source-import/jt/capture-args.sh`：
 
@@ -544,7 +542,7 @@ fn fixture(name: &str) -> std::path::PathBuf {
 }
 ```
 
-- [x] **Step 2: 写 unavailable/failure/invalid output 测试**
+- **Step 2: 写 unavailable/failure/invalid output 测试**
 
 追加：
 
@@ -624,7 +622,7 @@ fn rejects_oversized_and_symlink_outputs() {
 }
 ```
 
-- [x] **Step 3: 运行 RED**
+- **Step 3: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test jt_converter
@@ -632,7 +630,7 @@ cargo test -p studio-import --test jt_converter
 
 Expected: compile failure，converter API 尚不存在。
 
-- [x] **Step 4: 添加跨平台 process-group containment**
+- **Step 4: 添加跨平台 process-group containment**
 
 先赋予合成 scripts 执行权限：
 
@@ -699,7 +697,7 @@ let _ = child.wait();
 return Err(jt_timeout());
 ```
 
-- [x] **Step 5: 实现 fixed config 和 output validation**
+- **Step 5: 实现 fixed config 和 output validation**
 
 `from_env`：
 
@@ -714,7 +712,7 @@ return Err(jt_timeout());
 `validate_jt_converter_output` 使用 `symlink_metadata` 拒绝 symlink，检查 `is_file()`、
 size 范围、12-byte header、magic `glTF`、version `2` 和 declared length。
 
-- [x] **Step 6: 增加 timeout/process-tree 负向测试**
+- **Step 6: 增加 timeout/process-tree 负向测试**
 
 `fixtures/source-import/jt/tree-converter.sh`：
 
@@ -776,7 +774,7 @@ cp "$root/synthetic-contract.raw.glb" "$output"
 增加测试：converter 分别写入 256 KiB stdout/stderr 后仍成功；测试完成时间低于 2 秒，
 说明两个 pipe 都被持续 drain，而不是等到 child exit 后一次性读取。
 
-- [x] **Step 7: 运行 GREEN**
+- **Step 7: 运行 GREEN**
 
 ```bash
 cargo test -p studio-import --test jt_converter
@@ -785,7 +783,7 @@ cargo check -p studio-cli --no-default-features
 
 Expected: converter tests PASS；no-default build 不包含 `command-group`。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-import \
@@ -813,7 +811,7 @@ git commit -m "feat(studio-import): run JT converters in a contained process"
   - `JtImporter::import_file(&Path, &str) -> Result<SourceScene, ImportError>`
   - deterministic `SourceScene` with JT node metadata and shared origin.
 
-- [x] **Step 1: 写业务语义失败测试**
+- **Step 1: 写业务语义失败测试**
 
 `crates/studio-import/tests/jt_import.rs`：
 
@@ -881,7 +879,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-import --test jt_import
@@ -889,7 +887,7 @@ cargo test -p studio-import --test jt_import
 
 Expected: adapter unavailable 或 `with_converter`/mapping 尚不存在。
 
-- [x] **Step 3: 暴露可复用的 GLB-to-SourceScene 入口**
+- **Step 3: 暴露可复用的 GLB-to-SourceScene 入口**
 
 把 `gltf.rs` 当前私有 `import_source` 改名为：
 
@@ -908,7 +906,7 @@ cargo test -p studio-import --test gltf_import
 
 Expected: PASS。
 
-- [x] **Step 4: 实现 `f64` world bounds 和 root rebase**
+- **Step 4: 实现 `f64` world bounds 和 root rebase**
 
 `jt/rebase.rs` 提供：
 
@@ -938,7 +936,7 @@ pub(crate) fn rebase_json(
 新增 unit tests 覆盖单 root、多 roots、matrix root、TRS root、cycle 和超出
 `f64` accuracy 的 large origin。
 
-- [x] **Step 5: 实现 JT mapping**
+- **Step 5: 实现 JT mapping**
 
 `jt/mapping.rs` 提供：
 
@@ -962,7 +960,7 @@ pub(crate) fn apply_jt_semantics(
 - `asset_extras` 写 coordinateSystem、converterContractVersion `1.0` 和 sourceOrigin；
 - 所有 JSON object key 用 `BTreeMap` 或稳定排序。
 
-- [x] **Step 6: 接通 adapter temp workflow**
+- **Step 6: 接通 adapter temp workflow**
 
 `JtImporter::import`：
 
@@ -984,7 +982,7 @@ Ok(scene)
 
 `tempdir` 在成功和失败时都自动清理 raw GLB。
 
-- [x] **Step 7: 运行 GREEN**
+- **Step 7: 运行 GREEN**
 
 ```bash
 cargo test -p studio-import --test gltf_import
@@ -993,7 +991,7 @@ cargo test -p studio-import --test jt_import
 
 Expected: PASS；instances 共用 mesh，root 的 X/Z 接近零，origin metadata 保留。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add crates/studio-import/src/gltf.rs crates/studio-import/src/jt \
@@ -1020,7 +1018,7 @@ git commit -m "feat(studio-import): canonicalize JT source semantics"
   - JT worker timeout/process-tree containment
   - stable `ICE3_STUDIO_IMPORT_JT_*` and empty-geometry diagnostics.
 
-- [x] **Step 1: 写 CLI 正向失败测试**
+- **Step 1: 写 CLI 正向失败测试**
 
 `crates/studio-cli/tests/jt_import.rs`：
 
@@ -1063,7 +1061,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 ```
 
-- [x] **Step 2: 写 Diagnostic 矩阵**
+- **Step 2: 写 Diagnostic 矩阵**
 
 `jt_failures.rs` 使用 helper 断言 exit failure、stderr code 和 output 不存在：
 
@@ -1084,7 +1082,7 @@ std::fs::write(&output, b"keep-existing").unwrap();
 
 失败后断言仍为 `keep-existing`，证明没有部分发布。
 
-- [x] **Step 3: 运行 RED**
+- **Step 3: 运行 RED**
 
 ```bash
 cargo test -p studio-cli --test jt_import --test jt_failures
@@ -1092,7 +1090,7 @@ cargo test -p studio-cli --test jt_import --test jt_failures
 
 Expected: JT CLI 尚未走 isolated worker 或 Diagnostic 不匹配。
 
-- [x] **Step 4: 用 process group 替换 worker 的直接 child kill**
+- **Step 4: 用 process group 替换 worker 的直接 child kill**
 
 `worker.rs` 使用 `command_group::CommandGroup`：
 
@@ -1124,7 +1122,7 @@ fn terminate_group(child: &mut GroupChild) -> std::io::Result<()> {
 
 Windows Job Object 由 `command-group` 的 GroupChild 提供 `kill()` containment。
 
-- [x] **Step 5: 让 CLI 按 adapter 设置 JT deadline**
+- **Step 5: 让 CLI 按 adapter 设置 JT deadline**
 
 `import_source` 先使用 registry resolve selected adapter，再在 match 中选用：
 
@@ -1140,14 +1138,14 @@ Windows Job Object 由 `command-group` 的 GroupChild 提供 `kill()` containmen
 Debug-only `ICE3_STUDIO_IMPORT_WORKER_TIMEOUT_MS` 若设置则保留调用者指定的测试 deadline，
 用于进程树负向测试。
 
-- [x] **Step 6: 映射稳定错误**
+- **Step 6: 映射稳定错误**
 
 `converter.rs` 使用 `ImportError::SourceDiagnostic { code, message }`。空 Geometry 返回
 `ImportError::EmptyGeometry`，外层保持 Studio generic code。外层的
 `ImportError::WorkerTimeout` 在 selected adapter 为 `jt` 时映射为
 `ICE3_STUDIO_IMPORT_JT_TIMEOUT`。
 
-- [x] **Step 7: 添加 worker descendant 回归测试**
+- **Step 7: 添加 worker descendant 回归测试**
 
 CLI 测试把 `ICE3_JT_CONVERTER` 指向 `tree-converter.sh`，设置
 `ICE3_STUDIO_IMPORT_WORKER_TIMEOUT_MS=100` 和 `ICE3_JT_ORPHAN_MARKER`；命令失败后等待
@@ -1161,7 +1159,7 @@ cargo test -p studio-cli --test jt_import --test jt_failures
 
 Expected: all PASS，没有 orphan marker。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add crates/studio-import/src/worker.rs crates/studio-cli/src/import.rs \
@@ -1184,7 +1182,7 @@ git commit -m "feat(studio-cli): isolate native JT imports"
 - Consumes: native CLI output and checked-in legacy baseline.
 - Produces: machine-readable parity evidence and repeatable deterministic digest.
 
-- [x] **Step 1: 写 parity report test**
+- **Step 1: 写 parity report test**
 
 `scripts/tests/jt-import-contract.test.mjs`：
 
@@ -1212,7 +1210,7 @@ test('native JT parity report passes every business gate', async () => {
 });
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 node --test scripts/tests/jt-import-contract.test.mjs
@@ -1220,7 +1218,7 @@ node --test scripts/tests/jt-import-contract.test.mjs
 
 Expected: FAIL because native parity report 尚不存在。
 
-- [x] **Step 3: 扩展 compare script 的 native 模式**
+- **Step 3: 扩展 compare script 的 native 模式**
 
 脚本：
 
@@ -1241,7 +1239,7 @@ difference is permitted. Only Prepared GLB structural ordering may differ from t
 legacy Prepared GLB, while source semantic counts and JT extras remain exact.
 ```
 
-- [x] **Step 4: 加入 `jt` 全 feature 测试**
+- **Step 4: 加入 `jt` 全 feature 测试**
 
 `scripts/verify.mjs` 在 Rust tests 前加入：
 
@@ -1265,7 +1263,7 @@ legacy Prepared GLB, while source semantic counts and JT extras remain exact.
 },
 ```
 
-- [x] **Step 5: 运行完整 JT 门禁**
+- **Step 5: 运行完整 JT 门禁**
 
 ```bash
 cargo test -p studio-import --test jt_registry --test jt_converter --test jt_import
@@ -1283,7 +1281,7 @@ cargo tree -p studio-import --no-default-features
 - CLI 失败矩阵全部通过；
 - no-default tree 不包含 `command-group` 或 JT module。
 
-- [x] **Step 6: 更新文档状态**
+- **Step 6: 更新文档状态**
 
 更新：
 
@@ -1301,7 +1299,7 @@ cargo tree -p studio-import --no-default-features
 Implemented；Sidecar 和 Toolchain retirement 尚未完成，因此 Spec-018 总体仍保持
 Approved。
 
-- [x] **Step 7: 运行文档检查**
+- **Step 7: 运行文档检查**
 
 ```bash
 node ../ice3-doc/scripts/check-docs.mjs --root . 2>&1 \
@@ -1310,7 +1308,7 @@ node ../ice3-doc/scripts/check-docs.mjs --root . 2>&1 \
 
 Expected: 没有本次文档命中的 Diagnostic。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add README.md AGENTS.md docs scripts/verify.mjs \

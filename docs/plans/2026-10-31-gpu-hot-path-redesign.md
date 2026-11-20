@@ -10,7 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Eliminate whole-mesh hashing and per-node synchronization from resident work, then measure and route the production preview path through stable resident handles without weakening CPU authority or fallback behavior.
 
@@ -57,7 +58,7 @@
 - Produces: `GeometryPhaseEvidence`
 - Produces: `GeometryJobNode.digests: Option<GeometryDigestSet>`
 
-- [ ] **Step 1: Write failing contract tests**
+- **Step 1: Write failing contract tests**
 
 ```rust
 #[test]
@@ -91,13 +92,13 @@ fn resident_handle_serializes_device_generation_and_state() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify RED**
+- **Step 2: Run tests to verify RED**
 
 Run: `cargo test -p studio-core --test gpu_residency_contract`
 
 Expected: compile failure because `GeometryDigestSet`, `ResidentGeometryHandle`, and `ResidentGeometryState` do not exist.
 
-- [ ] **Step 3: Add the contracts**
+- **Step 3: Add the contracts**
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
@@ -153,13 +154,13 @@ pub struct GeometryPhaseEvidence {
 
 Add `pub digests: Option<GeometryDigestSet>` to `GeometryJobNode` and `pub phases: GeometryPhaseEvidence` to `GeometryEvaluationEvidence`.
 
-- [ ] **Step 4: Verify GREEN**
+- **Step 4: Verify GREEN**
 
 Run: `cargo test -p studio-core --test gpu_residency_contract`
 
 Expected: PASS, including the original dirty-mask and unsupported-backend tests.
 
-- [ ] **Step 5: Generate bindings and commit**
+- **Step 5: Generate bindings and commit**
 
 ```bash
 cargo test -p studio-core
@@ -187,7 +188,7 @@ git commit -m "feat(studio-core): define resident geometry handles"
 - Produces: `GpuGeometryResidency::lookup_handle`
 - Produces: `NativeGpuBackend::evaluate_resident_handle`
 
-- [ ] **Step 1: Write the failing no-hash hot-path test**
+- **Step 1: Write the failing no-hash hot-path test**
 
 ```rust
 #[test]
@@ -213,13 +214,13 @@ fn repeated_digest_handle_lookup_does_not_reserialize_mesh() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- **Step 2: Run test to verify RED**
 
 Run: `cargo test -p studio-gpu --test resident_evaluation repeated_digest_handle_lookup --release`
 
 Expected: compile failure because digest preparation, handle lookup, and phase counters do not exist.
 
-- [ ] **Step 3: Implement digest conversion and handles**
+- **Step 3: Implement digest conversion and handles**
 
 ```rust
 impl ResidencyKey {
@@ -250,13 +251,13 @@ Store handles in a map keyed by `ResidentGeometryId`. `evaluate_resident_handle`
 
 Keep the existing `evaluate_custom_mesh_resident` compatibility path, which may compute a digest once before first insertion.
 
-- [ ] **Step 4: Verify GREEN**
+- **Step 4: Verify GREEN**
 
 Run: `cargo test -p studio-gpu --test resident_evaluation --release`
 
 Expected: PASS; all 16 repeated handle lookups report zero additional full hashes, uploads, and waits.
 
-- [ ] **Step 5: Test stale generations and commit**
+- **Step 5: Test stale generations and commit**
 
 ```rust
 #[test]
@@ -297,7 +298,7 @@ git commit -m "feat(studio-gpu): resolve resident work by stable handles"
 - Produces: `NativeGpuBackend::resident_phase_counters`
 - Produces: timestamp-query kernel latency when supported
 
-- [ ] **Step 1: Write failing phase-evidence tests**
+- **Step 1: Write failing phase-evidence tests**
 
 ```rust
 #[test]
@@ -313,13 +314,13 @@ fn resident_hit_reports_zero_gpu_and_transfer_phases() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- **Step 2: Run test to verify RED**
 
 Run: `cargo test -p studio-gpu --test resident_evaluation resident_hit_reports_zero --release`
 
 Expected: compile failure because phase counters and `entry.evidence.phases` do not exist.
 
-- [ ] **Step 3: Instrument boundaries**
+- **Step 3: Instrument boundaries**
 
 Record counters and timings at these exact boundaries:
 
@@ -335,7 +336,7 @@ snapshot mapping start/end
 
 Use `wgpu::Features::TIMESTAMP_QUERY` when available. If unavailable, set `gpu_kernel_ms` to `None`; do not estimate it from wall time.
 
-- [ ] **Step 4: Verify GREEN**
+- **Step 4: Verify GREEN**
 
 Run:
 
@@ -346,7 +347,7 @@ cargo test -p studio-gpu --test native_gpu_benchmark
 
 Expected: PASS; benchmark report includes `phases` under every mode.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-gpu/src/device.rs crates/studio-gpu/src/kernels/mesh.rs \
@@ -371,7 +372,7 @@ git commit -m "feat(studio-gpu): attribute resident GPU latency"
 - Produces: one command encoder and one queue submission for compatible distinct nodes
 - Produces: `poll_resident` without implicit completion waits
 
-- [ ] **Step 1: Write the failing heterogeneous batch test**
+- **Step 1: Write the failing heterogeneous batch test**
 
 ```rust
 #[test]
@@ -388,13 +389,13 @@ fn distinct_compatible_meshes_share_one_submission() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- **Step 2: Run test to verify RED**
 
 Run: `cargo test -p studio-gpu --test resident_batch distinct_compatible_meshes --release`
 
 Expected: `submission_count` is greater than one because content is admitted sequentially.
 
-- [ ] **Step 3: Split allocation and encoding**
+- **Step 3: Split allocation and encoding**
 
 Refactor resident mesh creation into:
 
@@ -416,13 +417,13 @@ Allocate every compatible node first. On allocation failure, release every tempo
 publish no entries. Encode all bind groups into one encoder, call `queue.submit` once, and return a
 pending completion handle.
 
-- [ ] **Step 4: Verify GREEN**
+- **Step 4: Verify GREEN**
 
 Run: `cargo test -p studio-gpu --test resident_batch --release`
 
 Expected: PASS; compatible distinct nodes report one submission and no CPU wait.
 
-- [ ] **Step 5: Test cancellation and commit**
+- **Step 5: Test cancellation and commit**
 
 ```rust
 #[test]
@@ -462,7 +463,7 @@ git commit -m "feat(studio-gpu): batch heterogeneous resident nodes"
 - Produces: `ComputeService::snapshot_handle`
 - Preserves existing `evaluate`, `evaluate_for`, and `snapshot_for` as compatibility wrappers
 
-- [ ] **Step 1: Write failing service tests**
+- **Step 1: Write failing service tests**
 
 ```rust
 #[tokio::test]
@@ -499,13 +500,13 @@ async fn stale_handle_falls_back_without_mutating_revision() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify RED**
+- **Step 2: Run tests to verify RED**
 
 Run: `cargo test -p studio-server --test resident_scheduler repeated_handle_evaluation -- --nocapture`
 
 Expected: compile failure because handle methods and evidence fields do not exist.
 
-- [ ] **Step 3: Add service registration and handle lookup**
+- **Step 3: Add service registration and handle lookup**
 
 Registration computes topology, attribute, dependency, kernel, and parity digests once and retains
 an immutable source snapshot. `evaluate_handle` uses only the handle ID and generation. Compatibility
@@ -519,7 +520,7 @@ pub handle_lookup_ms: f64,
 pub last_geometry_phases: GeometryPhaseEvidence,
 ```
 
-- [ ] **Step 4: Verify GREEN**
+- **Step 4: Verify GREEN**
 
 Run:
 
@@ -530,7 +531,7 @@ cargo test -p studio-server
 
 Expected: PASS; old APIs remain source-compatible.
 
-- [ ] **Step 5: Generate bindings and commit**
+- **Step 5: Generate bindings and commit**
 
 ```bash
 cargo run -p studio-cli -- schema
@@ -555,7 +556,7 @@ git commit -m "feat(studio-server): evaluate resident geometry handles"
 - Produces: `PreviewGeometrySourceView`
 - Produces: packet backend/residency evidence derived from actual resident mode
 
-- [ ] **Step 1: Write failing preview integration tests**
+- **Step 1: Write failing preview integration tests**
 
 ```rust
 #[tokio::test]
@@ -582,13 +583,13 @@ fn gpu_derived_attribute_requests_explicit_snapshot() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- **Step 2: Run test to verify RED**
 
 Run: `cargo test -p studio-server --test preview_packet transform_only_preview -- --nocapture`
 
 Expected: compile failure because resident preview source views do not exist.
 
-- [ ] **Step 3: Build packets from resident source views**
+- **Step 3: Build packets from resident source views**
 
 Define:
 
@@ -615,7 +616,7 @@ GPU-derived attribute absent from source.
 Update `PreviewAdapter` to accept `Arc<ComputeService>` through an explicit builder used by the
 server; direct adapter tests keep CPU behavior.
 
-- [ ] **Step 4: Verify GREEN**
+- **Step 4: Verify GREEN**
 
 Run:
 
@@ -627,7 +628,7 @@ cargo test -p studio-server
 
 Expected: PASS; transform-only packet binary is empty and GPU snapshot calls do not increase.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server/src/preview.rs crates/studio-server/src/rpc.rs \
@@ -654,7 +655,7 @@ git commit -m "feat(studio-server): build previews from resident source views"
 - Consumes: phase evidence and stable handles
 - Produces: benchmark fields for lookup, plan, encode, submit, kernel, wait, snapshot, transport
 
-- [ ] **Step 1: Write failing evidence test**
+- **Step 1: Write failing evidence test**
 
 ```ts
 test('reports resident phase evidence separately', () => {
@@ -672,13 +673,13 @@ test('reports resident phase evidence separately', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify RED**
+- **Step 2: Run test to verify RED**
 
 Run: `npm --prefix apps/viewer test`
 
 Expected: resident phase metrics are absent.
 
-- [ ] **Step 3: Add phase output and release checks**
+- **Step 3: Add phase output and release checks**
 
 The benchmark must reject a report when:
 
@@ -692,7 +693,7 @@ transform-only browser upload bytes > 0
 
 If any check fails, print the failed mode and leave Auto on CPU.
 
-- [ ] **Step 4: Run all gates**
+- **Step 4: Run all gates**
 
 Run:
 
@@ -705,7 +706,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu
 
 Expected: functional commands pass; `benchmark:gpu` passes only if all performance gates pass.
 
-- [ ] **Step 5: Update documentation from measured output and commit**
+- **Step 5: Update documentation from measured output and commit**
 
 ```bash
 git add crates/studio-gpu/tests/native_gpu_benchmark.rs benchmarks/native-gpu.mjs \

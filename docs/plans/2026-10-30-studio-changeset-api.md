@@ -10,7 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Add a persistent, digest-bound ChangeSet review layer and split proposal/approval
 capabilities without weakening the existing atomic revision model.
@@ -43,7 +44,7 @@ protocol fixtures.
 - Committed revisions retain stable IDs, deterministic ordering, and generated schemas.
 - Domain-specific concepts are forbidden in Core and fixture-independent tests.
 - Every behavior change begins with a failing test and ends with the complete relevant suite.
-- Git author and committer must be `damoqiongqiu <damoqiongqiu@126.com>`.
+- Git author and committer must be `repository `AGENTS.md` identity policy`.
 
 ## 2. Review Focus
 
@@ -76,7 +77,7 @@ protocol fixtures.
 - Produces: `CandidateEvaluation { document: Document, diff: DocumentDiff, diagnostics: Vec<Diagnostic> }`.
 - Produces: `candidate_digest(base: &Document, operations: &[Operation]) -> Result<String, TransactionError>`.
 
-- [ ] **Step 1: Write failing candidate evaluation tests**
+- **Step 1: Write failing candidate evaluation tests**
 
 ```rust
 use studio_core::changeset::{candidate_digest, evaluate_operations};
@@ -133,13 +134,13 @@ fn candidate_digest_changes_with_operation_content() {
 }
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- **Step 2: Run the tests and verify RED**
 
 Run: `cargo test -p studio-core --test changeset_evaluation`
 
 Expected: compilation fails because `studio_core::changeset` and its functions do not exist.
 
-- [ ] **Step 3: Extract operation application from transaction commit**
+- **Step 3: Extract operation application from transaction commit**
 
 In `apply.rs`, add one internal evaluation path used by both commit and ChangeSet:
 
@@ -172,7 +173,7 @@ Refactor `apply_transaction` to call `evaluate_operations`, reject nonempty diag
 `TransactionError::ValidationFailed`, then create the revision and idempotency record exactly as
 before.
 
-- [ ] **Step 4: Add the candidate digest and re-export the API**
+- **Step 4: Add the candidate digest and re-export the API**
 
 In `changeset.rs`, compute SHA-256 over a versioned canonical tuple containing the base ID,
 revision, canonical base Document, and ordered Operations:
@@ -191,7 +192,7 @@ pub fn candidate_digest(
 Re-export `evaluate_operations` as `changeset::evaluate_operations`, and add `pub mod changeset;`
 to `lib.rs`.
 
-- [ ] **Step 5: Run both the focused and complete core suites**
+- **Step 5: Run both the focused and complete core suites**
 
 Run: `cargo test -p studio-core --test changeset_evaluation`
 
@@ -199,7 +200,7 @@ Run: `cargo test -p studio-core`
 
 Expected: both commands pass.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-core/src/apply.rs crates/studio-core/src/changeset.rs \
@@ -228,7 +229,7 @@ git commit -m "feat(studio-core): evaluate candidate change sets"
 - Produces: `ChangeSetStore::save(&ChangeSet)`, `load(&ChangeSetId)`, `list()`.
 - Produces: `ProjectStore::change_set_store()` and `ProjectStore::load_revision(Revision)`.
 
-- [ ] **Step 1: Write failing persistence tests**
+- **Step 1: Write failing persistence tests**
 
 ```rust
 use studio_core::document::Document;
@@ -284,13 +285,13 @@ fn isolates_a_corrupt_change_set_file() {
 }
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- **Step 2: Run the tests and verify RED**
 
 Run: `cargo test -p studio-project --test changeset_store`
 
 Expected: compilation fails because the ChangeSet project modules do not exist.
 
-- [ ] **Step 3: Implement the domain types**
+- **Step 3: Implement the domain types**
 
 Use validated opaque IDs and explicit status transitions:
 
@@ -329,7 +330,7 @@ Define `ChangeSet` with the exact fields from spec section 9. `add_entries` and
 `remove_entries` require `expected_version`, replace candidate fields with `None`, increment
 version, and update `updated_at`.
 
-- [ ] **Step 4: Implement atomic ChangeSet storage and recovery isolation**
+- **Step 4: Implement atomic ChangeSet storage and recovery isolation**
 
 Create `changesets/` during project creation and open. `ChangeSetStore::save` writes canonical
 JSON through a sibling temporary file, `sync_all`, and rename. `list` reads each file
@@ -339,7 +340,7 @@ outside the project changeset directory.
 Add `ProjectStore::load_revision(revision)` using the revision path and schema validation. It must
 load historical base revisions after the current revision advances.
 
-- [ ] **Step 5: Run project and workspace tests**
+- **Step 5: Run project and workspace tests**
 
 Run: `cargo test -p studio-project`
 
@@ -347,7 +348,7 @@ Run: `cargo test --workspace`
 
 Expected: all tests pass and the current revision remains unchanged after ChangeSet persistence.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-project
@@ -376,7 +377,7 @@ git commit -m "feat(studio-project): persist candidate change sets"
   `getCandidate`, `commit`, and `discard` RPC methods.
 - Produces: `ChangeSetEvent { event, changeSetId, version, status, candidateDigest }`.
 
-- [ ] **Step 1: Write failing RPC lifecycle tests**
+- **Step 1: Write failing RPC lifecycle tests**
 
 ```rust
 #[tokio::test]
@@ -432,13 +433,13 @@ async fn stages_evaluates_and_commits_one_change_set() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `cargo test -p studio-server --test changeset_rpc`
 
 Expected: compilation fails because the ChangeSet RPC module and methods do not exist.
 
-- [ ] **Step 3: Implement the ChangeSet service and RPC methods**
+- **Step 3: Implement the ChangeSet service and RPC methods**
 
 `changeset.create` loads the exact base revision and allocates a random 16-hex ID. `addOperations`
 generates server-owned entry IDs and rejects unknown source kinds. `evaluate` calls
@@ -505,7 +506,7 @@ let _ = session.events.send(ServerEvent::RevisionCommitted {
 Add capability checks in Task 5; for this task, keep the existing token guard and mark the exact
 guard replacement point.
 
-- [ ] **Step 4: Implement ordered ChangeSet events**
+- **Step 4: Implement ordered ChangeSet events**
 
 Replace the revision-only broadcast payload with a serializable enum. Existing revision events
 serialize to the same JSON shape:
@@ -542,7 +543,7 @@ pub enum ServerEvent {
 `changeset.commit` emits `changeset.committed` before `revision.committed`; tests assert revision
 numbers and event order.
 
-- [ ] **Step 5: Generate schemas and run focused/full suites**
+- **Step 5: Generate schemas and run focused/full suites**
 
 Run: `cargo test -p studio-server --test changeset_rpc`
 
@@ -555,7 +556,7 @@ Run: `cargo run -q -p studio-cli -- schema --output schemas --check`
 Expected: RPC tests pass, current revision remains unchanged after draft operations, and generated
 schemas are deterministic.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-server crates/studio-cli schemas
@@ -587,7 +588,7 @@ git commit -m "feat(studio-server): expose change set review api"
   `rpc_with_bearer`, `rpc_with_approval_cookie`, `prepare_valid_candidate_preview`,
   `prepare_invalid_preview_candidate`, and the `SUCCESS_TOOLCHAIN`/`FAILED_TOOLCHAIN` fixtures.
 
-- [ ] **Step 1: Write failing candidate preview tests**
+- **Step 1: Write failing candidate preview tests**
 
 ```rust
 #[tokio::test]
@@ -631,13 +632,13 @@ async fn failed_candidate_preview_preserves_previous_candidate() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `cargo test -p studio-server --test changeset_rpc caches_candidate_preview_by_digest`
 
 Expected: test fails because candidate digest requests and candidate preview routes do not exist.
 
-- [ ] **Step 3: Implement content-addressed candidate previews**
+- **Step 3: Implement content-addressed candidate previews**
 
 Move Toolchain selection from request-time environment lookup into `Session.toolchain_cli`,
 initialized from `STUDIO_TOOLCHAIN_CLI`. Add the test-only setter declared in the Interfaces block.
@@ -657,12 +658,12 @@ Only accept digests currently registered by a loaded ChangeSet evaluation. Recom
 candidate before exporting. Use a temporary preview filename plus rename. Serve `/previews/candidates/{digest}`
 with `Content-Type: model/gltf-binary`.
 
-- [ ] **Step 4: Preserve failure isolation**
+- **Step 4: Preserve failure isolation**
 
 On Toolchain failure, delete only the new temporary output, retain older digest files, leave the
 ChangeSet `blocked`, and return `ICE3_STUDIO_RUNTIME_PREVIEW_FAILED`.
 
-- [ ] **Step 5: Run preview and complete suites**
+- **Step 5: Run preview and complete suites**
 
 Run: `cargo test -p studio-server --test changeset_rpc`
 
@@ -672,7 +673,7 @@ Run: `cargo test --workspace`
 
 Expected: all tests pass and current revision remains unchanged.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-server
@@ -702,7 +703,7 @@ git commit -m "feat(studio-server): preview exact change set candidates"
 - Produces: bootstrap endpoint `GET /session/bootstrap?token=...`.
 - Produces: `403` for missing capability and stable diagnostics.
 
-- [ ] **Step 1: Write failing authorization tests**
+- **Step 1: Write failing authorization tests**
 
 ```rust
 #[tokio::test]
@@ -740,13 +741,13 @@ async fn approval_cookie_commits_the_exact_candidate() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `cargo test -p studio-server --test changeset_rpc proposal_token_cannot_commit_or_apply_directly`
 
 Expected: test fails because proposal and approval capabilities do not exist.
 
-- [ ] **Step 3: Implement capability checking**
+- **Step 3: Implement capability checking**
 
 Create explicit capability methods:
 
@@ -832,7 +833,7 @@ fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
 Do not place credentials in query parameters after the bootstrap redirect. The bootstrap token is
 single-use and expires after 60 seconds. Cookie attributes are `HttpOnly; SameSite=Strict; Path=/`.
 
-- [ ] **Step 4: Add CLI write-mode configuration**
+- **Step 4: Add CLI write-mode configuration**
 
 Add:
 
@@ -844,7 +845,7 @@ Default to `review-required`. In review-required mode, print a one-time bootstra
 write the agent proposal token to a file path supplied by `STUDIO_AGENT_TOKEN_FILE` or print it
 only when no file path is configured. In autonomous mode, preserve a single trusted writer token.
 
-- [ ] **Step 5: Run authorization and full tests**
+- **Step 5: Run authorization and full tests**
 
 Run: `cargo test -p studio-server --test changeset_rpc`
 
@@ -855,7 +856,7 @@ Run: `cargo test --workspace`
 Expected: proposal and approval capabilities are isolated; all existing autonomous tests pass when
 explicitly configured for autonomous mode.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-server crates/studio-cli
@@ -883,7 +884,7 @@ git commit -m "feat(studio-server): separate propose and approve capabilities"
 - Consumes: complete ChangeSet and approval implementation.
 - Produces: documented lifecycle, API, security model, recovery behavior, and benchmark metrics.
 
-- [ ] **Step 1: Write failing restart and concurrency tests**
+- **Step 1: Write failing restart and concurrency tests**
 
 ```rust
 #[tokio::test]
@@ -918,19 +919,19 @@ async fn concurrent_commits_from_one_base_have_one_winner() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run: `cargo test -p studio-server --test changeset_rpc restart_restores_active_change_set_and_candidate`
 
 Expected: test infrastructure cannot stop/restart the server or restore the ChangeSet.
 
-- [ ] **Step 3: Add restart test support and run concurrency**
+- **Step 3: Add restart test support and run concurrency**
 
 Add `TestServer::stop(self)` that aborts the server task, waits briefly, and preserves its workspace
 root. Add `start_test_server_at(path)` for restart. Ensure server startup loads ChangeSets but never
 lets a damaged draft fail project open.
 
-- [ ] **Step 4: Extend the benchmark**
+- **Step 4: Extend the benchmark**
 
 Add p50/p95 metrics:
 
@@ -942,7 +943,7 @@ changesetCandidatePreviewMs: 10_000,
 Measure ten ChangeSet evaluations with 100 Operations each. Verify candidate evaluation does not
 change the current revision. Keep the report at `output/studio-mvp-benchmark.json`.
 
-- [ ] **Step 5: Complete documentation and run all gates**
+- **Step 5: Complete documentation and run all gates**
 
 Document every method, status transition, permission, cache path, digest rule, and recovery case.
 
@@ -954,7 +955,7 @@ Run: `cargo run -q -p studio-cli -- schema --output schemas --check`
 
 Expected: all gates and performance limits pass.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add benchmarks docs README.md AGENTS.md crates/studio-server/tests \

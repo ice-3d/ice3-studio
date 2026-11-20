@@ -12,7 +12,8 @@
 > **历史说明：** Sidecar 已由 Studio 原生 preview 和 asset pipeline 取代。
 > 本文仅记录退役前的设计，不得作为当前部署或接口依据。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Replace Studio's one-shot preview command convention with a pinned, versioned,
 long-lived Toolchain sidecar while keeping `studio-core` independent.
@@ -156,7 +157,7 @@ JSON-RPC 2.0 NDJSON, JSON Schema fixtures, esbuild React Workbench.
 Before implementation, create a new `ice3-doc` feature branch from `main`; do not alter unrelated
 worktrees.
 
-- [ ] **Step 1: Write the failing contract test**
+- **Step 1: Write the failing contract test**
 
 Create `scripts/toolchain-sidecar-contract.test.mjs`:
 
@@ -205,7 +206,7 @@ test('schema defines all frozen payload families', async () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run in `ice3-doc`:
 
@@ -215,7 +216,7 @@ node --test scripts/toolchain-sidecar-contract.test.mjs
 
 Expected: failure because the fixture files do not exist.
 
-- [ ] **Step 3: Add frozen fixtures and schema**
+- **Step 3: Add frozen fixtures and schema**
 
 `capabilities-v1.json` must contain:
 
@@ -255,7 +256,7 @@ The JSON Schema must define the envelope, capabilities response, preview request
 error result; reject unknown properties in request params; and enforce the 8 MiB transport limit
 as documented metadata.
 
-- [ ] **Step 4: Write the contract document**
+- **Step 4: Write the contract document**
 
 Add `toolchain-sidecar-contract-v1.md` with:
 
@@ -269,7 +270,7 @@ Add `toolchain-sidecar-contract-v1.md` with:
 
 Add `ICE3-DOC-CTR-002` to the contracts section in `docs/README.md`.
 
-- [ ] **Step 5: Wire and run the contract gate**
+- **Step 5: Wire and run the contract gate**
 
 Update `package.json`:
 
@@ -286,7 +287,7 @@ npm run docs:check
 
 Expected: all tests pass and the new contract appears in the generated/indexed documentation.
 
-- [ ] **Step 6: Commit in `ice3-doc`**
+- **Step 6: Commit in `ice3-doc`**
 
 ```bash
 git add docs/README.md docs/contracts/toolchain-sidecar-contract-v1.md \
@@ -322,7 +323,7 @@ git commit -m "docs: define toolchain sidecar contract"
 Create a dedicated Toolchain branch from the desired base while preserving its existing dirty
 worktree; stage only files named in this task.
 
-- [ ] **Step 1: Write failing parser and handshake tests**
+- **Step 1: Write failing parser and handshake tests**
 
 `tests/sidecar/protocol.test.ts`:
 
@@ -386,7 +387,7 @@ test('reports exact capabilities', async () => {
 });
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run in `ice3-toolchain`:
 
@@ -396,7 +397,7 @@ node --import tsx --test tests/sidecar/protocol.test.ts tests/sidecar/server.tes
 
 Expected: module-not-found failures for `sidecar/protocol` and `sidecar/server`.
 
-- [ ] **Step 3: Implement framing and handshake**
+- **Step 3: Implement framing and handshake**
 
 `protocol.ts` must:
 
@@ -409,7 +410,7 @@ Expected: module-not-found failures for `sidecar/protocol` and `sidecar/server`.
 `server.ts` must start a readline interface over stdin, call the handler concurrently, and write
 exactly one NDJSON response line per request. It must never use stdout for logging.
 
-- [ ] **Step 4: Add the sidecar command**
+- **Step 4: Add the sidecar command**
 
 In `main.ts`, check `process.argv[2] === 'sidecar'` before `runCli`. Parse exactly one
 `--workspace <absolute-path>`, canonicalize it, and start `serveSidecar`. Reject missing,
@@ -418,7 +419,7 @@ relative, non-directory, and multiple workspace arguments with exit code 1 and s
 Add `./sidecar` to `packages/cli/package.json` exports pointing at the built
 `dist/sidecar/server.js` and `dist/sidecar/server.d.ts`.
 
-- [ ] **Step 5: Verify GREEN**
+- **Step 5: Verify GREEN**
 
 Run:
 
@@ -429,7 +430,7 @@ npm run typecheck
 
 Expected: PASS and no TypeScript errors.
 
-- [ ] **Step 6: Commit in `ice3-toolchain`**
+- **Step 6: Commit in `ice3-toolchain`**
 
 ```bash
 git add packages/cli/src/main.ts packages/cli/src/sidecar packages/cli/package.json \
@@ -459,7 +460,7 @@ git commit -m "feat(toolchain): add sidecar protocol"
   ToolchainPartitionResult`.
 - Produces handshake flags `lod`, `partition`, `tileset`, `renderBatching`, and `cancellation`.
 
-- [ ] **Step 1: Write failing operation and path-safety tests**
+- **Step 1: Write failing operation and path-safety tests**
 
 Use `tests/fixtures/minimal.glb` for successful validate/prepare/preview. Tests must:
 
@@ -493,7 +494,7 @@ Add an idempotency test that sends the same preview request twice. The second re
 same `contentHash`, `primaryPath`, and byte length. A corrupt cached GLB must be removed and
 regenerated once.
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 node --import tsx --test tests/sidecar/operations.test.ts
@@ -501,7 +502,7 @@ node --import tsx --test tests/sidecar/operations.test.ts
 
 Expected: missing `resolveWorkspacePath` and `executeSidecarOperation`.
 
-- [ ] **Step 3: Implement path confinement**
+- **Step 3: Implement path confinement**
 
 `resolveWorkspacePath` must:
 
@@ -512,7 +513,7 @@ Expected: missing `resolveWorkspacePath` and `executeSidecarOperation`.
 - reject symlink components that escape the root;
 - return a path inside the requested project root.
 
-- [ ] **Step 4: Implement asset operations**
+- **Step 4: Implement asset operations**
 
 `asset.validate` reads a workspace file and returns the `validatePreparedGLB` report.
 
@@ -537,7 +538,7 @@ profile/budget version. Cache hits return the stored validated result without re
 file. The dispatcher queues background partition work behind interactive preview when active jobs
 reach `maxConcurrentJobs`.
 
-- [ ] **Step 5: Run integration tests**
+- **Step 5: Run integration tests**
 
 Spawn the real compiled sidecar command in `server.test.ts`, send a capability request and one
 preview request through stdin, parse stdout as NDJSON, and assert no other stdout lines exist.
@@ -552,7 +553,7 @@ npm run test -- tests/sidecar
 Expected: parser, handshake, operations, path safety, cancellation cleanup, and real process tests
 all pass.
 
-- [ ] **Step 6: Commit in `ice3-toolchain`**
+- **Step 6: Commit in `ice3-toolchain`**
 
 ```bash
 git add packages/cli/src/sidecar tests/sidecar
@@ -590,7 +591,7 @@ git commit -m "feat(toolchain): execute sidecar asset jobs"
 - Produces: `ToolchainClientError::{Unavailable, Incompatible, Timeout, Protocol, Rejected,
   Crashed}`.
 
-- [ ] **Step 1: Add a failing fake-sidecar contract test**
+- **Step 1: Add a failing fake-sidecar contract test**
 
 Create a Node fixture that reads stdin with `readline`, responds to `toolchain.capabilities`, and
 can be configured by environment to exit or emit invalid JSON. In Rust:
@@ -615,7 +616,7 @@ fn rejects_an_incompatible_major_contract() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 Run:
 
@@ -625,7 +626,7 @@ cargo test -p studio-toolchain-client --test client_contract
 
 Expected: package and client type do not exist.
 
-- [ ] **Step 3: Implement typed protocol and path validation**
+- **Step 3: Implement typed protocol and path validation**
 
 Serde types include:
 
@@ -684,7 +685,7 @@ pub enum ToolchainState {
 Use camelCase serde names. Reject a response larger than 8 MiB and reject asset paths that are
 absolute or contain parent traversal.
 
-- [ ] **Step 4: Implement lifecycle and request multiplexing**
+- **Step 4: Implement lifecycle and request multiplexing**
 
 `ToolchainClient` owns:
 
@@ -699,7 +700,7 @@ Each `request` writes one newline, waits for its matching response or timeout, a
 result. A reader thread dispatches responses to request channels so two blocking Server workers
 can share one sidecar. On drop, close stdin, wait briefly, then kill the child.
 
-- [ ] **Step 5: Add failure tests**
+- **Step 5: Add failure tests**
 
 Test malformed JSON, stdout log contamination, missing response, timeout, child exit before
 response, and oversized line. Each must map to a distinct stable error variant and include no raw
@@ -713,7 +714,7 @@ cargo test -p studio-toolchain-client
 
 Expected: all fake-sidecar tests pass.
 
-- [ ] **Step 6: Commit in `ice3-studio`**
+- **Step 6: Commit in `ice3-studio`**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-toolchain-client
@@ -758,7 +759,7 @@ pub struct ToolchainStatus {
 }
 ```
 
-- [ ] **Step 1: Write failing server integration tests**
+- **Step 1: Write failing server integration tests**
 
 Use a fake sidecar script injected through test-only `ServerConfig` construction. Test:
 
@@ -783,7 +784,7 @@ async fn incompatible_sidecar_disables_preview_but_not_document_reads() {
 }
 ```
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 cargo test -p studio-server --test toolchain_sidecar
@@ -791,7 +792,7 @@ cargo test -p studio-server --test toolchain_sidecar
 
 Expected: no `toolchain` capability and no sidecar-backed preview path.
 
-- [ ] **Step 3: Replace one-shot preview execution**
+- **Step 3: Replace one-shot preview execution**
 
 `PreviewAdapter` stores `Arc<ToolchainClient>` and calls `asset_preview` with relative source and
 output paths. Candidate preview uses the same client and cache key behavior. Delete direct
@@ -800,7 +801,7 @@ output paths. Candidate preview uses the same client and cache key behavior. Del
 Do not hold the Server session mutex while waiting for the sidecar. Clone the required document,
 project path, and adapter handle first.
 
-- [ ] **Step 4: Add capability and degradation state**
+- **Step 4: Add capability and degradation state**
 
 Add `toolchain` to `system.capabilities`. On startup, Studio starts the managed sidecar and
 performs the handshake. If unavailable, it records the reason and still starts the Server.
@@ -812,7 +813,7 @@ Add lifecycle tests for startup handshake failure, graceful shutdown, one restar
 crash, and idle shutdown followed by a successful lazy restart. Add a concurrency test proving
 health and `document.get` remain responsive while a fake sidecar delays its preview response.
 
-- [ ] **Step 5: Run focused and full gates**
+- **Step 5: Run focused and full gates**
 
 ```bash
 cargo test -p studio-server --test toolchain_sidecar
@@ -822,7 +823,7 @@ cargo run -q -p studio-cli -- schema --output schemas --check
 
 Expected: all pass after schema regeneration.
 
-- [ ] **Step 6: Commit in `ice3-studio`**
+- **Step 6: Commit in `ice3-studio`**
 
 ```bash
 git add crates/studio-server crates/studio-core/src/validation.rs docs/reference/diagnostics.md \
@@ -854,7 +855,7 @@ git commit -m "feat(studio-server): integrate toolchain sidecar"
   `entrypoint`, `sha256`, `platform`, `architecture`.
 - Produces: `ToolchainLaunchConfig::from_manifest(application_root)`.
 
-- [ ] **Step 1: Write failing bundle-manifest tests**
+- **Step 1: Write failing bundle-manifest tests**
 
 The test creates a temporary fake Toolchain package and fake runtime, runs:
 
@@ -880,7 +881,7 @@ A corrupted file must make `verify-toolchain-bundle.mjs` exit non-zero.
 Add manifest tests for mismatched platform, mismatched architecture, an entrypoint outside the
 bundle, and duplicate required paths.
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 node --test scripts/tests/toolchain-bundle.test.mjs
@@ -888,7 +889,7 @@ node --test scripts/tests/toolchain-bundle.test.mjs
 
 Expected: scripts do not exist.
 
-- [ ] **Step 3: Implement staging and verification**
+- **Step 3: Implement staging and verification**
 
 `stage-toolchain.mjs`:
 
@@ -902,7 +903,7 @@ Expected: scripts do not exist.
 and entrypoints that resolve outside the bundle. Runtime discovery prefers this manifest; the
 environment override remains test/development-only.
 
-- [ ] **Step 4: Run a live sidecar smoke test**
+- **Step 4: Run a live sidecar smoke test**
 
 `verify-toolchain-sidecar.mjs` starts the staged sidecar with a temporary workspace, asserts
 contract/package versions, sends one validate request for a synthetic fixture, awaits cancellation
@@ -919,7 +920,7 @@ node scripts/verify-toolchain-sidecar.mjs --bundle output/toolchain-bundle
 
 Expected: all commands exit 0 and stdout contains only protocol output from the sidecar itself.
 
-- [ ] **Step 5: Commit in `ice3-studio`**
+- **Step 5: Commit in `ice3-studio`**
 
 ```bash
 git add toolchain scripts/stage-toolchain.mjs scripts/toolchain-launch.mjs \
@@ -961,7 +962,7 @@ git commit -m "build(studio): bundle toolchain sidecar"
   string | null }`.
 - Produces: cross-repository conformance test using the real built sidecar.
 
-- [ ] **Step 1: Write failing UI and conformance tests**
+- **Step 1: Write failing UI and conformance tests**
 
 ```ts
 test('formats Toolchain state separately from rendering and study compute', () => {
@@ -983,7 +984,7 @@ Playwright intercepts `system.capabilities` with an incompatible state and asser
 The Toolchain conformance test starts the built sidecar, performs the handshake, runs a frozen
 preview request, and asserts the result validates against the Task 1 schema.
 
-- [ ] **Step 2: Verify RED**
+- **Step 2: Verify RED**
 
 ```bash
 npm --prefix apps/viewer test
@@ -998,7 +999,7 @@ node --import tsx --test tests/conformance/studio-sidecar.test.ts
 
 Expected: UI formatter and cross-repository test do not exist.
 
-- [ ] **Step 3: Implement Workbench status**
+- **Step 3: Implement Workbench status**
 
 Add a compact read-only panel with states `starting`, `ready`, `busy`, `unavailable`,
 `incompatible`, and `failed`. Display contract/package versions, enabled capabilities, and a
@@ -1006,7 +1007,7 @@ sanitized reason. Do not add a path picker, executable selector, or command fiel
 
 Keep the canvas and review controls mounted while Toolchain status changes.
 
-- [ ] **Step 4: Complete cross-repository checks and docs**
+- **Step 4: Complete cross-repository checks and docs**
 
 Add a conformance script to the Toolchain test suite that imports the frozen fixtures from the
 shared contract and compares normalized result fields. Document:
@@ -1033,7 +1034,7 @@ node scripts/verify-toolchain-sidecar.mjs --bundle output/toolchain-bundle
 
 Expected: every command exits 0; all cross-repository sidecar and existing Studio tests pass.
 
-- [ ] **Step 5: Mark implemented and commit**
+- **Step 5: Mark implemented and commit**
 
 Only after both repository gates and live sidecar checks pass, change the spec and plan status to
 `Implemented`.

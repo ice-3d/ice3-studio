@@ -6,10 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use
-> `superpowers:subagent-driven-development` (recommended) or
-> `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal：** 建立 Studio 唯一的 Asset Prepare 实现，补齐真实 edges、metrics、
 built-in/custom budget、版本化 report，以及 `build`、`inspect` CLI。
@@ -36,7 +34,7 @@ Prepare 实现，但默认关闭 edges；新增 `build` 默认开启 edges。
 - hard budget、source、edge、profile 或 report 失败不得发布任何新文件。
 - 所有输出必须 byte-deterministic；Diagnostic 不得包含绝对路径或 converter stderr。
 - Legacy Toolchain 只允许在一次性 baseline capture 中读取，普通测试不得依赖它。
-- Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author/committer 固定为 `repository `AGENTS.md` identity policy`。
 
 ## 2. Review Focus
 
@@ -65,7 +63,7 @@ Prepare 实现，但默认关闭 edges；新增 `build` 默认开启 edges。
 - 产出：immutable Studio baseline for default edges, skip edges, crease variants,
   metrics, budget and report.
 
-- [x] **Step 1: 写 baseline 失败测试**
+- **Step 1: 写 baseline 失败测试**
 
 `scripts/tests/prepare-baseline.test.mjs`：
 
@@ -101,7 +99,7 @@ node --test scripts/tests/prepare-baseline.test.mjs
 
 预期：FAIL because baseline does not exist.
 
-- [x] **Step 2: 准备 cube source**
+- **Step 2: 准备 cube source**
 
 从合成 cube fixture 生成 `fixtures/source-import/gltf/prepare-cube.gltf`。只在实现
 阶段读取归档 Toolchain fixture；生成后 Studio baseline 测试只读取本地文件。
@@ -115,7 +113,7 @@ sha256sum fixtures/source-import/gltf/prepare-cube.gltf
 
 预期：valid glTF 2.0，包含一个 12-triangle cube。
 
-- [x] **Step 3: 实现一次性 capture**
+- **Step 3: 实现一次性 capture**
 
 `scripts/compare-prepare-imports.mjs --capture`：
 
@@ -128,10 +126,10 @@ sha256sum fixtures/source-import/gltf/prepare-cube.gltf
 
 捕获前验证归档是 synthetic corpus，不包含客户路径。
 
-- [x] **Step 4: capture 并重复校验**
+- **Step 4: capture 并重复校验**
 
 ```bash
-ICE3_TOOLCHAIN_ARCHIVE=/Users/felix/.Trash/ice3-toolchain-retired-20261102 \
+ICE3_TOOLCHAIN_ARCHIVE="${ICE3_TOOLCHAIN_ARCHIVE:?set archived toolchain path}" \
   node scripts/compare-prepare-imports.mjs --capture
 node scripts/compare-prepare-imports.mjs --verify-baseline
 node --test scripts/tests/prepare-baseline.test.mjs
@@ -139,7 +137,7 @@ node --test scripts/tests/prepare-baseline.test.mjs
 
 预期：baseline 写出；连续 capture 的 normalized digest 相同；测试 PASS。
 
-- [x] **Step 5: 禁止普通测试访问旧仓库**
+- **Step 5: 禁止普通测试访问旧仓库**
 
 ```bash
 rg -n "ice3-toolchain|ice3-tool build" scripts/tests fixtures/parity \
@@ -148,7 +146,7 @@ rg -n "ice3-toolchain|ice3-tool build" scripts/tests fixtures/parity \
 
 预期：无输出。只有 capture 脚本可要求外部 archive env。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add scripts/compare-prepare-imports.mjs scripts/tests/prepare-baseline.test.mjs \
@@ -180,7 +178,7 @@ git commit -m "test(studio): capture legacy asset prepare baseline"
   - `PreparationMetadata::edges(crease_angle_degrees: f32) -> Self`
   - `AssetBuildReport::new(command, source_digest, content_digest, asset_id, metrics, preparation, budget, warnings) -> Self`
 
-- [x] **Step 1: 写 budget 失败测试**
+- **Step 1: 写 budget 失败测试**
 
 `crates/studio-assets/tests/asset_budget.rs`：
 
@@ -235,7 +233,7 @@ fn parses_a_custom_budget_and_rejects_invalid_limits() {
 }
 ```
 
-- [x] **Step 2: 写 report determinism 测试**
+- **Step 2: 写 report determinism 测试**
 
 ```rust
 #[test]
@@ -259,7 +257,7 @@ fn report_is_versioned_and_deterministic() {
 }
 ```
 
-- [x] **Step 3: 运行 RED**
+- **Step 3: 运行 RED**
 
 ```bash
 cargo test -p studio-assets --test asset_budget
@@ -267,7 +265,7 @@ cargo test -p studio-assets --test asset_budget
 
 预期：编译失败，因为类型尚不存在。
 
-- [x] **Step 4: 实现类型**
+- **Step 4: 实现类型**
 
 `AssetError` 增加：
 
@@ -305,7 +303,7 @@ pub struct PreparationMetadata {
 }
 ```
 
-- [x] **Step 5: 运行 GREEN**
+- **Step 5: 运行 GREEN**
 
 ```bash
 cargo test -p studio-assets --test asset_budget
@@ -314,7 +312,7 @@ cargo clippy -p studio-assets --all-targets -- -D warnings
 
 预期：PASS。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add crates/studio-assets
@@ -336,7 +334,7 @@ git commit -m "feat(studio-assets): define metrics budget and reports"
   - `edge_color_from_material(extras: &serde_json::Value) -> Result<[f32; 4], AssetError>`
   - `material_suppresses_edges(extras: &serde_json::Value) -> bool`
 
-- [x] **Step 1: 写边界、硬边和 determinism 测试**
+- **Step 1: 写边界、硬边和 determinism 测试**
 
 `crates/studio-assets/tests/render_edges.rs`：
 
@@ -384,7 +382,7 @@ fn unit_cube() -> (Vec<[f32; 3]>, Vec<u32>) { /* 8 vertices, 12 triangles */ }
 fn unit_quad() -> (Vec<[f32; 3]>, Vec<u32>) { /* two coplanar triangles */ }
 ```
 
-- [x] **Step 2: 写 material color/suppression 测试**
+- **Step 2: 写 material color/suppression 测试**
 
 ```rust
 #[test]
@@ -404,7 +402,7 @@ fn resolves_edge_color_and_material_suppression() {
 }
 ```
 
-- [x] **Step 3: 运行 RED**
+- **Step 3: 运行 RED**
 
 ```bash
 cargo test -p studio-assets --test render_edges
@@ -412,7 +410,7 @@ cargo test -p studio-assets --test render_edges
 
 预期：编译失败，因为 edge API 尚不存在。
 
-- [x] **Step 4: 实现算法**
+- **Step 4: 实现算法**
 
 使用：
 
@@ -436,7 +434,7 @@ let records = Vec<EdgeRecord>::new();
 - crease angle 被 clamp 到 `0..=180`；
 - 无 edge 时返回空 Vec，不报 empty geometry。
 
-- [x] **Step 5: 运行 GREEN**
+- **Step 5: 运行 GREEN**
 
 ```bash
 cargo test -p studio-assets --test render_edges
@@ -445,7 +443,7 @@ cargo clippy -p studio-assets --all-targets -- -D warnings
 
 预期：PASS；cube 输出 12 edge segments / 24 indices。
 
-- [x] **Step 6: 提交**
+- **Step 6: 提交**
 
 ```bash
 git add crates/studio-assets
@@ -473,7 +471,7 @@ git commit -m "feat(studio-assets): generate deterministic render edges"
   - `prepare_canonical(scene, options) -> Result<PrepareArtifact, AssetError>`
   - unchanged public `write_prepared_glb(scene, PreparedGlbOptions) -> Result<Vec<u8>, AssetError>`
 
-- [x] **Step 1: 写 PrepareArtifact 测试**
+- **Step 1: 写 PrepareArtifact 测试**
 
 ```rust
 #[test]
@@ -510,7 +508,7 @@ fn skip_edges_removes_edge_primitives_but_retains_legacy_materials() {
 }
 ```
 
-- [x] **Step 2: 写 budget/atomic validation 测试**
+- **Step 2: 写 budget/atomic validation 测试**
 
 ```rust
 #[test]
@@ -528,7 +526,7 @@ fn hard_budget_returns_no_publishable_artifact() {
 }
 ```
 
-- [x] **Step 3: 运行 RED**
+- **Step 3: 运行 RED**
 
 ```bash
 cargo test -p studio-assets --test prepare_artifact
@@ -536,7 +534,7 @@ cargo test -p studio-assets --test prepare_artifact
 
 预期：编译失败，因为 PrepareArtifact 尚不存在。
 
-- [x] **Step 4: 重构 canonical writer**
+- **Step 4: 重构 canonical writer**
 
 拆分而不复制逻辑：
 
@@ -555,7 +553,7 @@ Edge output：
   `vertex colors` 三个 reserved material，以保持 legacy material index parity；
 - material count、primitive count、edge count 来自最终 JSON。
 
-- [x] **Step 5: 更新 Prepared validation**
+- **Step 5: 更新 Prepared validation**
 
 `validate_prepared_profile` 增加：
 
@@ -564,7 +562,7 @@ Edge output：
 - triangle count 只统计 mode 4，edge count 只统计 mode 1；
 - stats 与实际 accessor 数一致。
 
-- [x] **Step 6: 运行 GREEN**
+- **Step 6: 运行 GREEN**
 
 ```bash
 cargo test -p studio-assets
@@ -573,7 +571,7 @@ cargo clippy -p studio-assets --all-targets -- -D warnings
 
 预期：全 PASS；现有 writer determinism 测试保持通过。
 
-- [x] **Step 7: 提交**
+- **Step 7: 提交**
 
 ```bash
 git add crates/studio-assets
@@ -599,7 +597,7 @@ git commit -m "feat(studio-assets): emit prepared artifacts with render edges"
   - `run_inspect(InspectOptions) -> Result<AssetBuildReport, PrepareCommandError>`
   - CLI commands `build`, `inspect`
 
-- [x] **Step 1: 写 build CLI 测试**
+- **Step 1: 写 build CLI 测试**
 
 ```rust
 #[test]
@@ -628,7 +626,7 @@ fn build_emits_edges_report_and_budget() {
 }
 ```
 
-- [x] **Step 2: 写 import/build/inspect 差异测试**
+- **Step 2: 写 import/build/inspect 差异测试**
 
 ```rust
 #[test]
@@ -649,7 +647,7 @@ fn inspect_source_and_prepared_use_the_same_fields() {
 }
 ```
 
-- [x] **Step 3: 写失败/原子发布测试**
+- **Step 3: 写失败/原子发布测试**
 
 - hard budget -> `ICE3_STUDIO_ASSET_BUDGET_EXCEEDED`，output/report 均不存在；
 - soft budget + `--warnings-as-errors` -> `ICE3_STUDIO_ASSET_BUDGET_WARNING`；
@@ -658,7 +656,7 @@ fn inspect_source_and_prepared_use_the_same_fields() {
 - `--force` 成功替换 output/report；
 - invalid crease、negative/double budget limit -> stable invalid diagnostic。
 
-- [x] **Step 4: 运行 RED**
+- **Step 4: 运行 RED**
 
 ```bash
 cargo test -p studio-cli --test prepare_command
@@ -666,7 +664,7 @@ cargo test -p studio-cli --test prepare_command
 
 预期：Clap rejects `build`/`inspect`.
 
-- [x] **Step 5: 实现 CLI 和共享 import**
+- **Step 5: 实现 CLI 和共享 import**
 
 `ImportOptions` 增加：
 
@@ -698,7 +696,7 @@ prepare_canonical(
 - Source 执行同一 import + prepare，但不发布；
 - 输出 `AssetBuildReport`。
 
-- [x] **Step 6: 实现原子发布**
+- **Step 6: 实现原子发布**
 
 同一目录使用两个 `NamedTempFile`：
 
@@ -710,7 +708,7 @@ prepare_canonical(
 
 测试旧 output/report bytes 在失败后保持不变。
 
-- [x] **Step 7: 运行 GREEN**
+- **Step 7: 运行 GREEN**
 
 ```bash
 cargo test -p studio-cli --test prepare_command
@@ -720,7 +718,7 @@ cargo test -p studio-assets
 
 预期：PASS。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add crates/studio-cli crates/studio-assets
@@ -747,7 +745,7 @@ git commit -m "feat(studio-cli): build and inspect prepared assets"
 - 消费：passing build/inspect + baseline
 - 产出：Studio-native parity report and Phase 6A status
 
-- [x] **Step 1: 实现正常 parity 模式**
+- **Step 1: 实现正常 parity 模式**
 
 脚本：
 
@@ -758,7 +756,7 @@ git commit -m "feat(studio-cli): build and inspect prepared assets"
 - 写 `output/prepare-parity.json`；
 - `status=fail` 时 exit 1。
 
-- [x] **Step 2: 加入 verify**
+- **Step 2: 加入 verify**
 
 `scripts/verify.mjs` 增加：
 
@@ -775,7 +773,7 @@ git commit -m "feat(studio-cli): build and inspect prepared assets"
 },
 ```
 
-- [x] **Step 3: 更新文档**
+- **Step 3: 更新文档**
 
 必须说明：
 
@@ -787,7 +785,7 @@ git commit -m "feat(studio-cli): build and inspect prepared assets"
 - Phase 6A Implemented；后续 Phase 6B/6C 已由 Plan-028/029 完成；
 - no Blender / no Toolchain。
 
-- [x] **Step 4: 运行门禁**
+- **Step 4: 运行门禁**
 
 ```bash
 cargo test -p studio-assets
@@ -799,7 +797,7 @@ PLAYWRIGHT_CHANNEL=chrome npm run verify
 
 预期：全部 PASS，prepare parity `status=pass`。
 
-- [x] **Step 5: 提交**
+- **Step 5: 提交**
 
 ```bash
 git add README.md docs scripts/verify.mjs scripts/compare-prepare-imports.mjs \

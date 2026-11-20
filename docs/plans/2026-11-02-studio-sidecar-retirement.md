@@ -6,10 +6,8 @@
 >
 > Owner: ICE3 Studio maintainers
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use
-> `superpowers:subagent-driven-development` (recommended) or
-> `superpowers:executing-plans` to implement this plan task-by-task. Steps use
-> checkbox (`- [x]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal：** 删除 Studio 的 Toolchain Sidecar 客户端、Server 状态、preview fallback、
 Viewer 状态面、构建注入和发布脚本，使 committed/candidate preview 只使用 Studio
@@ -44,7 +42,7 @@ Sidecar reference 均已删除。Studio 的 22 道验证门禁、Chrome E2E 和 
 - 不保留 Toolchain compatibility field、deprecated executable env 或隐藏 fallback。
 - 所有 source fixture 与 benchmark 不得读取 `../ice3-toolchain`。
 - Viewer E2E 必须使用用户安装的 Google Chrome，并复用已有窗口/tab。
-- Git author/committer 固定为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Git author/committer 固定为 `repository `AGENTS.md` identity policy`。
 
 ## 3. Review Focus
 
@@ -77,7 +75,7 @@ Sidecar reference 均已删除。Studio 的 22 道验证门禁、Chrome E2E 和 
   - `PreviewAdapter::generate(...) -> Result<RuntimePreview, PreviewError>`
   - `PreviewAdapter::generate_candidate(...) -> Result<CandidatePreview, PreviewError>`
 
-- [x] **Step 1: 写原生 preview 失败测试**
+- **Step 1: 写原生 preview 失败测试**
 
 `crates/studio-server/tests/native_preview.rs`：
 
@@ -199,7 +197,7 @@ pub async fn create_and_evaluate_candidate(server: &TestServer) -> serde_json::V
 }
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-server --test native_preview
@@ -208,7 +206,7 @@ cargo test -p studio-server --test native_preview
 Expected: FAIL，路径仍是 `cache/toolchain/...`，且 `PreviewAdapter::new` 仍要求
 toolchain script。
 
-- [x] **Step 3: 删除 preview fallback**
+- **Step 3: 删除 preview fallback**
 
 `preview.rs` 删除：
 
@@ -239,7 +237,7 @@ impl Default for PreviewAdapter {
 }
 ```
 
-- [x] **Step 4: 统一 preview publication**
+- **Step 4: 统一 preview publication**
 
 committed preview：
 
@@ -270,7 +268,7 @@ let content_hash = source_digest.clone();
 
 `cached_candidate_preview` 重新计算文件 SHA-256 和 asset ID，不信任缓存文件名。
 
-- [x] **Step 5: 更新所有构造点**
+- **Step 5: 更新所有构造点**
 
 `rpc.rs` 和 `changeset.rs` 中：
 
@@ -281,12 +279,12 @@ PreviewAdapter::new()
 保留 `.with_compute(...)`、`.with_preview_packets(...)` 和
 `.with_scene_preview(...)` 组合。
 
-- [x] **Step 6: 删除旧 preview fake tests**
+- **Step 6: 删除旧 preview fake tests**
 
 删除 `preview_pipeline.rs`。原 `preview_fallback.rs` 中“没有外部 toolchain”已不再是
 可选 fallback，而是唯一 native path，由 `native_preview.rs` 取代。
 
-- [x] **Step 7: 运行 GREEN**
+- **Step 7: 运行 GREEN**
 
 ```bash
 cargo test -p studio-server --test native_preview
@@ -296,7 +294,7 @@ cargo test -p studio-server --test preview_packet
 
 Expected: PASS；所有 previewPath 都不含 `cache/toolchain`。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add crates/studio-server/src/preview.rs \
@@ -334,7 +332,7 @@ git commit -m "refactor(studio-server): make native preview the only path"
   - 不含 `toolchain` 的 API capabilities
   - 不依赖 `studio-toolchain-client`
 
-- [x] **Step 1: 写 capability 和 dependency 失败测试**
+- **Step 1: 写 capability 和 dependency 失败测试**
 
 在 `rpc_contract.rs` 加入：
 
@@ -364,7 +362,7 @@ Shell contract：
   Cargo.toml Cargo.lock crates/studio-server crates/studio-cli
 ```
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 cargo test -p studio-server --test rpc_contract \
@@ -373,7 +371,7 @@ cargo test -p studio-server --test rpc_contract \
 
 Expected: FAIL，capabilities 仍含 `toolchain`。
 
-- [x] **Step 3: 修改 ServerConfig、Session 和 RPC**
+- **Step 3: 修改 ServerConfig、Session 和 RPC**
 
 删除：
 
@@ -394,7 +392,7 @@ pub async fn set_toolchain_cli(...)
 
 `ServerConfig::for_tests` 删除 `toolchain_cli: None`。`studio-cli serve` 同步删除该字段。
 
-- [x] **Step 4: 删除 Diagnostic variants**
+- **Step 4: 删除 Diagnostic variants**
 
 从 `studio-core/src/validation.rs` 删除：
 
@@ -409,7 +407,7 @@ ToolchainJobFailed
 及其 `ICE3_STUDIO_TOOLCHAIN_*` code mapping。`ICE3_STUDIO_RUNTIME_PREVIEW_FAILED`
 保留，并改为描述 Studio preview export failure。
 
-- [x] **Step 5: 删除 client crate**
+- **Step 5: 删除 client crate**
 
 ```bash
 git rm -r crates/studio-toolchain-client
@@ -422,7 +420,7 @@ git rm crates/studio-server/bindings/ToolchainStatus.ts
 从 workspace `members`、`studio-server/Cargo.toml` 和 `studio-server/src/lib.rs` 删除
 引用。运行 `cargo check -p studio-server` 更新 lockfile。
 
-- [x] **Step 6: 删除 fake Sidecar test helpers**
+- **Step 6: 删除 fake Sidecar test helpers**
 
 从 `tests/common/mod.rs` 删除：
 
@@ -436,7 +434,7 @@ replace_toolchain_body
 把 `changeset_rpc.rs`、`preview_packet.rs` 改为普通
 `start_test_server(ServerConfig::for_tests(...))`，不再安装 Node script。
 
-- [x] **Step 7: 重新生成 bindings 和 schema**
+- **Step 7: 重新生成 bindings 和 schema**
 
 ```bash
 cargo run -q -p studio-cli -- schema --output schemas
@@ -448,7 +446,7 @@ Expected:
 - `schemas/studio-api.schema.json` 的 Capabilities required fields 不含 `toolchain`；
 - `crates/studio-server/bindings/Capabilities.ts` 与生成 schema 一致。
 
-- [x] **Step 8: 运行 GREEN**
+- **Step 8: 运行 GREEN**
 
 ```bash
 cargo test -p studio-server
@@ -459,7 +457,7 @@ cargo tree -p studio-server
 
 Expected: PASS；`cargo tree` 没有 `studio-toolchain-client`。
 
-- [x] **Step 9: 提交**
+- **Step 9: 提交**
 
 ```bash
 git add -A Cargo.toml Cargo.lock crates schemas
@@ -483,7 +481,7 @@ git commit -m "refactor(studio-server): remove the toolchain sidecar contract"
 - 消费：不含 `toolchain` 的 generated `Capabilities`。
 - 产出：不显示 asset-driver 状态的 Agent-first 工作台。
 
-- [x] **Step 1: 写浏览器失败测试**
+- **Step 1: 写浏览器失败测试**
 
 替换原 “Toolchain incompatible” E2E：
 
@@ -502,7 +500,7 @@ test('uses the native asset pipeline without a driver status surface', async ({ 
 再使用 route 拦截 `system.capabilities`，返回不含 `toolchain` 的正常 payload，确认页面
 仍加载 scene tree 和 Agent mission control。
 
-- [x] **Step 2: 运行 RED**
+- **Step 2: 运行 RED**
 
 ```bash
 PLAYWRIGHT_CHANNEL=chrome npm --prefix apps/viewer run test:e2e -- \
@@ -511,7 +509,7 @@ PLAYWRIGHT_CHANNEL=chrome npm --prefix apps/viewer run test:e2e -- \
 
 Expected: FAIL，页面仍出现 Toolchain status。
 
-- [x] **Step 3: 删除 API type 和 store field**
+- **Step 3: 删除 API type 和 store field**
 
 `StudioClient.ts` 删除：
 
@@ -528,7 +526,7 @@ toolchain: null,
 toolchain: capabilities?.toolchain ?? this.snapshot.toolchain,
 ```
 
-- [x] **Step 4: 删除 panel 和样式**
+- **Step 4: 删除 panel 和样式**
 
 删除 `ToolchainPanel.tsx`、其 unit test 和 `Workbench.tsx` import/render：
 
@@ -545,7 +543,7 @@ toolchain: capabilities?.toolchain ?? this.snapshot.toolchain,
 
 同步修改 `ComputePanel.tsx` 的两个 class，避免删除样式后显示退化。
 
-- [x] **Step 5: 更新 Viewer unit tests**
+- **Step 5: 更新 Viewer unit tests**
 
 删除 `toolchain-status.test.ts`，增加 SessionStore 测试：
 
@@ -586,7 +584,7 @@ test('loads capabilities without retired driver state', async () => {
 });
 ```
 
-- [x] **Step 6: 运行 Viewer GREEN**
+- **Step 6: 运行 Viewer GREEN**
 
 ```bash
 PLAYWRIGHT_CHANNEL=chrome npm --prefix apps/viewer run test
@@ -596,7 +594,7 @@ PLAYWRIGHT_CHANNEL=chrome npm --prefix apps/viewer run test:e2e
 
 Expected: unit/typecheck/E2E PASS；页面不含 Toolchain 文案。
 
-- [x] **Step 7: 提交**
+- **Step 7: 提交**
 
 ```bash
 git add apps/viewer
@@ -629,7 +627,7 @@ git commit -m "refactor(viewer): remove toolchain status surface"
 - 消费：前序任务提供的原生 preview 与 Studio-local fixtures。
 - 产出：只依赖 Studio 的 build、benchmark 和 standalone verification。
 
-- [x] **Step 1: 写 standalone 失败测试**
+- **Step 1: 写 standalone 失败测试**
 
 重命名后的 `verify-studio-standalone.mjs` 检查：
 
@@ -671,7 +669,7 @@ node scripts/verify-studio-standalone.mjs
 
 Expected: FAIL，脚本仍期待 `toolchain.state === 'unavailable'`。
 
-- [x] **Step 2: 修改 standalone verifier**
+- **Step 2: 修改 standalone verifier**
 
 保留原有 document、preview、source export、scene query、evaluation、ChangeSet、
 pack/unpack 和 idempotency 验收。删除所有 `toolchain` state 断言，并增加：
@@ -681,7 +679,7 @@ pack/unpack 和 idempotency 验收。删除所有 `toolchain` state 断言，并
 - `cache/toolchain` 不存在；
 - 不启动 Node asset subprocess。
 
-- [x] **Step 3: 删除 Viewer build hook**
+- **Step 3: 删除 Viewer build hook**
 
 `apps/viewer/package.json`：
 
@@ -692,7 +690,7 @@ pack/unpack 和 idempotency 验收。删除所有 `toolchain` state 断言，并
 
 不得再执行 `../ice3-toolchain run build`。
 
-- [x] **Step 4: 简化 E2E server**
+- **Step 4: 简化 E2E server**
 
 删除 `toolchain`、`STUDIO_TOOLCHAIN_CLI`、`ICE3_TOOLCHAIN_CLI`、`preview-example.mjs`
 复制和 `ICE3_TOOLCHAIN_CLI` fallback。server env 只保留：
@@ -702,7 +700,7 @@ STUDIO_SESSION_TOKEN: 'studio-e2e',
 STUDIO_VIEWER_DIR: join(repositoryRoot, 'apps/viewer/dist'),
 ```
 
-- [x] **Step 5: 删除 root scripts**
+- **Step 5: 删除 root scripts**
 
 `package.json` 删除：
 
@@ -721,7 +719,7 @@ STUDIO_VIEWER_DIR: join(repositoryRoot, 'apps/viewer/dist'),
 },
 ```
 
-- [x] **Step 6: 移除 benchmark Sidecar build 和 state**
+- **Step 6: 移除 benchmark Sidecar build 和 state**
 
 `benchmarks/studio-mvp.mjs` 删除：
 
@@ -739,7 +737,7 @@ ICE3_TOOLCHAIN_CLI
 `large-industrial-scene.mjs` 删除 `capabilities.toolchain` 条件与 report field，保持
 `export.runtimePreview` 的 wall-clock 指标。
 
-- [x] **Step 7: 验证无旧脚本引用**
+- **Step 7: 验证无旧脚本引用**
 
 ```bash
 rg -n "STUDIO_TOOLCHAIN|ICE3_TOOLCHAIN|preview-example|toolchain:stage|toolchain:verify|cache/toolchain" \
@@ -748,7 +746,7 @@ rg -n "STUDIO_TOOLCHAIN|ICE3_TOOLCHAIN|preview-example|toolchain:stage|toolchain
 
 Expected: 无输出。
 
-- [x] **Step 8: 运行 GREEN**
+- **Step 8: 运行 GREEN**
 
 ```bash
 node scripts/verify-studio-standalone.mjs
@@ -759,7 +757,7 @@ PLAYWRIGHT_CHANNEL=chrome npm --prefix apps/viewer run test:e2e
 
 Expected: standalone 全部 PASS；benchmark script syntax PASS；Chrome E2E PASS。
 
-- [x] **Step 9: 提交**
+- **Step 9: 提交**
 
 ```bash
 git add package.json apps/viewer/package.json scripts benchmarks toolchain
@@ -789,7 +787,7 @@ git commit -m "build(studio): remove toolchain sidecar packaging"
 - 消费：已通过的 standalone 代码和测试。
 - 产出：与代码一致的文档以及 Phase 5B closeout 证据。
 
-- [x] **Step 1: 更新架构文档**
+- **Step 1: 更新架构文档**
 
 `AGENTS.md` 架构边界改为：
 
@@ -807,7 +805,7 @@ Studio Server
         └── cache/preview/<revision>.glb
 ```
 
-- [x] **Step 2: 更新公共 reference**
+- **Step 2: 更新公共 reference**
 
 `docs/reference/api.md`：
 
@@ -827,7 +825,7 @@ Studio Server
 - 保留/更新 Runtime preview failure 的描述；
 - 加入 JT import codes。
 
-- [x] **Step 3: 标记历史文档**
+- **Step 3: 标记历史文档**
 
 `docs/reference/toolchain-sidecar.md` 删除；其内容由 git history 保留。
 
@@ -840,7 +838,7 @@ Studio Server
 
 把索引状态改为 `Historical`。
 
-- [x] **Step 4: 更新文档索引**
+- **Step 4: 更新文档索引**
 
 `docs/README.md`：
 
@@ -849,7 +847,7 @@ Studio Server
 - Spec-018 描述标注 Phase 5A/5B 状态；
 - 保持历史 Spec-004/Plan-005 链接但标 Historical。
 
-- [x] **Step 5: 检查无副作用路径**
+- **Step 5: 检查无副作用路径**
 
 ```bash
 rg -n "studio-toolchain-client|ToolchainPanel|ToolchainStatus|cache/toolchain|STUDIO_TOOLCHAIN|ICE3_TOOLCHAIN" \
@@ -862,7 +860,7 @@ Expected: 无输出。
 生产代码、测试、schema、scripts 和 package manifest 中不得留下 retired name。
 历史文档可以说明已退役的能力，但不得表现为当前可用。
 
-- [x] **Step 6: 运行完整 Studio 门禁**
+- **Step 6: 运行完整 Studio 门禁**
 
 ```bash
 node ../ice3-doc/scripts/check-docs.mjs --root . 2>&1 \
@@ -884,7 +882,7 @@ Expected:
 - 五份旧格式 parity 与 JT parity 均 `status=pass`；
 - `npm audit --audit-level high` 为 0 vulnerability。
 
-- [x] **Step 7: 验证不依赖相邻 Toolchain repository**
+- **Step 7: 验证不依赖相邻 Toolchain repository**
 
 在测试用临时副本或通过 shell 临时隐藏该目录后运行：
 
@@ -897,7 +895,7 @@ npm run verify
 
 Expected: 全部验证 PASS，没有隐式读取 `../ice3-toolchain`。
 
-- [x] **Step 8: 提交**
+- **Step 8: 提交**
 
 ```bash
 git add README.md AGENTS.md docs package.json apps/viewer scripts benchmarks

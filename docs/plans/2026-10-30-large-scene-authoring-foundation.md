@@ -10,8 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan
-> task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Add generic parameterized components, component instances, instance sets, routed
 connections, shared CPU evaluation, and revision-safe schema migration to ICE3 Studio.
@@ -80,7 +80,7 @@ and esbuild; JSON-RPC; Node.js 24.22.1.
 - Produces: `PROJECT_SCHEMA_VERSION = 2`
 - Later tasks consume these exact type and field names.
 
-- [ ] **Step 1: Write failing schema and migration tests**
+- **Step 1: Write failing schema and migration tests**
 
 Add `crates/studio-core/tests/large_scene_document.rs`:
 
@@ -191,7 +191,7 @@ fn opens_a_version_one_project_and_writes_the_next_revision_as_version_two() {
 
 Add `sha2.workspace = true` to `crates/studio-project/Cargo.toml` if it is not already present.
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- **Step 2: Run the tests to verify they fail**
 
 Run:
 
@@ -203,7 +203,7 @@ cargo test -p studio-project --test project_store opens_a_version_one_project
 Expected: compilation fails because `ComponentId`, `large_scene`, `components`, `migrate`, and new
 `NodeContent` variants do not exist.
 
-- [ ] **Step 3: Add the core types and migration**
+- **Step 3: Add the core types and migration**
 
 Add `ComponentId` to the existing `define_id!` list in `crates/studio-core/src/ids.rs`.
 
@@ -555,7 +555,7 @@ In `ProjectStore::read_revision_with_digest`, deserialize and then call `.migrat
 `read_metadata` to accept schema versions `1 | PROJECT_SCHEMA_VERSION`. Keep digest verification
 against the original bytes.
 
-- [ ] **Step 4: Run the focused tests**
+- **Step 4: Run the focused tests**
 
 Run:
 
@@ -566,7 +566,7 @@ cargo test -p studio-project --test project_store
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/Cargo.toml crates/studio-core/src crates/studio-core/tests/large_scene_document.rs \
@@ -591,7 +591,7 @@ git commit -m "feat(studio-core): add large-scene document schema"
   ParameterValue>) -> Result<BTreeMap<String, ParameterValue>, ParameterError>`
 - Later evaluators call `resolve_parameters` and must not duplicate validation rules.
 
-- [ ] **Step 1: Write failing validation tests**
+- **Step 1: Write failing validation tests**
 
 Create `crates/studio-core/tests/large_scene_validation.rs`:
 
@@ -682,7 +682,7 @@ fn rejects_unknown_and_cyclic_component_references() {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- **Step 2: Run the tests to verify they fail**
 
 Run:
 
@@ -692,7 +692,7 @@ cargo test -p studio-core --test large_scene_validation
 
 Expected: compilation fails because `large_scene::validate` does not exist.
 
-- [ ] **Step 3: Implement validation and parameter resolution**
+- **Step 3: Implement validation and parameter resolution**
 
 Create `large_scene/validate.rs` and implement these exact public entry points:
 
@@ -806,7 +806,7 @@ diagnostics.extend(crate::large_scene::validate::validate_large_scene(document))
 diagnostics
 ```
 
-- [ ] **Step 4: Run the focused tests**
+- **Step 4: Run the focused tests**
 
 Run:
 
@@ -817,7 +817,7 @@ cargo test -p studio-core --test document_model
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene crates/studio-core/src/validation.rs \
@@ -844,7 +844,7 @@ git commit -m "feat(studio-core): validate parameterized components"
 - Produces: `EvaluatedScene { nodes, meshes, stats }`
 - `EvaluatedSceneNode.id` is a `String` so it can represent instance-part identities.
 
-- [ ] **Step 1: Write a failing shared-geometry test**
+- **Step 1: Write a failing shared-geometry test**
 
 Create `crates/studio-core/tests/support/mod.rs`:
 
@@ -929,7 +929,7 @@ fn identical_instances_share_one_mesh_with_stable_part_identity() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -939,7 +939,7 @@ cargo test -p studio-core --test large_scene_evaluation
 
 Expected: compilation fails because the evaluator result types do not exist.
 
-- [ ] **Step 3: Implement explicit instance expansion**
+- **Step 3: Implement explicit instance expansion**
 
 Create `large_scene/evaluate.rs`:
 
@@ -1037,7 +1037,7 @@ For the new large-scene content variants, have `evaluate_node_content` return
 `EvaluatedMesh::empty()`; document-aware evaluation in `large_scene/evaluate.rs` owns their
 geometry.
 
-- [ ] **Step 4: Run the focused tests**
+- **Step 4: Run the focused tests**
 
 Run:
 
@@ -1048,7 +1048,7 @@ cargo test -p studio-core --test geometry_evaluation
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene crates/studio-core/src/geometry/evaluate.rs \
@@ -1070,7 +1070,7 @@ git commit -m "feat(studio-core): expand shared component instances"
 - Produces: `expand_instance_layout(layout: &InstanceLayout) -> Result<Vec<Transform>, LayoutError>`
 - Produces derived IDs in the form `"{set_node_id}/{ordinal:06}/{part_id}"`.
 
-- [ ] **Step 1: Write failing layout tests**
+- **Step 1: Write failing layout tests**
 
 Create `crates/studio-core/tests/instance_sets.rs`:
 
@@ -1125,7 +1125,7 @@ fn rejects_zero_counts_and_non_finite_spacing() {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- **Step 2: Run the tests to verify they fail**
 
 Run:
 
@@ -1135,7 +1135,7 @@ cargo test -p studio-core --test instance_sets
 
 Expected: FAIL because `expand_instance_layout` does not exist.
 
-- [ ] **Step 3: Implement deterministic layout expansion**
+- **Step 3: Implement deterministic layout expansion**
 
 Add `MAX_INSTANCE_SET_ITEMS: u32 = 100_000`.
 
@@ -1271,7 +1271,7 @@ Update `evaluate_large_scene` to expand `NodeContent::InstanceSet`. Merge each o
 `shared_parameters` and `item_overrides`, then instantiate the referenced definition. Use
 `"{set_node_id}/{ordinal:06}/{part_id}"` for part identity.
 
-- [ ] **Step 4: Run the focused tests**
+- **Step 4: Run the focused tests**
 
 Run:
 
@@ -1282,7 +1282,7 @@ cargo test -p studio-core --test large_scene_evaluation
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene crates/studio-core/tests/instance_sets.rs
@@ -1306,7 +1306,7 @@ git commit -m "feat(studio-core): expand deterministic instance sets"
 - Produces: `route_connection(...) -> Result<Vec<[f32; 3]>, ConnectionError>`
 - Produces derived connection node ID `"{connection_node_id}/route"`.
 
-- [ ] **Step 1: Write failing connection tests**
+- **Step 1: Write failing connection tests**
 
 Create `crates/studio-core/tests/connections.rs`:
 
@@ -1354,7 +1354,7 @@ fn rejects_incompatible_media_and_degenerate_routes() {
 }
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- **Step 2: Run the tests to verify they fail**
 
 Run:
 
@@ -1364,7 +1364,7 @@ cargo test -p studio-core --test connections
 
 Expected: FAIL because the routing module does not exist.
 
-- [ ] **Step 3: Implement endpoint resolution and routing**
+- **Step 3: Implement endpoint resolution and routing**
 
 Create `large_scene/route.rs` with:
 
@@ -1443,7 +1443,7 @@ Update evaluation to resolve ports through the expanded instance metadata. Apply
 transform to the component-local port position and rotation. Generate the connection sweep with
 the declared radius (`diameter / 2.0`) and append it under `"{connection_node_id}/route"`.
 
-- [ ] **Step 4: Run the focused tests**
+- **Step 4: Run the focused tests**
 
 Run:
 
@@ -1454,7 +1454,7 @@ cargo test -p studio-core --test large_scene_validation
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene crates/studio-core/tests/connections.rs
@@ -1480,7 +1480,7 @@ git commit -m "feat(studio-core): route typed equipment connections"
   `ConnectionCreate`, `ConnectionUpdate`, and `ConnectionDelete`.
 - Produces: component IDs in `DocumentDiff`.
 
-- [ ] **Step 1: Write a failing atomic transaction test**
+- **Step 1: Write a failing atomic transaction test**
 
 Create `crates/studio-core/tests/large_scene_transactions.rs`:
 
@@ -1550,7 +1550,7 @@ fn applies_a_component_and_instance_in_one_revision() {
 }
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -1560,7 +1560,7 @@ cargo test -p studio-core --test large_scene_transactions
 
 Expected: FAIL because the new Operation variants do not exist.
 
-- [ ] **Step 3: Implement Operations, diffs, and application**
+- **Step 3: Implement Operations, diffs, and application**
 
 Add the Operation variants with `serde` and `ts_rs` names:
 
@@ -1637,7 +1637,7 @@ Apply semantics:
 Reject deletion of Definitions or Nodes while another required reference remains. Use a shared
 reference scan over `Document.components`, `Document.scene.nodes`, and `Document.relations`.
 
-- [ ] **Step 4: Run focused transaction and existing regression tests**
+- **Step 4: Run focused transaction and existing regression tests**
 
 Run:
 
@@ -1649,7 +1649,7 @@ cargo test -p studio-core --test changeset_evaluation
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/operation.rs crates/studio-core/src/apply.rs \
@@ -1680,7 +1680,7 @@ git commit -m "feat(studio-core): add large-scene authoring operations"
 - Produces: `GeometryDiskCache::new(project_dir: &Path) -> Result<Self, GeometryCacheError>`
 - Produces stats: `cache_hits`, `cache_misses`, `generated_meshes`.
 
-- [ ] **Step 1: Write failing cache and invalidation tests**
+- **Step 1: Write failing cache and invalidation tests**
 
 Create `crates/studio-project/tests/geometry_cache.rs`:
 
@@ -1742,7 +1742,7 @@ fn transform_only_change_reuses_the_unchanged_shared_mesh() {
 }
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -1753,7 +1753,7 @@ cargo test -p studio-project --test geometry_cache
 
 Expected: FAIL because the cache trait and disk cache do not exist.
 
-- [ ] **Step 3: Implement the cache interface and binary storage**
+- **Step 3: Implement the cache interface and binary storage**
 
 Add `large_scene/cache.rs`:
 
@@ -1811,7 +1811,7 @@ Implement `studio_core::large_scene::cache::GeometryStore` for `GeometryDiskCach
 Call `std::fs::create_dir_all(project/cache/geometry)` from `ProjectStore::create` and
 `ProjectStore::open`.
 
-- [ ] **Step 4: Run cache and regression tests**
+- **Step 4: Run cache and regression tests**
 
 Run:
 
@@ -1823,7 +1823,7 @@ cargo test -p studio-project --test project_store
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene crates/studio-core/tests/large_scene_incremental.rs \
@@ -1851,7 +1851,7 @@ git commit -m "feat(studio-core): reuse evaluated component geometry"
 - Keeps `export_glb(document)` as a compatibility wrapper that evaluates with an empty cache.
 - `evaluation.evaluate` and `scene.bounds` include derived instance, set-item, part, and route IDs.
 
-- [ ] **Step 1: Write failing export and RPC tests**
+- **Step 1: Write failing export and RPC tests**
 
 Create `crates/studio-core/tests/large_scene_glb.rs`:
 
@@ -1893,7 +1893,7 @@ assert!(evaluated["result"]["node-000010/000000/body"].is_object());
 assert!(bounds["result"]["node-000001/body"].is_object());
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- **Step 2: Run tests to verify they fail**
 
 Run:
 
@@ -1904,7 +1904,7 @@ cargo test -p studio-server --test large_scene_rpc
 
 Expected: FAIL because export and RPC still iterate only legacy Node content.
 
-- [ ] **Step 3: Refactor export and RPC around `EvaluatedScene`**
+- **Step 3: Refactor export and RPC around `EvaluatedScene`**
 
 Modify `export_glb`:
 
@@ -1935,7 +1935,7 @@ wrapper for pure Core callers and tests.
 
 Keep `export.sourceGlb` unchanged at the HTTP level. It now receives shared-mesh export.
 
-- [ ] **Step 4: Run focused and legacy tests**
+- **Step 4: Run focused and legacy tests**
 
 Run:
 
@@ -1948,7 +1948,7 @@ cargo test -p studio-server --test rpc_contract
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/export/glb.rs crates/studio-core/tests/large_scene_glb.rs \
@@ -1974,7 +1974,7 @@ git commit -m "feat(studio-server): expose shared large-scene geometry"
 - Produces: `compileParameterChanges(definition, instance, draft) -> Operation[]`
 - Human edits produce the same `instance.update` Operation shape as Agent edits.
 
-- [ ] **Step 1: Write a failing form compiler test**
+- **Step 1: Write a failing form compiler test**
 
 Create `apps/viewer/tests/instance-parameters.test.ts`:
 
@@ -2018,7 +2018,7 @@ test('compiles only changed typed parameters into instance.update', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- **Step 2: Run the test to verify it fails**
 
 Run:
 
@@ -2029,7 +2029,7 @@ npm --prefix apps/viewer test
 
 Expected: build fails because `instanceParameters.ts` does not exist.
 
-- [ ] **Step 3: Implement typed form compilation and rendering**
+- **Step 3: Implement typed form compilation and rendering**
 
 In `StudioClient.ts`, add precise types mirroring generated declarations:
 
@@ -2081,7 +2081,7 @@ Color, and Enumeration controls when the selected Node has a component instance.
 visibility controls for all Nodes. Pass staged Operations through the existing ChangeSet path. Do
 not add a direct document mutation call.
 
-- [ ] **Step 4: Run Viewer tests and typecheck**
+- **Step 4: Run Viewer tests and typecheck**
 
 Run:
 
@@ -2093,7 +2093,7 @@ npm --prefix apps/viewer run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add apps/viewer/src/api/StudioClient.ts apps/viewer/src/app/Workbench.tsx apps/viewer/src/forms \
@@ -2120,7 +2120,7 @@ git commit -m "feat(studio-workbench): edit typed component parameters"
 - Consumes all M1 APIs and tests.
 - Produces synchronized schemas, accurate documentation, and a fully green repository gate.
 
-- [ ] **Step 1: Regenerate schemas and TypeScript declarations**
+- **Step 1: Regenerate schemas and TypeScript declarations**
 
 Run:
 
@@ -2130,7 +2130,7 @@ cargo run -q -p studio-cli -- schema --output schemas
 
 Expected: generated schema and declarations include all large-scene Operations and types.
 
-- [ ] **Step 2: Update implemented documentation**
+- **Step 2: Update implemented documentation**
 
 Update `docs/reference/api.md` with the new Operation table, parameter limits, derived identity
 format, dry-run behavior, and one compact JSON example for a parameterized component and two
@@ -2147,7 +2147,7 @@ This plan originally kept `ICE3-STUDIO-SPEC-005` at `Proposed` because GPU evalu
 fixture and Runtime streaming were not complete. Later plans delivered M2–M4; the spec and this
 plan are now marked `Implemented`, with native GPU execution remaining experimental and default-off.
 
-- [ ] **Step 3: Run the complete repository gate**
+- **Step 3: Run the complete repository gate**
 
 Run:
 
@@ -2163,7 +2163,7 @@ Expected:
 - Existing `wastewater-mini` output retains its prior visual and Selection behavior.
 - No generated model, cache, or customer asset appears in `git status`.
 
-- [ ] **Step 4: Audit staged content and commit**
+- **Step 4: Audit staged content and commit**
 
 Run:
 

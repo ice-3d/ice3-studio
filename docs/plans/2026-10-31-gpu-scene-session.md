@@ -10,9 +10,8 @@
 > [Asset Pipeline](../reference/asset-pipeline.md) 和 [能力清单](../reference/capabilities.md)
 > 为准。
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
-> (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
 
 **Goal:** Keep derived scene geometry, topology, and instance state resident for an open project,
 then update only the resources affected by each committed revision.
@@ -102,7 +101,7 @@ Playwright, and the repository's native test and benchmark scripts.
 - Produces: `LayeredGeometryCache::new(project_dir, max_bytes) -> Result<Self,
   GeometryCacheError>` and a `GeometryStore` implementation.
 
-- [ ] **Step 1: Write failing cache tests**
+- **Step 1: Write failing cache tests**
 
 ```rust
 use studio_core::geometry::{Bounds, EvaluatedMesh, Vertex};
@@ -157,7 +156,7 @@ fn cold_load_populates_memory_from_disk() {
 }
 ```
 
-- [ ] **Step 2: Run tests and observe the missing-module failure**
+- **Step 2: Run tests and observe the missing-module failure**
 
 Run:
 
@@ -168,7 +167,7 @@ cargo test -p studio-project --test layered_geometry_cache
 Expected: compilation fails because `studio_project::layered_geometry_cache` and
 `LayeredGeometryCache` do not exist.
 
-- [ ] **Step 3: Implement the memory-first store**
+- **Step 3: Implement the memory-first store**
 
 ```rust
 use std::path::Path;
@@ -233,7 +232,7 @@ The `load_entry` cache-fill behavior must be implemented before the first test p
 `self.disk.load_entry(key)`, store a clone into memory, then return that clone. Disk-loaded entries
 retain `resident_geometry_id: None`; never synthesize a device handle from disk metadata.
 
-- [ ] **Step 4: Run project and server tests**
+- **Step 4: Run project and server tests**
 
 Run:
 
@@ -246,7 +245,7 @@ cargo test -p studio-server
 Expected: all tests pass, including repeated `evaluation.stats` without recreating
 `GeometryDiskCache`.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-project/src/lib.rs \
@@ -270,7 +269,7 @@ git commit -m "perf(studio-server): retain scene geometry in memory"
   `SceneSessionId`, `SceneSessionState`, `SceneSessionStatus`, `SceneSubmission`, and
   `changed_position_ranges`.
 
-- [ ] **Step 1: Write failing contract and range tests**
+- **Step 1: Write failing contract and range tests**
 
 ```rust
 use studio_core::document::NodeContent;
@@ -330,7 +329,7 @@ fn custom_mesh_attributes_mark_normals_and_bounds_dirty() {
 }
 ```
 
-- [ ] **Step 2: Run tests and observe missing contract types**
+- **Step 2: Run tests and observe missing contract types**
 
 Run:
 
@@ -340,7 +339,7 @@ cargo test -p studio-core --test scene_contract
 
 Expected: compilation fails because `scene_contract` does not exist.
 
-- [ ] **Step 3: Implement the contracts and range compression**
+- **Step 3: Implement the contracts and range compression**
 
 Add these public types with `Debug, Clone, PartialEq`:
 
@@ -433,7 +432,7 @@ fn scene_status(&self, _session: &SceneSessionId) -> Option<SceneSessionStatus> 
 }
 ```
 
-- [ ] **Step 4: Run contract tests and generated binding tests**
+- **Step 4: Run contract tests and generated binding tests**
 
 Run:
 
@@ -446,7 +445,7 @@ cargo test -p studio-cli --test schema_output
 Expected: all pass; generated binding tests may first fail until the next schema-export command
 regenerates `crates/studio-core/bindings`.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/lib.rs \
@@ -469,7 +468,7 @@ git commit -m "feat(studio-core): define revision scene patches"
 - Produces: `evaluate_large_scene_selected(document, store, evaluator,
   selected_source_nodes: &BTreeSet<NodeId>) -> Result<EvaluatedScene, LargeSceneError>`.
 
-- [ ] **Step 1: Write a failing selected-node evaluation test**
+- **Step 1: Write a failing selected-node evaluation test**
 
 Append to `crates/studio-core/tests/large_scene_incremental.rs`:
 
@@ -518,7 +517,7 @@ fn selected_evaluation_expands_only_named_source_nodes() {
 }
 ```
 
-- [ ] **Step 2: Run the test and observe the missing function**
+- **Step 2: Run the test and observe the missing function**
 
 Run:
 
@@ -528,7 +527,7 @@ cargo test -p studio-core --test large_scene_incremental selected_evaluation -- 
 
 Expected: compilation fails because `evaluate_large_scene_selected` is not exported.
 
-- [ ] **Step 3: Extract one traversal and reuse it**
+- **Step 3: Extract one traversal and reuse it**
 
 Move the current node loop from `evaluate_large_scene_with_cache_and_evaluator` into a shared
 private function that takes `Option<&BTreeSet<NodeId>>`. Skip a source node only when a selection
@@ -540,7 +539,7 @@ The complete evaluator calls the shared function with `None`; the selected evalu
 order. Do not recompute `sourceNodes` from the selection; `sourceNodes` remains the number of
 document source nodes, while expanded and mesh statistics describe the returned selection.
 
-- [ ] **Step 4: Run all large-scene tests**
+- **Step 4: Run all large-scene tests**
 
 Run:
 
@@ -552,7 +551,7 @@ cargo test -p studio-core --test large_scene_transactions
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/evaluate.rs \
@@ -578,7 +577,7 @@ git commit -m "feat(studio-core): evaluate selected scene sources"
   `build_scene_patch(current, diff, previous_scene, index, store, evaluator) ->
   Result<ScenePatch, LargeSceneError>`.
 
-- [ ] **Step 1: Write failing planner tests**
+- **Step 1: Write failing planner tests**
 
 ```rust
 use std::collections::BTreeMap;
@@ -827,7 +826,7 @@ fn nested_component_fixture() -> (Document, ComponentId, NodeId) {
 }
 ```
 
-- [ ] **Step 2: Run tests and observe missing planner APIs**
+- **Step 2: Run tests and observe missing planner APIs**
 
 Run:
 
@@ -837,7 +836,7 @@ cargo test -p studio-server --test scene_patch -- --nocapture
 
 Expected: compilation fails because `studio_server::scene_session` does not exist.
 
-- [ ] **Step 3: Implement source indexing and patch planning**
+- **Step 3: Implement source indexing and patch planning**
 
 `SceneSourceIndex` stores no `Document` clone. It stores:
 
@@ -889,7 +888,7 @@ revision as target, and returns every derived geometry and instance from the com
 scene. Initial open, project switch, and an unprovable diff use this function. Do not invent
 partial deltas.
 
-- [ ] **Step 4: Run planner and existing large-scene tests**
+- **Step 4: Run planner and existing large-scene tests**
 
 Run:
 
@@ -901,7 +900,7 @@ cargo test -p studio-core --test large_scene_incremental
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server/src/lib.rs \
@@ -926,7 +925,7 @@ git commit -m "feat(studio-server): plan scene patches from revisions"
 - Produces: `NativeGpuBackend::update_resident_geometry(current_id, content, ranges) ->
   Result<GeometryResidentEntry, BackendError>`.
 
-- [ ] **Step 1: Write failing GPU update tests**
+- **Step 1: Write failing GPU update tests**
 
 ```rust
 use studio_core::document::NodeContent;
@@ -1007,7 +1006,7 @@ fn mesh(width: f32) -> TriangleMesh {
 }
 ```
 
-- [ ] **Step 2: Run tests and observe the missing update API**
+- **Step 2: Run tests and observe the missing update API**
 
 Run:
 
@@ -1017,7 +1016,7 @@ cargo test -p studio-gpu --test scene_geometry_update --release
 
 Expected: compilation fails because `update_resident_geometry` does not exist.
 
-- [ ] **Step 3: Implement reference-safe resource split**
+- **Step 3: Implement reference-safe resource split**
 
 Create `ResidentTopologyGpu` containing immutable indices, adjacency offsets, incidence, counts, and
 workgroup metadata. Create `ResidentAttributeGpu` containing positions, face normals, vertex
@@ -1041,7 +1040,7 @@ Compute `GeometryExecutionStats.upload_bytes` from the actual aligned range byte
 mesh size. Add the position range union to the returned `GeometryEvaluationEvidence.phases` by
 setting `stats.upload_bytes` and the returned `dirty` mask.
 
-- [ ] **Step 4: Run GPU residency, parity, and resource tests**
+- **Step 4: Run GPU residency, parity, and resource tests**
 
 Run:
 
@@ -1054,7 +1053,7 @@ cargo test -p studio-gpu --test resource_lifecycle
 
 Expected: all pass. On a host with no adapter, adapter-dependent tests return without failure.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-gpu/src/device.rs \
@@ -1079,7 +1078,7 @@ git commit -m "feat(studio-gpu): update resident attributes incrementally"
 - Produces: `InstanceTable::apply_changes(changes) -> InstanceTableUpdate`, `InstanceTable::records()`,
   and `InstanceTable::gpu_bytes()`.
 
-- [ ] **Step 1: Write failing instance table tests**
+- **Step 1: Write failing instance table tests**
 
 ```rust
 use studio_core::scene_contract::SceneInstanceChange;
@@ -1128,7 +1127,7 @@ fn instance(node_id: &str, x: f32) -> SceneInstanceChange {
 }
 ```
 
-- [ ] **Step 2: Run tests and observe the missing module**
+- **Step 2: Run tests and observe the missing module**
 
 Run:
 
@@ -1138,7 +1137,7 @@ cargo test -p studio-gpu --test instance_table
 
 Expected: compilation fails because `scene::instances` does not exist.
 
-- [ ] **Step 3: Implement stable slot assignment and range planning**
+- **Step 3: Implement stable slot assignment and range planning**
 
 Use a `BTreeMap<String, usize>` node index and parallel vectors for matrices, geometry IDs,
 materials, and visibility. Preserve insertion order for existing slots. Removed slots are appended
@@ -1158,7 +1157,7 @@ Cover the current matrix stride plus stable semantic data when reporting changed
 transform-only update writes 64 bytes per changed instance. Material or visibility changes use the
 same range claim but do not increment geometry dispatch.
 
-- [ ] **Step 4: Run table tests**
+- **Step 4: Run table tests**
 
 Run:
 
@@ -1168,7 +1167,7 @@ cargo test -p studio-gpu --test instance_table
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-gpu/src/lib.rs \
@@ -1192,7 +1191,7 @@ git commit -m "feat(studio-gpu): track scene instances in SoA storage"
 - Produces: `NativeGpuBackend::create_scene_session`, `apply_scene_patch`,
   `wait_scene_revision`, `scene_status`, and `close_scene_session`.
 
-- [ ] **Step 1: Write failing session tests**
+- **Step 1: Write failing session tests**
 
 ```rust
 use studio_core::scene_contract::{
@@ -1257,7 +1256,7 @@ uses the same identity matrix construction shown in Task 6; `patch` sets base an
 `fail_scene_for_test` is a `#[cfg(test)]` method or feature-gated test hook and cannot be reachable
 from production RPC.
 
-- [ ] **Step 2: Run tests and observe the missing session APIs**
+- **Step 2: Run tests and observe the missing session APIs**
 
 Run:
 
@@ -1267,7 +1266,7 @@ cargo test -p studio-gpu --test scene_session --release
 
 Expected: compilation fails because the scene-session methods do not exist.
 
-- [ ] **Step 3: Implement the ordered session**
+- **Step 3: Implement the ordered session**
 
 `NativeGpuBackend` owns `GpuSceneSessions` guarded by the existing device state mutex. A session
 holds:
@@ -1307,7 +1306,7 @@ collapse to the final add. Geometry updates with matching topology may replace t
 attribute update. Never coalesce across component/geometry reference changes that alter identity or
 across a requested consumer boundary.
 
-- [ ] **Step 4: Run residency and scene tests**
+- **Step 4: Run residency and scene tests**
 
 Run:
 
@@ -1320,7 +1319,7 @@ cargo test -p studio-gpu --test resource_lifecycle
 
 Expected: all pass; adapter-dependent tests may return early when no native adapter exists.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-gpu/src/device.rs \
@@ -1344,7 +1343,7 @@ git commit -m "feat(studio-gpu): keep revision scenes resident"
 - Produces: `ComputeService::open_scene_session(project_id)`, `apply_scene_patch`, `wait_scene`,
   `close_scene_session`, `scene_status`, and `ComputePolicy::scene_sessions_enabled`.
 
-- [ ] **Step 1: Write failing ComputeService tests**
+- **Step 1: Write failing ComputeService tests**
 
 ```rust
 use studio_core::gpu_contract::{GeometryBackend, GeometryBackendMode};
@@ -1394,7 +1393,7 @@ Extend the file-local `FakeGpu` used by `compute_scheduler.rs` with a
 deterministic pending and ready values used by these assertions. Do not create another Adapter or
 duplicate the existing scheduler fake.
 
-- [ ] **Step 2: Run tests and observe missing policy and methods**
+- **Step 2: Run tests and observe missing policy and methods**
 
 Run:
 
@@ -1405,7 +1404,7 @@ cargo test -p studio-server --test compute_scheduler scene_
 Expected: compilation fails because `scene_sessions_enabled`, scene methods, and scene status are
 missing.
 
-- [ ] **Step 3: Add the host gate and API**
+- **Step 3: Add the host gate and API**
 
 Add `scene_sessions_enabled: false` to `ComputePolicy`. Extend `ComputeStatus` with:
 
@@ -1453,7 +1452,7 @@ scene_sessions_enabled: std::env::var("STUDIO_GPU_SCENE_SESSIONS")
 
 `--native-gpu cpu` must ignore the enable flag and keep the scene session disabled.
 
-- [ ] **Step 4: Run scheduler and schema tests**
+- **Step 4: Run scheduler and schema tests**
 
 Run:
 
@@ -1465,7 +1464,7 @@ cargo test -p studio-cli --test schema_output
 
 Expected: all pass, and generated `ComputeStatus` declarations include `sceneSession`.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server/src/compute.rs \
@@ -1489,7 +1488,7 @@ git commit -m "feat(studio-server): expose experimental scene sessions"
 - Produces: committed revisions automatically staged after persistence; project open/close and
   undo/redo synchronize scene lifecycle.
 
-- [ ] **Step 1: Write failing lifecycle tests**
+- **Step 1: Write failing lifecycle tests**
 
 ```rust
 mod common;
@@ -1564,7 +1563,7 @@ call `export.runtimePreview` and assert:
 
 This test exercises the CPU preview fallback after optional GPU scene failure.
 
-- [ ] **Step 2: Run lifecycle tests and observe scene lifecycle gaps**
+- **Step 2: Run lifecycle tests and observe scene lifecycle gaps**
 
 Run:
 
@@ -1575,7 +1574,7 @@ cargo test -p studio-server --test scene_session_rpc -- --nocapture
 Expected: the close/reopen or failure-state test fails because scene sessions are not wired into
 apply/open/close.
 
-- [ ] **Step 3: Wire every committed revision path**
+- **Step 3: Wire every committed revision path**
 
 After a successful `write_snapshot_with_history` in `document.apply`:
 
@@ -1617,7 +1616,7 @@ For transform-only patches, update the cached CPU scene's node matrix/material/v
 evaluating or cloning geometry. For attribute/topology patches, evaluate only affected source nodes
 and merge their returned nodes and meshes into a new cached `EvaluatedScene`.
 
-- [ ] **Step 4: Run RPC, changeset, and resident tests**
+- **Step 4: Run RPC, changeset, and resident tests**
 
 Run:
 
@@ -1630,7 +1629,7 @@ cargo test -p studio-server --test resident_scheduler
 
 Expected: all pass; a GPU scheduling failure never changes a committed Document result.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server/src/rpc.rs \
@@ -1660,7 +1659,7 @@ git commit -m "feat(studio-server): schedule scene revisions"
   `GeometryBackend::snapshot_scene_geometries`, `ComputeService::snapshot_scene_geometries`, and
   `build_scene_preview_delta`.
 
-- [ ] **Step 1: Write failing transform-only and attribute readback tests**
+- **Step 1: Write failing transform-only and attribute readback tests**
 
 ```rust
 use std::collections::BTreeMap;
@@ -1801,7 +1800,7 @@ fn node_delta(node_id: &str, translation: [f32; 4]) -> PreviewGeometryNode {
 }
 ```
 
-- [ ] **Step 2: Run tests and observe missing scene readback APIs**
+- **Step 2: Run tests and observe missing scene readback APIs**
 
 Run:
 
@@ -1812,7 +1811,7 @@ cargo test -p studio-server --test scene_preview_packet -- --nocapture
 Expected: compilation fails because `SceneGeometryReadback` and `build_scene_preview_delta` do not
 exist.
 
-- [ ] **Step 3: Add bounded readback and direct scene delta assembly**
+- **Step 3: Add bounded readback and direct scene delta assembly**
 
 Define:
 
@@ -1858,7 +1857,7 @@ In the preview path, when preview packets and scene sessions are enabled:
 
 If the scene session is unavailable, run the existing CPU full-packet path and record the reason.
 
-- [ ] **Step 4: Run packet, preview, and scene tests**
+- **Step 4: Run packet, preview, and scene tests**
 
 Run:
 
@@ -1872,7 +1871,7 @@ cargo test -p studio-gpu --test scene_session --release
 Expected: all pass; transform-only packets contain zero geometry bytes and failed readback leaves
 the previous packet intact.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/scene_contract.rs \
@@ -1899,7 +1898,7 @@ git commit -m "feat(studio-server): stream scene preview deltas"
 - Consumes: generated `ComputeStatus.sceneSession`.
 - Produces: pending and fallback display with published/target revision and transfer evidence.
 
-- [ ] **Step 1: Write failing Viewer assertions**
+- **Step 1: Write failing Viewer assertions**
 
 Append to `apps/viewer/tests/compute-status.test.ts`:
 
@@ -1980,7 +1979,7 @@ test('reports pending scene revisions without calling them published', () => {
 Add the missing required fields to the existing `baseStatus` test fixture rather than weakening the
 new assertion.
 
-- [ ] **Step 2: Run Viewer tests and observe missing status fields**
+- **Step 2: Run Viewer tests and observe missing status fields**
 
 Run:
 
@@ -1990,7 +1989,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer test
 
 Expected: TypeScript compilation fails because `sceneSession` is missing from `ComputeStatus`.
 
-- [ ] **Step 3: Add scene status types and formatting**
+- **Step 3: Add scene status types and formatting**
 
 Add a `SceneSessionStatus` TypeScript type matching the generated Rust contract. Extend
 `ComputeStatus` with required `sceneSession`.
@@ -2007,7 +2006,7 @@ Include geometry, topology, attribute, instance, dirty-range, readback, pending 
 submission counts in metrics. Use existing `formatBytes` and `formatMillis`; do not add a new
 formatting library.
 
-- [ ] **Step 4: Run Viewer checks**
+- **Step 4: Run Viewer checks**
 
 Run:
 
@@ -2019,7 +2018,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm --prefix apps/viewer run bu
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add apps/viewer/src/api/StudioClient.ts \
@@ -2048,7 +2047,7 @@ git commit -m "feat(viewer): show pending scene revisions"
 - Produces: `output/gpu-scene-session-benchmark.json` and a fail-closed
   `npm run benchmark:gpu-scene`.
 
-- [ ] **Step 1: Write failing report-gate tests**
+- **Step 1: Write failing report-gate tests**
 
 Create `scripts/tests/gpu-scene-report.test.mjs`:
 
@@ -2103,7 +2102,7 @@ test('cache-hit-only evidence cannot pass the scene gate', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and observe the missing gate module**
+- **Step 2: Run the test and observe the missing gate module**
 
 Run:
 
@@ -2113,7 +2112,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH node --test scripts/tests/gpu-s
 
 Expected: module-not-found failure for `scripts/gpu-scene-gates.mjs`.
 
-- [ ] **Step 3: Implement the benchmark and gate**
+- **Step 3: Implement the benchmark and gate**
 
 Create `scripts/gpu-scene-gates.mjs` with the exported pure function. Apply these exact conditions:
 
@@ -2165,7 +2164,7 @@ Add the script syntax gate to `scripts/verify.mjs`:
 }
 ```
 
-- [ ] **Step 4: Run the benchmark and full verification**
+- **Step 4: Run the benchmark and full verification**
 
 Run:
 
@@ -2188,7 +2187,7 @@ After measuring, update the documents truthfully:
 - include exact measured values, the flag name, and the generated report path;
 - document that status `publishedRevision` can lag `targetRevision`.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add benchmarks/gpu-scene-session.mjs \
@@ -2201,14 +2200,14 @@ git commit -m "perf(studio): measure revision scene residency"
 
 ## 16. Final Verification
 
-- [ ] Run the complete Rust format and lint gate:
+- Run the complete Rust format and lint gate:
 
 ```bash
 cargo fmt --all -- --check
 cargo clippy -p studio-core -p studio-gpu -p studio-project -p studio-server --all-targets -- -D warnings
 ```
 
-- [ ] Run all native GPU release tests that exercise this plan:
+- Run all native GPU release tests that exercise this plan:
 
 ```bash
 cargo test -p studio-gpu --test scene_geometry_update --release
@@ -2216,20 +2215,20 @@ cargo test -p studio-gpu --test scene_session --release
 cargo test -p studio-gpu --test resident_evaluation --release
 ```
 
-- [ ] Run the full repository verification:
+- Run the full repository verification:
 
 ```bash
 PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 ```
 
-- [ ] Run the scene benchmark:
+- Run the scene benchmark:
 
 ```bash
 PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run benchmark:gpu-scene
 ```
 
-- [ ] Confirm the committed Document revision is unchanged by a simulated GPU scene failure and
+- Confirm the committed Document revision is unchanged by a simulated GPU scene failure and
   that the canonical source GLB still exports.
 
-- [ ] Confirm `git status --short` contains no unintended Engine changes and every Studio change is
+- Confirm `git status --short` contains no unintended Engine changes and every Studio change is
   committed with author `damoqiongqiu`.

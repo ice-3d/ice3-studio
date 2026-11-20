@@ -134,7 +134,7 @@ pub struct IterationImpact {
 }
 ```
 
-- [ ] **Step 1: Write the failing contract test**
+- **Step 1: Write the failing contract test**
 
 Add to `crates/studio-core/tests/agent_contract.rs`:
 
@@ -167,7 +167,7 @@ fn iteration_impact_serializes_with_counts_and_snake_case_reasons() {
 }
 ```
 
-- [ ] **Step 2: Run the test and observe the missing types**
+- **Step 2: Run the test and observe the missing types**
 
 Run:
 
@@ -177,13 +177,13 @@ cargo test -p studio-core --test agent_contract iteration_impact_serializes
 
 Expected: compilation fails because the four impact types are not defined.
 
-- [ ] **Step 3: Implement the contracts**
+- **Step 3: Implement the contracts**
 
 Place the definitions near the other Agent result structures. Implement `Default` for
 `ChangeImpactCounts` by deriving it. Do not add optional or nullable fields; every field in the
 result is always present.
 
-- [ ] **Step 4: Run contract tests**
+- **Step 4: Run contract tests**
 
 Run:
 
@@ -194,7 +194,7 @@ cargo test -p studio-core export_bindings
 
 Expected: all tests pass and the four new TypeScript files exist.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/agent_contract.rs \
@@ -289,7 +289,7 @@ Derived counts compare the candidate fragment IDs against the source index's pre
 - updated: candidate IDs in both sets;
 - removed: previous affected IDs not in the candidate ID set.
 
-- [ ] **Step 1: Write failing cache-evidence tests**
+- **Step 1: Write failing cache-evidence tests**
 
 Create `crates/studio-server/tests/agent_iteration_impact.rs` with helpers that create a
 parameterized component scene, write it through `document.apply` using the approval cookie, warm
@@ -395,7 +395,7 @@ async fn request_impact(
 }
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- **Step 2: Run the tests and verify RED**
 
 Run:
 
@@ -405,12 +405,12 @@ cargo test -p studio-server --test agent_iteration_impact
 
 Expected: the `changeset.impact` calls fail because the method is unknown.
 
-- [ ] **Step 3: Implement `BuiltScenePatch` counters and impact analysis**
+- **Step 3: Implement `BuiltScenePatch` counters and impact analysis**
 
 Create `iteration_impact.rs`, export it from `lib.rs`, and implement the analysis rules above.
 Do not call `merge_scene_snapshot`, `apply_scene_patch`, or any event emitter.
 
-- [ ] **Step 4: Run focused tests**
+- **Step 4: Run focused tests**
 
 Run:
 
@@ -422,7 +422,7 @@ cargo test -p studio-server --test scene_session_rpc
 
 Expected: all tests pass once the RPC method is wired in Task 3.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server/src/iteration_impact.rs \
@@ -486,7 +486,7 @@ Add `changeset.impact` to:
   `ChangeSetImpactResult`;
 - the manifest `propose` workflow.
 
-- [ ] **Step 1: Extend the failing impact tests**
+- **Step 1: Extend the failing impact tests**
 
 Add the digest and stale-version test:
 
@@ -604,7 +604,7 @@ assert!(caps["result"]["methods"]
     .any(|method| method == "changeset.impact"));
 ```
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- **Step 2: Run the focused tests and verify RED**
 
 Run:
 
@@ -615,12 +615,12 @@ cargo test -p studio-server --test agent_api manifest_access
 
 Expected: the impact method is missing or unavailable and the manifest does not contain it.
 
-- [ ] **Step 3: Implement dispatch, authorization, and manifest entry**
+- **Step 3: Implement dispatch, authorization, and manifest entry**
 
 The impact call must reuse the existing evaluation path rather than duplicating transaction
 validation. Preserve existing method behavior and response schemas.
 
-- [ ] **Step 4: Run server tests**
+- **Step 4: Run server tests**
 
 Run:
 
@@ -633,7 +633,7 @@ cargo test -p studio-server --test scene_session_rpc
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-server/src/changeset.rs \
@@ -666,7 +666,7 @@ git commit -m "feat(studio-server): expose agent iteration impact"
 - Consumes: all public impact contracts from Tasks 1 and 3.
 - Produces: generated JSON Schema and TypeScript declarations plus public usage documentation.
 
-- [ ] **Step 1: Add a failing schema assertion**
+- **Step 1: Add a failing schema assertion**
 
 Extend `crates/studio-cli/tests/schema_output.rs`:
 
@@ -678,7 +678,7 @@ assert!(schema["types"].get("ChangeSetImpactResult").is_some());
 assert!(schema["types"].get("IterationImpact").is_some());
 ```
 
-- [ ] **Step 2: Run the schema test and verify RED**
+- **Step 2: Run the schema test and verify RED**
 
 Run:
 
@@ -688,7 +688,7 @@ cargo test -p studio-cli --test schema_output
 
 Expected: failure because the method and types are absent.
 
-- [ ] **Step 3: Register types and generate bindings**
+- **Step 3: Register types and generate bindings**
 
 Add `ChangeSetImpactParams`, `ChangeSetImpactResult`, and `IterationImpact` to
 `crates/studio-cli/src/schema.rs`. Run:
@@ -699,7 +699,7 @@ cargo test -p studio-server export_bindings
 cargo run -q -p studio-cli -- schema --output schemas
 ```
 
-- [ ] **Step 4: Document the workflow**
+- **Step 4: Document the workflow**
 
 In the API reference, show an Agent sequence:
 
@@ -716,7 +716,7 @@ complete diff arrays, and may warm the content-addressed cache. Document post-co
 
 Set the spec and plan status to `Implemented` only after the final acceptance run succeeds.
 
-- [ ] **Step 5: Run schema and documentation checks**
+- **Step 5: Run schema and documentation checks**
 
 Run:
 
@@ -727,7 +727,7 @@ rg -n "TBD|TODO|FIXME|PLACEHOLDER" docs/reference docs/specs docs/plans || true
 
 Expected: schema test passes and the placeholder scan prints nothing.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-cli/src/schema.rs \
@@ -758,7 +758,7 @@ git commit -m "docs(studio): document agent iteration impact"
   `assertImpactInvariants(result, { expectedScope, maxGeneratedGeometry })` and
   machine-readable evidence that the current Agent can repeat local changes without full rebuilds.
 
-- [ ] **Step 1: Write a failing script-level regression test**
+- **Step 1: Write a failing script-level regression test**
 
 Create the test importing a helper that does not exist yet:
 
@@ -794,7 +794,7 @@ test('rejects a full rebuild reported as local', () => {
 });
 ```
 
-- [ ] **Step 2: Run the test and observe the missing helper export**
+- **Step 2: Run the test and observe the missing helper export**
 
 Run:
 
@@ -804,7 +804,7 @@ node --test scripts/tests/agent-iteration-impact.test.mjs
 
 Expected: failure because `scripts/agent-iteration-impact-check.mjs` does not exist.
 
-- [ ] **Step 3: Implement the assertion helper and wire it into verification**
+- **Step 3: Implement the assertion helper and wire it into verification**
 
 Create the helper with these exact invariants:
 
@@ -863,7 +863,7 @@ Place that block at module initialization in `scripts/run-ai-fixture.mjs`. The e
 `scripts/verify.mjs` command already runs this file, so the invariant becomes part of the 14-gate
 suite without adding another heavy gate.
 
-- [ ] **Step 4: Run deterministic verification**
+- **Step 4: Run deterministic verification**
 
 Run:
 
@@ -874,7 +874,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 
 Expected: the focused test passes and all 14 verification gates pass.
 
-- [ ] **Step 5: Run the current Agent acceptance workflow**
+- **Step 5: Run the current Agent acceptance workflow**
 
 Start a review-required Studio server against the existing detailed wastewater project. As the
 current AI Agent:
@@ -906,7 +906,7 @@ The acceptance JSON must include:
 Populate the numeric fields from actual execution; the zero values above are schema examples only
 and must not remain in the generated report.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add scripts/agent-iteration-impact-check.mjs \
@@ -925,7 +925,7 @@ git commit -m "test(studio): verify local agent iteration impact"
 - Consumes: all implementation, generated artifacts, and current Agent acceptance evidence.
 - Produces: a final verified branch and review package.
 
-- [ ] **Step 1: Run the full verification suite**
+- **Step 1: Run the full verification suite**
 
 Run:
 
@@ -935,7 +935,7 @@ PATH=$HOME/.nvm/versions/node/v24.22.1/bin:$PATH npm run verify
 
 Expected: all 14 verification gates pass.
 
-- [ ] **Step 2: Re-run current Agent acceptance**
+- **Step 2: Re-run current Agent acceptance**
 
 Run the workflow from Task 5 against a fresh detailed wastewater project and verify:
 
@@ -946,11 +946,11 @@ Run the workflow from Task 5 against a fresh detailed wastewater project and ver
 - impact metrics equal post-commit `evaluation.stats`;
 - all three valid revisions commit and reopen successfully.
 
-- [ ] **Step 3: Mark documents implemented**
+- **Step 3: Mark documents implemented**
 
 Change the spec and plan status from `Proposed` to `Implemented` only after Steps 1 and 2 pass.
 
-- [ ] **Step 4: Commit final documentation**
+- **Step 4: Commit final documentation**
 
 ```bash
 git add docs/specs/2026-10-31-agent-iteration-impact-design.md \
@@ -958,17 +958,17 @@ git add docs/specs/2026-10-31-agent-iteration-impact-design.md \
 git commit -m "docs(studio): mark agent iteration impact implemented"
 ```
 
-- [ ] **Step 5: Produce whole-branch review evidence**
+- **Step 5: Produce whole-branch review evidence**
 
 Run:
 
 ```bash
-~/.codex/skills/subagent-driven-development/scripts/review-package \
-  1d5eccf HEAD
+git diff --check 1d5eccf...HEAD
+git diff --stat 1d5eccf...HEAD
 ```
 
-Expected: a review package is written under the active plan workspace. Complete one final review
-before merge.
+Expected: the change has no whitespace errors and the final review can inspect the complete diff
+without depending on a specific local Agent installation.
 
 ## 4. Self-Review
 

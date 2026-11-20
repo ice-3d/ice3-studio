@@ -6,16 +6,19 @@
 >
 > Owner: ICE3 Studio maintainers
 
+> **历史计划，请勿直接执行：** 本文件只记录原始实施过程。
+> 当前代码和执行规则以 [AGENTS.md](../../AGENTS.md) 为准；默认 Native，只有用户明确允许时才启用子 Agent。
+
 ## 1. Implementation Outcome
 
 Phase 1 已实现。Studio 新增 `studio-assets`、`studio-pipeline` 和
-`studio-server::runtime_tileset`，CLI 提供 `export tileset`。真实
-`projects/wastewater-plant` revision 1 导出了 4 个 fine partition、4 个 coarse chunk、
-132,124 unique triangles、51 个设备绑定，并保持稳定 tileset/bundle digest。Phase 1 不调用
+`studio-server::runtime_tileset`，CLI 提供 `export tileset`。该阶段当时的
+`projects/wastewater-plant` 导出为 4 个 fine partition、4 个 coarse chunk、
+132,124 unique triangles、51 个设备绑定。当前资产已经继续演进，实时数据以
+[污水处理厂工程](../../projects/README.md) 和 `export.json` 为准。Phase 1 不调用
 Toolchain Sidecar；Toolchain 只用于 `scripts/compare-asset-pipelines.mjs` 双跑对照。
 
-> **执行说明：** 本计划已按 `executing-plans` 在单一实现上下文中逐任务执行；所有步骤均以
-> 测试先行和 checkbox 状态记录。
+> **执行说明：** 本计划保留原始测试先行和任务顺序，仅作为实施审计记录，不是当前待执行队列。
 
 **Goal:** 在 Studio 内实现 Rust 原生 GLB、partition、LOD、Tileset、binding manifest 和
 Runtime Asset 发布，并让 Studio CLI 不再依赖 Toolchain Sidecar 就能导出 Agent Console
@@ -44,7 +47,7 @@ Studio Core evaluated Scene、Node.js 24.22.1（仅 Viewer 构建和 E2E）。
   LOD ratio `0.5`、adaptive allocation、max triangles `120000`、coarse chunk
   `4194304`、semantic proxy off、static render batch。
 - 任何失败都不得留下 partial output 或替换上一个成功 Bundle。
-- Rust 1.98；Git author/committer 为 `damoqiongqiu <damoqiongqiu@126.com>`。
+- Rust 1.98；Git author/committer 为 `repository `AGENTS.md` identity policy`。
 
 ## 3. Review Focus
 
@@ -127,7 +130,7 @@ docs/specs/2026-11-01-native-asset-pipeline-migration-design.md
   - `validate_prepared_profile(source: &SourceGlb) -> Result<PreparedProfile, AssetError>`
   - `SourceGlb { json, binary, base_dir, digest }`
 
-- [x] **Step 1: Add workspace dependencies and crate**
+- **Step 1: Add workspace dependencies and crate**
 
 Add:
 
@@ -139,7 +142,7 @@ draco3dgltf = "1.5.9"
 Create `studio-assets` with `studio-core`, `serde`, `serde_json`, `thiserror`, `sha2`,
 `gltf`.
 
-- [x] **Step 2: Write failing Prepared Profile tests**
+- **Step 2: Write failing Prepared Profile tests**
 
 Create `prepared_profile.rs` with:
 
@@ -168,7 +171,7 @@ fn rejects_external_buffers_outside_base_directory() {
 
 Use checked-in synthetic fixtures only.
 
-- [x] **Step 3: Run RED**
+- **Step 3: Run RED**
 
 ```bash
 cargo test -p studio-assets prepared_profile
@@ -176,7 +179,7 @@ cargo test -p studio-assets prepared_profile
 
 预期：crate 和 API 尚不存在，因此编译失败。
 
-- [x] **Step 4: Implement reader and profile validator**
+- **Step 4: Implement reader and profile validator**
 
 Port the required behavior from:
 
@@ -187,7 +190,7 @@ Port the required behavior from:
 使用自定义 `read_bounded_uri` resolver，拒绝绝对路径、URI scheme、`..`、symlink escape
 和缺失文件；压缩解码完成后再计算 source SHA-256。
 
-- [x] **Step 5: 运行 crate 与现有 Studio 测试**
+- **Step 5: 运行 crate 与现有 Studio 测试**
 
 ```bash
 cargo test -p studio-assets
@@ -196,7 +199,7 @@ cargo test --workspace
 
 Expected: all PASS.
 
-- [x] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-assets
@@ -223,7 +226,7 @@ git commit -m "feat(studio): add Rust GLB asset reader"
   - `create_partition_plan(units, max_triangles) -> PartitionPlan`
   - `PartitionUnit { id, mesh_keys, triangle_count, bounds, world_matrices }`
 
-- [x] **Step 1: Write failing unit tests**
+- **Step 1: Write failing unit tests**
 
 ```rust
 #[test]
@@ -257,7 +260,7 @@ fn splits_on_longest_axis_under_triangle_budget() {
 }
 ```
 
-- [x] **Step 2: Run RED**
+- **Step 2: Run RED**
 
 ```bash
 cargo test -p studio-pipeline --test partition
@@ -265,7 +268,7 @@ cargo test -p studio-pipeline --test partition
 
 Expected: crate/APIs missing.
 
-- [x] **Step 3: Port analysis**
+- **Step 3: Port analysis**
 
 Port:
 
@@ -275,7 +278,7 @@ Port:
 
 使用稳定 node ID 和 mesh ID 排序。共享 Mesh 是 atomic unit，不能在 leaf 之间拆开。
 
-- [x] **Step 4: Run focused and full tests**
+- **Step 4: Run focused and full tests**
 
 ```bash
 cargo test -p studio-pipeline --test partition
@@ -284,7 +287,7 @@ cargo test --workspace
 
 Expected: all PASS.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-pipeline
@@ -310,7 +313,7 @@ git commit -m "feat(studio): add Rust partition planner"
   - `PartitionArtifact { files, tileset, stats }`
   - `PartitionFile { relative_path, bytes, content_hash, byte_length }`
 
-- [x] **Step 1: Write failing tileset tests**
+- **Step 1: Write failing tileset tests**
 
 ```rust
 #[test]
@@ -334,7 +337,7 @@ fn rejects_an_empty_partition() {
 }
 ```
 
-- [x] **Step 2: Run RED**
+- **Step 2: Run RED**
 
 ```bash
 cargo test -p studio-pipeline --test tileset
@@ -342,7 +345,7 @@ cargo test -p studio-pipeline --test tileset
 
 Expected: compile failure for missing build APIs.
 
-- [x] **Step 3: Implement baseline partition writer**
+- **Step 3: Implement baseline partition writer**
 
 Port baseline behavior from:
 
@@ -353,7 +356,7 @@ Port baseline behavior from:
 Phase 1 baseline 必须保留 node ID、selection ID、material metadata、matrix、bounds 和确定性
 JSON 顺序，并使用相对 `parts/part-NNN.glb` URI。
 
-- [x] **Step 4: Run focused and full tests**
+- **Step 4: Run focused and full tests**
 
 ```bash
 cargo test -p studio-pipeline --test tileset
@@ -362,7 +365,7 @@ cargo test --workspace
 
 Expected: all PASS.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-pipeline
@@ -391,7 +394,7 @@ git commit -m "feat(studio): write partitioned GLBs and tilesets"
   - `create_coarse_chunks(...) -> Vec<CoarseChunk>`
   - `build_static_batches(...) -> Option<RenderBatching>`
 
-- [x] **Step 1: Add `meshopt = "0.7.0"` and failing LOD tests**
+- **Step 1: Add `meshopt = "0.7.0"` and failing LOD tests**
 
 ```rust
 #[test]
@@ -415,7 +418,7 @@ fn coarse_chunks_keep_selection_identity() {
 }
 ```
 
-- [x] **Step 2: Run RED**
+- **Step 2: Run RED**
 
 ```bash
 cargo test -p studio-pipeline --test lod
@@ -423,7 +426,7 @@ cargo test -p studio-pipeline --test lod
 
 Expected: missing LOD APIs.
 
-- [x] **Step 3: Port LOD**
+- **Step 3: Port LOD**
 
 Reference:
 
@@ -443,7 +446,7 @@ Geometry 并记录 warning；保留 coarse Geometry 前执行 input/output memor
 opt-in semantic proxy、fit 和 evaluation；`agent-console-v1` 固定
 `semanticProxy=off`。
 
-- [x] **Step 4: Write failing batching tests**
+- **Step 4: Write failing batching tests**
 
 ```rust
 #[test]
@@ -458,7 +461,7 @@ fn static_batching_reduces_draws_without_changing_selection() {
 }
 ```
 
-- [x] **Step 5: Run all pipeline tests**
+- **Step 5: Run all pipeline tests**
 
 ```bash
 cargo test -p studio-pipeline
@@ -467,7 +470,7 @@ cargo test --workspace
 
 Expected: all PASS.
 
-- [x] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock crates/studio-pipeline
@@ -499,7 +502,7 @@ git commit -m "feat(studio): add native LOD and batching"
   - `bindings.json`
   - `export.json`
 
-- [x] **Step 1: 编写失败的 binding 与 publication 测试**
+- **Step 1: 编写失败的 binding 与 publication 测试**
 
 ```rust
 #[test]
@@ -532,7 +535,7 @@ fn force_publish_failure_keeps_previous_bundle() {
 }
 ```
 
-- [x] **Step 2: Run RED**
+- **Step 2: Run RED**
 
 ```bash
 cargo test -p studio-server --test runtime_tileset
@@ -540,13 +543,13 @@ cargo test -p studio-server --test runtime_tileset
 
 Expected: missing exporter APIs.
 
-- [x] **Step 3: Implement binding aggregation and manifest**
+- **Step 3: Implement binding aggregation and manifest**
 
 把 `export_source_with_scene` 暴露为 `pub(crate)`。按规范从 evaluated Node metadata 构建
 binding，排序 tag/node ID，合并 world bounds，使用 source node display name，并依次从
 `train`、`stage` 选择 `area`。
 
-- [x] **Step 4: Implement staging and atomic publication**
+- **Step 4: Implement staging and atomic publication**
 
 1. 把 source GLB 写入 project cache。
 2. 在 memory 或 cache 中完整构建 partition artifact。
@@ -556,7 +559,7 @@ binding，排序 tag/node ID，合并 world bounds，使用 source node display 
 6. `force` 时先把旧目录 rename 为 backup，再把 staging rename 为 output；失败时恢复。
 7. 删除受管理的临时文件。
 
-- [x] **Step 5: Run focused and full tests**
+- **Step 5: Run focused and full tests**
 
 ```bash
 cargo test -p studio-server --test runtime_tileset
@@ -565,7 +568,7 @@ cargo test --workspace
 
 Expected: all PASS.
 
-- [x] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add crates/studio-server
@@ -584,7 +587,7 @@ git commit -m "feat(studio): publish native runtime tilesets"
 - Consumes: `RuntimeTilesetExporter`.
 - Produces: `ice3-studio export tileset`.
 
-- [x] **Step 1: 编写失败的 parser 与 integration 测试**
+- **Step 1: 编写失败的 parser 与 integration 测试**
 
 Unit test in `main.rs`:
 
@@ -610,7 +613,7 @@ fn parses_runtime_tileset_export_command() {
 Integration test 对 synthetic project 运行 binary，断言五类输出均存在，且不存在
 `source.glb`。
 
-- [x] **Step 2: Run RED**
+- **Step 2: Run RED**
 
 ```bash
 cargo test -p studio-cli parses_runtime_tileset_export_command
@@ -618,7 +621,7 @@ cargo test -p studio-cli parses_runtime_tileset_export_command
 
 Expected: export subcommands missing.
 
-- [x] **Step 3: Implement command**
+- **Step 3: Implement command**
 
 Add nested clap:
 
@@ -647,7 +650,7 @@ enum ExportCommand {
 读取 current project revision，创建 `RuntimeTilesetExporter`，执行 export 并打印 result
 JSON。
 
-- [x] **Step 4: Run tests**
+- **Step 4: Run tests**
 
 ```bash
 cargo test -p studio-cli
@@ -656,7 +659,7 @@ cargo test -p studio-server
 
 Expected: all PASS.
 
-- [x] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add crates/studio-cli
@@ -681,7 +684,7 @@ git commit -m "feat(studio-cli): export runtime tilesets"
 - 消费：Rust assets/pipeline/exporter/CLI。
 - 产出：parity evidence 与当前文档。
 
-- [x] **Step 1: Add parity scripts**
+- **Step 1: Add parity scripts**
 
 Create `scripts/compare-asset-pipelines.mjs` outside production Rust:
 
@@ -690,7 +693,7 @@ Create `scripts/compare-asset-pipelines.mjs` outside production Rust:
 - 比较 source/prepared stats、selection ID、Tileset bounds、相对路径和 digest。
 - 输出机器可读的 `output/asset-pipeline-parity.json`。
 
-- [x] **Step 2: Run parity**
+- **Step 2: Run parity**
 
 ```bash
 node scripts/compare-asset-pipelines.mjs
@@ -702,7 +705,7 @@ Expected:
 - JSON 顺序导致的 byte difference 必须被报告，不能忽略。
 - 存在无法解释的差异时 exit code 非零。
 
-- [x] **Step 3: Add full export verification**
+- **Step 3: Add full export verification**
 
 ```bash
 cargo run -q -p studio-cli -- export tileset \
@@ -718,7 +721,7 @@ Expected:
 - `bindings.json` 包含 51 个唯一 equipment selection。
 - 第二次输出到不同目录时 digest 保持一致。
 
-- [x] **Step 4: Update docs and Implemented status**
+- **Step 4: Update docs and Implemented status**
 
 Document:
 
@@ -730,7 +733,7 @@ Document:
 把 Phase 1 plan 和 Spec-016 中的 Phase 1 milestone 标记为 `Implemented`。整份 Spec-016
 仍保持未完成，因为后续 importer 阶段尚未交付。
 
-- [x] **Step 5: Run complete verification**
+- **Step 5: Run complete verification**
 
 ```bash
 node ../ice3-doc/scripts/check-docs.mjs --root .
@@ -744,7 +747,7 @@ node scripts/compare-asset-pipelines.mjs
 - 18 道 Studio gate 通过。
 - Parity report 通过。
 
-- [x] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add scripts/compare-asset-pipelines.mjs
