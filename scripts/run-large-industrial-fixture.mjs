@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   mkdir,
@@ -122,6 +122,20 @@ async function main() {
     }
     const stats = await rpc('evaluation.stats');
     verifyAppliedScene(stats, plan.expected);
+    for (let index = 0; index < 5; index += 1) await rpc('validation.run');
+    const validationDurations = [];
+    for (let index = 0; index < 20; index += 1) {
+      const started = performance.now();
+      await rpc('validation.run');
+      validationDurations.push(performance.now() - started);
+    }
+    validationDurations.sort((left, right) => left - right);
+    const validationP95Ms = validationDurations[
+      Math.max(0, Math.ceil(validationDurations.length * 0.95) - 1)
+    ];
+    if (validationP95Ms > 250) {
+      throw new Error(`route safety p95 exceeded 250ms: ${validationP95Ms.toFixed(2)}ms`);
+    }
 
     const exported = await rpc('export.sourceGlb');
     const sourceBytes = await readFile(exported.sourcePath);
@@ -129,6 +143,11 @@ async function main() {
     const idsBeforeReopen = primaryNodes.map((node) => node.id).sort();
 
     await rpc('project.close');
+    const routeSafetyReport = JSON.parse(execFileSync(
+      binary,
+      ['route-safety-report', '--project', join(workspace, plan.projectId)],
+      { encoding: 'utf8' },
+    ));
     await rpc('project.open', { projectId: plan.projectId });
     const reopened = await rpc('document.get');
     const reopenedStats = await rpc('evaluation.stats');
@@ -155,6 +174,10 @@ async function main() {
       ),
       stats,
       reopenedStats,
+      routeSafety: {
+        p95Ms: validationP95Ms,
+        ...routeSafetyReport,
+      },
       sourceGlbBytes: sourceBytes.byteLength,
       sourceGlbSha256: createHash('sha256').update(sourceBytes).digest('hex'),
       topology: plan.expected.topology,

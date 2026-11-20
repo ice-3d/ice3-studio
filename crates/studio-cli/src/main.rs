@@ -92,6 +92,13 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Analyze route safety for a project without modifying it.
+    RouteSafetyReport {
+        #[arg(long)]
+        project: PathBuf,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
     /// Partition any registered source into a runtime Tileset directory.
     Partition {
         source: PathBuf,
@@ -457,6 +464,20 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             })
             .map_err(|error| CliFailure(error.to_string()))?;
             print_json(&report, json)?;
+        }
+        Command::RouteSafetyReport { project, output } => {
+            let report = studio_cli::route_safety_report::report_project(&project)?;
+            let bytes = serde_json::to_vec_pretty(&report)?;
+            if let Some(output) = output {
+                write_output(&output, &bytes)?;
+            }
+            println!("{}", String::from_utf8(bytes)?);
+            if report["diagnostics"]
+                .as_array()
+                .is_some_and(|diagnostics| !diagnostics.is_empty())
+            {
+                return Err("route safety diagnostics are not empty".into());
+            }
         }
         Command::Partition {
             source,

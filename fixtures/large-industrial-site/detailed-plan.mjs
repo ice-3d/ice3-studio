@@ -287,6 +287,10 @@ function instance(definitionKey, key, name, parentId, x, y, z, materialKey, meta
       analyzer: 'analyzer',
     }[definitionKey],
   };
+  const routedMetadata = {
+    ...instanceMetadata,
+    routeObstacle: 'ignored',
+  };
   nodes.set(key, id);
   operations.push({
     type: 'instance.create',
@@ -298,10 +302,10 @@ function instance(definitionKey, key, name, parentId, x, y, z, materialKey, meta
       definitionId: definition.id,
       parameters: {},
       overrides: overridesFor(definition),
-      metadata: instanceMetadata,
+      metadata: routedMetadata,
     },
     material_id: materials.get(materialKey),
-    metadata: instanceMetadata,
+    metadata: routedMetadata,
   });
   return id;
 }
