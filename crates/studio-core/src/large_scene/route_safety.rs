@@ -98,8 +98,9 @@ pub fn validate_route_safety(
     let mut diagnostics = Vec::new();
     let routes = route_facts(document, definitions, &mut diagnostics, &mut stats);
     let obstacles = obstacle_owners(document, definitions, &mut diagnostics, &mut stats);
+    let stations = support_stations(document, &routes, &mut diagnostics);
 
-    for route in routes {
+    for route in &routes {
         let mut reported = BTreeSet::new();
         for (segment_index, points) in route.points.windows(2).enumerate() {
             let original_segment = [points[0], points[1]];
@@ -203,6 +204,7 @@ pub fn validate_route_safety(
         }
     }
 
+    validate_support_layout(&routes, &stations, &mut diagnostics);
     (diagnostics, stats)
 }
 
@@ -449,6 +451,236 @@ fn point_in_mesh(point: [f32; 3], triangles: &[[[f32; 3]; 3]]) -> (bool, usize) 
         .filter(|triangle| segment_triangle([point, far], **triangle))
         .count();
     (crossings % 2 == 1, triangles.len())
+}
+
+#[derive(Debug)]
+struct SupportStation {
+    position: [f32; 3],
+}
+
+fn support_stations(
+    document: &Document,
+    routes: &[RouteFact],
+    diagnostics: &mut Vec<Diagnostic>,
+) -> BTreeMap<String, Vec<SupportStation>> {
+    let route_lines = routes
+        .iter()
+        .filter_map(|route| route.line_id.clone())
+        .collect::<BTreeSet<_>>();
+    let mut stations = BTreeMap::<String, Vec<SupportStation>>::new();
+    for (index, node) in document.scene.nodes().iter().enumerate() {
+        if node.metadata.get("role").map(String::as_str) != Some("pipe-support")
+            || node.metadata.get("supportPart").map(String::as_str) != Some("beam")
+        {
+            continue;
+        }
+        let Some(line_id) = node
+            .metadata
+            .get("lineId")
+            .filter(|value| !value.is_empty())
+        else {
+            diagnostics.push(route_diagnostic(
+                DiagnosticCode::OperationInvalid,
+                &node.id,
+                index,
+                "support beam lineId must not be empty",
+            ));
+            continue;
+        };
+        if !route_lines.contains(line_id) {
+            diagnostics.push(route_diagnostic(
+                DiagnosticCode::OperationInvalid,
+                &node.id,
+                index,
+                format!("support beam references unknown lineId {line_id}"),
+            ));
+            continue;
+        }
+        stations
+            .entry(line_id.clone())
+            .or_default()
+            .push(SupportStation {
+                position: [
+                    node.transform.translation.x,
+                    node.transform.translation.y,
+                    node.transform.translation.z,
+                ],
+            });
+    }
+    stations
+}
+
+fn validate_support_layout(
+    routes: &[RouteFact],
+    stations: &BTreeMap<String, Vec<SupportStation>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for route in routes {
+        if matches!(route.policy, RoutePolicy::Buried { .. }) {
+            continue;
+        }
+        let line_stations = route
+            .line_id
+            .as_ref()
+            .and_then(|line_id| stations.get(line_id))
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        if line_stations.is_empty() {
+            diagnostics.push(route_content_diagnostic(
+                DiagnosticCode::RouteSupportMissing,
+                route,
+                "non-buried route has no support stations",
+            ));
+            continue;
+        }
+        let mut valid = Vec::new();
+        let mut off_route = false;
+        for station in line_stations {
+            let Some((arc, distance)) = project_to_route(station.position, route) else {
+                continue;
+            };
+            if distance > SUPPORT_PROJECTION_TOLERANCE_M {
+                off_route = true;
+            } else {
+                valid.push(arc);
+            }
+        }
+        if valid.is_empty() {
+            diagnostics.push(route_content_diagnostic(
+                DiagnosticCode::RouteSupportSpacing,
+                route,
+                format!(
+                    "all support stations are more than {SUPPORT_PROJECTION_TOLERANCE_M:.1} m off-route"
+                ),
+            ));
+            continue;
+        }
+        if off_route {
+            diagnostics.push(route_content_diagnostic(
+                DiagnosticCode::RouteSupportSpacing,
+                route,
+                format!(
+                    "one or more supports are more than {SUPPORT_PROJECTION_TOLERANCE_M:.1} m off-route"
+                ),
+            ));
+        }
+        valid.sort_by(f32::total_cmp);
+        let total = *route.cumulative.last().unwrap_or(&0.0);
+        let mut positions = vec![0.0];
+        positions.extend(valid.iter().copied());
+        positions.push(total);
+        if positions
+            .windows(2)
+            .any(|pair| pair[1] - pair[0] > route.max_support_spacing + 1e-5)
+        {
+            diagnostics.push(route_content_diagnostic(
+                DiagnosticCode::RouteSupportSpacing,
+                route,
+                format!("support gap exceeds {:.3} m", route.max_support_spacing),
+            ));
+        }
+        for turn in route_turns(route) {
+            let required = (route.radius * 4.0).max(1.0);
+            if !valid.iter().any(|arc| (arc - turn).abs() <= required) {
+                diagnostics.push(route_content_diagnostic(
+                    DiagnosticCode::RouteSupportSpacing,
+                    route,
+                    format!("turn at {turn:.3} m has no support within {required:.3} m"),
+                ));
+            }
+        }
+    }
+}
+
+fn project_to_route(position: [f32; 3], route: &RouteFact) -> Option<(f32, f32)> {
+    let mut best: Option<(f32, f32)> = None;
+    for (index, pair) in route.points.windows(2).enumerate() {
+        let from = pair[0];
+        let to = pair[1];
+        let dx = to[0] - from[0];
+        let dz = to[2] - from[2];
+        let denominator = dx * dx + dz * dz;
+        if denominator <= f32::EPSILON {
+            continue;
+        }
+        let ratio = (((position[0] - from[0]) * dx + (position[2] - from[2]) * dz) / denominator)
+            .clamp(0.0, 1.0);
+        let nearest = [from[0] + dx * ratio, from[1], from[2] + dz * ratio];
+        let distance =
+            ((position[0] - nearest[0]).powi(2) + (position[2] - nearest[2]).powi(2)).sqrt();
+        let length = route.cumulative[index + 1] - route.cumulative[index];
+        let arc = route.cumulative[index] + length * ratio;
+        if best.is_none_or(|(_, current)| distance < current) {
+            best = Some((arc, distance));
+        }
+    }
+    best
+}
+
+fn route_turns(route: &RouteFact) -> Vec<f32> {
+    let mut turns = Vec::new();
+    let window = 4;
+    for index in window..route.points.len().saturating_sub(window) {
+        let incoming = unit3([
+            route.points[index][0] - route.points[index - window][0],
+            route.points[index][1] - route.points[index - window][1],
+            route.points[index][2] - route.points[index - window][2],
+        ]);
+        let outgoing = unit3([
+            route.points[index + window][0] - route.points[index][0],
+            route.points[index + window][1] - route.points[index][1],
+            route.points[index + window][2] - route.points[index][2],
+        ]);
+        let Some(incoming) = incoming else {
+            continue;
+        };
+        let Some(outgoing) = outgoing else {
+            continue;
+        };
+        let angle =
+            (incoming[0] * outgoing[0] + incoming[1] * outgoing[1] + incoming[2] * outgoing[2])
+                .clamp(-1.0, 1.0)
+                .acos();
+        if angle > TURN_THRESHOLD_RADIANS {
+            turns.push(route.cumulative[index]);
+            continue;
+        }
+    }
+    turns
+}
+
+fn unit3(value: [f32; 3]) -> Option<[f32; 3]> {
+    let length = (value[0] * value[0] + value[1] * value[1] + value[2] * value[2]).sqrt();
+    (length > f32::EPSILON).then(|| [value[0] / length, value[1] / length, value[2] / length])
+}
+
+fn route_diagnostic(
+    code: DiagnosticCode,
+    node_id: &NodeId,
+    node_index: usize,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        code,
+        operation_index: None,
+        object_id: Some(node_id.to_string()),
+        pointer: format!("/scene/nodes/{node_index}/metadata/lineId"),
+        message: message.into(),
+    }
+}
+
+fn route_content_diagnostic(
+    code: DiagnosticCode,
+    route: &RouteFact,
+    message: impl Into<String>,
+) -> Diagnostic {
+    Diagnostic {
+        code,
+        operation_index: None,
+        object_id: Some(route.node_id.to_string()),
+        pointer: format!("/scene/nodes/{}/content", route.node_index),
+        message: message.into(),
+    }
 }
 
 fn segment_crosses_footprint(segment: [[f32; 3]; 2], bounds: &Bounds) -> bool {

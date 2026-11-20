@@ -85,6 +85,146 @@ fn clearance_surface_rejects_a_low_crossing() {
     }
 }
 
+#[test]
+fn support_layout_rejects_missing_sparse_and_off_route_stations() {
+    assert_support_code(
+        missing_support_document(),
+        DiagnosticCode::RouteSupportMissing,
+    );
+    assert_support_code(
+        sparse_support_document(),
+        DiagnosticCode::RouteSupportSpacing,
+    );
+    assert_support_code(
+        off_route_support_document(),
+        DiagnosticCode::RouteSupportSpacing,
+    );
+    assert_support_code(
+        turn_without_support_document(),
+        DiagnosticCode::RouteSupportSpacing,
+    );
+    assert_support_code(orphan_support_document(), DiagnosticCode::OperationInvalid);
+    assert_eq!(buried_without_support_codes(), vec![]);
+}
+
+fn assert_support_code(document: Document, code: DiagnosticCode) {
+    let diagnostics = run_route_safety(&document).0;
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.code == code),
+        "{diagnostics:?}",
+    );
+}
+
+fn missing_support_document() -> Document {
+    support_document()
+}
+
+fn sparse_support_document() -> Document {
+    let mut document = support_document();
+    document.scene.nodes_mut()[1].transform.translation.x = 20.0;
+    add_support(&mut document, "node-000004", 3.0, 0.0, 0.0);
+    add_support(&mut document, "node-000005", 13.0, 0.0, 0.0);
+    document
+}
+
+fn off_route_support_document() -> Document {
+    let mut document = support_document();
+    add_support(&mut document, "node-000004", 6.0, 0.0, 5.0);
+    document
+}
+
+fn turn_without_support_document() -> Document {
+    let mut document = support_document();
+    document.scene.nodes_mut()[1].transform.translation.x = 20.0;
+    set_route_policy(&mut document, RoutePolicy::Orthogonal);
+    set_support_spacing(&mut document, "100");
+    add_support(&mut document, "node-000004", 10.0, 0.5, 0.0);
+    document
+}
+
+fn orphan_support_document() -> Document {
+    let mut document = support_document();
+    add_support_with_line(&mut document, "node-000004", 6.0, 0.0, 0.0, "L-ORPHAN");
+    document
+}
+
+fn buried_without_support_codes() -> Vec<DiagnosticCode> {
+    let mut document = support_document();
+    set_route_policy(&mut document, RoutePolicy::Buried { depth: 1.0 });
+    route_safety_codes(&document)
+        .into_iter()
+        .filter(|code| {
+            matches!(
+                code,
+                DiagnosticCode::RouteSupportMissing | DiagnosticCode::RouteSupportSpacing
+            )
+        })
+        .collect()
+}
+
+fn support_document() -> Document {
+    let mut document = endpoint_contact_document();
+    set_support_spacing(&mut document, "6");
+    document
+}
+
+fn set_route_policy(document: &mut Document, policy: RoutePolicy) {
+    let connection = document
+        .scene
+        .nodes_mut()
+        .iter_mut()
+        .find_map(|node| match &mut node.content {
+            NodeContent::Connection(connection) => Some(connection),
+            _ => None,
+        })
+        .expect("route fixture must contain a connection");
+    connection.route_policy = policy;
+}
+
+fn set_support_spacing(document: &mut Document, spacing: &str) {
+    let connection = document
+        .scene
+        .nodes_mut()
+        .iter_mut()
+        .find_map(|node| match &mut node.content {
+            NodeContent::Connection(connection) => Some(connection),
+            _ => None,
+        })
+        .expect("route fixture must contain a connection");
+    connection
+        .metadata
+        .insert("maxSupportSpacing".into(), spacing.into());
+}
+
+fn add_support(document: &mut Document, id: &str, x: f32, y: f32, z: f32) {
+    add_support_with_line(document, id, x, y, z, "L-001");
+}
+
+fn add_support_with_line(document: &mut Document, id: &str, x: f32, y: f32, z: f32, line_id: &str) {
+    document.scene.nodes_mut().push(SceneNode {
+        id: NodeId::from(id),
+        name: format!("Support {id}"),
+        parent_id: None,
+        transform: Transform {
+            translation: Vec3 { x, y, z },
+            ..Transform::IDENTITY
+        },
+        material_id: None,
+        content: NodeContent::Primitive(Primitive::Box {
+            width: 0.2,
+            height: 0.2,
+            depth: 0.2,
+        }),
+        metadata: BTreeMap::from([
+            ("role".into(), "pipe-support".into()),
+            ("supportPart".into(), "beam".into()),
+            ("lineId".into(), line_id.into()),
+            ("routeObstacle".into(), "ignored".into()),
+        ]),
+        visible: true,
+    });
+}
+
 fn clearance_diagnostics(surface_y: f32, clearance: f32) -> Vec<Diagnostic> {
     let mut document = collision_document();
     for node in document.scene.nodes_mut() {
