@@ -8,7 +8,6 @@ const COMPONENT_F32: u64 = 5126;
 #[derive(Debug, Clone, PartialEq)]
 pub enum AccessorData {
     F32 { values: Vec<f32>, components: usize },
-    U8 { values: Vec<u8>, components: usize },
     U16 { values: Vec<u16>, components: usize },
     U32 { values: Vec<u32>, components: usize },
 }
@@ -17,7 +16,6 @@ impl AccessorData {
     pub fn components(&self) -> usize {
         match self {
             Self::F32 { components, .. }
-            | Self::U8 { components, .. }
             | Self::U16 { components, .. }
             | Self::U32 { components, .. } => *components,
         }
@@ -26,7 +24,6 @@ impl AccessorData {
     pub fn len(&self) -> usize {
         match self {
             Self::F32 { values, .. } => values.len(),
-            Self::U8 { values, .. } => values.len(),
             Self::U16 { values, .. } => values.len(),
             Self::U32 { values, .. } => values.len(),
         }
@@ -46,13 +43,6 @@ impl AccessorData {
     pub fn as_u16(&self) -> Option<&[u16]> {
         match self {
             Self::U16 { values, .. } => Some(values),
-            _ => None,
-        }
-    }
-
-    pub fn as_u8(&self) -> Option<&[u8]> {
-        match self {
-            Self::U8 { values, .. } => Some(values),
             _ => None,
         }
     }
@@ -190,10 +180,9 @@ pub fn read_accessor(source: &SourceGlb, accessor_index: usize) -> AssetResult<A
     }
     match component_type {
         COMPONENT_F32 => Ok(AccessorData::F32 { values, components }),
-        COMPONENT_U8 => Ok(AccessorData::U8 {
-            values: values.into_iter().map(|value| value as u8).collect(),
-            components,
-        }),
+        COMPONENT_U8 => Err(accessor_error(
+            "unnormalized UBYTE accessors are unsupported",
+        )),
         COMPONENT_U16 => Ok(AccessorData::U16 {
             values: values.into_iter().map(|value| value as u16).collect(),
             components,
