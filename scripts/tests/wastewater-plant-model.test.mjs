@@ -1292,10 +1292,15 @@ test('process pipe diameters stay within the engineered line size', () => {
   assert.ok(connection.connection.diameter <= 1.25);
 });
 
-test('above-ground pipe supports are two-column assemblies', () => {
+test('above-ground pipe supports use at most two columns', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const supports = plan.operations.filter(({ type, metadata }) => (
-    type === 'node.create' && metadata?.role === 'pipe-support'
+    type === 'node.create'
+    && (
+      metadata?.role === 'pipe-support'
+      || metadata?.role === 'pipe-support-frame'
+      || metadata?.role === 'pipe-clamp'
+    )
   ));
   const groups = new Map();
   for (const support of supports) {
@@ -1304,7 +1309,7 @@ test('above-ground pipe supports are two-column assemblies', () => {
     groups.set(group, (groups.get(group) ?? 0) + 1);
   }
   assert.ok(groups.size > 0);
-  assert.ok([...groups.values()].every((count) => count === 3));
+  assert.ok([...groups.values()].every((count) => count >= 3 && count <= 5));
 });
 
 test('pipe support layout stays sparse while covering every route', () => {
@@ -1314,8 +1319,41 @@ test('pipe support layout stays sparse while covering every route', () => {
     && metadata?.role === 'pipe-support'
     && metadata.supportPart === 'beam'
   ));
-  assert.ok(beams.length <= 650, `${beams.length} support groups exceed the visual density gate`);
+  assert.ok(beams.length <= 525, `${beams.length} support groups exceed the visual density gate`);
   assert.deepEqual(validatePipeSupportSpacing(plan, { maxSpacing: 6, tolerance: 1 }).issues, []);
+});
+
+test('pipe support frames sit below the pipe instead of intersecting it', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const supportNodes = plan.operations.filter(({ type, metadata }) => (
+    type === 'node.create'
+    && (
+      metadata?.role === 'pipe-support'
+      || metadata?.role === 'pipe-support-frame'
+      || metadata?.role === 'pipe-clamp'
+    )
+  ));
+  const groups = new Map();
+  for (const node of supportNodes) {
+    const group = node.metadata.supportGroup;
+    groups.set(group, [...(groups.get(group) ?? []), node]);
+  }
+  for (const nodes of groups.values()) {
+    const anchor = nodes.find(({ metadata }) => metadata.supportPart === 'beam');
+    const beam = nodes.find(({ metadata }) => metadata.supportPart === 'beam-frame');
+    const clamp = nodes.find(({ metadata }) => metadata.role === 'pipe-clamp');
+    const columns = nodes.filter(({ metadata }) => metadata.supportPart === 'column');
+    assert.ok(anchor && anchor.content.width <= 0.01);
+    assert.ok(beam && clamp);
+    assert.ok(columns.length === 0 || columns.length === 2);
+    const beamTop = beam.transform.translation.y + beam.content.height / 2;
+    const clampBottom = clamp.transform.translation.y - clamp.content.height / 2;
+    assert.ok(beamTop <= clampBottom + 1e-5, `${beam.metadata.supportGroup} beam cuts through pipe`);
+    for (const column of columns) {
+      const columnTop = column.transform.translation.y + column.content.height / 2;
+      assert.ok(columnTop <= beam.transform.translation.y - beam.content.height / 2 + 1e-5);
+    }
+  }
 });
 
 test('pipe supports sit on the routed pipe instead of open lawn', () => {

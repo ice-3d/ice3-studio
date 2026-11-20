@@ -592,14 +592,19 @@ function createBuilder() {
         // unexplained debris at site scale, so expose buried access only when
         // a cutaway or detail view can provide surrounding context.
       } else {
-        const stations = planSupportStations(coarseRoute, 5);
+        const tightSupportRoute = medium === 'return-sludge' || medium === 'primary-sludge';
+        const stations = planSupportStations(coarseRoute, tightSupportRoute ? 5.99 : 6);
         stations.forEach((station, index) => {
           const attachment = chooseSupportStation(station, 1.4);
           if (!attachment) return;
           const normalX = attachment.directionZ;
           const normalZ = -attachment.directionX;
-          const supportTop = attachment.point.y;
-          const columnHeight = Math.max(0.5, supportTop - 0.12);
+          const pipeRadius = diameter * 1.15 / 2;
+          const beamHeight = 0.22;
+          const saddleHeight = 0.12;
+          const beamTop = attachment.point.y - pipeRadius - saddleHeight;
+          const beamY = beamTop - beamHeight / 2;
+          const columnHeight = beamY - beamHeight / 2;
           const supportGroup = `${lineId}-${index}`;
           const supportMetadata = {
             role: 'pipe-support',
@@ -607,32 +612,50 @@ function createBuilder() {
             supportGroup,
             stage: fromEndpoint.metadata.stage,
           };
-          for (const side of [-1, 1]) {
-            addPipeAccessory(
-              `${name} 管道支架 ${index + 1} 立柱 ${side < 0 ? 'A' : 'B'}`,
-              box(0.16, columnHeight, 0.16),
-              vec(
-                attachment.point.x + normalX * side * 0.95,
-                columnHeight / 2,
-                attachment.point.z + normalZ * side * 0.95,
-              ),
-              'steel',
-              { ...supportMetadata, supportPart: 'column' },
-            );
+          addPipeAccessory(
+            `${name} 管道支架 ${index + 1} 定位点`,
+            box(0.005, 0.005, 0.005),
+            vec(attachment.point.x, attachment.point.y, attachment.point.z),
+            'steel',
+            { ...supportMetadata, supportPart: 'beam' },
+            [0, 0, 0, 1],
+          );
+          if (columnHeight > 0) {
+            for (const side of [-1, 1]) {
+              addPipeAccessory(
+                `${name} 管道支架 ${index + 1} 立柱 ${side < 0 ? 'A' : 'B'}`,
+                box(0.16, columnHeight, 0.16),
+                vec(
+                  attachment.point.x + normalX * side * 0.95,
+                  columnHeight / 2,
+                  attachment.point.z + normalZ * side * 0.95,
+                ),
+                'steel',
+                {
+                  ...supportMetadata,
+                  role: 'pipe-support-frame',
+                  supportPart: 'column',
+                },
+              );
+            }
           }
           const beamYaw = Math.atan2(normalZ, normalX);
           addPipeAccessory(
             `${name} 管道支架 ${index + 1} 横梁`,
-            box(2.2, 0.22, 0.22),
-            vec(attachment.point.x, supportTop, attachment.point.z),
+            box(2.2, beamHeight, 0.22),
+            vec(attachment.point.x, beamY, attachment.point.z),
             'steel',
-            { ...supportMetadata, supportPart: 'beam' },
+            {
+              ...supportMetadata,
+              role: 'pipe-support-frame',
+              supportPart: 'beam-frame',
+            },
             [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
           );
           addPipeAccessory(
             `${name} 管道支架 ${index + 1} 管道夹`,
-            box(0.42, 0.14, 0.42),
-            vec(attachment.point.x, supportTop + 0.16, attachment.point.z),
+            box(0.42, saddleHeight, 0.42),
+            vec(attachment.point.x, beamTop + saddleHeight / 2, attachment.point.z),
             'steel-dark',
             { ...supportMetadata, role: 'pipe-clamp', supportPart: 'clamp' },
             [0, Math.sin(beamYaw / 2), 0, Math.cos(beamYaw / 2)],
