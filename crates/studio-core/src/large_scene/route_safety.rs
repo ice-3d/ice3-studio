@@ -36,6 +36,25 @@ pub struct RouteSafetyStats {
     pub triangle_pairs: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RouteSafetyLimits {
+    pub max_obstacle_owners: usize,
+    pub max_route_segments: usize,
+    pub max_triangle_pairs: usize,
+    pub max_collisions_per_route: usize,
+}
+
+impl Default for RouteSafetyLimits {
+    fn default() -> Self {
+        Self {
+            max_obstacle_owners: MAX_OBSTACLE_OWNERS,
+            max_route_segments: MAX_ROUTE_SEGMENTS,
+            max_triangle_pairs: MAX_TRIANGLE_PAIRS,
+            max_collisions_per_route: MAX_COLLISIONS_PER_ROUTE,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) enum ObstacleClass {
@@ -94,10 +113,18 @@ pub fn validate_route_safety(
     document: &Document,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
 ) -> (Vec<Diagnostic>, RouteSafetyStats) {
+    validate_route_safety_with_limits(document, definitions, RouteSafetyLimits::default())
+}
+
+pub fn validate_route_safety_with_limits(
+    document: &Document,
+    definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    limits: RouteSafetyLimits,
+) -> (Vec<Diagnostic>, RouteSafetyStats) {
     let mut stats = RouteSafetyStats::default();
     let mut diagnostics = Vec::new();
-    let routes = route_facts(document, definitions, &mut diagnostics, &mut stats);
-    let obstacles = obstacle_owners(document, definitions, &mut diagnostics, &mut stats);
+    let routes = route_facts(document, definitions, &mut diagnostics, &mut stats, limits);
+    let obstacles = obstacle_owners(document, definitions, &mut diagnostics, &mut stats, limits);
     let stations = support_stations(document, &routes, &mut diagnostics);
 
     for route in &routes {
@@ -148,6 +175,20 @@ pub fn validate_route_safety(
                 if distance > route.radius + crate::geometry::CLASH_EPSILON {
                     continue;
                 }
+                if stats.triangle_pairs >= limits.max_triangle_pairs {
+                    diagnostics.push(Diagnostic {
+                        code: DiagnosticCode::RouteSafetyBudget,
+                        operation_index: None,
+                        object_id: Some(route.node_id.to_string()),
+                        pointer: format!("/scene/nodes/{}/content", route.node_index),
+                        message: format!(
+                            "route safety triangle-pair budget {} exceeded",
+                            limits.max_triangle_pairs
+                        ),
+                    });
+                    validate_support_layout(&routes, &stations, &mut diagnostics);
+                    return (diagnostics, stats);
+                }
                 stats.broad_phase_candidates += 1;
                 if !reported.insert(obstacle.source_id.clone()) {
                     continue;
@@ -190,6 +231,19 @@ pub fn validate_route_safety(
                     reported.remove(&obstacle.source_id);
                     continue;
                 }
+                if reported.len() > limits.max_collisions_per_route {
+                    diagnostics.push(Diagnostic {
+                        code: DiagnosticCode::RouteSafetyBudget,
+                        operation_index: None,
+                        object_id: Some(route.node_id.to_string()),
+                        pointer: format!("/scene/nodes/{}/content", route.node_index),
+                        message: format!(
+                            "route collision report budget {} exceeded",
+                            limits.max_collisions_per_route
+                        ),
+                    });
+                    break;
+                }
                 diagnostics.push(Diagnostic {
                     code: DiagnosticCode::RouteCollision,
                     operation_index: None,
@@ -213,6 +267,7 @@ fn route_facts(
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
     diagnostics: &mut Vec<Diagnostic>,
     stats: &mut RouteSafetyStats,
+    limits: RouteSafetyLimits,
 ) -> Vec<RouteFact> {
     let mut routes = Vec::new();
     for (index, node) in document.scene.nodes().iter().enumerate() {
@@ -223,13 +278,16 @@ fn route_facts(
             continue;
         };
         let segment_count = points.len().saturating_sub(1);
-        if stats.route_segments + segment_count > MAX_ROUTE_SEGMENTS {
+        if stats.route_segments + segment_count > limits.max_route_segments {
             diagnostics.push(Diagnostic {
                 code: DiagnosticCode::RouteSafetyBudget,
                 operation_index: None,
                 object_id: Some(node.id.to_string()),
                 pointer: format!("/scene/nodes/{index}/content"),
-                message: format!("route safety segment budget {MAX_ROUTE_SEGMENTS} exceeded"),
+                message: format!(
+                    "route safety segment budget {} exceeded",
+                    limits.max_route_segments
+                ),
             });
             break;
         }
@@ -265,6 +323,7 @@ fn obstacle_owners(
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
     diagnostics: &mut Vec<Diagnostic>,
     stats: &mut RouteSafetyStats,
+    limits: RouteSafetyLimits,
 ) -> Vec<ObstacleOwner> {
     let mut owners = Vec::new();
     for (index, node) in document.scene.nodes().iter().enumerate() {
@@ -299,13 +358,16 @@ fn obstacle_owners(
         let Some(bounds) = bounds else {
             continue;
         };
-        if owners.len() >= MAX_OBSTACLE_OWNERS {
+        if owners.len() >= limits.max_obstacle_owners {
             diagnostics.push(Diagnostic {
                 code: DiagnosticCode::RouteSafetyBudget,
                 operation_index: None,
                 object_id: Some(node.id.to_string()),
                 pointer: format!("/scene/nodes/{index}/content"),
-                message: format!("route safety obstacle budget {MAX_OBSTACLE_OWNERS} exceeded"),
+                message: format!(
+                    "route safety obstacle budget {} exceeded",
+                    limits.max_obstacle_owners
+                ),
             });
             break;
         }

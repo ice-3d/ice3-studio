@@ -1,3 +1,5 @@
+mod support;
+
 use studio_core::apply::TransactionError;
 use studio_core::apply::{ApplyRequest, apply_transaction};
 use studio_core::document::{Constraint, Document, NodeContent, Relation};
@@ -325,4 +327,29 @@ fn rejects_duplicate_ids_and_hierarchy_cycles() {
     )
     .unwrap_err();
     assert!(matches!(cycle_error, TransactionError::ValidationFailed(_)));
+}
+
+#[test]
+fn route_collision_does_not_advance_revision() {
+    let mut document = support::route_collision_document();
+    let before = document.revision;
+    let error = apply_transaction(
+        &mut document,
+        ApplyRequest {
+            expected_revision: before,
+            dry_run: false,
+            idempotency_key: "route-collision".into(),
+            operations: vec![Operation::NodeUpdate {
+                node_id: "node-000003".into(),
+                name: Some("Rejected route".into()),
+                transform: None,
+                visible: None,
+                metadata: None,
+            }],
+        },
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, TransactionError::ValidationFailed(_)));
+    assert_eq!(document.revision, before);
 }

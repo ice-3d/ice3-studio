@@ -10,10 +10,12 @@ use studio_core::large_scene::component::{
     PartTransform, ScalarBinding, Vector3Binding,
 };
 use studio_core::large_scene::connection::{ConnectionIntent, InstancePortRef, RoutePolicy};
-use studio_core::large_scene::route_safety::{RouteSafetyStats, validate_route_safety};
+use studio_core::large_scene::route_safety::{
+    RouteSafetyLimits, RouteSafetyStats, validate_route_safety, validate_route_safety_with_limits,
+};
 use studio_core::math::{Transform, Vec3};
 use studio_core::validation::{Diagnostic, DiagnosticCode};
-use support::shared_pump_document;
+use support::{route_collision_document, shared_pump_document};
 
 fn definitions(document: &Document) -> BTreeMap<ComponentId, &ComponentDefinition> {
     document
@@ -39,7 +41,7 @@ fn route_safety_codes(document: &Document) -> Vec<DiagnosticCode> {
 
 #[test]
 fn direct_route_through_a_static_box_is_rejected() {
-    let document = collision_document();
+    let document = route_collision_document();
     let (diagnostics, stats) = run_route_safety(&document);
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic.code == DiagnosticCode::RouteCollision
@@ -105,6 +107,29 @@ fn support_layout_rejects_missing_sparse_and_off_route_stations() {
     );
     assert_support_code(orphan_support_document(), DiagnosticCode::OperationInvalid);
     assert_eq!(buried_without_support_codes(), vec![]);
+}
+
+#[test]
+fn route_safety_budget_exhaustion_fails_closed() {
+    let (diagnostics, _) = validate_with_segment_limit(0);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::RouteSafetyBudget)
+    );
+}
+
+fn validate_with_segment_limit(limit: usize) -> (Vec<Diagnostic>, RouteSafetyStats) {
+    let document = route_collision_document();
+    let definitions = definitions(&document);
+    validate_route_safety_with_limits(
+        &document,
+        &definitions,
+        RouteSafetyLimits {
+            max_route_segments: limit,
+            ..RouteSafetyLimits::default()
+        },
+    )
 }
 
 fn assert_support_code(document: Document, code: DiagnosticCode) {
@@ -226,7 +251,7 @@ fn add_support_with_line(document: &mut Document, id: &str, x: f32, y: f32, z: f
 }
 
 fn clearance_diagnostics(surface_y: f32, clearance: f32) -> Vec<Diagnostic> {
-    let mut document = collision_document();
+    let mut document = route_collision_document();
     for node in document.scene.nodes_mut() {
         if node.name.starts_with("Pump") {
             node.transform.translation.y = 5.0;
@@ -242,99 +267,8 @@ fn clearance_diagnostics(surface_y: f32, clearance: f32) -> Vec<Diagnostic> {
     run_route_safety(&document).0
 }
 
-fn collision_document() -> Document {
-    let mut document = shared_pump_document();
-    document.components[0].ports = vec![
-        ComponentPort {
-            name: "outlet".into(),
-            part_id: "body".into(),
-            position: Vec3 {
-                x: 1.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            direction: Vec3 {
-                x: 1.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            medium: "water".into(),
-            diameter: 0.2,
-        },
-        ComponentPort {
-            name: "inlet".into(),
-            part_id: "body".into(),
-            position: Vec3 {
-                x: -1.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            direction: Vec3 {
-                x: -1.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            medium: "water".into(),
-            diameter: 0.2,
-        },
-    ];
-    document.relations.push(Relation {
-        id: RelationId::from("relation-000001"),
-        relation_type: "process".into(),
-        from_node_id: NodeId::from("node-000001"),
-        to_node_id: NodeId::from("node-000002"),
-        metadata: BTreeMap::new(),
-    });
-    document.scene.nodes_mut().push(SceneNode {
-        id: NodeId::from("node-000003"),
-        name: "Pipe".into(),
-        parent_id: None,
-        transform: Transform::IDENTITY,
-        material_id: None,
-        content: NodeContent::Connection(ConnectionIntent {
-            from: InstancePortRef::Instance {
-                node_id: NodeId::from("node-000001"),
-                port: "outlet".into(),
-            },
-            to: InstancePortRef::Instance {
-                node_id: NodeId::from("node-000002"),
-                port: "inlet".into(),
-            },
-            medium: "water".into(),
-            diameter: 0.2,
-            route_policy: RoutePolicy::Direct,
-            relation_id: RelationId::from("relation-000001"),
-            metadata: BTreeMap::from([("lineId".into(), "L-001".into())]),
-        }),
-        metadata: BTreeMap::new(),
-        visible: true,
-    });
-    document.scene.nodes_mut().push(SceneNode {
-        id: NodeId::from("node-000004"),
-        name: "Obstacle".into(),
-        parent_id: None,
-        transform: Transform {
-            translation: Vec3 {
-                x: 6.0,
-                y: 0.0,
-                z: 0.0,
-            },
-            ..Transform::IDENTITY
-        },
-        material_id: None,
-        content: NodeContent::Primitive(Primitive::Box {
-            width: 0.5,
-            height: 0.5,
-            depth: 2.0,
-        }),
-        metadata: BTreeMap::new(),
-        visible: true,
-    });
-    document
-}
-
 fn endpoint_contact_document() -> Document {
-    let mut document = collision_document();
+    let mut document = route_collision_document();
     document
         .scene
         .nodes_mut()
@@ -422,7 +356,7 @@ fn endpoint_reentry_document() -> Document {
 }
 
 fn rotated_part_clearance_document() -> Document {
-    let mut document = collision_document();
+    let mut document = route_collision_document();
     document
         .scene
         .nodes_mut()
