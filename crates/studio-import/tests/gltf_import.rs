@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::json;
+use studio_assets::surface::AlphaMode;
 use studio_import::{GltfImporter, SourceFormat};
 
 const PNG_BYTES: &[u8] = &[
@@ -74,6 +75,80 @@ fn imports_an_embedded_glb_image_without_an_unsupported_resource_warning() {
     assert!(!scene.warnings.iter().any(|warning| {
         warning.code == "ICE3_STUDIO_IMPORT_RESOURCE_UNSUPPORTED"
             && warning.message.contains("images")
+    }));
+}
+
+#[test]
+fn imports_all_surface_slots_and_texture_parameters() {
+    let root = textured_surface_fixture(0, false);
+    let scene = GltfImporter::new()
+        .import_file(&root.path().join("surface.gltf"), "surface")
+        .unwrap();
+    let material = &scene.materials[0];
+    let surface = material.surface.as_ref().unwrap();
+
+    assert_eq!(surface.metallic, 0.8);
+    assert_eq!(surface.roughness, 0.25);
+    assert_eq!(surface.emissive, Some([0.0, 0.1, 0.2]));
+    assert_eq!(surface.normal_texture.as_ref().unwrap().scale, 1.7);
+    assert_eq!(surface.base_color_texture.as_ref().unwrap().tex_coord, 0);
+    assert_eq!(
+        surface
+            .base_color_texture
+            .as_ref()
+            .unwrap()
+            .transform
+            .offset,
+        [0.25, 0.5]
+    );
+    assert_eq!(
+        surface.base_color_texture.as_ref().unwrap().sampler.wrap_s,
+        33071
+    );
+    assert_eq!(material.alpha_mode, AlphaMode::Mask);
+    assert_eq!(material.alpha_cutoff, 0.3);
+    assert!(material.double_sided);
+}
+
+#[test]
+fn skips_a_texture_bound_to_an_unsupported_uv_channel() {
+    let root = textured_surface_fixture(1, false);
+    let scene = GltfImporter::new()
+        .import_file(&root.path().join("surface.gltf"), "surface")
+        .unwrap();
+
+    assert!(
+        scene.materials[0]
+            .surface
+            .as_ref()
+            .unwrap()
+            .base_color_texture
+            .is_none()
+    );
+    assert!(
+        scene
+            .warnings
+            .iter()
+            .any(|warning| { warning.code == "ICE3_STUDIO_IMPORT_TEXTURE_COORDINATE_UNSUPPORTED" })
+    );
+}
+
+#[test]
+fn warns_for_emissive_textures_and_unknown_material_extensions() {
+    let root = textured_surface_fixture(0, true);
+    let scene = GltfImporter::new()
+        .import_file(&root.path().join("surface.gltf"), "surface")
+        .unwrap();
+
+    assert!(
+        scene
+            .warnings
+            .iter()
+            .any(|warning| { warning.code == "ICE3_STUDIO_IMPORT_TEXTURE_TARGET_UNSUPPORTED" })
+    );
+    assert!(scene.warnings.iter().any(|warning| {
+        warning.code == "ICE3_STUDIO_IMPORT_MATERIAL_EXTENSION_UNSUPPORTED"
+            && warning.message.contains("KHR_materials_unlit")
     }));
 }
 
@@ -214,4 +289,100 @@ fn pack_glb(json: &[u8], binary: &[u8]) -> Vec<u8> {
     glb.extend_from_slice(&0x004E_4942_u32.to_le_bytes());
     glb.extend_from_slice(&binary_chunk);
     glb
+}
+
+fn textured_surface_fixture(
+    tex_coord: u64,
+    unsupported_material_features: bool,
+) -> tempfile::TempDir {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("mesh.bin"), triangle_binary()).unwrap();
+    let texture_dir = root.path().join("textures");
+    std::fs::create_dir(&texture_dir).unwrap();
+    for (index, name) in ["base.png", "normal.png", "occlusion.png", "orm.png"]
+        .into_iter()
+        .enumerate()
+    {
+        let mut image = PNG_BYTES.to_vec();
+        image.push(index as u8);
+        std::fs::write(texture_dir.join(name), image).unwrap();
+    }
+    let mut material = json!({
+        "pbrMetallicRoughness": {
+            "baseColorFactor": [0.4, 0.5, 0.6, 0.8],
+            "metallicFactor": 0.8,
+            "roughnessFactor": 0.25,
+            "baseColorTexture": {
+                "index": 0,
+                "texCoord": tex_coord,
+                "extensions": {
+                    "KHR_texture_transform": {
+                        "offset": [0.25, 0.5],
+                        "rotation": 0.125,
+                        "scale": [2.0, 3.0]
+                    }
+                }
+            },
+            "metallicRoughnessTexture": {"index": 3}
+        },
+        "normalTexture": {"index": 1, "scale": 1.7},
+        "occlusionTexture": {"index": 2},
+        "emissiveFactor": [0.0, 0.1, 0.2],
+        "alphaMode": "MASK",
+        "alphaCutoff": 0.3,
+        "doubleSided": true
+    });
+    if unsupported_material_features {
+        material["emissiveTexture"] = json!({"index": 0});
+        material["extensions"] = json!({"KHR_materials_unlit": {}});
+    }
+    let gltf = json!({
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": "mesh.bin", "byteLength": 66}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 24},
+            {"buffer": 0, "byteOffset": 60, "byteLength": 6}
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC2"},
+            {"bufferView": 2, "componentType": 5123, "count": 3, "type": "SCALAR"}
+        ],
+        "images": [
+            {"uri": "textures/base.png"},
+            {"uri": "textures/normal.png"},
+            {"uri": "textures/occlusion.png"},
+            {"uri": "textures/orm.png"}
+        ],
+        "samplers": [{
+            "magFilter": 9729,
+            "minFilter": 9987,
+            "wrapS": 33071,
+            "wrapT": 33648
+        }],
+        "textures": [
+            {"sampler": 0, "source": 0},
+            {"sampler": 0, "source": 1},
+            {"sampler": 0, "source": 2},
+            {"sampler": 0, "source": 3}
+        ],
+        "materials": [material],
+        "meshes": [{
+            "primitives": [{
+                "attributes": {"POSITION": 0, "TEXCOORD_0": 1},
+                "indices": 2,
+                "material": 0
+            }]
+        }],
+        "nodes": [{"mesh": 0}],
+        "scenes": [{"nodes": [0]}],
+        "scene": 0
+    });
+    std::fs::write(
+        root.path().join("surface.gltf"),
+        serde_json::to_vec(&gltf).unwrap(),
+    )
+    .unwrap();
+    root
 }
