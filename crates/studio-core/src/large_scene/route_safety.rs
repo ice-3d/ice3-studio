@@ -559,7 +559,7 @@ fn component_triangles(
             continue;
         };
         let matrix = transform_matrix(compose_transform(world, part_transform));
-        for triangle in mesh.indices.chunks_exact(3) {
+        for triangle in mesh.indices.as_chunks::<3>().0 {
             let mut world_triangle = [[0.0; 3]; 3];
             for (target, index) in world_triangle.iter_mut().zip(triangle) {
                 let position = mesh.vertices[*index as usize].position;
