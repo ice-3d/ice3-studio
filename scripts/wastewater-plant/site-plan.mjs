@@ -85,6 +85,271 @@ export const requiredProcessGraph = [
   },
 ];
 
+function materialSurface({
+  baseColorTexture,
+  normalTexture,
+  ormTexture,
+  metallic = 0,
+  roughness = 0.8,
+  normalScale,
+  uvScale = [1, 1],
+  emissive,
+}) {
+  return {
+    ...(baseColorTexture ? { baseColorTexture } : {}),
+    ...(normalTexture ? { normalTexture } : {}),
+    ...(ormTexture ? { ormTexture } : {}),
+    metallic,
+    roughness,
+    ...(normalScale === undefined ? {} : { normalScale }),
+    uvScale,
+    ...(emissive ? { emissive } : {}),
+  };
+}
+
+const MATERIAL_SURFACES = {
+  'Reinforced concrete': materialSurface({
+    baseColorTexture: 'textures/concrete-base-a.png',
+    normalTexture: 'textures/concrete-normal-a.png',
+    ormTexture: 'textures/concrete-orm.png',
+    roughness: 0.86,
+    normalScale: 1,
+    uvScale: [0.32, 0.32],
+  }),
+  'Process water': materialSurface({
+    normalTexture: 'textures/water-normal.png',
+    roughness: 0.1,
+    normalScale: 0.5,
+    uvScale: [0.28, 0.28],
+  }),
+  'Galvanised steel': materialSurface({
+    normalTexture: 'textures/metal-normal-a.png',
+    metallic: 0.85,
+    roughness: 0.42,
+    normalScale: 0.8,
+    uvScale: [0.6, 0.6],
+  }),
+  'Grating walkway': materialSurface({
+    normalTexture: 'textures/metal-normal-a.png',
+    metallic: 0.8,
+    roughness: 0.55,
+    normalScale: 1.2,
+    uvScale: [1.2, 1.2],
+  }),
+  'Air header': materialSurface({
+    normalTexture: 'textures/metal-normal-b.png',
+    metallic: 0.35,
+    roughness: 0.4,
+    normalScale: 0.7,
+    uvScale: [0.8, 0.8],
+  }),
+  'Tree trunk': materialSurface({
+    normalTexture: 'textures/foliage-normal.png',
+    roughness: 0.9,
+    uvScale: [0.8, 0.8],
+  }),
+  Foliage: materialSurface({
+    normalTexture: 'textures/foliage-normal.png',
+    roughness: 0.95,
+    normalScale: 1.2,
+    uvScale: [0.45, 0.45],
+  }),
+  Paving: materialSurface({
+    baseColorTexture: 'textures/asphalt-base.png',
+    normalTexture: 'textures/asphalt-normal-b.png',
+    ormTexture: 'textures/asphalt-orm.png',
+    roughness: 0.8,
+    normalScale: 1,
+    uvScale: [0.3, 0.3],
+  }),
+  'Filter media': materialSurface({
+    baseColorTexture: 'textures/asphalt-base.png',
+    normalTexture: 'textures/asphalt-normal-a.png',
+    ormTexture: 'textures/asphalt-orm.png',
+    roughness: 0.95,
+    normalScale: 1,
+    uvScale: [0.9, 0.9],
+  }),
+  'UV lamp': materialSurface({
+    roughness: 0.3,
+    uvScale: [1, 1],
+    emissive: [0.55, 0.65, 0.95],
+  }),
+  'Insulated metal panel': materialSurface({
+    normalTexture: 'textures/metal-normal-a.png',
+    metallic: 0.55,
+    roughness: 0.55,
+    normalScale: 0.8,
+    uvScale: [0.5, 0.5],
+  }),
+  'Masonry facade': materialSurface({
+    normalTexture: 'textures/masonry-normal.png',
+    roughness: 0.88,
+    normalScale: 1,
+    uvScale: [0.4, 0.4],
+  }),
+  'Standing seam roof': materialSurface({
+    normalTexture: 'textures/metal-normal-b.png',
+    metallic: 0.75,
+    roughness: 0.45,
+    normalScale: 0.9,
+    uvScale: [0.6, 0.6],
+  }),
+  Lawn: materialSurface({
+    normalTexture: 'textures/foliage-normal.png',
+    roughness: 0.97,
+    normalScale: 1.2,
+    uvScale: [0.35, 0.35],
+  }),
+  'Asphalt road': materialSurface({
+    baseColorTexture: 'textures/asphalt-base.png',
+    normalTexture: 'textures/asphalt-normal-a.png',
+    ormTexture: 'textures/asphalt-orm.png',
+    roughness: 0.92,
+    normalScale: 1.1,
+    uvScale: [0.22, 0.22],
+  }),
+  Glazing: materialSurface({
+    roughness: 0.04,
+    uvScale: [1, 1],
+  }),
+  Sludge: materialSurface({
+    normalTexture: 'textures/water-normal.png',
+    roughness: 0.12,
+    normalScale: 0.6,
+    uvScale: [0.25, 0.25],
+  }),
+  'Road marking': materialSurface({
+    roughness: 0.65,
+    uvScale: [1, 1],
+  }),
+  'Clipped hedge': materialSurface({
+    normalTexture: 'textures/foliage-normal.png',
+    roughness: 0.95,
+    normalScale: 1.2,
+    uvScale: [0.4, 0.4],
+  }),
+  'Sign panel': materialSurface({
+    normalTexture: 'textures/metal-normal-a.png',
+    metallic: 0.3,
+    roughness: 0.6,
+    normalScale: 0.6,
+    uvScale: [1, 1],
+  }),
+  'New concrete': materialSurface({
+    baseColorTexture: 'textures/concrete-base-b.png',
+    normalTexture: 'textures/concrete-normal-b.png',
+    ormTexture: 'textures/concrete-orm.png',
+    roughness: 0.8,
+    normalScale: 1,
+    uvScale: [0.3, 0.3],
+  }),
+  'Weathered concrete': materialSurface({
+    baseColorTexture: 'textures/concrete-base-b.png',
+    normalTexture: 'textures/concrete-normal-c.png',
+    ormTexture: 'textures/concrete-orm.png',
+    roughness: 0.92,
+    normalScale: 1.2,
+    uvScale: [0.26, 0.26],
+  }),
+  'Wet concrete': materialSurface({
+    baseColorTexture: 'textures/concrete-base-b.png',
+    normalTexture: 'textures/concrete-normal-b.png',
+    ormTexture: 'textures/concrete-orm.png',
+    roughness: 0.45,
+    normalScale: 1,
+    uvScale: [0.35, 0.35],
+  }),
+  'Dark steel': materialSurface({
+    normalTexture: 'textures/metal-normal-b.png',
+    metallic: 0.9,
+    roughness: 0.35,
+    normalScale: 0.8,
+    uvScale: [0.6, 0.6],
+  }),
+  'Stainless steel': materialSurface({
+    normalTexture: 'textures/metal-normal-b.png',
+    metallic: 1,
+    roughness: 0.22,
+    normalScale: 0.6,
+    uvScale: [0.5, 0.5],
+  }),
+  'Pressure vessel steel': materialSurface({
+    normalTexture: 'textures/metal-normal-a.png',
+    metallic: 0.9,
+    roughness: 0.3,
+    normalScale: 0.7,
+    uvScale: [0.5, 0.5],
+  }),
+  'Light metal roof': materialSurface({
+    normalTexture: 'textures/metal-normal-b.png',
+    metallic: 0.8,
+    roughness: 0.38,
+    normalScale: 0.8,
+    uvScale: [0.7, 0.7],
+  }),
+  'Anoxic water': materialSurface({
+    normalTexture: 'textures/water-normal.png',
+    roughness: 0.1,
+    normalScale: 0.5,
+    uvScale: [0.25, 0.25],
+  }),
+  'Aerobic water': materialSurface({
+    normalTexture: 'textures/water-normal.png',
+    roughness: 0.1,
+    normalScale: 0.5,
+    uvScale: [0.25, 0.25],
+  }),
+  'Clarified water': materialSurface({
+    normalTexture: 'textures/water-normal.png',
+    roughness: 0.08,
+    normalScale: 0.45,
+    uvScale: [0.22, 0.22],
+  }),
+  'Primary clarifier water': materialSurface({
+    normalTexture: 'textures/water-normal.png',
+    roughness: 0.12,
+    normalScale: 0.5,
+    uvScale: [0.25, 0.25],
+  }),
+  'Sludge water': materialSurface({
+    normalTexture: 'textures/water-normal.png',
+    roughness: 0.12,
+    normalScale: 0.6,
+    uvScale: [0.25, 0.25],
+  }),
+  'Aeration foam': materialSurface({
+    normalTexture: 'textures/water-normal.png',
+    roughness: 0.55,
+    normalScale: 0.8,
+    uvScale: [0.5, 0.5],
+  }),
+  'New asphalt': materialSurface({
+    baseColorTexture: 'textures/asphalt-base.png',
+    normalTexture: 'textures/asphalt-normal-b.png',
+    ormTexture: 'textures/asphalt-orm.png',
+    roughness: 0.9,
+    normalScale: 1.1,
+    uvScale: [0.22, 0.22],
+  }),
+  'Worn asphalt': materialSurface({
+    baseColorTexture: 'textures/asphalt-base.png',
+    normalTexture: 'textures/asphalt-normal-a.png',
+    ormTexture: 'textures/asphalt-orm.png',
+    roughness: 0.95,
+    normalScale: 1.2,
+    uvScale: [0.18, 0.18],
+  }),
+  Curb: materialSurface({
+    baseColorTexture: 'textures/concrete-base-a.png',
+    normalTexture: 'textures/concrete-normal-a.png',
+    ormTexture: 'textures/concrete-orm.png',
+    roughness: 0.85,
+    normalScale: 0.9,
+    uvScale: [0.5, 0.5],
+  }),
+};
+
 function buildPlan(projectId) {
   const b = createBuilderFromKit();
   // 配色直接按照片里的观感用十六进制写，srgb() 负责转成线性分量。
@@ -847,7 +1112,14 @@ function buildPlan(projectId) {
     b.instance('lamp-post', `lamp-e-${index}`, `路灯 / 引道 ${index + 1}`, 20, 0, z, { role: 'landscape' }, {}, 0);
   }
 
-
+  for (const operation of b.state.ops) {
+    if (
+      operation.type === 'material.upsert'
+      && MATERIAL_SURFACES[operation.name]
+    ) {
+      operation.surface = MATERIAL_SURFACES[operation.name];
+    }
+  }
 
   const plan = {
     projectId,

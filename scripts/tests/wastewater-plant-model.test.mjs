@@ -1126,6 +1126,39 @@ test('materials separate civil, metal, water and site surfaces', () => {
   assert.ok(names.size <= 48);
 });
 
+test('material surfaces survive a deterministic model rebuild', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const materials = new Map(
+    plan.operations
+      .filter(({ type }) => type === 'material.upsert')
+      .map(({ name, surface }) => [name, surface]),
+  );
+
+  const concrete = materials.get('Reinforced concrete');
+  assert.ok(concrete);
+  assert.equal(concrete.baseColorTexture, 'textures/concrete-base-a.png');
+  assert.equal(concrete.normalTexture, 'textures/concrete-normal-a.png');
+  assert.equal(concrete.ormTexture, 'textures/concrete-orm.png');
+
+  const asphalt = materials.get('Asphalt road');
+  assert.ok(asphalt);
+  assert.equal(asphalt.baseColorTexture, 'textures/asphalt-base.png');
+  assert.equal(asphalt.normalTexture, 'textures/asphalt-normal-a.png');
+  assert.equal(asphalt.ormTexture, 'textures/asphalt-orm.png');
+
+  assert.ok(
+    [...materials.values()].filter(Boolean).length >= 30,
+    'the rebuilt plan must retain the textured material surface set',
+  );
+  for (const [name, surface] of materials) {
+    for (const key of ['baseColorTexture', 'normalTexture', 'ormTexture']) {
+      if (surface?.[key]) {
+        assert.match(surface[key], /^textures\/[^/]+\.png$/, `${name} ${key}`);
+      }
+    }
+  }
+});
+
 test('process basin water stays muted and readable instead of paint-bright', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const materials = new Map(
