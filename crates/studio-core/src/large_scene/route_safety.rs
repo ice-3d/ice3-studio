@@ -618,6 +618,9 @@ fn validate_support_layout(
         if matches!(route.policy, RoutePolicy::Buried { .. }) {
             continue;
         }
+        if route.line_id.is_none() {
+            continue;
+        }
         let line_stations = route
             .line_id
             .as_ref()

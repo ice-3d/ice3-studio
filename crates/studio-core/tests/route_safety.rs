@@ -168,6 +168,7 @@ fn support_layout_rejects_missing_sparse_and_off_route_stations() {
     );
     assert_support_code(orphan_support_document(), DiagnosticCode::OperationInvalid);
     assert_eq!(buried_without_support_codes(), vec![]);
+    assert_eq!(without_line_id_support_codes(), vec![]);
 }
 
 #[test]
@@ -237,6 +238,29 @@ fn orphan_support_document() -> Document {
 fn buried_without_support_codes() -> Vec<DiagnosticCode> {
     let mut document = support_document();
     set_route_policy(&mut document, RoutePolicy::Buried { depth: 1.0 });
+    route_safety_codes(&document)
+        .into_iter()
+        .filter(|code| {
+            matches!(
+                code,
+                DiagnosticCode::RouteSupportMissing | DiagnosticCode::RouteSupportSpacing
+            )
+        })
+        .collect()
+}
+
+fn without_line_id_support_codes() -> Vec<DiagnosticCode> {
+    let mut document = support_document();
+    let connection = document
+        .scene
+        .nodes_mut()
+        .iter_mut()
+        .find_map(|node| match &mut node.content {
+            NodeContent::Connection(connection) => Some(connection),
+            _ => None,
+        })
+        .expect("route fixture must contain a connection");
+    connection.metadata.remove("lineId");
     route_safety_codes(&document)
         .into_iter()
         .filter(|code| {
