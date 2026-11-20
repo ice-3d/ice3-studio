@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use crate::document::{Document, NodeContent, SceneNode};
 use crate::geometry::{Bounds, evaluate_node_content, segment_bounds_distance, world_bounds};
+use crate::geometry::{segment_triangle, segment_triangle_distance};
 use crate::ids::{ComponentId, NodeId};
 use crate::large_scene::component::ComponentDefinition;
 use crate::large_scene::connection::{InstancePortRef, RoutePolicy};
@@ -82,9 +83,11 @@ struct RouteFact {
 }
 
 struct ObstacleOwner {
+    source_index: usize,
     source_id: NodeId,
     bounds: Bounds,
     class: ObstacleClass,
+    narrow_phase: bool,
 }
 
 pub fn validate_route_safety(
@@ -98,18 +101,67 @@ pub fn validate_route_safety(
 
     for route in routes {
         let mut reported = BTreeSet::new();
-        for segment in route.points.windows(2) {
-            let segment = [segment[0], segment[1]];
+        for (segment_index, points) in route.points.windows(2).enumerate() {
+            let original_segment = [points[0], points[1]];
+            let length = route.cumulative[segment_index + 1] - route.cumulative[segment_index];
             for obstacle in &obstacles {
                 if !matches!(obstacle.class, ObstacleClass::Solid) {
                     continue;
                 }
+                let Some(clipped) = endpoint_clipped_segment(
+                    &route,
+                    segment_index,
+                    length,
+                    obstacle.source_id.as_str(),
+                    original_segment,
+                ) else {
+                    continue;
+                };
+                let segment = clipped;
                 let distance = segment_bounds_distance(segment, &obstacle.bounds);
                 if distance > route.radius + crate::geometry::CLASH_EPSILON {
                     continue;
                 }
                 stats.broad_phase_candidates += 1;
                 if !reported.insert(obstacle.source_id.clone()) {
+                    continue;
+                }
+                let collides = if obstacle.narrow_phase {
+                    let Some(node) = document.scene.nodes().get(obstacle.source_index) else {
+                        continue;
+                    };
+                    let Some(definition) = component_definition(node, definitions) else {
+                        continue;
+                    };
+                    stats.narrow_phase_pairs += 1;
+                    let triangles = component_triangles(document, node, definition);
+                    let mut hit = triangles.iter().any(|triangle| {
+                        stats.triangle_pairs += 1;
+                        segment_triangle_distance(segment, *triangle)
+                            <= route.radius + crate::geometry::CLASH_EPSILON
+                    });
+                    if !hit {
+                        for step in 1..=5 {
+                            let ratio = step as f32 / 6.0;
+                            let sample = [
+                                segment[0][0] + (segment[1][0] - segment[0][0]) * ratio,
+                                segment[0][1] + (segment[1][1] - segment[0][1]) * ratio,
+                                segment[0][2] + (segment[1][2] - segment[0][2]) * ratio,
+                            ];
+                            let (inside, pair_count) = point_in_mesh(sample, &triangles);
+                            stats.triangle_pairs += pair_count;
+                            if inside {
+                                hit = true;
+                                break;
+                            }
+                        }
+                    }
+                    hit
+                } else {
+                    true
+                };
+                if !collides {
+                    reported.remove(&obstacle.source_id);
                     continue;
                 }
                 diagnostics.push(Diagnostic {
@@ -231,14 +283,60 @@ fn obstacle_owners(
             break;
         }
         owners.push(ObstacleOwner {
+            source_index: index,
             source_id: node.id.clone(),
             bounds,
             class,
+            narrow_phase: matches!(node.content, NodeContent::ComponentInstance(_)),
         });
     }
     owners.sort_by(|left, right| left.source_id.as_str().cmp(right.source_id.as_str()));
     stats.obstacle_owners = owners.len();
     owners
+}
+
+fn endpoint_clipped_segment(
+    route: &RouteFact,
+    segment_index: usize,
+    length: f32,
+    owner: &str,
+    segment: [[f32; 3]; 2],
+) -> Option<[[f32; 3]; 2]> {
+    if length <= f32::EPSILON {
+        return None;
+    }
+    let segment_end_distance = route.cumulative[segment_index + 1];
+    let total = *route.cumulative.last().unwrap_or(&segment_end_distance);
+    let remaining_after = total - segment_end_distance;
+    let mut begin = 0.0_f32;
+    let mut end = 1.0_f32;
+    if route.from_owner.as_str() == owner && route.cumulative[segment_index] < ENDPOINT_EXCLUSION_M
+    {
+        begin = ((ENDPOINT_EXCLUSION_M - route.cumulative[segment_index]) / length).min(1.0);
+    }
+    if route.to_owner.as_str() == owner && remaining_after < ENDPOINT_EXCLUSION_M {
+        end = (1.0 - (ENDPOINT_EXCLUSION_M - remaining_after) / length).max(0.0);
+    }
+    if begin >= end {
+        return None;
+    }
+    let direction = [
+        segment[1][0] - segment[0][0],
+        segment[1][1] - segment[0][1],
+        segment[1][2] - segment[0][2],
+    ];
+    Some([
+        [
+            segment[0][0] + direction[0] * begin,
+            segment[0][1] + direction[1] * begin,
+            segment[0][2] + direction[2] * begin,
+        ],
+        [
+            segment[0][0] + direction[0] * end,
+            segment[0][1] + direction[1] * end,
+            segment[0][2] + direction[2] * end,
+        ],
+    ])
 }
 
 fn component_bounds(
@@ -267,6 +365,65 @@ fn component_bounds(
         });
     }
     bounds
+}
+
+fn component_definition<'a>(
+    node: &SceneNode,
+    definitions: &'a BTreeMap<ComponentId, &'a ComponentDefinition>,
+) -> Option<&'a ComponentDefinition> {
+    let NodeContent::ComponentInstance(instance) = &node.content else {
+        return None;
+    };
+    definitions.get(&instance.definition_id).copied()
+}
+
+fn component_triangles(
+    document: &Document,
+    node: &SceneNode,
+    definition: &ComponentDefinition,
+) -> Vec<[[f32; 3]; 3]> {
+    let NodeContent::ComponentInstance(instance) = &node.content else {
+        return Vec::new();
+    };
+    let Ok(parameters) = resolve_parameters(definition, &instance.parameters) else {
+        return Vec::new();
+    };
+    let Ok(world) = world_transform(document, node) else {
+        return Vec::new();
+    };
+    let mut triangles = Vec::new();
+    for part in &definition.parts {
+        let Ok(content) = resolve_part_content(&part.content, &parameters) else {
+            continue;
+        };
+        let Ok(mesh) = evaluate_node_content(&content) else {
+            continue;
+        };
+        let Ok(part_transform) = resolve_part_transform(&part.transform, &parameters) else {
+            continue;
+        };
+        let matrix = transform_matrix(compose_transform(world, part_transform));
+        for triangle in mesh.indices.chunks_exact(3) {
+            let mut world_triangle = [[0.0; 3]; 3];
+            for (target, index) in world_triangle.iter_mut().zip(triangle) {
+                let position = mesh.vertices[*index as usize].position;
+                let point =
+                    matrix.transform_point3(GlamVec3::new(position[0], position[1], position[2]));
+                *target = [point.x, point.y, point.z];
+            }
+            triangles.push(world_triangle);
+        }
+    }
+    triangles
+}
+
+fn point_in_mesh(point: [f32; 3], triangles: &[[[f32; 3]; 3]]) -> (bool, usize) {
+    let far = [point[0] + 1_000_000.0, point[1] + 0.125, point[2] + 0.0625];
+    let crossings = triangles
+        .iter()
+        .filter(|triangle| segment_triangle([point, far], **triangle))
+        .count();
+    (crossings % 2 == 1, triangles.len())
 }
 
 fn transform_bounds(bounds: Bounds, matrix: Mat4) -> Bounds {
