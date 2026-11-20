@@ -296,7 +296,10 @@ fn add_scaled(value: Vec3, direction: Vec3, distance: f32) -> Vec3 {
     }
 }
 
-fn world_transform(document: &Document, node: &SceneNode) -> Result<Transform, ConnectionError> {
+pub(crate) fn world_transform(
+    document: &Document,
+    node: &SceneNode,
+) -> Result<Transform, ConnectionError> {
     let mut transforms = Vec::new();
     let mut current = node;
     for _ in 0..=document.scene.nodes().len() {

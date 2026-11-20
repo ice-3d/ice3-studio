@@ -108,6 +108,8 @@ pub fn validate_large_scene(document: &Document) -> Vec<Diagnostic> {
     }
 
     diagnostics
+        .extend(crate::large_scene::route_safety::validate_route_safety(document, &definitions).0);
+    diagnostics
 }
 
 pub fn instance_count(layout: &InstanceLayout) -> Option<u32> {

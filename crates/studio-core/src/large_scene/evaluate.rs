@@ -878,7 +878,7 @@ fn blueprint_digest(
     Ok(format!("{:x}", Sha256::digest(bytes)))
 }
 
-fn resolve_part_content(
+pub(crate) fn resolve_part_content(
     content: &PartContent,
     parameters: &BTreeMap<String, ParameterValue>,
 ) -> Result<NodeContent, LargeSceneError> {
@@ -1000,7 +1000,7 @@ fn resolve_material_binding(
     }
 }
 
-fn resolve_part_transform(
+pub(crate) fn resolve_part_transform(
     transform: &PartTransform,
     parameters: &BTreeMap<String, ParameterValue>,
 ) -> Result<Transform, LargeSceneError> {
