@@ -32,7 +32,8 @@ pub use obj::ObjImporter;
 pub use registry::SourceImporterRegistry;
 pub use source::{
     ImportError, ImportRequest, ImportWarning, SourceCapabilities, SourceFormat, SourceImporter,
-    SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceScene,
+    SourceMaterial, SourceMesh, SourceNode, SourceNormalTexture, SourcePrimitive, SourceResource,
+    SourceScene, SourceSurface, SourceTextureBinding,
 };
 #[cfg(feature = "step")]
 pub use step::StepImporter;

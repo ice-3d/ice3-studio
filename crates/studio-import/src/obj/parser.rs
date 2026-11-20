@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use serde_json::json;
+use studio_assets::surface::AlphaMode;
 
 use crate::obj::read_obj_resources;
 use crate::{
@@ -260,6 +261,10 @@ fn parse_obj(
                             name: name.clone(),
                             base_color: [0.5; 3],
                             opacity: 1.0,
+                            alpha_mode: AlphaMode::Opaque,
+                            alpha_cutoff: 0.5,
+                            double_sided: false,
+                            surface: None,
                             extras: json!({"ice3": {"id": name}}),
                         },
                     );
@@ -300,6 +305,7 @@ fn parse_obj(
                         positions,
                         normals: primitive.all_normals.then(|| primitive.normals.clone()),
                         colors: None,
+                        uvs: None,
                         indices: primitive.indices.clone(),
                         material: (name != "__default").then(|| material_indices[name]),
                     }
@@ -358,6 +364,7 @@ fn parse_obj(
         nodes: output_nodes,
         meshes: output_meshes,
         materials,
+        resources: Vec::new(),
         warnings: parser.warnings.into_iter().collect(),
         asset_extras: json!({
             "coordinateSystem": {

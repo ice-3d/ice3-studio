@@ -4,6 +4,7 @@ use std::mem::size_of;
 use glam::{DMat4, DVec3, DVec4};
 use oxideav_step::{Occurrence, Shape, StepModel};
 use serde_json::{Map, Value, json};
+use studio_assets::surface::AlphaMode;
 
 use crate::{
     ImportError, ImportWarning, NativeImportLimits, SourceFormat, SourceMaterial, SourceMesh,
@@ -140,6 +141,7 @@ pub(super) fn project_model(
         nodes: projection.nodes,
         meshes: projection.meshes,
         materials: projection.materials,
+        resources: Vec::new(),
         warnings: projection.warnings.into_iter().collect(),
         asset_extras: json!({
             "ice3": {
@@ -557,6 +559,7 @@ impl Projection<'_> {
                     // canonical writer generates normals from the triangles.
                     normals: None,
                     colors: None,
+                    uvs: None,
                     indices,
                     material: Some(material),
                 });
@@ -601,6 +604,10 @@ impl Projection<'_> {
             name: format!("step/material/{index}"),
             base_color: color,
             opacity: rgba[3],
+            alpha_mode: AlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+            double_sided: false,
+            surface: None,
             extras: json!({ "ice3": { "step": true } }),
         });
         index

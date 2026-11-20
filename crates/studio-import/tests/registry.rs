@@ -36,6 +36,7 @@ impl SourceImporter for FakeImporter {
             nodes: Vec::new(),
             meshes: Vec::new(),
             materials: Vec::new(),
+            resources: Vec::new(),
             warnings: Vec::new(),
             asset_extras: serde_json::Value::Null,
         })

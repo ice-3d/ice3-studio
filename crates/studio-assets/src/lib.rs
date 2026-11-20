@@ -9,6 +9,7 @@ mod metrics;
 mod prepare;
 mod prepared;
 pub mod report;
+pub mod surface;
 
 pub use accessor::{AccessorData, read_accessor};
 pub use budget::{

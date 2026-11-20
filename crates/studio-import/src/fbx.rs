@@ -7,6 +7,7 @@ use fbx_rs::{
     load_with_limits,
 };
 use serde_json::{Map, Value, json};
+use studio_assets::surface::AlphaMode;
 
 use crate::{
     ImportError, ImportRequest, ImportWarning, NativeImportLimits, SourceCapabilities,
@@ -231,6 +232,10 @@ fn import_scene(
                     .unwrap_or_else(|| clean_authored_name(material.name())),
                 base_color,
                 opacity,
+                alpha_mode: AlphaMode::Opaque,
+                alpha_cutoff: 0.5,
+                double_sided: false,
+                surface: None,
                 extras: json!({
                     "ice3": {
                         "id": id,
@@ -308,6 +313,7 @@ fn import_scene(
         nodes,
         meshes,
         materials,
+        resources: Vec::new(),
         warnings: warnings.into_iter().collect(),
         asset_extras: json!({
             "coordinateSystem": {
@@ -420,6 +426,7 @@ fn import_mesh(mesh: &Mesh, index: usize, asset_id: &str) -> Result<SourceMesh, 
                 positions,
                 normals,
                 colors,
+                uvs: None,
                 indices,
                 material,
             })

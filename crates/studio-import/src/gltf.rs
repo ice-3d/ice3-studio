@@ -3,6 +3,7 @@ use std::path::Path;
 
 use glam::{Mat4, Quat, Vec3};
 use serde_json::{Map, Value, json};
+use studio_assets::surface::AlphaMode;
 use studio_assets::{AccessorData, SourceGlb, read_accessor, read_glb};
 
 use crate::{
@@ -183,6 +184,7 @@ pub(crate) fn import_source_glb(
         nodes: output_nodes,
         meshes: output_meshes,
         materials,
+        resources: Vec::new(),
         warnings: warnings.into_iter().collect(),
         asset_extras: json!({
             "coordinateSystem": source
@@ -258,6 +260,10 @@ fn import_material(
             *color.get(2).unwrap_or(&1.0),
         ],
         opacity: color.get(3).copied().unwrap_or(1.0).clamp(0.0, 1.0),
+        alpha_mode: AlphaMode::Opaque,
+        alpha_cutoff: 0.5,
+        double_sided: false,
+        surface: None,
         extras,
     })
 }
@@ -346,6 +352,7 @@ fn import_mesh(
             positions,
             normals,
             colors,
+            uvs: None,
             indices,
             material: primitive
                 .get("material")

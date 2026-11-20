@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use glam::{DMat4, DVec3};
 use ifc_lite_processing::{InstanceRecord, MeshData, ProcessingResult};
 use serde_json::{Value, json};
+use studio_assets::surface::AlphaMode;
 
 use super::{
     IfcMetadata, IfcNodeMetadata, IfcProductMetadata, IfcPropertySetMetadata,
@@ -241,6 +242,7 @@ pub fn project_ifc_scene(
         nodes,
         meshes: std::mem::take(&mut meshes),
         materials,
+        resources: Vec::new(),
         warnings: warnings.into_iter().collect(),
         asset_extras: json!({
             "ice3": {
@@ -289,6 +291,10 @@ fn build_geometry(
                     .try_into()
                     .expect("three components"),
                 opacity: rgba_components(key.rgba)[3],
+                alpha_mode: AlphaMode::Opaque,
+                alpha_cutoff: 0.5,
+                double_sided: false,
+                surface: None,
                 extras: json!({ "ice3": { "ifc": { "materialId": source.material_id } } }),
             });
             material_by_key.insert(key, index);
@@ -298,6 +304,7 @@ fn build_geometry(
             positions,
             normals,
             colors: None,
+            uvs: None,
             indices: source.indices.clone(),
             material: Some(material),
         };

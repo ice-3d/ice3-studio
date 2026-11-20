@@ -11,6 +11,7 @@ use openusd::sdf::{self, FieldKey, SpecType, Value as SdfValue};
 use openusd::tf::Token;
 use openusd::usd::{Prim, PrimPredicate, Stage};
 use serde_json::{Map, Value, json};
+use studio_assets::surface::AlphaMode;
 
 use crate::{
     ImportError, ImportRequest, ImportWarning, NativeImportLimits, SourceCapabilities,
@@ -714,6 +715,7 @@ fn import_stage(
         nodes,
         meshes,
         materials: material_list,
+        resources: Vec::new(),
         warnings: warnings.into_iter().collect(),
         asset_extras: json!({
             "coordinateSystem": {
@@ -795,6 +797,10 @@ fn import_materials(
                     name: path.name().unwrap_or("USD Material").to_owned(),
                     base_color,
                     opacity,
+                    alpha_mode: AlphaMode::Opaque,
+                    alpha_cutoff: 0.5,
+                    double_sided: false,
+                    surface: None,
                     extras: json!({
                         "ice3": {
                             "id": id,
@@ -1011,6 +1017,7 @@ fn import_mesh(
                 positions,
                 normals: output_normals,
                 colors: output_colors,
+                uvs: None,
                 indices: output_indices,
                 material,
             }],
