@@ -27,7 +27,7 @@ impl Default for TextureTransform {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TextureSampler {
     #[serde(default)]
     pub mag_filter: Option<u32>,

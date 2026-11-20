@@ -633,9 +633,45 @@ fn validate_textures(json: &Value) -> AssetResult<()> {
                 "texture images must be relative file paths",
             ));
         }
+        if let (Some(uri), Some(mime_type)) = (uri, image.get("mimeType").and_then(Value::as_str)) {
+            let expected = match mime_type {
+                "image/png" => "png",
+                "image/jpeg" => "jpg",
+                "image/webp" => "webp",
+                _ => {
+                    return Err(profile_invalid("texture image mime type is invalid"));
+                }
+            };
+            if !uri.to_ascii_lowercase().ends_with(&format!(".{expected}")) {
+                return Err(profile_invalid(
+                    "texture image mime type does not match its path",
+                ));
+            }
+        }
     }
     let textures = array(json.get("textures"));
     let samplers = array(json.get("samplers"));
+    for sampler in &samplers {
+        if sampler
+            .get("magFilter")
+            .and_then(Value::as_u64)
+            .is_some_and(|value| !matches!(value, 9728 | 9729))
+            || sampler
+                .get("minFilter")
+                .and_then(Value::as_u64)
+                .is_some_and(|value| !matches!(value, 9728 | 9729 | 9984..=9987))
+            || sampler
+                .get("wrapS")
+                .and_then(Value::as_u64)
+                .is_some_and(|value| !matches!(value, 33071 | 33648 | 10497))
+            || sampler
+                .get("wrapT")
+                .and_then(Value::as_u64)
+                .is_some_and(|value| !matches!(value, 33071 | 33648 | 10497))
+        {
+            return Err(profile_invalid("texture sampler value is invalid"));
+        }
+    }
     for texture in &textures {
         let source = texture.get("source").and_then(Value::as_u64);
         if source.is_none_or(|index| index as usize >= images.len()) {
@@ -661,8 +697,70 @@ fn validate_textures(json: &Value) -> AssetResult<()> {
                 return Err(profile_invalid("texture index is out of range"));
             }
         }
+        for pointer in [
+            "/pbrMetallicRoughness/baseColorTexture",
+            "/pbrMetallicRoughness/metallicRoughnessTexture",
+            "/normalTexture",
+            "/occlusionTexture",
+        ] {
+            let Some(info) = material.pointer(pointer).and_then(Value::as_object) else {
+                continue;
+            };
+            if info
+                .get("texCoord")
+                .and_then(Value::as_u64)
+                .is_some_and(|value| value != 0)
+            {
+                return Err(profile_invalid("texture coordinates must be TEXCOORD_0"));
+            }
+            if let Some(transform) = info
+                .get("extensions")
+                .and_then(Value::as_object)
+                .and_then(|value| value.get("KHR_texture_transform"))
+                .and_then(Value::as_object)
+            {
+                if transform
+                    .get("texCoord")
+                    .and_then(Value::as_u64)
+                    .is_some_and(|value| value != 0)
+                    || transform
+                        .get("offset")
+                        .is_some_and(|value| !valid_vec2(value, false))
+                    || transform
+                        .get("rotation")
+                        .is_some_and(|value| !value.as_f64().is_some_and(f64::is_finite))
+                    || transform
+                        .get("scale")
+                        .is_some_and(|value| !valid_vec2(value, true))
+                {
+                    return Err(profile_invalid("texture transform is invalid"));
+                }
+            }
+            if pointer == "/normalTexture"
+                && info.get("scale").is_some_and(|value| {
+                    !value
+                        .as_f64()
+                        .is_some_and(|value| value.is_finite() && (0.0..=2.0).contains(&value))
+                })
+            {
+                return Err(profile_invalid("normal texture scale is invalid"));
+            }
+        }
     }
     Ok(())
+}
+
+fn valid_vec2(value: &Value, positive: bool) -> bool {
+    value
+        .as_array()
+        .filter(|values| values.len() == 2)
+        .is_some_and(|values| {
+            values.iter().all(|value| {
+                value
+                    .as_f64()
+                    .is_some_and(|value| value.is_finite() && (!positive || value > 0.0))
+            })
+        })
 }
 
 fn array(value: Option<&Value>) -> Vec<Value> {

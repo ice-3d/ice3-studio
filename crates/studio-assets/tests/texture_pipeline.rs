@@ -7,7 +7,14 @@ use studio_assets::canonical::{
     CanonicalResource, CanonicalScene, CanonicalSurface, CanonicalTexture, CanonicalTextureBinding,
 };
 use studio_assets::surface::{AlphaMode, TextureSampler, TextureTransform};
-use studio_assets::{BudgetProfile, PrepareOptions, read_glb_bytes, validate_prepared_profile};
+use studio_assets::{
+    BudgetProfile, PrepareOptions, prepare_canonical_bundle, read_glb_bytes,
+    validate_prepared_profile,
+};
+
+const PNG_BYTES: &[u8] = &[
+    0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, b'I', b'H', b'D', b'R',
+];
 
 fn scene_with(texture: Option<CanonicalTexture>) -> CanonicalScene {
     CanonicalScene {
@@ -61,6 +68,7 @@ fn options() -> PrepareOptions {
         crease_angle_degrees: 30.0,
         generate_edges: false,
         budget: BudgetProfile::interactive_desktop_v1(),
+        texture_namespace: String::new(),
     }
 }
 
@@ -204,6 +212,32 @@ fn one_image_with_two_samplers_gets_two_texture_indices() {
         parsed.json["materials"][0]["pbrMetallicRoughness"]["baseColorTexture"]["index"],
         parsed.json["materials"][0]["occlusionTexture"]["index"]
     );
+}
+
+#[test]
+fn bundle_names_resources_inside_the_requested_directory() {
+    let mut scene = scene_with(None);
+    let base = resource(PNG_BYTES);
+    scene.resources = vec![base.clone()];
+    let mut options = options();
+    options.texture_namespace = "plant.textures".into();
+    scene.materials[0].surface = Some(CanonicalSurface {
+        metallic: 0.0,
+        roughness: 1.0,
+        emissive: None,
+        base_color_texture: Some(binding(&base, 0, [1.0, 1.0])),
+        normal_texture: None,
+        occlusion_texture: None,
+        metallic_roughness_texture: None,
+    });
+
+    let bundle = prepare_canonical_bundle(&scene, options).unwrap();
+    let parsed = read_glb_bytes(&bundle.glb, &std::env::temp_dir()).unwrap();
+    let expected_uri = format!("plant.textures/{}.png", base.digest);
+
+    assert_eq!(parsed.json["images"][0]["uri"], expected_uri);
+    assert_eq!(bundle.resources[0].uri, expected_uri);
+    assert_eq!(bundle.resources[0].bytes, PNG_BYTES);
 }
 
 fn resource(bytes: &[u8]) -> CanonicalResource {

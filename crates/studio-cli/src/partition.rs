@@ -212,6 +212,7 @@ pub fn partition_source(options: PartitionOptions) -> Result<PartitionOutput, Pa
             crease_angle_degrees: options.crease_angle_degrees,
             generate_edges: !options.skip_edges,
             budget,
+            texture_namespace: String::new(),
         },
     )?;
     let warnings = merge_warnings(&imported.warnings, &artifact.warnings);

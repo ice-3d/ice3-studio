@@ -253,6 +253,7 @@ pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportComma
             crease_angle_degrees: 30.0,
             generate_edges: false,
             budget: BudgetProfile::interactive_desktop_v1(),
+            texture_namespace: String::new(),
         },
     )?;
     if options.warnings_as_errors && artifact.budget.status == BudgetStatus::Warning {

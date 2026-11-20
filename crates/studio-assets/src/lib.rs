@@ -27,6 +27,9 @@ pub use image::{
     read_image_buffer_view, read_image_uri, validate_image_bytes,
 };
 pub use metrics::AssetMetrics;
-pub use prepare::{PrepareArtifact, PrepareOptions, prepare_canonical, validate_crease_angle};
+pub use prepare::{
+    PrepareArtifact, PrepareOptions, PreparedAssetBundle, PreparedResource, prepare_canonical,
+    prepare_canonical_bundle, validate_crease_angle,
+};
 pub use prepared::{PreparedBounds, PreparedProfile, validate_prepared_profile};
 pub use report::{AssetBuildReport, PreparationMetadata, PrepareWarning};

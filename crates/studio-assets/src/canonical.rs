@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use glam::{Mat4, Vec3};
+use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
@@ -170,6 +171,7 @@ pub fn write_prepared_glb(
             crease_angle_degrees: 30.0,
             generate_edges: false,
             budget: BudgetProfile::interactive_desktop_v1(),
+            texture_namespace: String::new(),
         },
     )
     .map(|artifact| artifact.bytes)
@@ -235,12 +237,14 @@ fn build_canonical_document(
     let world_matrices = world_matrices(scene, &node_indices)?;
     let edge_materials = used_edge_materials(scene)?;
     let resources = resource_map(&scene.resources)?;
+    let texture_prefix = texture_uri_prefix(&options.texture_namespace)?;
     let mut texture_registry = TextureRegistry::default();
     let (materials, material_indices) = output_materials(
         &scene.materials,
         &edge_materials,
         asset_id,
         &resources,
+        &texture_prefix,
         &mut texture_registry,
     )?;
     let mut binary = BinaryBuilder::default();
@@ -399,7 +403,7 @@ fn build_canonical_document(
         "buffers": [{"byteLength": byte_length}]
     });
     if !texture_registry.images.is_empty() {
-        let (images, samplers, textures) = texture_registry.output(&resources)?;
+        let (images, samplers, textures) = texture_registry.output(&resources, &texture_prefix)?;
         gltf["images"] = json!(images);
         gltf["samplers"] = json!(samplers);
         gltf["textures"] = json!(textures);
@@ -694,6 +698,7 @@ impl TextureRegistry {
     fn output(
         &self,
         resources: &BTreeMap<String, &CanonicalResource>,
+        texture_uri_prefix: &str,
     ) -> AssetResult<(Vec<Value>, Vec<Value>, Vec<Value>)> {
         let images = self
             .images
@@ -704,7 +709,7 @@ impl TextureRegistry {
                         .get(digest)
                         .ok_or_else(|| invalid("texture resource is missing"))?;
                     Ok(json!({
-                        "uri": resource_uri(resource)?,
+                        "uri": resource_uri(resource, texture_uri_prefix)?,
                         "mimeType": resource.media_type
                     }))
                 }
@@ -758,10 +763,16 @@ fn resource_map(
     Ok(output)
 }
 
-fn resource_uri(resource: &CanonicalResource) -> AssetResult<String> {
+pub(crate) fn resource_uri(
+    resource: &CanonicalResource,
+    texture_uri_prefix: &str,
+) -> AssetResult<String> {
     let extension = media_extension(&resource.media_type)
         .ok_or_else(|| invalid("image media type is invalid"))?;
-    Ok(format!("textures/{}.{}", resource.digest, extension))
+    Ok(format!(
+        "{texture_uri_prefix}/{}.{}",
+        resource.digest, extension
+    ))
 }
 
 fn media_extension(media_type: &str) -> Option<&'static str> {
@@ -771,6 +782,36 @@ fn media_extension(media_type: &str) -> Option<&'static str> {
         "image/webp" => Some("webp"),
         _ => None,
     }
+}
+
+const PATH_SEGMENT: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'%')
+    .add(b'/')
+    .add(b':')
+    .add(b'<')
+    .add(b'>')
+    .add(b'?')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'^')
+    .add(b'`')
+    .add(b'{')
+    .add(b'|')
+    .add(b'}');
+
+pub(crate) fn texture_uri_prefix(namespace: &str) -> AssetResult<String> {
+    if namespace.contains('/') || namespace.contains('\\') {
+        return Err(invalid("texture namespace must be one path segment"));
+    }
+    Ok(if namespace.is_empty() {
+        "textures".into()
+    } else {
+        utf8_percent_encode(namespace, PATH_SEGMENT).to_string()
+    })
 }
 
 fn write_texture_info(
@@ -812,6 +853,7 @@ fn output_materials(
     edge_materials: &[bool],
     asset_id: &str,
     resources: &BTreeMap<String, &CanonicalResource>,
+    texture_uri_prefix: &str,
     texture_registry: &mut TextureRegistry,
 ) -> AssetResult<(Vec<Value>, MaterialIndices)> {
     if edge_materials.len() != materials.len() {
@@ -848,7 +890,7 @@ fn output_materials(
                     let resource = resources
                         .get(&binding.resource)
                         .ok_or_else(|| invalid("texture resource is missing"))?;
-                    let equivalent = legacy.uri == resource_uri(resource)?
+                    let equivalent = legacy.uri == resource_uri(resource, texture_uri_prefix)?
                         && legacy.uv_scale == binding.transform.scale
                         && binding.transform.offset == [0.0, 0.0]
                         && binding.transform.rotation == 0.0

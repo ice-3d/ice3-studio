@@ -165,6 +165,7 @@ pub fn run_build(
             crease_angle_degrees: options.crease_angle_degrees,
             generate_edges: !options.skip_edges,
             budget,
+            texture_namespace: String::new(),
         },
     )?;
     let warnings = prepare_warnings(&imported.warnings, &artifact.warnings);
@@ -259,6 +260,7 @@ fn inspect_source(options: InspectOptions) -> Result<AssetBuildReport, PrepareCo
             crease_angle_degrees,
             generate_edges: !options.skip_edges,
             budget,
+            texture_namespace: String::new(),
         },
     )?;
     let warnings = prepare_warnings(&imported.warnings, &artifact.warnings);

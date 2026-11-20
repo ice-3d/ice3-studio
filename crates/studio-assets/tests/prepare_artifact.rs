@@ -203,6 +203,7 @@ fn invalid_crease_angle_is_rejected_even_when_edges_are_skipped() {
                 crease_angle_degrees,
                 generate_edges: false,
                 budget: BudgetProfile::interactive_desktop_v1(),
+                texture_namespace: String::new(),
             },
         )
         .unwrap_err();
@@ -350,6 +351,7 @@ fn options_with_budget(generate_edges: bool, budget: BudgetProfile) -> PrepareOp
         crease_angle_degrees: 30.0,
         generate_edges,
         budget,
+        texture_namespace: String::new(),
     }
 }
 
