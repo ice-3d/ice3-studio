@@ -115,6 +115,7 @@
 | `ICE3-STUDIO-PLAN-028` | [Studio Partition 与 Runtime Tileset 功能等价](plans/2026-11-02-studio-partition-runtime-parity.md) | Implemented | Phase 6B 统一 AssetProfile、direct partition 和 parity |
 | `ICE3-STUDIO-PLAN-029` | [Studio Prepare Engine 集成与最终验收](plans/2026-11-02-studio-prepare-engine-finalization.md) | Implemented | Phase 6C Engine 消费、性能、文档和最终门禁 |
 | `ICE3-STUDIO-PLAN-031` | [导入材质表面保真实施计划](plans/2026-11-20-import-material-surface-fidelity.md) | Implemented | glTF/GLB 材质槽、UV、受控资源和事务发布 |
+| `ICE3-STUDIO-PLAN-032` | [管线附件实体化实施计划](plans/2026-11-21-pipe-fitting-attachments.md) | Proposed | 参数化端口、三通/异径管/套管校验、资产组件与污水厂迁移 |
 
 ## 6. 状态说明
 
