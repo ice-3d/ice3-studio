@@ -1033,7 +1033,7 @@ function buildPlan(projectId) {
     lineId: gasHeaderLineId,
     hostNodeId: b.state.nodes.get('bulkhead-gas'),
     parameters: {
-      pipeDiameter: 0.35,
+      pipeDiameter: 0.41,
       sleeveDiameter: 0.55,
       wallThickness: 0.45,
       extension: 0.12,
@@ -1058,7 +1058,7 @@ function buildPlan(projectId) {
     lineId: returnHeaderLineId,
     hostNodeId: b.state.nodes.get('bulkhead-return'),
     parameters: {
-      pipeDiameter: 0.3,
+      pipeDiameter: 0.35,
       sleeveDiameter: 0.5,
       wallThickness: 0.45,
       extension: 0.05,

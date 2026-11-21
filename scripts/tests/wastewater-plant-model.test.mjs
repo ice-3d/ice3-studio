@@ -1570,6 +1570,28 @@ test('gas wall sleeve stays outside the gas holder pressure vessel', () => {
   );
 });
 
+test('wall sleeve openings clear the rendered pipe outside diameter', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const connections = plan.operations.filter(({ type }) => type === 'connection.create');
+  const sleeves = plan.operations.filter(({ type, instance }) => (
+    type === 'instance.create'
+    && instance?.metadata?.role === 'pipe-penetration'
+  ));
+  assert.ok(sleeves.length > 0);
+  for (const sleeve of sleeves) {
+    const lineDiameter = Math.max(...connections
+      .filter(({ connection }) => (
+        connection.metadata.lineId === sleeve.instance.metadata.lineId
+      ))
+      .map(({ connection }) => connection.diameter));
+    const openingDiameter = Number(sleeve.instance.parameters.pipeDiameter);
+    assert.ok(
+      openingDiameter >= lineDiameter,
+      `${sleeve.name} opening ${openingDiameter} m is smaller than ${lineDiameter} m`,
+    );
+  }
+});
+
 test('every tee has one connection on each functional port', async () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const { validatePipeFittingTopology } = await import(
