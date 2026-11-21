@@ -265,10 +265,16 @@ ice3-studio serve --workspace <dir> --project <id>
 | `--native-gpu` | `cpu` | 启动期策略，不能被 API 请求覆盖 |
 
 `import` 支持 glTF/GLB、OBJ/MTL、FBX ASCII/Binary、USD ASCII/Binary、STEP AP242、
-IFC4X3 和 JT。
-adapter 生成
-统一 `SourceScene`，canonical writer 生成 `ice3-prepared` GLB。OBJ/MTL、glTF 和 USD
-外部资源被限制在源文件同目录；OBJ 假定米制并发出 warning。FBX/USD/STEP/IFC/JT 通过
+IFC4X3 和 JT。glTF/GLB adapter 当前完整保留 metallic-roughness PBR 因子、base-color、
+normal、occlusion、metallic-roughness 贴图、每个贴图的 sampler 与
+`KHR_texture_transform`、alpha 状态、双面状态以及 `TEXCOORD_0`。外部图片、data URI 和
+GLB bufferView 图片会归一化为受限制的内容寻址资源。
+
+adapter 生成统一 `SourceScene`，canonical writer 生成 `ice3-prepared` GLB。OBJ/MTL、
+glTF 和 USD 外部资源被限制在源文件同目录；OBJ 假定米制并发出 warning。图片只接受
+PNG、JPEG 和 WebP；单图上限 64 MiB、总量 256 MiB、最多 4,096 项。glTF 高 UV 通道、
+emissive texture 和未支持材质扩展产生稳定 warning 并跳过对应槽位，资源缺失或路径逃逸
+则失败关闭。FBX/USD/STEP/IFC/JT 通过
 Studio 自带 worker 解析，不需要外部 DCC。JT 使用 host-owned `ICE3_JT_CONVERTER`，固定
 `--input`/`--output` 参数并验证 GLB。worker 默认限制 1,000,000 nodes、20,000,000 triangles、
 512 MiB estimated decoded memory 和 120 秒硬 timeout；response 与 stderr 上限分别为
@@ -287,7 +293,9 @@ process group 后才开始执行；批准 converter 不得通过新 session、da
 逃逸进程组。违反该 host trust contract 的 converter 不受支持。
 
 `--warnings-as-errors` 在发布前拒绝 warning；默认拒绝已有 output，`--force` 才原子
-替换。`validate` 接受 source glTF/GLB 与 Prepared GLB。
+替换。`import` 和 `build` 发布 `<stem>.glb` 与 `<stem>.textures/`；partition 把资源写到
+`parts/textures/`。GLB 的每个纹理 URI 都必须相对可解析。`validate` 接受 source
+glTF/GLB 与 Prepared GLB。
 
 ### 6.1 Asset Prepare
 
