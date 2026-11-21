@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-036
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
@@ -216,14 +216,16 @@ schema 42 / runtime 44。
 
 ### 8.1 Line identity
 
-Viewer 从当前选中节点解析 `lineId`：
+Viewer 从当前选中节点解析线路身份：
 
-1. `node.metadata.lineId`；
-2. `node.content.metadata.lineId`；
-3. connection content 内的 metadata `lineId`。
+1. `role=pipe-support` 且带 `supportLineId` 时，先在 connection content metadata 中查找
+   匹配的 `supportLineId`（旧资产也可匹配 `lineId`），返回该 connection 的主 `lineId`；
+2. `node.metadata.lineId`；
+3. `node.content.metadata.lineId`；
+4. connection content 内的 metadata `lineId`。
 
-前三者都不存在时不请求 `route.inspect`。支持对象使用 `supportLineId` 对应的线路名称
-仍由 Document 中的 connection metadata 映射，Viewer 不猜测路由。
+支撑实体的 `lineId` 可能是分段支撑身份，因此 `pipe-support` 的 `supportLineId` 映射
+必须先于其自身 `lineId`。不存在可用身份时不请求 `route.inspect`，Viewer 不猜测路由。
 
 ### 8.2 Route Inspector
 

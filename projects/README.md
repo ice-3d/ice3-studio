@@ -171,6 +171,30 @@ npm run asset:visual-review
 其中 `pipe-fittings` 检查回流污泥异径管，`wall-penetration` 检查沼气穿墙套管。两处
 近景都应在已安装的 Google Chrome 中打开；Viewer Diagnostics 应为空。
 
+### 6.2 线路审查
+
+在 Viewer 左侧搜索并选中 `RED-101 回流污泥异径管` 或
+`SLV-101 沼气主管穿墙套管`，打开右侧 `Inspect`。`Route inspection` 区域应显示：
+
+- 主 `lineId`、revision、共享该身份的全部分段和解析后的起止端口；
+- 每段介质、管径、route policy、点数、世界坐标和方向；
+- 与线路匹配的三通、异径管、穿墙套管、宿主以及支撑站点。
+
+点击分段、端口、附件或支撑只更新当前 Selection，不创建 ChangeSet。支撑对象的
+`supportLineId` 通过 Document 中 connection metadata 映射回主线路，避免把分段支撑身份
+误当成公开线路 ID。
+
+也可以直接调用只读 API：
+
+```bash
+curl -s -X POST http://127.0.0.1:8120/rpc \
+  -H 'authorization: Bearer dev' -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"route.inspect",
+       "params":{"lineId":"L-RAS-HEADER-101","revision":1}}'
+```
+
+当前工程统计以第 6 节表格为准；`route.inspect` 是读取接口，不改变 revision 或模型统计。
+
 ## 7. 修订存储
 
 组件定义不写在快照里，按内容摘要单独存成 `components/<id>-<digest>.json`，快照只记

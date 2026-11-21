@@ -14,24 +14,35 @@ export function routeLineIdForNode(
 ): string | null {
   if (!node) return null;
   const metadata = metadataOf(node);
-  if (typeof metadata.lineId === 'string' && metadata.lineId) {
-    return metadata.lineId;
+  const supportLineId = typeof metadata.supportLineId === 'string'
+    ? metadata.supportLineId
+    : null;
+  if (metadata.role === 'pipe-support' && supportLineId && document) {
+    const lineId = connectionLineIdForSupport(supportLineId, document);
+    if (lineId) return lineId;
   }
+  if (typeof metadata.lineId === 'string' && metadata.lineId) return metadata.lineId;
   if (
-    typeof metadata.supportLineId === 'string'
-    && metadata.supportLineId
+    supportLineId
     && document
   ) {
-    const connection = document.scene.nodes.find((candidate) => {
-      const candidateMetadata = metadataOf(candidate);
-      return candidate.content?.type === 'connection'
-        && (
-          candidateMetadata.supportLineId === metadata.supportLineId
-          || candidateMetadata.lineId === metadata.supportLineId
-        );
-    });
-    const lineId = connection && metadataOf(connection).lineId;
-    return typeof lineId === 'string' && lineId ? lineId : null;
+    return connectionLineIdForSupport(supportLineId, document);
   }
   return null;
+}
+
+function connectionLineIdForSupport(
+  supportLineId: string,
+  document: StudioDocument,
+): string | null {
+  const connection = document.scene.nodes.find((candidate) => {
+    const candidateMetadata = metadataOf(candidate);
+    return candidate.content?.type === 'connection'
+      && (
+        candidateMetadata.supportLineId === supportLineId
+        || candidateMetadata.lineId === supportLineId
+      );
+  });
+  const lineId = connection && metadataOf(connection).lineId;
+  return typeof lineId === 'string' && lineId ? lineId : null;
 }

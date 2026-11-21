@@ -47,7 +47,11 @@ test('selection resolves direct, connection, and support line identities', () =>
     id: 'node-000003',
     name: 'Support',
     parentId: null,
-    metadata: { supportLineId: 'L-SEG' },
+    metadata: {
+      lineId: 'L-SEG',
+      role: 'pipe-support',
+      supportLineId: 'L-SEG',
+    },
     content: {},
   } satisfies StudioNode;
   const document = {

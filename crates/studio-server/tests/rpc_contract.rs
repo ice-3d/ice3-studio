@@ -214,11 +214,11 @@ async fn route_inspection_returns_public_route_facts() {
         serde_json::json!({ "lineId": "L-RPC", "revision": 1 }),
     )
     .await;
+    assert_eq!(body["result"]["segments"][0]["nodeId"], "node-000003");
     assert_eq!(
-        body["result"]["segments"][0]["nodeId"],
-        "node-000003"
+        body["result"]["segments"][0]["from"]["nodeId"],
+        "node-000001"
     );
-    assert_eq!(body["result"]["segments"][0]["from"]["nodeId"], "node-000001");
     assert_eq!(body["result"]["segments"][0]["from"]["position"]["x"], 0.5);
 }
 

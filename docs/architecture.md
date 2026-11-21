@@ -196,8 +196,8 @@ Preview packet 只有在 host 明确开启时发布。客户端验证完整 pack
 buffer，失败时回退到 canonical GLB。GPU scene visibility 也提供 CPU fallback；GPU
 handle、device generation 和 buffer slot 不能泄漏为公共 object identity。
 
-静态 Schema 固化 39 个 JSON-RPC 方法；运行中的 Server 另外公布
-`evaluation.waitScene` 和 `evaluation.visibleInstances`，共 41 个方法。后者属于实验性
+静态 Schema 固化 42 个 JSON-RPC 方法；运行中的 Server 另外公布
+`evaluation.waitScene` 和 `evaluation.visibleInstances`，共 44 个方法。后者属于实验性
 能力，调用前应读取 `system.capabilities`。
 
 ## 5. Agent capability

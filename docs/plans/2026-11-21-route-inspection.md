@@ -2,13 +2,13 @@
 
 > Document ID: ICE3-STUDIO-PLAN-033
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use executing-plans. This repository
 > defaults to Native execution. Do not spawn or delegate to sub-agents unless the
-> user explicitly authorizes them. Steps use checkbox (`- [ ]`) syntax for tracking.
+> user explicitly authorizes them. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 交付只读 `route.inspect` 与 Viewer Route Inspector，让 Agent 和用户能按
 `lineId` 查看同源的分段路由、解析端口、附件、宿主和支撑事实。
@@ -98,7 +98,7 @@ Node.js ESM、Google Chrome。
   `RouteInspectionPort`, `RouteInspectionLimits`, `RouteInspectionError` and
   `inspect_route(document, definitions, line_id, expected_revision, limits)`.
 
-- [ ] **Step 1: Write the failing happy-path Core test**
+- [x] **Step 1: Write the failing happy-path Core test**
 
 Create `crates/studio-core/tests/route_inspection.rs`:
 
@@ -151,7 +151,7 @@ fn inspects_the_formal_route_and_resolved_endpoints() {
 }
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 ```bash
 CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target \
@@ -160,7 +160,7 @@ CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target 
 
 Expected: FAIL because `large_scene::route_inspection` does not exist.
 
-- [ ] **Step 3: Implement the public types and happy path**
+- [x] **Step 3: Implement the public types and happy path**
 
 Create `route_inspection.rs` with:
 
@@ -433,7 +433,7 @@ Add to `large_scene/mod.rs`:
 pub mod route_inspection;
 ```
 
-- [ ] **Step 4: Run the test and verify GREEN**
+- [x] **Step 4: Run the test and verify GREEN**
 
 ```bash
 CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target \
@@ -442,7 +442,7 @@ CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target 
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/mod.rs \
@@ -463,7 +463,7 @@ git commit -m "feat(core): inspect connection route facts"
 - Consumes: Task 1 `inspect_route` output and stable node metadata.
 - Produces: populated `support_line_ids`, `attachments`, `supports` and all truncation flags.
 
-- [ ] **Step 1: Write failing aggregation and failure tests**
+- [x] **Step 1: Write failing aggregation and failure tests**
 
 Append helpers and tests to `route_inspection.rs` test:
 
@@ -614,7 +614,7 @@ fn marks_every_budget_when_results_are_truncated() {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target \
@@ -623,7 +623,7 @@ CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target 
 
 Expected: FAIL because support/attachment collections are always empty and truncation flags are false.
 
-- [ ] **Step 3: Implement aggregation**
+- [x] **Step 3: Implement aggregation**
 
 After segment collection:
 
@@ -724,7 +724,7 @@ supports.truncate(limits.max_supports);
 Populate the response with these collections and set `attachments`/`supports` truncation flags.
 Skip nodes missing `fittingKind`, matching the public inspection contract.
 
-- [ ] **Step 4: Run Core tests**
+- [x] **Step 4: Run Core tests**
 
 ```bash
 CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target \
@@ -733,7 +733,7 @@ CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target 
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_inspection.rs \
@@ -757,7 +757,7 @@ git commit -m "feat(core): aggregate route inspection facts"
 - Consumes: Task 1/2 `RouteInspectionParams` and `inspect_route`.
 - Produces: JSON-RPC `route.inspect`, API `1.5`, schema/binding/manifest registration.
 
-- [ ] **Step 1: Write failing public-contract tests**
+- [x] **Step 1: Write failing public-contract tests**
 
 Add to `rpc_contract.rs`:
 
@@ -806,7 +806,7 @@ async fn route_inspection_is_a_read_only_public_method_with_stable_errors() {
 Change existing version assertions from `1.4` to `1.5` in `rpc_contract.rs` and
 `workspace_contract.rs`.
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target \
@@ -815,7 +815,7 @@ CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target 
 
 Expected: FAIL because `route.inspect` is unknown and API is still `1.4`.
 
-- [ ] **Step 3: Implement dispatch and manifest**
+- [x] **Step 3: Implement dispatch and manifest**
 
 Set:
 
@@ -898,7 +898,7 @@ In `schema.rs`:
   `RouteInspectionPort`, `RouteInspectionAttachment`, `RouteInspectionSupport` and
   `RouteInspectionTruncation` to `types`.
 
-- [ ] **Step 4: Generate bindings and verify GREEN**
+- [x] **Step 4: Generate bindings and verify GREEN**
 
 ```bash
 cargo test -p studio-core --lib export_bindings_route
@@ -911,7 +911,7 @@ CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target 
 Expected: PASS; generated bindings and schemas contain `route.inspect`, its request/response types,
 and API version `1.5`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/lib.rs crates/studio-server/src/rpc.rs \
@@ -939,7 +939,7 @@ git commit -m "feat(api): expose route inspection"
   `routeLineIdForNode`, `RouteInspectionStore`, `useRouteInspection`,
   `useRouteInspectionStore`.
 
-- [ ] **Step 1: Write failing Viewer state tests**
+- [x] **Step 1: Write failing Viewer state tests**
 
 Create `apps/viewer/tests/route-inspection.test.ts`:
 
@@ -1025,7 +1025,7 @@ test('route failures leave the store in a retryable error state', async () => {
 });
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 npm --prefix apps/viewer test
@@ -1033,7 +1033,7 @@ npm --prefix apps/viewer test
 
 Expected: FAIL because the route model and store do not exist.
 
-- [ ] **Step 3: Implement wire types, model and store**
+- [x] **Step 3: Implement wire types, model and store**
 
 Add to `StudioClient.ts`:
 
@@ -1252,7 +1252,7 @@ export function useRouteInspection(): RouteInspectionSnapshot {
 }
 ```
 
-- [ ] **Step 4: Wire the provider and verify GREEN**
+- [x] **Step 4: Wire the provider and verify GREEN**
 
 In `main.tsx`:
 
@@ -1277,7 +1277,7 @@ npm --prefix apps/viewer run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/viewer/src/api/StudioClient.ts apps/viewer/src/route \
@@ -1298,7 +1298,7 @@ git commit -m "feat(viewer): load route inspection state"
 - Consumes: Task 4 store, model and wire types.
 - Produces: accessible Route region with partial/error states and related-node selection.
 
-- [ ] **Step 1: Add a failing component-level E2E expectation**
+- [x] **Step 1: Add a failing component-level E2E expectation**
 
 In `apps/viewer/e2e/route-inspection.spec.ts`, add:
 
@@ -1398,7 +1398,7 @@ test('inspects a selected fitting route without leaving Inspect', async ({ page 
 });
 ```
 
-- [ ] **Step 2: Run E2E and verify RED**
+- [x] **Step 2: Run E2E and verify RED**
 
 ```bash
 npm --prefix apps/viewer run test:e2e -- route-inspection.spec.ts
@@ -1406,7 +1406,7 @@ npm --prefix apps/viewer run test:e2e -- route-inspection.spec.ts
 
 Expected: FAIL because the Route inspection region does not exist.
 
-- [ ] **Step 3: Implement `RouteInspector` and Workbench wiring**
+- [x] **Step 3: Implement `RouteInspector` and Workbench wiring**
 
 Create `RouteInspector.tsx`:
 
@@ -1586,7 +1586,7 @@ In `Workbench.tsx`, render:
 
 Place the Route Inspector immediately after `ComputePanel` and before `FormRenderer`.
 
-- [ ] **Step 4: Add styles and verify GREEN**
+- [x] **Step 4: Add styles and verify GREEN**
 
 Add `.route-inspector`, `.route-inspector__heading`, `.route-inspector__segment`,
 `.route-inspector__link`, `.route-inspector__warning` and `.route-inspector__error` styles to
@@ -1604,7 +1604,7 @@ npm --prefix apps/viewer run test:e2e -- route-inspection.spec.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/viewer/src/route/RouteInspector.tsx \
@@ -1626,7 +1626,7 @@ git commit -m "feat(viewer): inspect route attachments"
 - Consumes: Task 3 `route.inspect` and Task 5 Viewer E2E.
 - Produces: API reference, Agent evaluation task, capability counts and public examples.
 
-- [ ] **Step 1: Add a public RPC fixture test**
+- [x] **Step 1: Add a public RPC fixture test**
 
 Append to `rpc_contract.rs` a helper that applies a two-instance component route through the
 public API:
@@ -1779,7 +1779,7 @@ async fn route_inspection_returns_public_route_facts() {
 }
 ```
 
-- [ ] **Step 2: Run API tests and verify RED/GREEN boundary**
+- [x] **Step 2: Run API tests and verify RED/GREEN boundary**
 
 Before updating docs and eval, run:
 
@@ -1791,7 +1791,7 @@ CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target 
 Expected: PASS. This task adds public acceptance and documentation; the route behavior itself is
 already implemented by Tasks 1-3.
 
-- [ ] **Step 3: Add Agent evaluation and docs**
+- [x] **Step 3: Add Agent evaluation and docs**
 
 Update `docs/reference/api.md` with:
 
@@ -1803,11 +1803,11 @@ Update `docs/reference/api.md` with:
 
 Update `docs/reference/capabilities.md` with:
 
-- schema method count 40 and runtime method count 42;
+- schema method count 42 and runtime method count 44;
 - API 1.5 description;
 - Route Inspection subsection describing Core reuse, Viewer behavior and limits.
 
-- [ ] **Step 4: Run docs/API verification**
+- [x] **Step 4: Run docs/API verification**
 
 ```bash
 node scripts/check-docs.mjs
@@ -1818,7 +1818,7 @@ CARGO_TARGET_DIR=/Users/felix/Windows-E-workspace/felix/ice3/ice3-studio/target 
 
 Expected: PASS; method counts match.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/studio-server/tests/rpc_contract.rs \
@@ -1841,7 +1841,7 @@ git commit -m "test(api): accept route inspection"
 - Consumes: all prior tasks.
 - Produces: Implemented status, current usage guidance and complete acceptance evidence.
 
-- [ ] **Step 1: Run the latest project through the public API**
+- [x] **Step 1: Run the latest project through the public API**
 
 Build the Viewer and rebuild the latest project:
 
@@ -1869,7 +1869,7 @@ curl -fsS -X POST http://127.0.0.1:8150/rpc \
   --data '{"jsonrpc":"2.0","id":"preview","method":"export.runtimePreview","params":{"revision":1}}'
 ```
 
-- [ ] **Step 2: Verify in installed Google Chrome**
+- [x] **Step 2: Verify in installed Google Chrome**
 
 Reuse the existing Google Chrome window/tab. Open the latest Viewer, select `RED-101 回流污泥异径管`
 or `SLV-101 沼气主管穿墙套管`, open Inspect, and confirm:
@@ -1884,7 +1884,7 @@ or `SLV-101 沼气主管穿墙套管`, open Inspect, and confirm:
 If the selected object has no direct line identity, select its segment or support and verify the
 Document lookup path.
 
-- [ ] **Step 3: Update documentation status**
+- [x] **Step 3: Update documentation status**
 
 Change SPEC-036 and PLAN-033 to `Implemented`. Update:
 
@@ -1894,7 +1894,7 @@ Change SPEC-036 and PLAN-033 to `Implemented`. Update:
 
 Resolve any stale counts by reading `npm run asset:capabilities` and current route-safety output.
 
-- [ ] **Step 4: Run the complete gate**
+- [x] **Step 4: Run the complete gate**
 
 ```bash
 cargo fmt --all -- --check
@@ -1914,7 +1914,7 @@ Expected:
 - Viewer typecheck, unit, build and E2E pass;
 - dependency audit reports zero vulnerabilities.
 
-- [ ] **Step 5: Commit acceptance**
+- [x] **Step 5: Commit acceptance**
 
 ```bash
 git add docs README.md projects scripts apps crates schemas
@@ -1931,15 +1931,15 @@ Do not push unless the user explicitly asks.
 
 ## Completion Checklist
 
-- [ ] `route.inspect` is read-only, bounded and revision-safe.
-- [ ] Split lines sharing one `lineId` return all segments.
-- [ ] Resolved ports use the formal Core route implementation.
-- [ ] Attachments, hosts, supportLineIds and supports are stable and correctly filtered.
-- [ ] Server capabilities, manifest, schema and bindings expose API 1.5.
-- [ ] Viewer resolves line identity without parsing expressions.
-- [ ] Stale route responses cannot overwrite a new selection.
-- [ ] Route Inspector shows loading, error, partial, segment, port, attachment, host and support facts.
-- [ ] Related-node controls use existing Selection only.
-- [ ] Google Chrome inspection passes on the latest project.
-- [ ] `SPEC-036` and `PLAN-033` status match delivered behavior.
-- [ ] `npm run benchmark:route-safety` and `npm run verify` pass.
+- [x] `route.inspect` is read-only, bounded and revision-safe.
+- [x] Split lines sharing one `lineId` return all segments.
+- [x] Resolved ports use the formal Core route implementation.
+- [x] Attachments, hosts, supportLineIds and supports are stable and correctly filtered.
+- [x] Server capabilities, manifest, schema and bindings expose API 1.5.
+- [x] Viewer resolves line identity without parsing expressions.
+- [x] Stale route responses cannot overwrite a new selection.
+- [x] Route Inspector shows loading, error, partial, segment, port, attachment, host and support facts.
+- [x] Related-node controls use existing Selection only.
+- [x] Google Chrome inspection passes on the latest project.
+- [x] `SPEC-036` and `PLAN-033` status match delivered behavior.
+- [x] `npm run benchmark:route-safety` and `npm run verify` pass.

@@ -80,7 +80,7 @@
 | `ICE3-STUDIO-SPEC-033` | [管线工程安全门禁](specs/2026-11-19-route-safety-gate-design.md) | Implemented | 管线实体碰撞、净空面、端点接入、支撑间距、预算与性能门禁 |
 | `ICE3-STUDIO-SPEC-034` | [导入材质表面保真](specs/2026-11-20-import-material-surface-fidelity-design.md) | Implemented | glTF/GLB 四类贴图、源 UV、transform、sampler 与受控资源发布 |
 | `ICE3-STUDIO-SPEC-035` | [管线附件实体化](specs/2026-11-21-pipe-fitting-attachments-design.md) | Implemented | 参数化附件端口、三通/异径管/套管校验、资产组件和污水厂迁移 |
-| `ICE3-STUDIO-SPEC-036` | [连接与管线附件检视](specs/2026-11-21-route-inspection-design.md) | Proposed | `route.inspect` 分段路由、解析端口、附件、宿主、支撑与 Viewer 审查 |
+| `ICE3-STUDIO-SPEC-036` | [连接与管线附件检视](specs/2026-11-21-route-inspection-design.md) | Implemented | `route.inspect` 分段路由、解析端口、附件、宿主、支撑与 Viewer 审查 |
 
 ## 5. 实施计划
 
@@ -117,7 +117,7 @@
 | `ICE3-STUDIO-PLAN-029` | [Studio Prepare Engine 集成与最终验收](plans/2026-11-02-studio-prepare-engine-finalization.md) | Implemented | Phase 6C Engine 消费、性能、文档和最终门禁 |
 | `ICE3-STUDIO-PLAN-031` | [导入材质表面保真实施计划](plans/2026-11-20-import-material-surface-fidelity.md) | Implemented | glTF/GLB 材质槽、UV、受控资源和事务发布 |
 | `ICE3-STUDIO-PLAN-032` | [管线附件实体化实施计划](plans/2026-11-21-pipe-fitting-attachments.md) | Implemented | 参数化端口、三通/异径管/套管校验、资产组件与污水厂迁移 |
-| `ICE3-STUDIO-PLAN-033` | [连接与管线附件检视实施计划](plans/2026-11-21-route-inspection.md) | Proposed | `route.inspect`、Agent 工具、Viewer Inspector 与 Chrome 验收 |
+| `ICE3-STUDIO-PLAN-033` | [连接与管线附件检视实施计划](plans/2026-11-21-route-inspection.md) | Implemented | `route.inspect`、Agent 工具、Viewer Inspector 与 Chrome 验收 |
 
 ## 6. 状态说明
 
