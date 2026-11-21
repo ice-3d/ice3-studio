@@ -11,6 +11,10 @@ use studio_core::agent_contract::{
 };
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
+use studio_core::large_scene::route_inspection::{
+    RouteInspection, RouteInspectionAttachment, RouteInspectionParams, RouteInspectionPort,
+    RouteInspectionSegment, RouteInspectionSupport, RouteInspectionTruncation,
+};
 use studio_core::operation::Operation;
 use studio_core::patch::{ComponentPatch, ConnectionPatch, InstancePatch, MaterialPatch};
 use studio_core::validation::Diagnostic;
@@ -69,6 +73,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "scene.context",
             "scene.search",
             "component.get",
+            "route.inspect",
             "validation.run",
             "referenceAsset.register",
             "referenceAsset.get",
@@ -125,6 +130,13 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "EvaluationQueryResult": schema_for!(EvaluationQueryResult),
             "ComponentGetParams": schema_for!(ComponentGetParams),
             "ComponentGetResult": schema_for!(ComponentGetResult),
+            "RouteInspectionParams": schema_for!(RouteInspectionParams),
+            "RouteInspection": schema_for!(RouteInspection),
+            "RouteInspectionSegment": schema_for!(RouteInspectionSegment),
+            "RouteInspectionPort": schema_for!(RouteInspectionPort),
+            "RouteInspectionAttachment": schema_for!(RouteInspectionAttachment),
+            "RouteInspectionSupport": schema_for!(RouteInspectionSupport),
+            "RouteInspectionTruncation": schema_for!(RouteInspectionTruncation),
             "ValidationRunRequest": schema_for!(ValidationRunRequest),
             "InstancePatch": schema_for!(InstancePatch),
             "ComponentPatch": schema_for!(ComponentPatch),

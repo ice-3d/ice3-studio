@@ -263,6 +263,66 @@ export type StudioPreview = {
   glbUrl: string;
 };
 
+export type StudioRoutePolicy =
+  | { kind: 'direct' }
+  | { kind: 'orthogonal' }
+  | { kind: 'buried'; depth: number }
+  | { kind: 'rack'; elevation: number };
+
+export type StudioRouteInspectionPort = {
+  nodeId: string;
+  port: string;
+  medium: string;
+  diameter: number;
+  position: StudioVec3;
+  direction: StudioVec3;
+};
+
+export type StudioRouteInspectionSegment = {
+  nodeId: string;
+  name: string;
+  medium: string;
+  diameter: number;
+  routePolicy: StudioRoutePolicy;
+  from: StudioRouteInspectionPort;
+  to: StudioRouteInspectionPort;
+  points: Array<[number, number, number]>;
+};
+
+export type StudioRouteInspectionAttachment = {
+  nodeId: string;
+  name: string;
+  role: string;
+  fittingKind: string;
+  lineId: string;
+  supportLineId: string | null;
+  hostNodeId: string | null;
+  hostName: string | null;
+};
+
+export type StudioRouteInspectionSupport = {
+  nodeId: string;
+  name: string;
+  supportLineId: string;
+  supportGroup: string | null;
+  position: StudioVec3;
+};
+
+export type StudioRouteInspection = {
+  revision: number;
+  lineId: string;
+  supportLineIds: string[];
+  segments: StudioRouteInspectionSegment[];
+  attachments: StudioRouteInspectionAttachment[];
+  supports: StudioRouteInspectionSupport[];
+  truncated: {
+    segments: boolean;
+    points: boolean;
+    attachments: boolean;
+    supports: boolean;
+  };
+};
+
 export type ImpactCounts = { added: number; updated: number; removed: number };
 
 export type Vec3Like = { x: number; y: number; z: number };
@@ -350,6 +410,10 @@ export class StudioClient {
 
   validation(): Promise<Diagnostic[]> {
     return this.rpc('validation.run', {});
+  }
+
+  routeInspection(lineId: string, revision: number): Promise<StudioRouteInspection> {
+    return this.rpc('route.inspect', { lineId, revision });
   }
 
   referenceAsset(assetId: string): Promise<StudioReferenceAsset> {

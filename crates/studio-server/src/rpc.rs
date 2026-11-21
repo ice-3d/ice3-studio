@@ -900,6 +900,25 @@ async fn dispatch_unlocked_preview(
     )
 }
 
+fn route_inspection_error(
+    error: studio_core::large_scene::route_inspection::RouteInspectionError,
+) -> RpcError {
+    use studio_core::large_scene::route_inspection::RouteInspectionError;
+    let code = match &error {
+        RouteInspectionError::RevisionConflict { .. } => DiagnosticCode::RevisionConflict,
+        RouteInspectionError::LineNotFound { .. } | RouteInspectionError::InvalidLineId => {
+            DiagnosticCode::ReferenceInvalid
+        }
+        RouteInspectionError::Route { .. } => DiagnosticCode::ConnectionInvalid,
+    };
+    RpcError::with_diagnostic(
+        -32010,
+        code.as_str(),
+        format!("{}: {error}", code.as_str()),
+        None,
+    )
+}
+
 fn dispatch(
     session: &mut Session,
     request: &RpcRequest,
@@ -949,6 +968,7 @@ fn dispatch(
                 "scene.context".into(),
                 "scene.search".into(),
                 "component.get".into(),
+                "route.inspect".into(),
                 "scene.bounds".into(),
                 "scene.measure".into(),
                 "scene.bom".into(),
@@ -1169,6 +1189,25 @@ fn dispatch(
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
             serde_json::to_value(crate::agent::component_get(session, request)?)
                 .map_err(serialize_error)
+        }
+        "route.inspect" => {
+            let params: studio_core::large_scene::route_inspection::RouteInspectionParams =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            let definitions = session
+                .document
+                .components
+                .iter()
+                .map(|definition| (definition.id.clone(), definition))
+                .collect::<BTreeMap<_, _>>();
+            let result = studio_core::large_scene::route_inspection::inspect_route(
+                &session.document,
+                &definitions,
+                &params.line_id,
+                params.revision,
+                Default::default(),
+            )
+            .map_err(route_inspection_error)?;
+            serde_json::to_value(result).map_err(serialize_error)
         }
         "scene.query" => {
             let query: SceneQuery =
