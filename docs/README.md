@@ -80,6 +80,7 @@
 | `ICE3-STUDIO-SPEC-033` | [管线工程安全门禁](specs/2026-11-19-route-safety-gate-design.md) | Implemented | 管线实体碰撞、净空面、端点接入、支撑间距、预算与性能门禁 |
 | `ICE3-STUDIO-SPEC-034` | [导入材质表面保真](specs/2026-11-20-import-material-surface-fidelity-design.md) | Implemented | glTF/GLB 四类贴图、源 UV、transform、sampler 与受控资源发布 |
 | `ICE3-STUDIO-SPEC-035` | [管线附件实体化](specs/2026-11-21-pipe-fitting-attachments-design.md) | Implemented | 参数化附件端口、三通/异径管/套管校验、资产组件和污水厂迁移 |
+| `ICE3-STUDIO-SPEC-036` | [连接与管线附件检视](specs/2026-11-21-route-inspection-design.md) | Proposed | `route.inspect` 分段路由、解析端口、附件、宿主、支撑与 Viewer 审查 |
 
 ## 5. 实施计划
 
