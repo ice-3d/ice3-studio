@@ -215,6 +215,30 @@ fn one_image_with_two_samplers_gets_two_texture_indices() {
 }
 
 #[test]
+fn rejects_resource_bytes_with_an_unsupported_image_format() {
+    let mut scene = scene_with(None);
+    let invalid = CanonicalResource {
+        digest: format!("{:x}", Sha256::digest(b"not-an-image")),
+        media_type: "image/png".into(),
+        bytes: b"not-an-image".to_vec(),
+    };
+    scene.resources = vec![invalid.clone()];
+    scene.materials[0].surface = Some(CanonicalSurface {
+        metallic: 0.0,
+        roughness: 1.0,
+        emissive: None,
+        base_color_texture: Some(binding(&invalid, 0, [1.0, 1.0])),
+        normal_texture: None,
+        occlusion_texture: None,
+        metallic_roughness_texture: None,
+    });
+
+    let error = studio_assets::prepare_canonical(&scene, options()).unwrap_err();
+
+    assert_eq!(error.code(), "ICE3_ASSET_PROFILE_INVALID");
+}
+
+#[test]
 fn bundle_names_resources_inside_the_requested_directory() {
     let mut scene = scene_with(None);
     let base = resource(PNG_BYTES);
@@ -237,14 +261,16 @@ fn bundle_names_resources_inside_the_requested_directory() {
 
     assert_eq!(parsed.json["images"][0]["uri"], expected_uri);
     assert_eq!(bundle.resources[0].uri, expected_uri);
-    assert_eq!(bundle.resources[0].bytes, PNG_BYTES);
+    assert_eq!(bundle.resources[0].bytes, base.bytes);
 }
 
 fn resource(bytes: &[u8]) -> CanonicalResource {
+    let mut image_bytes = PNG_BYTES.to_vec();
+    image_bytes.extend_from_slice(bytes);
     CanonicalResource {
-        digest: format!("{:x}", Sha256::digest(bytes)),
+        digest: format!("{:x}", Sha256::digest(&image_bytes)),
         media_type: "image/png".into(),
-        bytes: bytes.to_vec(),
+        bytes: image_bytes,
     }
 }
 

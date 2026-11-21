@@ -24,12 +24,14 @@ pub use glb::{
 };
 pub use image::{
     ImageResource, MAX_TEXTURE_BYTES, MAX_TEXTURE_COUNT, MAX_TEXTURE_TOTAL_BYTES,
-    read_image_buffer_view, read_image_uri, validate_image_bytes,
+    detect_image_media_type, read_image_buffer_view, read_image_uri, validate_image_bytes,
 };
 pub use metrics::AssetMetrics;
 pub use prepare::{
     PrepareArtifact, PrepareOptions, PreparedAssetBundle, PreparedResource, prepare_canonical,
     prepare_canonical_bundle, validate_crease_angle,
 };
-pub use prepared::{PreparedBounds, PreparedProfile, validate_prepared_profile};
+pub use prepared::{
+    PreparedBounds, PreparedProfile, validate_prepared_glb_bytes, validate_prepared_profile,
+};
 pub use report::{AssetBuildReport, PreparationMetadata, PrepareWarning};

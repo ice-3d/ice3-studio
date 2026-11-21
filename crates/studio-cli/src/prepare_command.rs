@@ -200,7 +200,7 @@ pub fn run_build(
         source_digest,
         digest_label(&bundle.content_digest),
         options.asset_id,
-        bundle.metrics.clone(),
+        bundle.metrics,
         bundle.preparation.clone(),
         bundle.budget.clone(),
         warnings,

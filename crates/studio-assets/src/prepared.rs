@@ -2,10 +2,7 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use crate::{
-    AccessorData, AssetError, AssetMetrics, AssetResult, BudgetResult, PreparationMetadata,
-    SourceGlb, read_accessor,
-};
+use crate::{AssetError, AssetMetrics, AssetResult, BudgetResult, PreparationMetadata, SourceGlb};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreparedBounds {
@@ -29,7 +26,53 @@ pub struct PreparedProfile {
 }
 
 pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProfile> {
-    let asset = object(source.json.get("asset"), "asset")?;
+    let buffers = source.buffers.iter().map(Vec::as_slice).collect::<Vec<_>>();
+    validate_prepared_parts(&source.json, &buffers, &source.source_bytes)
+}
+
+/// Validates a Prepared GLB directly from its bytes without copying geometry buffers.
+pub fn validate_prepared_glb_bytes(bytes: &[u8]) -> AssetResult<PreparedProfile> {
+    let (json_bytes, binary) = crate::glb::parse_glb_slices(bytes)?;
+    let json: Value = serde_json::from_slice(json_bytes)?;
+    if !json.is_object() {
+        return Err(AssetError::InvalidGlb("JSON root must be an object".into()));
+    }
+    let buffer = match json.get("buffers").and_then(Value::as_array) {
+        None => None,
+        Some(buffers) if buffers.len() == 1 => {
+            let buffer = &buffers[0];
+            if buffer.get("uri").is_some() {
+                return Err(AssetError::InvalidGlb(
+                    "prepared GLB cannot reference an external buffer".into(),
+                ));
+            }
+            let declared = buffer
+                .get("byteLength")
+                .and_then(Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok())
+                .ok_or_else(|| AssetError::InvalidGlb("buffer byteLength is invalid".into()))?;
+            Some(
+                binary
+                    .get(..declared)
+                    .ok_or_else(|| AssetError::InvalidGlb("buffer data is truncated".into()))?,
+            )
+        }
+        Some(_) => {
+            return Err(AssetError::InvalidGlb(
+                "prepared GLB must contain at most one embedded buffer".into(),
+            ));
+        }
+    };
+    let buffers = buffer.as_slice();
+    validate_prepared_parts(&json, buffers, bytes)
+}
+
+fn validate_prepared_parts(
+    json: &Value,
+    buffers: &[&[u8]],
+    source_bytes: &[u8],
+) -> AssetResult<PreparedProfile> {
+    let asset = object(json.get("asset"), "asset")?;
     if asset.get("version").and_then(Value::as_str) != Some("2.0") {
         return Err(profile_invalid("asset version must be 2.0"));
     }
@@ -55,11 +98,10 @@ pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProf
         .ok_or(AssetError::ProfileUnsupported)?
         .to_owned();
 
-    if source.json.get("scene").and_then(Value::as_u64) != Some(0) {
+    if json.get("scene").and_then(Value::as_u64) != Some(0) {
         return Err(profile_invalid("default scene must be 0"));
     }
-    let scenes = source
-        .json
+    let scenes = json
         .get("scenes")
         .and_then(Value::as_array)
         .ok_or_else(|| profile_invalid("scenes must contain exactly one scene"))?;
@@ -71,8 +113,7 @@ pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProf
         ("skins", "skins are unsupported"),
         ("cameras", "cameras are unsupported"),
     ] {
-        if source
-            .json
+        if json
             .get(field)
             .and_then(Value::as_array)
             .is_some_and(|values| !values.is_empty())
@@ -80,13 +121,13 @@ pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProf
             return Err(profile_invalid(code));
         }
     }
-    validate_textures(&source.json)?;
-    validate_unique_ids(source, "nodes")?;
-    validate_unique_ids(source, "meshes")?;
-    validate_unique_ids(source, "materials")?;
+    validate_textures(json)?;
+    validate_unique_ids(json, "nodes")?;
+    validate_unique_ids(json, "meshes")?;
+    validate_unique_ids(json, "materials")?;
 
     let bounds = profile.get("bounds").map(parse_bounds).transpose()?;
-    let metrics = metrics_for(source)?;
+    let metrics = metrics_for(json, buffers, source_bytes)?;
     if let Some(stats) = profile.get("stats").filter(|value| !value.is_null()) {
         let stats = stats
             .as_object()
@@ -133,8 +174,7 @@ pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProf
                 .map_err(|error| profile_invalid(&format!("budget is invalid: {error}")))
         })
         .transpose()?;
-    let project = source
-        .json
+    let project = json
         .get("extras")
         .and_then(Value::as_object)
         .and_then(|extras| extras.get("ice3"))
@@ -153,40 +193,35 @@ pub fn validate_prepared_profile(source: &SourceGlb) -> AssetResult<PreparedProf
         project_id,
         revision,
         bounds,
-        node_count: array_len(&source.json, "nodes"),
-        mesh_count: array_len(&source.json, "meshes"),
-        material_count: array_len(&source.json, "materials"),
+        node_count: array_len(json, "nodes"),
+        mesh_count: array_len(json, "meshes"),
+        material_count: array_len(json, "materials"),
         metrics,
         preparation,
         budget,
     })
 }
 
-fn metrics_for(source: &SourceGlb) -> AssetResult<AssetMetrics> {
-    let nodes = source
-        .json
+fn metrics_for(json: &Value, buffers: &[&[u8]], source_bytes: &[u8]) -> AssetResult<AssetMetrics> {
+    let nodes = json
         .get("nodes")
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or(&[]);
-    let meshes = source
-        .json
+    let meshes = json
         .get("meshes")
         .and_then(Value::as_array)
         .ok_or_else(|| profile_invalid("meshes must be an array"))?;
-    let accessors = source
-        .json
+    let accessors = json
         .get("accessors")
         .and_then(Value::as_array)
         .ok_or_else(|| profile_invalid("accessors must be an array"))?;
-    let buffer_views = source
-        .json
+    let buffer_views = json
         .get("bufferViews")
         .and_then(Value::as_array)
         .map(Vec::as_slice)
         .unwrap_or(&[]);
-    let materials = source
-        .json
+    let materials = json
         .get("materials")
         .and_then(Value::as_array)
         .map(Vec::as_slice)
@@ -218,64 +253,37 @@ fn metrics_for(source: &SourceGlb) -> AssetResult<AssetMetrics> {
             } else if mode != 4 {
                 return Err(profile_invalid("unsupported primitive mode"));
             }
-            let position_accessor = validate_accessor(
+            let position = validate_accessor(
                 primitive,
                 "POSITION",
                 accessors,
                 buffer_views,
-                source.buffers.len(),
+                buffers,
                 "VEC3",
                 &[5126],
             )?;
-            let position = read_accessor(source, position_accessor).map_err(|error| {
-                profile_invalid(&format!("POSITION accessor is invalid: {error}"))
-            })?;
-            let position_count = match position {
-                AccessorData::F32 {
-                    values,
-                    components: 3,
-                } => values.len() / 3,
-                _ => {
-                    return Err(profile_invalid(
-                        "POSITION accessor must decode as VEC3 float data",
-                    ));
-                }
-            };
-            let index_accessor = validate_accessor(
+            if position.normalized {
+                return Err(profile_invalid("POSITION accessor must not be normalized"));
+            }
+            let position_count = position.count;
+            let indices = validate_accessor(
                 primitive,
                 "indices",
                 accessors,
                 buffer_views,
-                source.buffers.len(),
+                buffers,
                 "SCALAR",
                 &[5123, 5125],
             )?;
-            let indices = read_accessor(source, index_accessor)
-                .map_err(|error| profile_invalid(&format!("index accessor is invalid: {error}")))?;
-            let decoded_indices = match indices {
-                AccessorData::U16 {
-                    values,
-                    components: 1,
-                } => values.into_iter().map(u32::from).collect::<Vec<_>>(),
-                AccessorData::U32 {
-                    values,
-                    components: 1,
-                } => values,
-                _ => {
-                    return Err(profile_invalid(
-                        "index accessor must decode as SCALAR unsigned data",
-                    ));
-                }
-            };
-            if decoded_indices
-                .iter()
-                .any(|index| *index as usize >= position_count)
-            {
+            if indices.normalized {
+                return Err(profile_invalid("index accessor must not be normalized"));
+            }
+            if indices_in_range(buffers, &indices, position_count)? {
                 return Err(profile_invalid(
                     "primitive index reaches beyond POSITION data",
                 ));
             }
-            let count = decoded_indices.len() as u64;
+            let count = indices.count as u64;
             let material = primitive
                 .get("material")
                 .and_then(Value::as_u64)
@@ -324,20 +332,29 @@ fn metrics_for(source: &SourceGlb) -> AssetResult<AssetMetrics> {
         .filter_map(Value::as_str)
         .collect::<BTreeSet<_>>()
         .len() as u64;
-    let (json_chunk_bytes, bin_chunk_bytes) = chunk_lengths(&source.source_bytes);
+    let (json_chunk_bytes, bin_chunk_bytes) = chunk_lengths(source_bytes);
     Ok(AssetMetrics {
-        encoded_bytes: source.source_bytes.len() as u64,
+        encoded_bytes: source_bytes.len() as u64,
         json_chunk_bytes,
         bin_chunk_bytes,
         node_count: nodes.len() as u64,
-        max_node_depth: json_depth(&source.json)? as u64,
+        max_node_depth: json_depth(json)? as u64,
         mesh_count: meshes.len() as u64,
         primitive_count,
         triangle_count,
         edge_segment_count,
-        material_count: array_len(&source.json, "materials") as u64,
+        material_count: array_len(json, "materials") as u64,
         selection_group_count,
     })
+}
+
+struct AccessorLayout {
+    buffer_index: usize,
+    component_type: u64,
+    count: usize,
+    start: usize,
+    stride: usize,
+    normalized: bool,
 }
 
 fn validate_accessor(
@@ -345,10 +362,10 @@ fn validate_accessor(
     field: &str,
     accessors: &[Value],
     buffer_views: &[Value],
-    buffer_count: usize,
+    buffers: &[&[u8]],
     expected_type: &str,
     component_types: &[u64],
-) -> AssetResult<usize> {
+) -> AssetResult<AccessorLayout> {
     let accessor_index = if field == "indices" {
         primitive.get("indices")
     } else {
@@ -366,6 +383,9 @@ fn validate_accessor(
             "primitive {field} accessor type must be {expected_type}"
         )));
     }
+    if accessor.get("sparse").is_some() {
+        return Err(profile_invalid("sparse accessors are unsupported"));
+    }
     let component_type = accessor
         .get("componentType")
         .and_then(Value::as_u64)
@@ -375,6 +395,25 @@ fn validate_accessor(
             "primitive {field} componentType is unsupported"
         )));
     }
+    let components = match expected_type {
+        "SCALAR" => 1,
+        "VEC3" => 3,
+        _ => return Err(profile_invalid("primitive field type is unsupported")),
+    };
+    let component_bytes = match component_type {
+        5123 => 2,
+        5125 | 5126 => 4,
+        _ => {
+            return Err(profile_invalid(
+                "primitive field componentType is unsupported",
+            ));
+        }
+    };
+    let count = accessor
+        .get("count")
+        .and_then(Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| profile_invalid(&format!("primitive {field} count is missing")))?;
     let view_index = accessor
         .get("bufferView")
         .and_then(Value::as_u64)
@@ -389,14 +428,98 @@ fn validate_accessor(
         .and_then(Value::as_u64)
         .and_then(|index| usize::try_from(index).ok())
         .ok_or_else(|| profile_invalid("bufferView buffer index is invalid"))?;
-    if buffer_index >= buffer_count {
-        return Err(profile_invalid("bufferView buffer index is out of range"));
-    }
-    accessor
-        .get("count")
+    let buffer = buffers
+        .get(buffer_index)
+        .ok_or_else(|| profile_invalid("bufferView buffer index is out of range"))?;
+    let view_offset: usize = view
+        .get("byteOffset")
         .and_then(Value::as_u64)
-        .ok_or_else(|| profile_invalid(&format!("primitive {field} count is missing")))?;
-    Ok(accessor_index)
+        .unwrap_or(0)
+        .try_into()
+        .map_err(|_| profile_invalid("bufferView byteOffset is invalid"))?;
+    let view_length = view
+        .get("byteLength")
+        .and_then(Value::as_u64)
+        .and_then(|value| usize::try_from(value).ok())
+        .ok_or_else(|| profile_invalid("bufferView byteLength is invalid"))?;
+    let accessor_offset: usize = accessor
+        .get("byteOffset")
+        .and_then(Value::as_u64)
+        .unwrap_or(0)
+        .try_into()
+        .map_err(|_| profile_invalid("accessor byteOffset is invalid"))?;
+    let element_bytes = component_bytes * components;
+    let stride =
+        view.get("byteStride")
+            .and_then(Value::as_u64)
+            .map_or(Ok(element_bytes), |value| {
+                usize::try_from(value)
+                    .map_err(|_| profile_invalid("bufferView byteStride is invalid"))
+            })?;
+    if stride < element_bytes {
+        return Err(profile_invalid(
+            "bufferView byteStride is smaller than one element",
+        ));
+    }
+    let accessor_bytes = if count == 0 {
+        0
+    } else {
+        (count - 1)
+            .checked_mul(stride)
+            .and_then(|value| value.checked_add(element_bytes))
+            .ok_or_else(|| profile_invalid("accessor byte range overflows"))?
+    };
+    if view_offset
+        .checked_add(view_length)
+        .is_none_or(|end| end > buffer.len())
+        || accessor_offset
+            .checked_add(accessor_bytes)
+            .is_none_or(|end| end > view_length)
+    {
+        return Err(profile_invalid("accessor byte range is out of bounds"));
+    }
+    Ok(AccessorLayout {
+        buffer_index,
+        component_type,
+        count,
+        start: view_offset + accessor_offset,
+        stride,
+        normalized: accessor.get("normalized").and_then(Value::as_bool) == Some(true),
+    })
+}
+
+fn indices_in_range(
+    buffers: &[&[u8]],
+    layout: &AccessorLayout,
+    position_count: usize,
+) -> AssetResult<bool> {
+    let buffer = buffers
+        .get(layout.buffer_index)
+        .ok_or_else(|| profile_invalid("bufferView buffer index is out of range"))?;
+    for element in 0..layout.count {
+        let offset = layout.start + element * layout.stride;
+        let index = match layout.component_type {
+            5123 => u16::from_le_bytes(
+                buffer
+                    .get(offset..offset + 2)
+                    .ok_or_else(|| profile_invalid("index accessor is out of bounds"))?
+                    .try_into()
+                    .expect("two bytes"),
+            ) as u32,
+            5125 => u32::from_le_bytes(
+                buffer
+                    .get(offset..offset + 4)
+                    .ok_or_else(|| profile_invalid("index accessor is out of bounds"))?
+                    .try_into()
+                    .expect("four bytes"),
+            ),
+            _ => return Err(profile_invalid("index componentType is unsupported")),
+        };
+        if index as usize >= position_count {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn validate_preparation(
@@ -541,8 +664,8 @@ fn json_depth(json: &Value) -> AssetResult<usize> {
         .map_or(Ok(0), Ok)
 }
 
-fn validate_unique_ids(source: &SourceGlb, field: &str) -> AssetResult<()> {
-    let Some(values) = source.json.get(field) else {
+fn validate_unique_ids(json: &Value, field: &str) -> AssetResult<()> {
+    let Some(values) = json.get(field) else {
         return Ok(());
     };
     let values = values
@@ -718,8 +841,7 @@ fn validate_textures(json: &Value) -> AssetResult<()> {
                 .and_then(Value::as_object)
                 .and_then(|value| value.get("KHR_texture_transform"))
                 .and_then(Value::as_object)
-            {
-                if transform
+                && (transform
                     .get("texCoord")
                     .and_then(Value::as_u64)
                     .is_some_and(|value| value != 0)
@@ -731,10 +853,9 @@ fn validate_textures(json: &Value) -> AssetResult<()> {
                         .is_some_and(|value| !value.as_f64().is_some_and(f64::is_finite))
                     || transform
                         .get("scale")
-                        .is_some_and(|value| !valid_vec2(value, true))
-                {
-                    return Err(profile_invalid("texture transform is invalid"));
-                }
+                        .is_some_and(|value| !valid_vec2(value, true)))
+            {
+                return Err(profile_invalid("texture transform is invalid"));
             }
             if pointer == "/normalTexture"
                 && info.get("scale").is_some_and(|value| {

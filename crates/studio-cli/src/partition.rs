@@ -6,12 +6,12 @@ use serde::Serialize;
 use studio_assets::{
     AssetError, AssetMetrics, BudgetProfile, BudgetResult, BudgetStatus, PreparationMetadata,
     PrepareOptions, PrepareWarning, PreparedResource, prepare_canonical_bundle, read_glb,
-    validate_crease_angle, validate_prepared_profile,
+    validate_crease_angle, validate_prepared_glb_bytes, validate_prepared_profile,
 };
 use studio_import::{ImportError, ImportWarning, NativeImportLimits, to_canonical};
 use studio_pipeline::{
-    AssetProfile, LodAllocationMode, PartitionStats, PipelineError, RenderBatchMode,
-    SemanticProxyMode, build_with_profile,
+    AssetProfile, LodAllocationMode, PartitionArtifact, PartitionFile, PartitionStats,
+    PipelineError, RenderBatchMode, SemanticProxyMode, build_with_profile,
 };
 
 use crate::import::{ImportCommandError, import_source_scene};
@@ -232,14 +232,8 @@ pub fn partition_source(options: PartitionOptions) -> Result<PartitionOutput, Pa
     validate_prepared_profile(&prepared)?;
 
     let partition = build_with_profile(&prepared, &options.asset_id, &profile)?;
-    for file in &partition.files {
-        let parsed = studio_assets::read_glb_bytes(&file.bytes, &std::env::temp_dir())?;
-        validate_prepared_profile(&parsed).map_err(|error| {
-            PartitionError::Validation(format!("{}: {error}", file.relative_path))
-        })?;
-    }
-
-    let staging = write_staging(&parent, &partition, &bundle.resources)?;
+    let stats = PartitionStatsReport::from(&partition.stats);
+    let (staging, files) = write_staging(&parent, partition, &bundle.resources)?;
     publish_directory(staging, &options.output, options.force)?;
 
     Ok(PartitionOutput {
@@ -249,16 +243,8 @@ pub fn partition_source(options: PartitionOptions) -> Result<PartitionOutput, Pa
         asset_id: options.asset_id,
         source_digest,
         profile: profile.id,
-        files: partition
-            .files
-            .iter()
-            .map(|file| PartitionFileReport {
-                path: file.relative_path.clone(),
-                bytes: file.byte_length,
-                sha256: file.content_hash.clone(),
-            })
-            .collect(),
-        stats: PartitionStatsReport::from(&partition.stats),
+        files,
+        stats,
         metrics: bundle.metrics,
         preparation: bundle.preparation,
         budget: bundle.budget,
@@ -374,25 +360,45 @@ fn output_parent(output: &Path) -> PathBuf {
 
 fn write_staging(
     parent: &Path,
-    artifact: &studio_pipeline::PartitionArtifact,
+    artifact: PartitionArtifact,
     resources: &[PreparedResource],
-) -> Result<tempfile::TempDir, PartitionError> {
+) -> Result<(tempfile::TempDir, Vec<PartitionFileReport>), PartitionError> {
+    let PartitionArtifact {
+        mut files, tileset, ..
+    } = artifact;
     let staging = tempfile::Builder::new()
         .prefix(".ice3-studio-partition-staging-")
         .tempdir_in(parent)?;
-    for file in &artifact.files {
-        let path = staging.path().join(&file.relative_path);
+    files.sort_by_key(|file| std::cmp::Reverse(file.byte_length));
+    let mut reports = Vec::with_capacity(files.len());
+    for file in files {
+        let PartitionFile {
+            relative_path,
+            content_hash,
+            byte_length,
+            bytes,
+        } = file;
+        let path = staging.path().join(&relative_path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(path, &file.bytes)?;
+        std::fs::write(&path, &bytes)?;
+        validate_prepared_glb_bytes(&bytes)
+            .map_err(|error| PartitionError::Validation(format!("{relative_path}: {error}")))?;
+        drop(bytes);
+        reports.push(PartitionFileReport {
+            path: relative_path,
+            bytes: byte_length,
+            sha256: content_hash,
+        });
     }
-    let mut tileset = serde_json::to_vec_pretty(&artifact.tileset)
+    reports.sort_by(|left, right| left.path.cmp(&right.path));
+    let mut tileset = serde_json::to_vec_pretty(&tileset)
         .map_err(|error| PartitionError::Validation(error.to_string()))?;
     tileset.push(b'\n');
     std::fs::write(staging.path().join("tileset.json"), tileset)?;
     write_texture_resources(staging.path(), resources)?;
-    Ok(staging)
+    Ok((staging, reports))
 }
 
 fn write_texture_resources(

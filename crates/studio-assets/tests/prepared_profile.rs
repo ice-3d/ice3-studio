@@ -2,7 +2,7 @@ mod common;
 
 use common::{json_asset, minimal_binary, pack_glb, packed_fixture};
 use serde_json::json;
-use studio_assets::{read_glb, validate_prepared_profile};
+use studio_assets::{read_glb, validate_prepared_glb_bytes, validate_prepared_profile};
 
 #[test]
 fn accepts_a_studio_prepared_glb() {
@@ -10,7 +10,23 @@ fn accepts_a_studio_prepared_glb() {
     let (_directory, path) = packed_fixture("studio-prepared.json", &binary);
     let source = read_glb(&path).unwrap();
     let profile = validate_prepared_profile(&source).unwrap();
+    let borrowed = validate_prepared_glb_bytes(&std::fs::read(path).unwrap()).unwrap();
     assert_eq!(profile.asset_id, "studio-prepared");
+    assert_eq!(borrowed.metrics, profile.metrics);
+}
+
+#[test]
+fn borrowed_profile_validation_rejects_an_out_of_range_index() {
+    let mut binary = minimal_binary();
+    binary[36..38].copy_from_slice(&9_u16.to_le_bytes());
+    let bytes = pack_glb(
+        &serde_json::to_vec(&json_asset("studio-prepared.json")).unwrap(),
+        &binary,
+    );
+
+    let error = validate_prepared_glb_bytes(&bytes).unwrap_err();
+
+    assert_eq!(error.code(), "ICE3_ASSET_PROFILE_INVALID");
 }
 
 #[test]

@@ -9,9 +9,9 @@ use sha2::{Digest, Sha256};
 use crate::prepare_canonical;
 use crate::surface::{AlphaMode, TextureSampler, TextureTransform};
 use crate::{
-    AssetError, AssetMetrics, AssetResult, BudgetProfile, BudgetStatus, PreparationMetadata,
-    PrepareArtifact, PrepareOptions, edge_color_from_material, evaluate_budget,
-    generate_edge_indices, material_suppresses_edges,
+    AssetError, AssetMetrics, AssetResult, BudgetProfile, BudgetStatus, MAX_TEXTURE_BYTES,
+    PreparationMetadata, PrepareArtifact, PrepareOptions, detect_image_media_type,
+    edge_color_from_material, evaluate_budget, generate_edge_indices, material_suppresses_edges,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -754,7 +754,8 @@ fn resource_map(
                 .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
         if !valid_digest
             || format!("{:x}", Sha256::digest(&resource.bytes)) != resource.digest
-            || media_extension(&resource.media_type).is_none()
+            || resource.bytes.len() > MAX_TEXTURE_BYTES
+            || detect_image_media_type(&resource.bytes) != Some(resource.media_type.as_str())
             || output.insert(resource.digest.clone(), resource).is_some()
         {
             return Err(invalid("texture resource is invalid"));

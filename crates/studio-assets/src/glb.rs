@@ -286,6 +286,11 @@ pub fn read_bounded_uri_with_limit(
 }
 
 fn parse_glb(bytes: &[u8]) -> AssetResult<(Vec<u8>, Vec<u8>)> {
+    let (json, binary) = parse_glb_slices(bytes)?;
+    Ok((json.to_vec(), binary.to_vec()))
+}
+
+pub(crate) fn parse_glb_slices(bytes: &[u8]) -> AssetResult<(&[u8], &[u8])> {
     if bytes.len() < 12 {
         return Err(invalid("GLB header is truncated"));
     }
@@ -317,9 +322,9 @@ fn parse_glb(bytes: &[u8]) -> AssetResult<(Vec<u8>, Vec<u8>)> {
             .ok_or_else(|| invalid("GLB chunk length is invalid"))?;
         let data = &bytes[offset + 8..end];
         match (chunk_index, kind) {
-            (0, JSON_CHUNK) => json = Some(data.to_vec()),
+            (0, JSON_CHUNK) => json = Some(data),
             (0, _) => return Err(invalid("GLB JSON chunk must be first")),
-            (1, BIN_CHUNK) => binary = Some(data.to_vec()),
+            (1, BIN_CHUNK) => binary = Some(data),
             (_, JSON_CHUNK) => return Err(invalid("GLB must contain exactly one JSON chunk")),
             (_, BIN_CHUNK) => return Err(invalid("GLB BIN chunk must be second and unique")),
             _ => {}

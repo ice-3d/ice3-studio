@@ -24,15 +24,8 @@ pub fn validate_image_bytes(
     if bytes.len() > max_bytes {
         return Err(invalid("external resource exceeds its size limit"));
     }
-    let media_type = if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
-        "image/png"
-    } else if bytes.starts_with(&[0xFF, 0xD8]) {
-        "image/jpeg"
-    } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
-        "image/webp"
-    } else {
-        return Err(invalid("unsupported image format"));
-    };
+    let media_type =
+        detect_image_media_type(&bytes).ok_or_else(|| invalid("unsupported image format"))?;
     if declared_media_type.is_some_and(|declared| declared != media_type) {
         return Err(invalid("image media type does not match its bytes"));
     }
@@ -41,6 +34,18 @@ pub fn validate_image_bytes(
         media_type: media_type.into(),
         bytes,
     })
+}
+
+pub fn detect_image_media_type(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        Some("image/png")
+    } else if bytes.starts_with(&[0xFF, 0xD8]) {
+        Some("image/jpeg")
+    } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Some("image/webp")
+    } else {
+        None
+    }
 }
 
 pub fn read_image_uri(

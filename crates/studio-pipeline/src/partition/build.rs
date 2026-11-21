@@ -93,25 +93,21 @@ fn build_artifact_with_options(
         });
     }
     let tileset = TilesetDocument::from_plan(asset_id, &plan, &files)?;
-    let triangle_count = files
+    let metrics = files
         .iter()
-        .map(part_triangle_count)
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .sum();
+        .map(part_metrics)
+        .collect::<Result<Vec<_>, _>>()?;
+    let triangle_count = metrics.iter().map(|metrics| metrics.triangle_count).sum();
     let max_part_bytes = files
         .iter()
         .map(|file| file.byte_length as u64)
         .max()
         .unwrap_or(0);
-    let (edge_segment_count, edge_bytes) = files
+    let edge_segment_count = metrics
         .iter()
-        .map(part_edge_metrics)
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .fold((0_u64, 0_u64), |(segments, bytes), next| {
-            (segments + next.0, bytes + next.1)
-        });
+        .map(|metrics| metrics.edge_segment_count)
+        .sum();
+    let edge_bytes = metrics.iter().map(|metrics| metrics.edge_bytes).sum();
     Ok(PartitionArtifact {
         files,
         tileset,
@@ -144,8 +140,8 @@ pub(crate) struct BuiltLeaf {
 struct PendingEdge {
     mesh_index: usize,
     positions_accessor: usize,
-    positions: Vec<[f32; 3]>,
-    indices: Vec<u32>,
+    edge_indices: Vec<u32>,
+    uses_u16: bool,
     source_material_key: Option<usize>,
     source_material_index: Option<usize>,
     edge_material_index: Option<usize>,
@@ -162,6 +158,31 @@ pub(crate) fn append_edges_to_primitive(
     material_index: usize,
     edge_material_index: usize,
     crease_angle_degrees: f32,
+) -> Result<u32, PipelineError> {
+    let edge_indices =
+        studio_assets::generate_edge_indices(positions, indices, crease_angle_degrees)?;
+    append_edge_indices_to_primitive(
+        json,
+        binary,
+        target_mesh_index,
+        positions_accessor,
+        &edge_indices,
+        positions.len() <= u16::MAX as usize,
+        material_index,
+        edge_material_index,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_edge_indices_to_primitive(
+    json: &mut Value,
+    binary: &mut Vec<u8>,
+    target_mesh_index: usize,
+    positions_accessor: usize,
+    edge_indices: &[u32],
+    uses_u16: bool,
+    material_index: usize,
+    edge_material_index: usize,
 ) -> Result<u32, PipelineError> {
     let materials = json
         .get("materials")
@@ -210,8 +231,6 @@ pub(crate) fn append_edges_to_primitive(
             "OPAQUE"
         }),
     );
-    let edge_indices =
-        studio_assets::generate_edge_indices(positions, indices, crease_angle_degrees)?;
     if edge_indices.is_empty() {
         return Ok(0);
     }
@@ -219,7 +238,7 @@ pub(crate) fn append_edges_to_primitive(
     while !binary.len().is_multiple_of(4) {
         binary.push(0);
     }
-    let (edge_bytes, component_type) = if positions.len() <= u16::MAX as usize {
+    let (edge_bytes, component_type) = if uses_u16 {
         (
             edge_indices
                 .iter()
@@ -370,8 +389,13 @@ pub(crate) fn build_batched_leaf(
         }
     }
 
+    let triangle_count = batches
+        .values()
+        .map(|batch| batch.indices.len() as u64 / 3)
+        .sum();
+    let batch_count = batches.len();
     let mut batch_metadata = Vec::new();
-    for (batch_index, batch) in batches.values().enumerate() {
+    for (batch_index, batch) in std::mem::take(&mut batches).into_values().enumerate() {
         let (mesh, output_material, triangle_count, bounds) = writer.copy_batch(
             batch,
             &source_materials,
@@ -407,7 +431,6 @@ pub(crate) fn build_batched_leaf(
     }
     let root_nodes = (0..nodes.len()).collect::<Vec<_>>();
     writer.root_nodes = root_nodes;
-    let batch_count = batch_metadata.len();
     let batching = json!({
         "version": "1.0",
         "semanticIds": semantic_ids,
@@ -415,10 +438,6 @@ pub(crate) fn build_batched_leaf(
         "semanticSelectionIds": semantic_selection_ids,
         "batches": batch_metadata
     });
-    let triangle_count = batches
-        .values()
-        .map(|batch| batch.indices.len() as u64 / 3)
-        .sum();
     let bytes = writer.finish(
         source,
         asset_id,
@@ -745,7 +764,7 @@ struct PartWriter {
 impl PartWriter {
     fn copy_batch(
         &mut self,
-        batch: &BatchDraft,
+        batch: BatchDraft,
         source_materials: &[Value],
         material_map: &mut BTreeMap<usize, usize>,
         asset_id: &str,
@@ -865,11 +884,17 @@ impl PartWriter {
         let (edge_source_material, queue_edges) =
             self.record_edge_material(source_materials, material_map, batch.material, asset_id)?;
         if self.edge_options.generate_edges && queue_edges {
+            let edge_positions = vec3_arrays(&batch.positions);
+            let edge_indices = studio_assets::generate_edge_indices(
+                &edge_positions,
+                &batch.indices,
+                self.edge_options.crease_angle_degrees,
+            )?;
             self.pending_edges.push(PendingEdge {
                 mesh_index: self.meshes.len(),
                 positions_accessor: position_accessor,
-                positions: vec3_arrays(&batch.positions),
-                indices: batch.indices.clone(),
+                edge_indices,
+                uses_u16: edge_positions.len() <= u16::MAX as usize,
                 source_material_key: batch.material,
                 source_material_index: edge_source_material,
                 edge_material_index: None,
@@ -1005,11 +1030,17 @@ impl PartWriter {
             asset_id,
         )?;
         if self.edge_options.generate_edges && queue_edges {
+            let edge_positions = vec3_arrays(&geometry.positions);
+            let edge_indices = studio_assets::generate_edge_indices(
+                &edge_positions,
+                &geometry.indices,
+                self.edge_options.crease_angle_degrees,
+            )?;
             self.pending_edges.push(PendingEdge {
                 mesh_index: self.meshes.len(),
                 positions_accessor: position_accessor,
-                positions: vec3_arrays(&geometry.positions),
-                indices: geometry.indices.clone(),
+                edge_indices,
+                uses_u16: edge_positions.len() <= u16::MAX as usize,
                 source_material_key: geometry.material_index,
                 source_material_index: edge_source_material,
                 edge_material_index: None,
@@ -1232,7 +1263,7 @@ impl PartWriter {
             if !matches!(mode, 4..=6) {
                 continue;
             }
-            let source_triangle_count = primitive_triangles(source, &primitive)?;
+            let source_triangle_count = primitive_triangles(&source.json, &primitive)?;
             let attributes = primitive
                 .get("attributes")
                 .and_then(Value::as_object)
@@ -1311,11 +1342,16 @@ impl PartWriter {
                 && let Some(indices) = source_indices
             {
                 let positions = read_positions(source, source_position_index)?;
+                let edge_indices = studio_assets::generate_edge_indices(
+                    &positions,
+                    &indices,
+                    self.edge_options.crease_angle_degrees,
+                )?;
                 self.pending_edges.push(PendingEdge {
                     mesh_index: output_mesh_index,
                     positions_accessor: output_position_index,
-                    positions,
-                    indices,
+                    edge_indices,
+                    uses_u16: positions.len() <= u16::MAX as usize,
                     source_material_key: source_material_index,
                     source_material_index: edge_source_material,
                     edge_material_index: None,
@@ -1503,19 +1539,18 @@ impl PartWriter {
         let mut edge_segment_count = 0_u64;
         let mut edge_bytes = 0_u64;
         if self.edge_options.generate_edges {
-            for pending in &self.pending_edges {
-                let segments = append_edges_to_primitive(
+            for pending in std::mem::take(&mut self.pending_edges) {
+                let segments = append_edge_indices_to_primitive(
                     &mut json,
                     &mut self.binary,
                     pending.mesh_index,
                     pending.positions_accessor,
-                    &pending.positions,
-                    &pending.indices,
+                    &pending.edge_indices,
+                    pending.uses_u16,
                     pending.source_material_index.unwrap_or(0),
                     pending
                         .edge_material_index
                         .ok_or_else(|| PipelineError::Tileset("edge material is missing".into()))?,
-                    self.edge_options.crease_angle_degrees,
                 )?;
                 if segments > 0 {
                     edge_segment_count += u64::from(segments);
@@ -1554,11 +1589,9 @@ impl PartWriter {
         if let Some(batching) = batching {
             json["asset"]["extras"]["ice3"]["batching"] = batching;
         }
-        pack_glb(
-            &serde_json::to_vec(&json)
-                .map_err(|error| PipelineError::Tileset(format!("part JSON failed: {error}")))?,
-            &self.binary,
-        )
+        let json = serde_json::to_vec(&json)
+            .map_err(|error| PipelineError::Tileset(format!("part JSON failed: {error}")))?;
+        pack_glb(json, self.binary)
     }
 }
 
@@ -1738,13 +1771,10 @@ fn node_instance_id(asset_id: &str, leaf_id: &str, node_id: &str) -> String {
     format!("{asset_id}/node/{leaf_id}/{node_id}")
 }
 
-fn primitive_triangles(
-    source: &SourceGlb,
-    primitive: &Map<String, Value>,
-) -> Result<u64, PipelineError> {
+fn primitive_triangles(json: &Value, primitive: &Map<String, Value>) -> Result<u64, PipelineError> {
     let mode = primitive.get("mode").and_then(Value::as_u64).unwrap_or(4);
     let count = if let Some(index) = primitive.get("indices").and_then(Value::as_u64) {
-        source.json["accessors"][index as usize]["count"]
+        json["accessors"][index as usize]["count"]
             .as_u64()
             .ok_or_else(|| PipelineError::Tileset("index count is missing".into()))?
     } else {
@@ -1754,7 +1784,7 @@ fn primitive_triangles(
             .and_then(|attributes| attributes.get("POSITION"))
             .and_then(Value::as_u64)
             .ok_or_else(|| PipelineError::Tileset("POSITION accessor is missing".into()))?;
-        source.json["accessors"][position as usize]["count"]
+        json["accessors"][position as usize]["count"]
             .as_u64()
             .ok_or_else(|| PipelineError::Tileset("position count is missing".into()))?
     };
@@ -1773,89 +1803,89 @@ fn bounds_json(bounds: Bounds) -> Value {
     })
 }
 
-fn pack_glb(json: &[u8], binary: &[u8]) -> Result<Vec<u8>, PipelineError> {
-    let mut json_chunk = json.to_vec();
-    while !json_chunk.len().is_multiple_of(4) {
-        json_chunk.push(b' ');
+fn pack_glb(mut json: Vec<u8>, mut binary: Vec<u8>) -> Result<Vec<u8>, PipelineError> {
+    while !json.len().is_multiple_of(4) {
+        json.push(b' ');
     }
-    let mut binary_chunk = binary.to_vec();
-    while !binary_chunk.len().is_multiple_of(4) {
-        binary_chunk.push(0);
+    while !binary.len().is_multiple_of(4) {
+        binary.push(0);
     }
     let total = 12usize
         .checked_add(8)
-        .and_then(|value| value.checked_add(json_chunk.len()))
+        .and_then(|value| value.checked_add(json.len()))
         .and_then(|value| value.checked_add(8))
-        .and_then(|value| value.checked_add(binary_chunk.len()))
+        .and_then(|value| value.checked_add(binary.len()))
         .and_then(|value| u32::try_from(value).ok())
         .ok_or_else(|| PipelineError::Tileset("GLB exceeds 4 GiB".into()))?;
-    let mut output = Vec::with_capacity(total as usize);
-    output.extend_from_slice(&0x4654_6C67_u32.to_le_bytes());
-    output.extend_from_slice(&2_u32.to_le_bytes());
-    output.extend_from_slice(&total.to_le_bytes());
-    output.extend_from_slice(&(json_chunk.len() as u32).to_le_bytes());
-    output.extend_from_slice(&0x4E4F_534A_u32.to_le_bytes());
-    output.extend_from_slice(&json_chunk);
-    output.extend_from_slice(&(binary_chunk.len() as u32).to_le_bytes());
-    output.extend_from_slice(&0x004E_4942_u32.to_le_bytes());
-    output.extend_from_slice(&binary_chunk);
-    Ok(output)
+    let binary_length = binary.len();
+    let binary_offset = 20 + json.len() + 8;
+    binary.resize(total as usize, 0);
+    binary.copy_within(0..binary_length, binary_offset);
+    binary[0..4].copy_from_slice(&0x4654_6C67_u32.to_le_bytes());
+    binary[4..8].copy_from_slice(&2_u32.to_le_bytes());
+    binary[8..12].copy_from_slice(&total.to_le_bytes());
+    binary[12..16].copy_from_slice(&(json.len() as u32).to_le_bytes());
+    binary[16..20].copy_from_slice(&0x4E4F_534A_u32.to_le_bytes());
+    binary[20..20 + json.len()].copy_from_slice(&json);
+    let binary_header = 20 + json.len();
+    binary[binary_header..binary_header + 4].copy_from_slice(&(binary_length as u32).to_le_bytes());
+    binary[binary_header + 4..binary_header + 8].copy_from_slice(&0x004E_4942_u32.to_le_bytes());
+    Ok(binary)
 }
 
-fn part_triangle_count(file: &PartitionFile) -> Result<u64, PipelineError> {
-    let source = studio_assets::read_glb_bytes(&file.bytes, &std::env::temp_dir())?;
-    let meshes = source
-        .json
+pub(crate) struct PartMetrics {
+    pub(crate) triangle_count: u64,
+    pub(crate) edge_segment_count: u64,
+    pub(crate) edge_bytes: u64,
+}
+
+pub(crate) fn part_metrics(file: &PartitionFile) -> Result<PartMetrics, PipelineError> {
+    let bytes = &file.bytes;
+    if bytes.len() < 20
+        || bytes[0..4] != 0x4654_6C67_u32.to_le_bytes()
+        || bytes[4..8] != 2_u32.to_le_bytes()
+        || bytes[8..12] != (bytes.len() as u32).to_le_bytes()
+        || bytes[16..20] != 0x4E4F_534A_u32.to_le_bytes()
+    {
+        return Err(PipelineError::Tileset("part GLB header is invalid".into()));
+    }
+    let json_length = u32::from_le_bytes(bytes[12..16].try_into().expect("four bytes")) as usize;
+    let json_end = 20_usize
+        .checked_add(json_length)
+        .filter(|end| *end <= bytes.len())
+        .ok_or_else(|| PipelineError::Tileset("part JSON chunk is truncated".into()))?;
+    let json: Value = serde_json::from_slice(&bytes[20..json_end])
+        .map_err(|error| PipelineError::Tileset(format!("part JSON is invalid: {error}")))?;
+    let meshes = json
         .get("meshes")
         .and_then(Value::as_array)
         .ok_or_else(|| PipelineError::Tileset("part meshes are missing".into()))?;
-    let mut total = 0_u64;
-    for mesh in meshes {
-        for primitive in mesh
-            .get("primitives")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-        {
-            let primitive = primitive
-                .as_object()
-                .ok_or_else(|| PipelineError::Tileset("part primitive is invalid".into()))?;
-            total += primitive_triangles(&source, primitive)?;
-        }
-    }
-    Ok(total)
-}
-
-pub(crate) fn part_edge_metrics(file: &PartitionFile) -> Result<(u64, u64), PipelineError> {
-    let source = studio_assets::read_glb_bytes(&file.bytes, &std::env::temp_dir())?;
-    let accessors = source
-        .json
+    let accessors = json
         .get("accessors")
         .and_then(Value::as_array)
         .ok_or_else(|| PipelineError::Tileset("part accessors are missing".into()))?;
-    let buffer_views = source
-        .json
+    let buffer_views = json
         .get("bufferViews")
         .and_then(Value::as_array)
         .ok_or_else(|| PipelineError::Tileset("part bufferViews are missing".into()))?;
+    let mut triangle_count = 0_u64;
     let mut segment_count = 0_u64;
     let mut edge_bytes = 0_u64;
-    for primitive in source
-        .json
-        .get("meshes")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .flat_map(|mesh| {
-            mesh.get("primitives")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-        })
-    {
+    for primitive in meshes.iter().flat_map(|mesh| {
+        mesh.get("primitives")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+    }) {
+        let primitive = primitive
+            .as_object()
+            .ok_or_else(|| PipelineError::Tileset("part primitive is invalid".into()))?;
+        triangle_count += primitive_triangles(&json, primitive)?;
         if primitive.get("mode").and_then(Value::as_u64) != Some(1)
             || primitive
-                .pointer("/extras/ice3/role")
+                .get("extras")
+                .and_then(|extras| extras.get("ice3"))
+                .and_then(|ice3| ice3.get("role"))
                 .and_then(Value::as_str)
                 != Some("edges")
         {
@@ -1886,7 +1916,11 @@ pub(crate) fn part_edge_metrics(file: &PartitionFile) -> Result<(u64, u64), Pipe
         segment_count += count / 2;
         edge_bytes += byte_length;
     }
-    Ok((segment_count, edge_bytes))
+    Ok(PartMetrics {
+        triangle_count,
+        edge_segment_count: segment_count,
+        edge_bytes,
+    })
 }
 
 #[cfg(test)]
