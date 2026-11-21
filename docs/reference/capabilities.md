@@ -9,13 +9,13 @@
 本文件是 Studio 对外能力的**代码镜像**。内容逐项来自 `crates/` 与 `apps/viewer/src/`，
 实现变更时同步更新；与其它文档冲突时以本文件和代码为准。
 
-`API_VERSION` 当前为 `1.4`，但项目仍是 pre-release。1.1 把 Operation 字段名统一为
+`API_VERSION` 当前为 `1.5`，但项目仍是 pre-release。1.1 把 Operation 字段名统一为
 camelCase，并保留历史 snake_case 别名双读（见
 [ADR-003](../decisions/0003-wire-format-camel-case.md)）；1.2 要求四个变更集写方法
 携带 `idempotencyKey`，重试不再产生重复副作用；1.3 让 `changeset.evaluate` 附带
 `spatial` 预检摘要（改动包围盒、越界节点数），它是信息性的，不影响 `status`；1.4
-增加五个稳定路由安全 Diagnostic code 和四个附件 Diagnostic code，method 和 Operation
-不变。
+增加五个稳定路由安全 Diagnostic code 和四个附件 Diagnostic code；1.5 新增只读
+`route.inspect`，Operation 不变。
 历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`。capabilities 调用方必须按当前 generated schema 解析，不能把版本
@@ -30,11 +30,11 @@ camelCase，并保留历史 snake_case 别名双读（见
 - `review-required` 模式下 Agent 令牌不能直接 `document.apply` 或 `changeset.commit`；
   `autonomous` 模式下允许直接写入。
 
-## 2. JSON-RPC 方法（固化 39，运行时 41）
+## 2. JSON-RPC 方法（固化 42，运行时 44）
 
-`schemas/studio-api.schema.json` 固化 39 个方法。Server 的 `system.capabilities` 额外
+`schemas/studio-api.schema.json` 固化 42 个方法。Server 的 `system.capabilities` 额外
 公布两个实验性 GPU scene 方法 `evaluation.waitScene` 和
-`evaluation.visibleInstances`，因此运行时能力清单共 41 个。
+`evaluation.visibleInstances`，因此运行时能力清单共 44 个。
 
 ### 2.1 system（3）
 
@@ -83,7 +83,18 @@ camelCase，并保留历史 snake_case 别名双读（见
 |---|---:||---|---|
 | `component.get` | 否 | `ComponentGetParams`（`includeParts` 默认 false） | 组件定义有界摘要：参数、端口、部件（≤100 条 + truncation 标志）、实例计数；`includeParts` 追加完整定义供 `component.update` 修改回写 |
 
-### 2.6 validation（1）
+### 2.6 route（1）
+
+| 方法 | 写 | 参数 | 返回 |
+|---|---:|---|---|
+| `route.inspect` | 否 | `RouteInspectionParams`（`lineId`、可选 `revision`） | 按稳定 node ID 排序的 segments、解析端口、附件、宿主、supportLineIds 与 supports；超过 128 segments、4,096 points、128 attachments 或 512 supports 时显式返回 truncation |
+
+`route.inspect` 使用与 `validation.run` 相同的正式 `resolve_port`/`route_connection`
+事实，但只读且不复制 validation 结果。分段主管共享 `lineId`；支撑通过
+`supportLineId`（缺省回退 `lineId`）筛选。Viewer Route Inspector 通过该公开方法显示
+线路、端口、附件、宿主和支撑，点击相关对象只更新 Selection。
+
+### 2.7 validation（1）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -117,7 +128,7 @@ connection 未声明 `lineId` 时不执行资产级支撑布局。
 间隔豁免。预算为 50,000 个障碍 owner、50,000 个路由段、1,000,000 个三角形对和每条
 connection 32 条碰撞报告；耗尽时失败关闭。
 
-### 2.7 evaluation（5）
+### 2.8 evaluation（5）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -127,14 +138,14 @@ connection 32 条碰撞报告；耗尽时失败关闭。
 | `evaluation.waitScene` | 否 | `{ revision? }` | 实验性；已发布的 GPU 场景状态 |
 | `evaluation.visibleInstances` | 否 | `{ targetRevision, planes[6][4] }` | 实验性；可见实例索引与稳定 node ID |
 
-### 2.8 export（2）
+### 2.9 export（2）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
 | `export.sourceGlb` | 是 | 无 | Source GLB 导出元数据 |
 | `export.runtimePreview` | 是 | `RuntimePreviewRequest` | 已提交或候选的预处理预览元数据 |
 
-### 2.9 changeset（10）
+### 2.10 changeset（10）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|
@@ -149,7 +160,7 @@ connection 32 条碰撞报告；耗尽时失败关闭。
 | `changeset.list` | 否 | 无 | ChangeSet 列表 |
 | `changeset.discard` | 是 | `{ changeSetId }` | 丢弃结果 |
 
-### 2.10 referenceAsset（3）
+### 2.11 referenceAsset（3）
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:||---|---|

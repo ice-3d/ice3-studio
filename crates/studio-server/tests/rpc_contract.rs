@@ -65,6 +65,163 @@ async fn route_inspection_is_a_read_only_public_method_with_stable_errors() {
     );
 }
 
+async fn apply_route_fixture(server: &studio_server::TestServer) {
+    let response = common::rpc(
+        server,
+        "document.apply",
+        serde_json::json!({
+            "expectedRevision": 0,
+            "dryRun": false,
+            "idempotencyKey": "route-inspection-fixture",
+            "operations": [
+                {
+                    "type": "component.define",
+                    "definition": {
+                        "id": "component-000001",
+                        "name": "Route endpoint",
+                        "parameters": [],
+                        "parts": [{
+                            "id": "body",
+                            "parentId": null,
+                            "transform": {},
+                            "content": {
+                                "kind": "box",
+                                "width": 1,
+                                "height": 1,
+                                "depth": 1
+                            },
+                            "subtract": [],
+                            "repeat": null,
+                            "materialRole": null,
+                            "metadata": {},
+                            "visible": true
+                        }],
+                        "ports": [
+                            {
+                                "name": "out",
+                                "partId": "body",
+                                "position": { "x": 0.5, "y": 0, "z": 0 },
+                                "direction": { "x": 1, "y": 0, "z": 0 },
+                                "medium": "water",
+                                "diameter": 0.2
+                            },
+                            {
+                                "name": "in",
+                                "partId": "body",
+                                "position": { "x": -0.5, "y": 0, "z": 0 },
+                                "direction": { "x": -1, "y": 0, "z": 0 },
+                                "medium": "water",
+                                "diameter": 0.2
+                            }
+                        ],
+                        "metadata": {}
+                    }
+                },
+                {
+                    "type": "instance.create",
+                    "node_id": "node-000001",
+                    "parent_id": null,
+                    "name": "Route A",
+                    "transform": {
+                        "translation": { "x": 0, "y": 0, "z": 0 },
+                        "rotation": [0, 0, 0, 1],
+                        "scale": { "x": 1, "y": 1, "z": 1 }
+                    },
+                    "instance": {
+                        "definitionId": "component-000001",
+                        "parameters": {},
+                        "overrides": {},
+                        "metadata": {}
+                    },
+                    "material_id": null,
+                    "metadata": {}
+                },
+                {
+                    "type": "instance.create",
+                    "node_id": "node-000002",
+                    "parent_id": null,
+                    "name": "Route B",
+                    "transform": {
+                        "translation": { "x": 5, "y": 0, "z": 0 },
+                        "rotation": [0, 0, 0, 1],
+                        "scale": { "x": 1, "y": 1, "z": 1 }
+                    },
+                    "instance": {
+                        "definitionId": "component-000001",
+                        "parameters": {},
+                        "overrides": {},
+                        "metadata": {}
+                    },
+                    "material_id": null,
+                    "metadata": {}
+                },
+                {
+                    "type": "relation.create",
+                    "relation": {
+                        "id": "relation-000001",
+                        "relationType": "process",
+                        "fromNodeId": "node-000001",
+                        "toNodeId": "node-000002",
+                        "metadata": {}
+                    }
+                },
+                {
+                    "type": "connection.create",
+                    "node_id": "node-000003",
+                    "parent_id": null,
+                    "name": "Route segment",
+                    "transform": {
+                        "translation": { "x": 0, "y": 0, "z": 0 },
+                        "rotation": [0, 0, 0, 1],
+                        "scale": { "x": 1, "y": 1, "z": 1 }
+                    },
+                    "connection": {
+                        "from": {
+                            "kind": "instance",
+                            "nodeId": "node-000001",
+                            "port": "out"
+                        },
+                        "to": {
+                            "kind": "instance",
+                            "nodeId": "node-000002",
+                            "port": "in"
+                        },
+                        "medium": "water",
+                        "diameter": 0.2,
+                        "routePolicy": { "kind": "buried", "depth": 1 },
+                        "relationId": "relation-000001",
+                        "metadata": {
+                            "lineId": "L-RPC",
+                            "supportLineId": "L-RPC"
+                        }
+                    },
+                    "material_id": null
+                }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(response["result"]["revision"], 1, "{response}");
+}
+
+#[tokio::test]
+async fn route_inspection_returns_public_route_facts() {
+    let server = start_test_server(ServerConfig::for_tests("route-inspection-rpc")).await;
+    apply_route_fixture(&server).await;
+    let body = common::rpc(
+        &server,
+        "route.inspect",
+        serde_json::json!({ "lineId": "L-RPC", "revision": 1 }),
+    )
+    .await;
+    assert_eq!(
+        body["result"]["segments"][0]["nodeId"],
+        "node-000003"
+    );
+    assert_eq!(body["result"]["segments"][0]["from"]["nodeId"], "node-000001");
+    assert_eq!(body["result"]["segments"][0]["from"]["position"]["x"], 0.5);
+}
+
 #[tokio::test]
 async fn health_reports_api_and_schema_versions() {
     let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;

@@ -9,12 +9,12 @@
 Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
 路径；所有修改都必须进入事务或 ChangeSet。
 
-`API_VERSION` 当前为 `1.4`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
+`API_VERSION` 当前为 `1.5`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
 读回显从 snake_case 变为 camelCase（见 [ADR-003](../decisions/0003-wire-format-camel-case.md)）；
 1.2 要求 `changeset.create`、`addOperations`、`removeOperations`、`discard` 携带
 `idempotencyKey`；1.3 在 `changeset.evaluate` 的返回里增加 `spatial` 预检摘要，
 它是可选字段，不参与状态判定；1.4 新增管线路径碰撞、净空面、支撑布局和路由安全预算
-五个 Diagnostic code，JSON-RPC method 与 Operation 形状不变。历史 API 曾包含
+五个 Diagnostic code；1.5 增加只读 `route.inspect`。历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`，客户端必须按当前 generated schema 解析 capabilities。该形状变化
 不承诺向后兼容，不能把 `1.0` 当作兼容性承诺。
@@ -54,8 +54,8 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 
 ## 3. 方法清单
 
-静态 Schema 固化 38 个方法；运行中的 `system.capabilities` 另有两个实验性 GPU scene
-方法，共 40 个。
+静态 Schema 固化 42 个方法；运行中的 `system.capabilities` 另有两个实验性 GPU scene
+方法，共 44 个。
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:|---|---|
@@ -77,6 +77,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | `scene.context` | 否 | 无 | 有界项目摘要 |
 | `scene.search` | 否 | `SceneSearchRequest` | revision-bound page |
 | `component.get` | 否 | `ComponentGetParams` | 单个组件定义的有界摘要 |
+| `route.inspect` | 否 | `RouteInspectionParams` | 按 line ID 返回有界路由、端口、附件、宿主和支撑 |
 | `scene.bounds` | 否 | 无 | 按 Node ID 的 world bounds |
 | `scene.measure` | 否 | `MeasureRequest` | 距离、逐轴差值与净空 |
 | `scene.bom` | 否 | `BomRequest` | 按定义/材质/宿主/属性聚合的物料表 |
@@ -233,6 +234,72 @@ Document。
 同构的完整定义（全部 parts binding 与参数绑定）。修改既有定义——加端口、改部件
 绑定——的标准工作流是 `component.get includeParts` 读出完整定义，本地修改后
 `component.update` 全量写回。完整定义无截断；最大定义约 1.4 MiB，仅在需要修改时请求。
+
+`route.inspect` 接受 `{ lineId, revision? }`，返回 committed Document 的同源线路事实。
+`revision` 提供时必须等于当前 revision。响应包括：
+
+```json
+{
+  "revision": 1,
+  "lineId": "L-RAS-HEADER-101",
+  "supportLineIds": ["L-RAS-HEADER-101-reducer-ras-a-small"],
+  "segments": [{
+    "nodeId": "node-000886",
+    "name": "RWS-101 → AE-102 回流污泥",
+    "medium": "return-sludge",
+    "diameter": 0.2875,
+    "routePolicy": { "kind": "rack", "elevation": 6.5 },
+    "from": {
+      "nodeId": "node-000885",
+      "port": "small",
+      "medium": "return-sludge",
+      "diameter": 0.25,
+      "position": { "x": 425.4, "y": 6.5, "z": -3.0 },
+      "direction": { "x": -1.0, "y": 0.0, "z": 0.0 }
+    },
+    "to": {
+      "nodeId": "node-000164",
+      "port": "return-inlet",
+      "medium": "return-sludge",
+      "diameter": 0.35,
+      "position": { "x": 275.0, "y": 4.0, "z": 30.0 },
+      "direction": { "x": 0.0, "y": 0.0, "z": 1.0 }
+    },
+    "points": [[425.4, 6.5, -3.0], [275.0, 6.5, -3.0], [275.0, 4.0, 30.0]]
+  }],
+  "attachments": [{
+    "nodeId": "node-000885",
+    "name": "RED-101 回流污泥异径管",
+    "role": "pipe-fitting",
+    "fittingKind": "reducer",
+    "lineId": "L-RAS-HEADER-101",
+    "supportLineId": null,
+    "hostNodeId": null,
+    "hostName": null
+  }],
+  "supports": [],
+  "truncated": {
+    "segments": false,
+    "points": false,
+    "attachments": false,
+    "supports": false
+  }
+}
+```
+
+- 按 node ID 排序的 segments；每段含正式 `route_connection` points、route policy、
+  medium、diameter 和解析后的 from/to 端口；
+- 与目标 `lineId` 完全匹配的 pipe fitting/penetration 附件，以及套管宿主名称；
+- segment `supportLineId` 对应的支撑站点与 support group；
+- `supportLineIds` 去重排序结果；
+- `truncated.{segments,points,attachments,supports}`。
+
+上限为 128 segments、4,096 points、128 attachments 和 512 supports。响应截断是有信息
+的 partial result，不表示路由缺失。未知或无 route 的 `lineId` 返回
+`ICE3_STUDIO_REFERENCE_INVALID`；无法解析正式端口或路由返回
+`ICE3_STUDIO_CONNECTION_INVALID`；stale revision 返回
+`ICE3_STUDIO_REVISION_CONFLICT`。该方法不运行 validation，诊断仍由 `validation.run`
+返回。
 
 `validation.run` 接受可选 `includeOverlaps`（默认 `false`）。显式请求时在常规诊断后
 追加 `ICE3_STUDIO_GEOMETRY_OVERLAP` warning：报告三轴交叠深度均超过 0.1 m 且交叠

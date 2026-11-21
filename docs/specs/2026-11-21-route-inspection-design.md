@@ -209,8 +209,8 @@ component definitions，不持有 preview worker，不触发 geometry evaluation
 `system.capabilities` 公布该方法；`system.agentManifest` 将它归入只读 inspect 工具，
 并加入 `inspect` workflow。Agent authority、项目路径和 operation capability 边界不变。
 
-API 版本从 `1.4` 升为 `1.5`。方法总数从 schema 39 / runtime 41 变为
-schema 40 / runtime 42。
+API 版本从 `1.4` 升为 `1.5`。方法总数从 schema 41 / runtime 43 变为
+schema 42 / runtime 44。
 
 ## 8. Viewer
 

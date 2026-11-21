@@ -35,7 +35,7 @@ Node.js ESM、Google Chrome。
 - Optional request `revision` must equal the committed Document revision.
 - Response limits are 128 segments, 4,096 total route points, 128 attachments and 512 supports.
 - Result ordering is stable by node ID; truncation must be explicit for every bounded collection.
-- API version becomes `1.5`; schema method count becomes 40 and runtime method count becomes 42.
+- API version becomes `1.5`; schema method count becomes 42 and runtime method count becomes 44.
 - Existing `document.get`, `scene.search`, `component.get`, route safety and attachment behavior
   remain compatible.
 - Git author and committer must be `damoqiongqiu <damoqiongqiu@126.com>`.
