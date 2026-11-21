@@ -65,34 +65,34 @@ pub fn route_collision_document() -> Document {
         ComponentPort {
             name: "outlet".into(),
             part_id: "body".into(),
-            position: Vec3 {
+            position: Vector3Binding::Literal(Vec3 {
                 x: 1.0,
                 y: 0.0,
                 z: 0.0,
-            },
-            direction: Vec3 {
+            }),
+            direction: Vector3Binding::Literal(Vec3 {
                 x: 1.0,
                 y: 0.0,
                 z: 0.0,
-            },
+            }),
             medium: "water".into(),
-            diameter: 0.2,
+            diameter: ScalarBinding::Literal(0.2),
         },
         ComponentPort {
             name: "inlet".into(),
             part_id: "body".into(),
-            position: Vec3 {
+            position: Vector3Binding::Literal(Vec3 {
                 x: -1.0,
                 y: 0.0,
                 z: 0.0,
-            },
-            direction: Vec3 {
+            }),
+            direction: Vector3Binding::Literal(Vec3 {
                 x: -1.0,
                 y: 0.0,
                 z: 0.0,
-            },
+            }),
             medium: "water".into(),
-            diameter: 0.2,
+            diameter: ScalarBinding::Literal(0.2),
         },
     ];
     document.relations.push(Relation {

@@ -355,10 +355,10 @@ pub enum PartContent {
 pub struct ComponentPort {
     pub name: String,
     pub part_id: String,
-    pub position: Vec3,
-    pub direction: Vec3,
+    pub position: Vector3Binding,
+    pub direction: Vector3Binding,
     pub medium: String,
-    pub diameter: f32,
+    pub diameter: ScalarBinding,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
