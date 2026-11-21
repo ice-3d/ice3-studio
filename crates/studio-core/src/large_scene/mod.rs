@@ -4,5 +4,6 @@ pub mod connection;
 pub mod evaluate;
 pub mod expression;
 pub mod route;
+pub mod route_attachment;
 pub mod route_safety;
 pub mod validate;

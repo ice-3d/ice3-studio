@@ -110,6 +110,9 @@ pub fn validate_large_scene(document: &Document) -> Vec<Diagnostic> {
 
     diagnostics
         .extend(crate::large_scene::route_safety::validate_route_safety(document, &definitions).0);
+    diagnostics.extend(
+        crate::large_scene::route_attachment::validate_route_attachments(document, &definitions),
+    );
     diagnostics
 }
 

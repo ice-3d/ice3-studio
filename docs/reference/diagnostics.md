@@ -63,6 +63,10 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_ROUTE_SUPPORT_MISSING` | A non-buried connection with `lineId` has no valid support beam |
 | `ICE3_STUDIO_ROUTE_SUPPORT_SPACING` | Supports are sparse, off-route, or missing near a turn |
 | `ICE3_STUDIO_ROUTE_SAFETY_BUDGET` | Obstacle, route-segment, triangle-pair, or collision-report budget was exhausted |
+| `ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID` | Attachment metadata, ports, references, diameters, or host are invalid |
+| `ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED` | Attachment centerline, direction, or surface position exceeds tolerance |
+| `ICE3_STUDIO_ROUTE_PENETRATION_INVALID` | Sleeve does not cross a real host, has an invalid axis, or is duplicated |
+| `ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET` | Attachment or penetration validation budget was exhausted |
 
 ## 3. 源导入 CLI 代码
 
