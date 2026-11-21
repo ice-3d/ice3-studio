@@ -945,7 +945,7 @@ pub(crate) fn resolve_part_content(
     })
 }
 
-fn resolve_scalar(
+pub(crate) fn resolve_scalar(
     binding: &ScalarBinding,
     parameters: &BTreeMap<String, ParameterValue>,
 ) -> Result<f32, LargeSceneError> {
@@ -969,7 +969,7 @@ fn resolve_scalar(
     }
 }
 
-fn resolve_vector3(
+pub(crate) fn resolve_vector3(
     binding: &Vector3Binding,
     parameters: &BTreeMap<String, ParameterValue>,
 ) -> Result<Vec3, LargeSceneError> {

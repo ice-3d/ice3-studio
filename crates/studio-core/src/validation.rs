@@ -110,6 +110,18 @@ pub enum DiagnosticCode {
     #[serde(rename = "ICE3_STUDIO_ROUTE_SAFETY_BUDGET")]
     #[ts(rename = "ICE3_STUDIO_ROUTE_SAFETY_BUDGET")]
     RouteSafetyBudget,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID")]
+    RouteAttachmentInvalid,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED")]
+    RouteAttachmentMisaligned,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_PENETRATION_INVALID")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_PENETRATION_INVALID")]
+    RoutePenetrationInvalid,
+    #[serde(rename = "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET")]
+    #[ts(rename = "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET")]
+    RouteAttachmentBudget,
 }
 
 pub const DIAGNOSTIC_CODES: &[&str] = &[
@@ -146,6 +158,10 @@ pub const DIAGNOSTIC_CODES: &[&str] = &[
     "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
     "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
     "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
+    "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID",
+    "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED",
+    "ICE3_STUDIO_ROUTE_PENETRATION_INVALID",
+    "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET",
 ];
 
 impl DiagnosticCode {
@@ -184,6 +200,10 @@ impl DiagnosticCode {
             Self::RouteSupportMissing => "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
             Self::RouteSupportSpacing => "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
             Self::RouteSafetyBudget => "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
+            Self::RouteAttachmentInvalid => "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID",
+            Self::RouteAttachmentMisaligned => "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED",
+            Self::RoutePenetrationInvalid => "ICE3_STUDIO_ROUTE_PENETRATION_INVALID",
+            Self::RouteAttachmentBudget => "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET",
         }
     }
 }

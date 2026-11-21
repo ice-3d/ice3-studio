@@ -6,8 +6,10 @@ use crate::document::{Document, NodeContent, SceneNode};
 use crate::ids::ComponentId;
 use crate::large_scene::component::ComponentDefinition;
 use crate::large_scene::connection::{ConnectionIntent, InstancePortRef, RoutePolicy};
-use crate::large_scene::evaluate::{compose_transform, expand_instance_layout};
-use crate::large_scene::validate::instance_count;
+use crate::large_scene::evaluate::{
+    compose_transform, expand_instance_layout, resolve_scalar, resolve_vector3,
+};
+use crate::large_scene::validate::{instance_count, resolve_parameters};
 use crate::math::{Transform, Vec3};
 
 const BEND_SAMPLES: usize = 8;
@@ -57,10 +59,12 @@ pub fn resolve_port(
         .iter()
         .find(|candidate| candidate.id == *node_id)
         .ok_or(ConnectionError::MissingEndpoint)?;
-    let (definition_id, local_transform) = match (&node.content, ordinal) {
-        (NodeContent::ComponentInstance(instance), None) => {
-            (&instance.definition_id, world_transform(document, node)?)
-        }
+    let (definition_id, local_transform, parameters) = match (&node.content, ordinal) {
+        (NodeContent::ComponentInstance(instance), None) => (
+            &instance.definition_id,
+            world_transform(document, node)?,
+            instance.parameters.clone(),
+        ),
         (NodeContent::InstanceSet(set), Some(ordinal)) => {
             if ordinal >= instance_count(&set.layout).unwrap_or(0) {
                 return Err(ConnectionError::MissingEndpoint);
@@ -70,9 +74,14 @@ pub fn resolve_port(
                 .into_iter()
                 .nth(ordinal as usize)
                 .ok_or(ConnectionError::MissingEndpoint)?;
+            let mut parameters = set.shared_parameters.clone();
+            if let Some(overrides) = set.item_overrides.get(&ordinal) {
+                parameters.extend(overrides.clone());
+            }
             (
                 &set.definition_id,
                 compose_transform(world_transform(document, node)?, placement),
+                parameters,
             )
         }
         _ => return Err(ConnectionError::MissingEndpoint),
@@ -85,17 +94,25 @@ pub fn resolve_port(
         .iter()
         .find(|port| port.name == *port_name)
         .ok_or(ConnectionError::MissingPort)?;
+    let resolved_parameters = resolve_parameters(definition, &parameters)
+        .map_err(|_| ConnectionError::InvalidTransform)?;
+    let port_position = resolve_vector3(&port.position, &resolved_parameters)
+        .map_err(|_| ConnectionError::InvalidTransform)?;
+    let port_direction = resolve_vector3(&port.direction, &resolved_parameters)
+        .map_err(|_| ConnectionError::InvalidTransform)?;
+    let port_diameter = resolve_scalar(&port.diameter, &resolved_parameters)
+        .map_err(|_| ConnectionError::InvalidTransform)?;
     let matrix = transform_matrix(local_transform);
     let position = matrix.transform_point3(GlamVec3::new(
-        port.position.x,
-        port.position.y,
-        port.position.z,
+        port_position.x,
+        port_position.y,
+        port_position.z,
     ));
     let direction = matrix
         .transform_vector3(GlamVec3::new(
-            port.direction.x,
-            port.direction.y,
-            port.direction.z,
+            port_direction.x,
+            port_direction.y,
+            port_direction.z,
         ))
         .normalize_or_zero();
     if direction.length_squared() <= f32::EPSILON {
@@ -113,7 +130,7 @@ pub fn resolve_port(
             z: direction.z,
         },
         medium: port.medium.clone(),
-        diameter: port.diameter,
+        diameter: port_diameter,
     })
 }
 

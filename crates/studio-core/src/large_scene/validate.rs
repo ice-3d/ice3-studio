@@ -8,6 +8,7 @@ use crate::large_scene::component::{
     ScalarBinding, Vector3Binding,
 };
 use crate::large_scene::connection::{ConnectionIntent, InstancePortRef};
+use crate::large_scene::evaluate::{resolve_scalar, resolve_vector3};
 use crate::math::Vec3;
 use crate::validation::{Diagnostic, DiagnosticCode};
 
@@ -109,6 +110,9 @@ pub fn validate_large_scene(document: &Document) -> Vec<Diagnostic> {
 
     diagnostics
         .extend(crate::large_scene::route_safety::validate_route_safety(document, &definitions).0);
+    diagnostics.extend(
+        crate::large_scene::route_attachment::validate_route_attachments(document, &definitions),
+    );
     diagnostics
 }
 
@@ -247,6 +251,7 @@ fn validate_definition(
         }
     }
 
+    let resolved_parameters = resolve_parameters(definition, &BTreeMap::new()).ok();
     let mut ports = BTreeSet::new();
     for (index, port) in definition.ports.iter().enumerate() {
         if port.name.is_empty() || !ports.insert(port.name.clone()) {
@@ -263,11 +268,20 @@ fn validate_definition(
                 "component port part does not exist",
             ));
         }
-        if !vec3_is_finite(port.position)
-            || !vec3_is_finite(port.direction)
-            || vec3_length_squared(port.direction) <= f32::EPSILON
-            || !port.diameter.is_finite()
-            || port.diameter <= 0.0
+        let position = resolved_parameters
+            .as_ref()
+            .and_then(|parameters| resolve_vector3(&port.position, parameters).ok());
+        let direction = resolved_parameters
+            .as_ref()
+            .and_then(|parameters| resolve_vector3(&port.direction, parameters).ok());
+        let diameter = resolved_parameters
+            .as_ref()
+            .and_then(|parameters| resolve_scalar(&port.diameter, parameters).ok());
+        if position.is_none_or(|value| !vec3_is_finite(value))
+            || direction.is_none_or(|value| {
+                !vec3_is_finite(value) || vec3_length_squared(value) <= f32::EPSILON
+            })
+            || diameter.is_none_or(|value| !value.is_finite() || value <= 0.0)
         {
             diagnostics.push(component(
                 definition.id.as_str(),

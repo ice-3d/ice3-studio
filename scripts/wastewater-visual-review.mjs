@@ -1,4 +1,4 @@
-// 固定四个检查距离，分别覆盖总览、工艺中景、建筑近景和设备近景。
+// 固定六个检查距离，分别覆盖总览、工艺中景、建筑近景、设备近景和附件近景。
 // 该入口只生成 Chrome URL；浏览器启动和截图遵循仓库的 Google Chrome 规则。
 
 const REVIEW_VIEWS = Object.freeze([
@@ -29,6 +29,20 @@ const REVIEW_VIEWS = Object.freeze([
     target: Object.freeze([62, 2.2, 10]),
     orientation: Object.freeze([35, 18]),
     distance: 30,
+  }),
+  Object.freeze({
+    name: 'pipe-fittings',
+    purpose: '回流污泥异径管与相邻法兰接口近景',
+    target: Object.freeze([426, 6.5, -3]),
+    orientation: Object.freeze([40, 20]),
+    distance: 18,
+  }),
+  Object.freeze({
+    name: 'wall-penetration',
+    purpose: '沼气主管穿墙套管与气柜接口近景',
+    target: Object.freeze([378.5, 6.5, -125]),
+    orientation: Object.freeze([35, 20]),
+    distance: 18,
   }),
 ]);
 

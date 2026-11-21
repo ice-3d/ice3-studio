@@ -6,6 +6,7 @@ use studio_core::ids::{ComponentId, MaterialId, NodeId, RelationId, Revision};
 use studio_core::large_scene::component::{
     ComponentDefinition, ComponentInstance, ComponentParameter, ComponentPart, ComponentPort,
     ParameterType, ParameterValue, PartContent, PartOverride, PartTransform, ScalarBinding,
+    Vector3Binding,
 };
 use studio_core::large_scene::connection::{ConnectionIntent, InstancePortRef, RoutePolicy};
 use studio_core::math::Vec3;
@@ -449,14 +450,14 @@ fn fixture_document() -> Document {
         ports: vec![ComponentPort {
             name: "outlet".into(),
             part_id: "body".into(),
-            position: Vec3::default(),
-            direction: Vec3 {
+            position: Vector3Binding::Literal(Vec3::default()),
+            direction: Vector3Binding::Literal(Vec3 {
                 x: 1.0,
                 y: 0.0,
                 z: 0.0,
-            },
+            }),
             medium: "water".into(),
-            diameter: 1.0,
+            diameter: ScalarBinding::Literal(1.0),
         }],
         metadata: [("category".into(), "pump".into())].into_iter().collect(),
     });

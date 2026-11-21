@@ -51,6 +51,12 @@ import {
   validateProcessGraph,
   validateWastewaterPlan,
 } from './validate.mjs';
+import {
+  definePipeAttachmentComponents,
+  placeReducer,
+  placeSleeve,
+  placeTee,
+} from './pipe-attachments.mjs';
 
 export const requiredProcessGraph = [
   {
@@ -591,6 +597,7 @@ function buildPlan(projectId) {
       )),
       b.port('outlet-a', 'rws-slab', -7, 0.8, 3, vec(-1, 0, 0), 'return-sludge', 0.3),
       b.port('outlet-b', 'rws-slab', 7, 0.8, -3, vec(1, 0, 0), 'return-sludge', 0.3),
+      b.port('header-out', 'rws-slab', 9, 1.0, 0, vec(1, 0, 0), 'return-sludge', 0.3),
       b.port('waste-out-a', 'rws-slab', -6, 0.8, 4, vec(-1, 0, 0), 'waste-sludge', 0.35),
       b.port('waste-out-b', 'rws-slab', 6, 0.8, -4, vec(1, 0, 0), 'waste-sludge', 0.35),
     ]);
@@ -699,6 +706,24 @@ function buildPlan(projectId) {
     ]);
   b.define('service-canopy', 'Service canopy',
     serviceCanopy(b, 'svc', { length: 10, width: 6, height: 5 }), []);
+  definePipeAttachmentComponents(b, [
+    'screened-water',
+    'lifted-water',
+    'settled-water',
+    'mixed-liquor',
+    'secondary-effluent',
+    'return-sludge',
+    'waste-sludge',
+    'primary-sludge',
+    'thickened-sludge',
+    'digested-sludge',
+    'biogas',
+    'air',
+    'chemical',
+  ]);
+  b.define('pipe-bulkhead', 'Pipe penetration wall', [
+    b.part('wall', b.box(0.45, 8.0, 3.0), 0, 4.0, 0, 'concrete'),
+  ], []);
 
   // 场地：按功能分区铺草坪，四周留出环形主干道。
   // Each surface class gets a deeper physical separation than the camera's
@@ -878,6 +903,7 @@ function buildPlan(projectId) {
   b.connect('gc-1', 'outlet', 'dd-g', 'inlet',
     'GC-101 → DD-001 沉砂出水', 'degritted-water', 1.0);
   let filterInlet = 1;
+  const returnHeaderLineId = 'L-RAS-HEADER-101';
   for (const train of trains) {
     const { key, series, z } = train;
     b.connect('dd-g', `outlet-${key}`, `pc-${key}`, 'inlet',
@@ -905,8 +931,38 @@ function buildPlan(projectId) {
         'waste-sludge', 0.35);
       filterInlet += 1;
     }
-    b.connect('rws-1', `outlet-${key}`, `ae-${key}2`, 'return-inlet',
-      `RWS-101 → AE-${series}02 回流污泥`, 'return-sludge', 0.3);
+    if (key === 'a') {
+      placeReducer(b, {
+        key: 'reducer-ras-a',
+        name: 'RED-101 回流污泥异径管',
+        x: 426,
+        y: 6.5,
+        z: -3,
+        yaw: Math.PI,
+        medium: 'return-sludge',
+        lineId: returnHeaderLineId,
+        parameters: {
+          largeDiameter: 0.3,
+          smallDiameter: 0.25,
+          length: 1.2,
+        },
+        upstream: {
+          key: 'rws-1',
+          port: 'header-out',
+          metadata: { stage: 'secondary' },
+          service: 'RWS-101 → AE-102 回流污泥',
+        },
+        downstream: {
+          key: 'ae-a2',
+          port: 'return-inlet',
+          metadata: { stage: 'biological' },
+          service: 'RWS-101 → AE-102 回流污泥',
+        },
+      });
+    } else {
+      b.connect('rws-1', `outlet-${key}`, `ae-${key}2`, 'return-inlet',
+        `RWS-101 → AE-${series}02 回流污泥`, 'return-sludge', 0.3);
+    }
   }
   b.connect('fb-1', 'outlet', 'fl-1', 'inlet',
     'FB-101 → FL-101 二沉出水', 'secondary-effluent', 0.8);
@@ -933,14 +989,82 @@ function buildPlan(projectId) {
   b.connect('cds-1', 'chemical-out', 'fl-1', 'chemical-in', 'CHEM-101 → FL-101', 'chemical', 0.15);
 
   // 沼气：两座消化池汇入集气总管，再进入气柜，末端接安全火炬。
-  b.connect('dg-1', 'gas-out', 'gcl-1', 'inlet-a',
-    'DG-101 → GCL-101 沼气', 'biogas', 0.35);
-  b.connect('dg-2', 'gas-out', 'gcl-1', 'inlet-b',
-    'DG-102 → GCL-101 沼气', 'biogas', 0.35);
+  placeTee(b, {
+    key: 'tee-gas-1',
+    name: 'GAS-TEE-101 沼气汇流三通',
+    x: 338,
+    y: 6.5,
+    z: -125,
+    medium: 'biogas',
+    lineId: 'L-GAS-FEED',
+    parameters: {
+      runDiameter: 0.35,
+      branchDiameter: 0.35,
+      runLength: 2.4,
+      branchLength: 1.4,
+    },
+    upstream: {
+      key: 'dg-1', port: 'gas-out', metadata: { stage: 'sludge' },
+      service: 'DG-101 → GCL-101 沼气',
+    },
+    downstream: {
+      key: 'gcl-1', port: 'inlet-a', metadata: { stage: 'sludge' },
+      service: 'DG-101 → GCL-101 沼气',
+    },
+    branch: {
+      key: 'dg-2', port: 'gas-out', metadata: { stage: 'sludge' },
+      service: 'DG-102 → GCL-101 沼气',
+    },
+  });
   const gasHeaderLineId = b.connect('gcl-1', 'outlet', 'gh-1', 'gas-in',
-    'GCL-101 → GH-101 沼气', 'biogas', 0.35);
+    'GCL-101 → GH-101 沼气', 'biogas', 0.35, { lineId: 'L-GAS-HOLDER' });
   b.connect('gh-1', 'gas-out', 'gf-1', 'inlet',
     'GH-101 → GF-101 安全放空', 'biogas', 0.35);
+
+  b.instance('pipe-bulkhead', 'bulkhead-gas', 'GAS-WALL-101 沼气穿越墙',
+    378.5, 0, -125, { stage: 'sludge', tag: 'GAS-WALL-101', clearanceRadius: '0' });
+  placeSleeve(b, {
+    key: 'sleeve-gas-house',
+    name: 'SLV-101 沼气主管穿墙套管',
+    x: 378.5,
+    y: 6.5,
+    z: -125,
+    medium: 'biogas',
+    lineId: gasHeaderLineId,
+    hostNodeId: b.state.nodes.get('bulkhead-gas'),
+    parameters: {
+      pipeDiameter: 0.41,
+      sleeveDiameter: 0.55,
+      wallThickness: 0.45,
+      extension: 0.12,
+    },
+    stage: 'sludge',
+  });
+
+  b.instance('pipe-bulkhead', 'bulkhead-return', 'RAS-WALL-101 回流污泥穿越墙',
+    275, 0, 29.725, {
+      stage: 'secondary',
+      tag: 'RAS-WALL-101',
+      clearanceRadius: '0',
+    }, {}, Math.PI / 2);
+  placeSleeve(b, {
+    key: 'sleeve-return-basin',
+    name: 'SLV-102 回流污泥穿池壁套管',
+    x: 275,
+    y: 4,
+    z: 29.725,
+    yaw: Math.PI / 2,
+    medium: 'return-sludge',
+    lineId: returnHeaderLineId,
+    hostNodeId: b.state.nodes.get('bulkhead-return'),
+    parameters: {
+      pipeDiameter: 0.35,
+      sleeveDiameter: 0.5,
+      wallThickness: 0.45,
+      extension: 0.05,
+    },
+    stage: 'secondary',
+  });
 
   // 泥饼由输送机搬运，不生成圆管扫掠。
   b.relate('dws-1', 'cvc-1', 'material-handling',

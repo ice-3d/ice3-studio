@@ -1,0 +1,1 @@
+{"id":"component-000134","metadata":{"category":"process-structure"},"name":"Pipe penetration wall","parameters":[],"parts":[{"content":{"depth":3.0,"height":8.0,"kind":"box","width":0.44999998807907104},"id":"wall","transform":{"translation":{"x":0.0,"y":4.0,"z":0.0}}}],"ports":[]}

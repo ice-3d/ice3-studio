@@ -57,7 +57,7 @@
 | `ICE3-STUDIO-SPEC-010` | [Agent Iteration Impact Analysis](specs/2026-10-31-agent-iteration-impact-design.md) | Historical | 局部影响、几何重建与缓存复用的已完成设计记录 |
 | `ICE3-STUDIO-SPEC-011` | [Large Reference Asset Editing](specs/2026-10-31-large-reference-assets-design.md) | Historical | 外部大型资产、轻量绑定和流式预览的已完成设计记录 |
 | `ICE3-STUDIO-SPEC-012` | [工程评审级污水处理厂资产](specs/2026-11-01-realistic-wastewater-plant-asset-design.md) | Historical | 默认污水厂资产的已完成设计记录 |
-| `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Approved | 工艺拓扑、连续弯头、防扭转扫掠和功能配色；阶段二B路径碰撞、净空与支撑门禁已完成，穿墙套管、三通和异径管仍待补 |
+| `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Implemented | 工艺拓扑、连续弯头、防扭转扫掠、功能配色、路径安全、三通、异径管和穿墙套管 |
 | `ICE3-STUDIO-SPEC-014` | [Agent 主导的 Studio 工作台](specs/2026-11-01-agent-led-workbench-design.md) | Implemented | Agent 默认入口、工作上下文、实体 Selection 和人工接手 |
 | `ICE3-STUDIO-SPEC-015` | [Studio Runtime Tileset 导出](specs/2026-11-01-studio-runtime-tileset-export-design.md) | Deprecated | 由 Studio 原生 Asset Pipeline 取代的 Sidecar 方案 |
 | `ICE3-STUDIO-SPEC-016` | [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md) | Implemented | Source Import、Asset、Partition、LOD 和 Tileset 已全部迁入 Studio |
@@ -79,7 +79,7 @@
 | `ICE3-STUDIO-SPEC-032` | [材质表面、UV 与 PBR 导出](specs/2026-11-04-material-pbr-uv-design.md) | Implemented | 底色/法线/ORM 打包贴图与 uvScale，对齐 glTF metallic-roughness |
 | `ICE3-STUDIO-SPEC-033` | [管线工程安全门禁](specs/2026-11-19-route-safety-gate-design.md) | Implemented | 管线实体碰撞、净空面、端点接入、支撑间距、预算与性能门禁 |
 | `ICE3-STUDIO-SPEC-034` | [导入材质表面保真](specs/2026-11-20-import-material-surface-fidelity-design.md) | Implemented | glTF/GLB 四类贴图、源 UV、transform、sampler 与受控资源发布 |
-| `ICE3-STUDIO-SPEC-035` | [管线附件实体化](specs/2026-11-21-pipe-fitting-attachments-design.md) | Proposed | 通用三通、异径管与穿墙套管契约、对齐校验和污水厂迁移 |
+| `ICE3-STUDIO-SPEC-035` | [管线附件实体化](specs/2026-11-21-pipe-fitting-attachments-design.md) | Implemented | 参数化附件端口、三通/异径管/套管校验、资产组件和污水厂迁移 |
 
 ## 5. 实施计划
 
@@ -115,7 +115,7 @@
 | `ICE3-STUDIO-PLAN-028` | [Studio Partition 与 Runtime Tileset 功能等价](plans/2026-11-02-studio-partition-runtime-parity.md) | Implemented | Phase 6B 统一 AssetProfile、direct partition 和 parity |
 | `ICE3-STUDIO-PLAN-029` | [Studio Prepare Engine 集成与最终验收](plans/2026-11-02-studio-prepare-engine-finalization.md) | Implemented | Phase 6C Engine 消费、性能、文档和最终门禁 |
 | `ICE3-STUDIO-PLAN-031` | [导入材质表面保真实施计划](plans/2026-11-20-import-material-surface-fidelity.md) | Implemented | glTF/GLB 材质槽、UV、受控资源和事务发布 |
-| `ICE3-STUDIO-PLAN-032` | [管线附件实体化实施计划](plans/2026-11-21-pipe-fitting-attachments.md) | Proposed | 参数化端口、三通/异径管/套管校验、资产组件与污水厂迁移 |
+| `ICE3-STUDIO-PLAN-032` | [管线附件实体化实施计划](plans/2026-11-21-pipe-fitting-attachments.md) | Implemented | 参数化端口、三通/异径管/套管校验、资产组件与污水厂迁移 |
 
 ## 6. 状态说明
 

@@ -5,7 +5,9 @@ use std::collections::BTreeMap;
 use studio_core::document::{NodeContent, Relation, SceneNode};
 use studio_core::ids::{NodeId, RelationId};
 use studio_core::large_scene::cache::MemoryGeometryStore;
-use studio_core::large_scene::component::ComponentPort;
+use studio_core::large_scene::component::{
+    ComponentParameter, ComponentPort, ParameterType, ParameterValue, ScalarBinding, Vector3Binding,
+};
 use studio_core::large_scene::connection::{ConnectionIntent, InstancePortRef, RoutePolicy};
 use studio_core::large_scene::evaluate::evaluate_large_scene_with_cache;
 use studio_core::large_scene::route::{ResolvedPort, route_between_ports};
@@ -123,6 +125,65 @@ fn rejects_incompatible_media_and_degenerate_routes() {
 }
 
 #[test]
+fn parameterized_component_port_uses_instance_parameters() {
+    let mut document = support::shared_pump_document();
+    document.components[0].parameters.push(ComponentParameter {
+        name: "outletDiameter".into(),
+        value_type: ParameterType::Number {
+            minimum: Some(0.1),
+            maximum: Some(1.0),
+        },
+        default: ParameterValue::Number(0.4),
+        unit: Some("m".into()),
+    });
+    document.components[0].ports.push(ComponentPort {
+        name: "sized-outlet".into(),
+        part_id: "body".into(),
+        position: Vector3Binding::Components {
+            x: ScalarBinding::Expression {
+                expr: "outletDiameter / 2".into(),
+            },
+            y: ScalarBinding::Literal(0.0),
+            z: ScalarBinding::Literal(0.0),
+        },
+        direction: Vector3Binding::Literal(Vec3 {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0,
+        }),
+        medium: "water".into(),
+        diameter: ScalarBinding::Parameter {
+            param: "outletDiameter".into(),
+        },
+    });
+    let NodeContent::ComponentInstance(instance) = &mut document.scene.nodes_mut()[0].content
+    else {
+        panic!("expected component instance");
+    };
+    instance
+        .parameters
+        .insert("outletDiameter".into(), ParameterValue::Number(0.4));
+    let definitions = document
+        .components
+        .iter()
+        .map(|definition| (definition.id.clone(), definition))
+        .collect::<BTreeMap<_, _>>();
+
+    let port = studio_core::large_scene::route::resolve_port(
+        &document,
+        &definitions,
+        &InstancePortRef::Instance {
+            node_id: NodeId::from("node-000001"),
+            port: "sized-outlet".into(),
+        },
+    )
+    .unwrap();
+
+    assert!((port.position.x - 4.2).abs() < 1e-6);
+    assert!((port.diameter - 0.4).abs() < 1e-6);
+}
+
+#[test]
 fn moving_an_endpoint_invalidates_the_connection_mesh_key() {
     let mut document = shared_pump_document();
     let definition = &mut document.components[0];
@@ -130,34 +191,34 @@ fn moving_an_endpoint_invalidates_the_connection_mesh_key() {
         ComponentPort {
             name: "outlet".into(),
             part_id: "body".into(),
-            position: Vec3 {
+            position: Vector3Binding::Literal(Vec3 {
                 x: 1.0,
                 y: 0.0,
                 z: 0.0,
-            },
-            direction: Vec3 {
+            }),
+            direction: Vector3Binding::Literal(Vec3 {
                 x: 1.0,
                 y: 0.0,
                 z: 0.0,
-            },
+            }),
             medium: "water".into(),
-            diameter: 0.2,
+            diameter: ScalarBinding::Literal(0.2),
         },
         ComponentPort {
             name: "inlet".into(),
             part_id: "body".into(),
-            position: Vec3 {
+            position: Vector3Binding::Literal(Vec3 {
                 x: -1.0,
                 y: 0.0,
                 z: 0.0,
-            },
-            direction: Vec3 {
+            }),
+            direction: Vector3Binding::Literal(Vec3 {
                 x: -1.0,
                 y: 0.0,
                 z: 0.0,
-            },
+            }),
             medium: "water".into(),
-            diameter: 0.2,
+            diameter: ScalarBinding::Literal(0.2),
         },
     ];
     let connection = ConnectionIntent {

@@ -54,6 +54,52 @@ const cylinder = (r, h, segments = 40) => ({
 // 球体用于树冠。段数刻意压低：一棵树三团冠，全厂九十多棵，
 // 每团多两级细分就是几万个三角形，远景看不出差别。
 const sphere = (radius, segments = 10, rings = 6) => ({ kind: 'sphere', radius, segments, rings });
+const EXPRESSION_SCOPE = {
+  abs: Math.abs,
+  ceil: Math.ceil,
+  cos: Math.cos,
+  floor: Math.floor,
+  max: Math.max,
+  min: Math.min,
+  pow: Math.pow,
+  round: Math.round,
+  sin: Math.sin,
+  sqrt: Math.sqrt,
+  tau: Math.PI * 2,
+};
+
+function resolveNumber(value, scope) {
+  if (typeof value === 'number') return value;
+  if (typeof value?.value === 'number') return value.value;
+  if (typeof value?.expr !== 'string') return 0;
+  const values = { ...EXPRESSION_SCOPE, ...scope };
+  const names = Object.keys(values);
+  return Function(...names, `"use strict"; return (${value.expr});`)(
+    ...names.map((name) => values[name]),
+  );
+}
+
+const PIPE_MATERIAL = {
+  'raw-water': 'pipe-raw',
+  'screened-water': 'pipe-raw',
+  'lifted-water': 'pipe-raw',
+  'degritted-water': 'pipe-raw',
+  'settled-water': 'pipe-process',
+  'mixed-liquor': 'pipe-process',
+  'secondary-effluent': 'pipe-clean',
+  'filtered-water': 'pipe-clean',
+  'final-effluent': 'pipe-clean',
+  'waste-sludge': 'pipe-sludge',
+  'thickened-sludge': 'pipe-sludge',
+  'digested-sludge': 'pipe-sludge',
+  'primary-sludge': 'pipe-primary-sludge',
+  'return-sludge': 'pipe-return-sludge',
+  biogas: 'pipe-biogas',
+  chemical: 'pipe-chemical',
+  air: 'pipe-air',
+};
+
+export const pipeMaterialForMedium = (medium) => PIPE_MATERIAL[medium] ?? 'pipe-process';
 
 export function planSupportStations(route, maxSpacing = 6) {
   if (!Array.isArray(route) || route.length < 2 || !Number.isFinite(maxSpacing) || maxSpacing <= 0) {
@@ -78,6 +124,9 @@ export function planSupportStations(route, maxSpacing = 6) {
   }
   for (const turn of turns) {
     distances.add(turn);
+  }
+  if (distances.size === 0 && total > Number.EPSILON) {
+    distances.add(Math.round((total / 2) * 1e6) / 1e6);
   }
   return [...distances]
     .sort((left, right) => left - right)
@@ -284,6 +333,7 @@ function createBuilder() {
       definition: entry.definition,
       transform: nodeTransform(x, y, z, yaw),
       metadata: normalizedMetadata,
+      parameters,
     });
     return nodeId;
   };
@@ -306,8 +356,22 @@ function createBuilder() {
     if (!instanceEntry) throw new Error(`missing instance ${instanceKey}`);
     const port = instanceEntry.definition.ports.find(({ name }) => name === portName);
     if (!port) throw new Error(`missing port ${instanceKey}/${portName}`);
-    const rotated = rotateVector(port.position, instanceEntry.transform.rotation);
-    const direction = rotateVector(port.direction, instanceEntry.transform.rotation);
+    const parameters = Object.fromEntries(
+      instanceEntry.definition.parameters.map(({ name, default: value }) => [name, value]),
+    );
+    Object.assign(parameters, instanceEntry.parameters);
+    const localPosition = {
+      x: resolveNumber(port.position.x, parameters),
+      y: resolveNumber(port.position.y, parameters),
+      z: resolveNumber(port.position.z, parameters),
+    };
+    const localDirection = {
+      x: resolveNumber(port.direction.x, parameters),
+      y: resolveNumber(port.direction.y, parameters),
+      z: resolveNumber(port.direction.z, parameters),
+    };
+    const rotated = rotateVector(localPosition, instanceEntry.transform.rotation);
+    const direction = rotateVector(localDirection, instanceEntry.transform.rotation);
     return {
       port,
       position: vec(
@@ -330,27 +394,6 @@ function createBuilder() {
     if (y < -0.999999) return [1, 0, 0, 0];
     const lengthQ = Math.hypot(z, 0, -x, 1 + y);
     return [z / lengthQ, 0, -x / lengthQ, (1 + y) / lengthQ];
-  };
-
-  // 管道按介质分色，和真实厂区一样用颜色编码工艺流向。
-  const PIPE_MATERIAL = {
-    'raw-water': 'pipe-raw',
-    'screened-water': 'pipe-raw',
-    'lifted-water': 'pipe-raw',
-    'degritted-water': 'pipe-raw',
-    'settled-water': 'pipe-process',
-    'mixed-liquor': 'pipe-process',
-    'secondary-effluent': 'pipe-clean',
-    'filtered-water': 'pipe-clean',
-    'final-effluent': 'pipe-clean',
-    'waste-sludge': 'pipe-sludge',
-    'thickened-sludge': 'pipe-sludge',
-    'digested-sludge': 'pipe-sludge',
-    'primary-sludge': 'pipe-primary-sludge',
-    'return-sludge': 'pipe-return-sludge',
-    biogas: 'pipe-biogas',
-    chemical: 'pipe-chemical',
-    'air': 'pipe-air',
   };
 
   // 走线策略按介质分工，这决定了图面上能看见什么：
@@ -480,7 +523,7 @@ function createBuilder() {
       const runLength = Math.hypot(dx, dz);
       const directionX = runLength > Number.EPSILON ? dx / runLength : 0;
       const directionZ = runLength > Number.EPSILON ? dz / runLength : 1;
-      for (let distance = 0; distance <= 8; distance += 0.5) {
+      for (let distance = 0; distance <= 30; distance += 0.5) {
         for (const side of distance === 0 ? [1] : [-1, 1]) {
           const offset = distance * side;
           const point = vec(
@@ -496,6 +539,7 @@ function createBuilder() {
       return null;
     };
     const lineId = options.lineId ?? `L-${String(++state.lineSequence).padStart(3, '0')}`;
+    const supportLineId = options.supportLineId ?? lineId;
     const flow = options.flow ?? 'forward';
     const relationId = id('relation');
     state.ops.push({
@@ -527,6 +571,7 @@ function createBuilder() {
           service: name,
           medium,
           maxSupportSpacing: '6',
+          supportLineId,
         },
       },
       material_id: state.materials.get(PIPE_MATERIAL[medium] ?? 'pipe-process'),
@@ -605,10 +650,11 @@ function createBuilder() {
           const beamTop = attachment.point.y - pipeRadius - saddleHeight;
           const beamY = beamTop - beamHeight / 2;
           const columnHeight = beamY - beamHeight / 2;
-          const supportGroup = `${lineId}-${index}`;
+          const supportGroup = `${supportLineId}-${index}`;
           const supportMetadata = {
             role: 'pipe-support',
-            lineId,
+            lineId: supportLineId,
+            supportLineId,
             supportGroup,
             stage: fromEndpoint.metadata.stage,
           };
