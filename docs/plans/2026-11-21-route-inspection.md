@@ -1921,7 +1921,7 @@ git add docs README.md projects scripts apps crates schemas
 git commit -m "test(route): verify route inspection"
 ```
 
-- [ ] **Step 6: Final review and local merge**
+- [x] **Step 6: Final review and local merge**
 
 Review the complete branch against `main`, confirm every commit author and committer is
 `damoqiongqiu <damoqiongqiu@126.com>`, then merge locally with `--no-ff`.
