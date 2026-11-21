@@ -438,7 +438,8 @@ fn validate_sleeve(
         ));
         return;
     }
-    let Some(route) = first_route_for_line(document, definitions, &attachment.line_id) else {
+    let routes = routes_for_line(document, definitions, &attachment.line_id);
+    if routes.is_empty() {
         diagnostics.push(attachment_diagnostic(
             DiagnosticCode::RouteAttachmentInvalid,
             attachment.node_index,
@@ -446,12 +447,17 @@ fn validate_sleeve(
             format!("sleeve line {} has no route", attachment.line_id),
         ));
         return;
-    };
-    let pipe_diameter = route_pipe_diameter(document, &attachment.line_id).unwrap_or(0.0);
+    }
+    let pipe_diameter = routes
+        .iter()
+        .map(|(_, diameter)| *diameter)
+        .fold(0.0, f32::max);
     let candidate = attachment_host_bounds(document, definitions, host).is_none_or(|bounds| {
-        route.windows(2).any(|segment| {
-            segment_bounds_distance([segment[0], segment[1]], &bounds)
-                <= pipe_diameter / 2.0 + crate::geometry::CLASH_EPSILON
+        routes.iter().any(|(route, pipe_diameter)| {
+            route.windows(2).any(|segment| {
+                segment_bounds_distance([segment[0], segment[1]], &bounds)
+                    <= pipe_diameter / 2.0 + crate::geometry::CLASH_EPSILON
+            })
         })
     });
     if !candidate {
@@ -486,24 +492,26 @@ fn validate_sleeve(
         return;
     };
     let mut crossing = false;
-    'segments: for segment in route.windows(2) {
-        for triangle in &triangles {
-            if *triangle_pairs >= limits.max_triangle_pairs {
-                diagnostics.push(attachment_diagnostic(
-                    DiagnosticCode::RouteAttachmentBudget,
-                    attachment.node_index,
-                    &attachment.node_id,
-                    format!(
-                        "attachment triangle-pair budget {} exceeded",
-                        limits.max_triangle_pairs
-                    ),
-                ));
-                return;
-            }
-            *triangle_pairs += 1;
-            if crate::geometry::segment_triangle([segment[0], segment[1]], *triangle) {
-                crossing = true;
-                break 'segments;
+    'routes: for (route, _) in &routes {
+        for segment in route.windows(2) {
+            for triangle in &triangles {
+                if *triangle_pairs >= limits.max_triangle_pairs {
+                    diagnostics.push(attachment_diagnostic(
+                        DiagnosticCode::RouteAttachmentBudget,
+                        attachment.node_index,
+                        &attachment.node_id,
+                        format!(
+                            "attachment triangle-pair budget {} exceeded",
+                            limits.max_triangle_pairs
+                        ),
+                    ));
+                    return;
+                }
+                *triangle_pairs += 1;
+                if crate::geometry::segment_triangle([segment[0], segment[1]], *triangle) {
+                    crossing = true;
+                    break 'routes;
+                }
             }
         }
     }
@@ -540,7 +548,13 @@ fn validate_sleeve(
         ));
     }
     for port in [wall_in, wall_out] {
-        let route_distance = point_to_route_distance(port.position, &route);
+        let route_distance = routes
+            .iter()
+            .flat_map(|(route, _)| route.windows(2))
+            .map(|segment| {
+                point_segment_distance(to_array(port.position), [segment[0], segment[1]])
+            })
+            .fold(f32::INFINITY, f32::min);
         let mut surface_distance = f32::INFINITY;
         for triangle in &triangles {
             if *triangle_pairs >= limits.max_triangle_pairs {
@@ -576,29 +590,28 @@ fn validate_sleeve(
     }
 }
 
-fn first_route_for_line(
+fn routes_for_line(
     document: &Document,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
     line_id: &str,
-) -> Option<Vec<[f32; 3]>> {
-    document.scene.nodes().iter().find_map(|node| {
-        let NodeContent::Connection(connection) = &node.content else {
-            return None;
-        };
-        (connection.metadata.get("lineId").map(String::as_str) == Some(line_id))
-            .then(|| route_connection(document, definitions, connection).ok())
-            .flatten()
-    })
-}
-
-fn route_pipe_diameter(document: &Document, line_id: &str) -> Option<f32> {
-    document.scene.nodes().iter().find_map(|node| {
-        let NodeContent::Connection(connection) = &node.content else {
-            return None;
-        };
-        (connection.metadata.get("lineId").map(String::as_str) == Some(line_id))
-            .then_some(connection.diameter)
-    })
+) -> Vec<(Vec<[f32; 3]>, f32)> {
+    document
+        .scene
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let NodeContent::Connection(connection) = &node.content else {
+                return None;
+            };
+            (connection.metadata.get("lineId").map(String::as_str) == Some(line_id))
+                .then(|| {
+                    route_connection(document, definitions, connection)
+                        .ok()
+                        .map(|route| (route, connection.diameter))
+                })
+                .flatten()
+        })
+        .collect()
 }
 
 fn attachment_host_bounds(
@@ -659,13 +672,6 @@ fn transform_matrix(transform: Transform) -> Mat4 {
             transform.translation.z,
         ),
     )
-}
-
-fn point_to_route_distance(point: Vec3, route: &[[f32; 3]]) -> f32 {
-    route
-        .windows(2)
-        .map(|segment| point_segment_distance(to_array(point), [segment[0], segment[1]]))
-        .fold(f32::INFINITY, f32::min)
 }
 
 fn point_segment_distance(point: [f32; 3], segment: [[f32; 3]; 2]) -> f32 {

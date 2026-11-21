@@ -1352,7 +1352,7 @@ test('pipe support layout stays sparse while covering every route', () => {
     && metadata?.role === 'pipe-support'
     && metadata.supportPart === 'beam'
   ));
-  assert.ok(beams.length <= 525, `${beams.length} support groups exceed the visual density gate`);
+  assert.ok(beams.length <= 528, `${beams.length} support groups exceed the visual density gate`);
   assert.deepEqual(validatePipeSupportSpacing(plan, { maxSpacing: 6, tolerance: 1 }).issues, []);
 });
 
@@ -1490,4 +1490,33 @@ test('pipe attachment components expose independent fitting ports', () => {
   assert.ok(tee.parts.length >= 4);
   assert.ok(reducer.parts.length >= 3);
   assert.ok(sleeve.parts.length >= 2);
+});
+
+test('wastewater plan contains executable fittings and real host sleeves', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const fittings = plan.operations.filter(({ instance }) => (
+    instance?.metadata?.role === 'pipe-fitting'
+  ));
+  const sleeves = plan.operations.filter(({ instance }) => (
+    instance?.metadata?.role === 'pipe-penetration'
+  ));
+  const nodeIds = new Set(plan.operations
+    .filter(({ type }) => type === 'node.create' || type === 'instance.create')
+    .map(({ node_id }) => node_id));
+
+  assert.ok(fittings.some(({ instance }) => instance.metadata.fittingKind === 'tee'));
+  assert.ok(fittings.some(({ instance }) => instance.metadata.fittingKind === 'reducer'));
+  assert.ok(sleeves.length > 0);
+  for (const sleeve of sleeves) {
+    assert.ok(nodeIds.has(sleeve.instance.metadata.hostNodeId));
+  }
+});
+
+test('every tee has one connection on each functional port', async () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const { validatePipeFittingTopology } = await import(
+    '../../scripts/wastewater-plant/validate.mjs'
+  );
+  const result = validatePipeFittingTopology(plan);
+  assert.deepEqual(result, { ok: true, issues: [] });
 });

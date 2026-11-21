@@ -218,26 +218,6 @@ export function validateSiteRoadClearance(plan, clearance = 0.5) {
   return { ok: issues.length === 0, issues };
 }
 
-function distanceToHorizontalRoute(point, route) {
-  let distance = Infinity;
-  for (let index = 1; index < route.length; index += 1) {
-    const from = route[index - 1];
-    const to = route[index];
-    const dx = to.x - from.x;
-    const dz = to.z - from.z;
-    const denominator = dx * dx + dz * dz;
-    if (denominator <= Number.EPSILON) continue;
-    const ratio = Math.max(0, Math.min(1, (
-      (point.x - from.x) * dx + (point.z - from.z) * dz
-    ) / denominator));
-    distance = Math.min(distance, Math.hypot(
-      point.x - (from.x + ratio * dx),
-      point.z - (from.z + ratio * dz),
-    ));
-  }
-  return distance;
-}
-
 function coarsePipeRoute(connection, from, to) {
   const policy = connection.routePolicy;
   const elevated = policy.kind === 'buried'
@@ -296,18 +276,23 @@ export function validatePipeAccessoryAlignment(plan, tolerance = 1) {
     if (operation.metadata?.role !== 'pipe-support' || operation.metadata.supportPart !== 'beam') {
       continue;
     }
-    const lineId = operation.metadata.lineId;
-    accessories.set(lineId, [...(accessories.get(lineId) ?? []), operation]);
+    const supportLineId = operation.metadata.supportLineId ?? operation.metadata.lineId;
+    accessories.set(
+      supportLineId,
+      [...(accessories.get(supportLineId) ?? []), operation],
+    );
   }
   for (const operation of plan.operations) {
     if (operation.type !== 'connection.create') continue;
     const from = resolvePlanPort(instances, definitions, operation.connection.from);
     const to = resolvePlanPort(instances, definitions, operation.connection.to);
-    const lineAccessories = accessories.get(operation.connection.metadata.lineId) ?? [];
+    const supportLineId = operation.connection.metadata.supportLineId
+      ?? operation.connection.metadata.lineId;
+    const lineAccessories = accessories.get(supportLineId) ?? [];
     if (!from || !to || lineAccessories.length === 0) continue;
     const route = coarsePipeRoute(operation.connection, from, to);
     for (const accessory of lineAccessories) {
-      const distance = distanceToHorizontalRoute(
+      const { score: distance } = projectPointToRoute(
         accessory.transform.translation,
         route,
       );
@@ -341,8 +326,8 @@ export function validatePipeSupportSpacing(
     if (operation.type !== 'node.create') continue;
     if (operation.metadata?.role !== 'pipe-support') continue;
     if (operation.metadata.supportPart !== 'beam') continue;
-    const lineId = operation.metadata.lineId;
-    supports.set(lineId, [...(supports.get(lineId) ?? []), operation]);
+    const supportLineId = operation.metadata.supportLineId ?? operation.metadata.lineId;
+    supports.set(supportLineId, [...(supports.get(supportLineId) ?? []), operation]);
   }
   const clearanceSurfaces = plan.operations
     .filter(({ type, metadata }) => (
@@ -360,16 +345,29 @@ export function validatePipeSupportSpacing(
     if (operation.type !== 'connection.create') continue;
     if (operation.connection.routePolicy.kind === 'buried') continue;
     const lineId = operation.connection.metadata?.lineId;
+    const supportLineId = operation.connection.metadata?.supportLineId ?? lineId;
     const from = resolvePlanPort(instances, definitions, operation.connection.from);
     const to = resolvePlanPort(instances, definitions, operation.connection.to);
     if (!lineId || !from || !to) continue;
     const configured = Number(operation.connection.metadata?.maxSupportSpacing);
     const spacing = Number.isFinite(configured) && configured > 0 ? configured : maxSpacing;
     const route = coarsePipeRoute(operation.connection, from, to);
-    const projected = (supports.get(lineId) ?? []).map((support) => (
+    const projected = (supports.get(supportLineId) ?? []).map((support) => (
       projectPointToRoute(support.transform.translation, route)
     ));
-    const valid = projected.filter(({ distance }) => distance <= tolerance);
+    const endpointNodeIds = new Set([
+      operation.connection.from.nodeId,
+      operation.connection.to.nodeId,
+    ]);
+    for (const nodeId of endpointNodeIds) {
+      const endpoint = instances.get(nodeId);
+      if (endpoint?.instance?.metadata?.role !== 'pipe-fitting') continue;
+      const port = operation.connection.from.nodeId === nodeId
+        ? from.position
+        : to.position;
+      projected.push(projectPointToRoute(port, route));
+    }
+    const valid = projected.filter(({ score }) => score <= tolerance);
     if (valid.length === 0) {
       issues.push({
         code: 'PIPE_SUPPORT_MISSING',
@@ -477,13 +475,25 @@ function resolvePlanPort(instances, definitions, reference) {
   const definition = node && definitions.get(node.instance.definitionId);
   const port = definition?.ports.find(({ name }) => name === reference.port);
   if (!node || !port) return null;
+  const parameters = Object.fromEntries(
+    definition.parameters.map(({ name, default: value }) => [name, value]),
+  );
+  Object.assign(parameters, node.instance.parameters);
   const rotation = node.transform.rotation;
   const position = rotateByQuaternion(
-    [port.position.x, port.position.y, port.position.z],
+    [
+      resolveNumber(port.position.x, parameters),
+      resolveNumber(port.position.y, parameters),
+      resolveNumber(port.position.z, parameters),
+    ],
     rotation,
   );
   const direction = rotateByQuaternion(
-    [port.direction.x, port.direction.y, port.direction.z],
+    [
+      resolveNumber(port.direction.x, parameters),
+      resolveNumber(port.direction.y, parameters),
+      resolveNumber(port.direction.z, parameters),
+    ],
     rotation,
   );
   return {
@@ -667,6 +677,65 @@ export function validateConnectionPorts(plan) {
   return { ok: issues.length === 0, issues };
 }
 
+export function validatePipeFittingTopology(plan) {
+  const issues = [];
+  const nodeIds = new Set(
+    plan.operations
+      .filter(({ type }) => type === 'node.create' || type === 'instance.create')
+      .map(({ node_id }) => node_id),
+  );
+  const connections = plan.operations.filter(({ type }) => type === 'connection.create');
+  const fittings = plan.operations.filter(({ type, instance }) => (
+    type === 'instance.create'
+    && instance?.metadata?.role === 'pipe-fitting'
+  ));
+  for (const fitting of fittings) {
+    const lineId = fitting.instance.metadata.lineId;
+    const kind = fitting.instance.metadata.fittingKind;
+    const expected = kind === 'tee'
+      ? ['run-in', 'run-out', 'branch']
+      : ['large', 'small'];
+    const counts = new Map();
+    for (const { connection } of connections) {
+      if (connection.metadata?.lineId !== lineId) continue;
+      for (const endpoint of [connection.from, connection.to]) {
+        if (endpoint.nodeId !== fitting.node_id) continue;
+        counts.set(endpoint.port, (counts.get(endpoint.port) ?? 0) + 1);
+      }
+    }
+    for (const port of expected) {
+      if (counts.get(port) !== 1) {
+        issues.push({
+          code: 'PIPE_FITTING_PORT_INVALID',
+          objectId: fitting.node_id,
+          message: `${fitting.name} requires exactly one connection on ${port}`,
+        });
+      }
+    }
+    if (counts.size !== expected.length) {
+      issues.push({
+        code: 'PIPE_FITTING_PORT_INVALID',
+        objectId: fitting.node_id,
+        message: `${fitting.name} has connections outside its functional ports`,
+      });
+    }
+  }
+  const sleeves = plan.operations.filter(({ type, instance }) => (
+    type === 'instance.create'
+    && instance?.metadata?.role === 'pipe-penetration'
+  ));
+  for (const sleeve of sleeves) {
+    if (!nodeIds.has(sleeve.instance.metadata.hostNodeId)) {
+      issues.push({
+        code: 'PIPE_SLEEVE_HOST_MISSING',
+        objectId: sleeve.node_id,
+        message: `${sleeve.name} references a missing host`,
+      });
+    }
+  }
+  return issues.length === 0 ? { ok: true, issues } : { ok: false, issues };
+}
+
 export function validateWastewaterPlan(plan) {
   const issues = [];
   const definitions = new Map();
@@ -746,7 +815,10 @@ export function validateWastewaterPlan(plan) {
   const lineIds = new Set(
     plan.operations
       .filter(({ type }) => type === 'connection.create')
-      .map(({ connection }) => connection.metadata?.lineId)
+      .flatMap(({ connection }) => [
+        connection.metadata?.lineId,
+        connection.metadata?.supportLineId,
+      ])
       .filter(Boolean),
   );
   for (const operation of plan.operations) {
@@ -762,6 +834,7 @@ export function validateWastewaterPlan(plan) {
 
   issues.push(...validateSiteRoadClearance(plan).issues);
   issues.push(...validatePipeAccessoryAlignment(plan).issues);
+  issues.push(...validatePipeFittingTopology(plan).issues);
 
   return { ok: issues.length === 0, issues };
 }

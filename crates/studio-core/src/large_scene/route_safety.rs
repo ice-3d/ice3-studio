@@ -96,6 +96,7 @@ struct RouteFact {
     radius: f32,
     policy: RoutePolicy,
     line_id: Option<String>,
+    support_line_id: Option<String>,
     max_support_spacing: f32,
     points: Vec<[f32; 3]>,
     cumulative: Vec<f32>,
@@ -397,6 +398,12 @@ fn route_facts(
                 }
             },
         };
+        let support_line_id = connection
+            .metadata
+            .get("supportLineId")
+            .filter(|value| !value.trim().is_empty())
+            .cloned()
+            .or_else(|| line_id.clone());
         routes.push(RouteFact {
             node_index: index,
             node_id: node.id.clone(),
@@ -405,6 +412,7 @@ fn route_facts(
             radius: connection.diameter / 2.0,
             policy: connection.route_policy.clone(),
             line_id,
+            support_line_id,
             max_support_spacing,
             points,
             cumulative,
@@ -646,7 +654,7 @@ fn support_stations(
 ) -> BTreeMap<String, Vec<SupportStation>> {
     let route_lines = routes
         .iter()
-        .filter_map(|route| route.line_id.clone())
+        .filter_map(|route| route.support_line_id.clone())
         .collect::<BTreeSet<_>>();
     let mut stations = BTreeMap::<String, Vec<SupportStation>>::new();
     for (index, node) in document.scene.nodes().iter().enumerate() {
@@ -655,11 +663,16 @@ fn support_stations(
         {
             continue;
         }
-        let Some(line_id) = node
+        let support_line_id = node
             .metadata
-            .get("lineId")
+            .get("supportLineId")
             .filter(|value| !value.is_empty())
-        else {
+            .or_else(|| {
+                node.metadata
+                    .get("lineId")
+                    .filter(|value| !value.is_empty())
+            });
+        let Some(support_line_id) = support_line_id else {
             diagnostics.push(route_diagnostic(
                 DiagnosticCode::OperationInvalid,
                 &node.id,
@@ -668,17 +681,17 @@ fn support_stations(
             ));
             continue;
         };
-        if !route_lines.contains(line_id) {
+        if !route_lines.contains(support_line_id) {
             diagnostics.push(route_diagnostic(
                 DiagnosticCode::OperationInvalid,
                 &node.id,
                 index,
-                format!("support beam references unknown lineId {line_id}"),
+                format!("support beam references unknown lineId {support_line_id}"),
             ));
             continue;
         }
         stations
-            .entry(line_id.clone())
+            .entry(support_line_id.clone())
             .or_default()
             .push(SupportStation {
                 position: [
@@ -687,6 +700,40 @@ fn support_stations(
                     node.transform.translation.z,
                 ],
             });
+    }
+    for route in routes {
+        let Some(support_line_id) = &route.support_line_id else {
+            continue;
+        };
+        let node_role = |owner: &NodeId| {
+            document
+                .scene
+                .nodes()
+                .iter()
+                .find(|node| node.id == *owner)
+                .and_then(|node| node.metadata.get("role"))
+                .map(String::as_str)
+        };
+        if node_role(&route.from_owner) == Some("pipe-fitting")
+            && let Some(position) = route.points.first()
+        {
+            stations
+                .entry(support_line_id.clone())
+                .or_default()
+                .push(SupportStation {
+                    position: *position,
+                });
+        }
+        if node_role(&route.to_owner) == Some("pipe-fitting")
+            && let Some(position) = route.points.last()
+        {
+            stations
+                .entry(support_line_id.clone())
+                .or_default()
+                .push(SupportStation {
+                    position: *position,
+                });
+        }
     }
     stations
 }
@@ -701,11 +748,11 @@ fn validate_support_layout(
         if matches!(route.policy, RoutePolicy::Buried { .. }) {
             continue;
         }
-        if route.line_id.is_none() {
+        if route.support_line_id.is_none() {
             continue;
         }
         let line_stations = route
-            .line_id
+            .support_line_id
             .as_ref()
             .and_then(|line_id| stations.get(line_id))
             .map(Vec::as_slice)
@@ -1068,6 +1115,7 @@ mod tests {
             radius: 0.1,
             policy: RoutePolicy::Rack { elevation: 10.0 },
             line_id: Some("L-001".into()),
+            support_line_id: Some("L-001".into()),
             max_support_spacing: 6.0,
             points: vec![[0.0, 0.0, 0.0], [0.0, 10.0, 0.0]],
             cumulative: vec![0.0, 10.0],

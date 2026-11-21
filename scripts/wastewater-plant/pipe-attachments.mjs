@@ -54,7 +54,6 @@ function reducerParts(b, prefix) {
 
 function sleeveParts(b, prefix) {
   const cut = {
-    kind: 'cylinder',
     radius: { expr: 'pipeDiameter / 2' },
     height: { expr: 'wallThickness + extension * 2 + 0.02' },
     segments: 24,
@@ -161,4 +160,142 @@ export function definePipeAttachmentComponents(b, media) {
       ],
     );
   }
+}
+
+export function placeTee(b, {
+  key,
+  name,
+  x,
+  y,
+  z,
+  yaw = 0,
+  medium,
+  lineId,
+  parameters,
+  upstream,
+  downstream,
+  branch,
+}) {
+  const nodeId = b.instance(
+    `pipe-tee-${medium}`,
+    key,
+    name,
+    x,
+    y,
+    z,
+    {
+      role: 'pipe-fitting',
+      fittingKind: 'tee',
+      lineId,
+      stage: upstream.metadata.stage,
+      routeObstacle: 'solid',
+      clearanceRadius: '0',
+    },
+    parameters,
+    yaw,
+  );
+  b.connect(
+    upstream.key, upstream.port, key, 'run-in',
+    upstream.service ?? `${name} 主管入口`, medium, parameters.runDiameter, {
+      lineId,
+      supportLineId: `${lineId}-${key}-run-in`,
+    },
+  );
+  b.connect(
+    key, 'run-out', downstream.key, downstream.port,
+    downstream.service ?? `${name} 主管出口`, medium, parameters.runDiameter, {
+      lineId,
+      supportLineId: `${lineId}-${key}-run-out`,
+    },
+  );
+  b.connect(
+    key, 'branch', branch.key, branch.port,
+    branch.service ?? `${name} 支管`, medium, parameters.branchDiameter, {
+      lineId,
+      supportLineId: `${lineId}-${key}-branch`,
+    },
+  );
+  return nodeId;
+}
+
+export function placeReducer(b, {
+  key,
+  name,
+  x,
+  y,
+  z,
+  yaw = 0,
+  medium,
+  lineId,
+  parameters,
+  upstream,
+  downstream,
+}) {
+  const nodeId = b.instance(
+    `pipe-reducer-${medium}`,
+    key,
+    name,
+    x,
+    y,
+    z,
+    {
+      role: 'pipe-fitting',
+      fittingKind: 'reducer',
+      lineId,
+      stage: upstream.metadata.stage,
+      routeObstacle: 'solid',
+      clearanceRadius: '0',
+    },
+    parameters,
+    yaw,
+  );
+  b.connect(
+    upstream.key, upstream.port, key, 'large',
+    upstream.service ?? `${name} 大端入口`, medium, parameters.largeDiameter, {
+      lineId,
+      supportLineId: `${lineId}-${key}-large`,
+    },
+  );
+  b.connect(
+    key, 'small', downstream.key, downstream.port,
+    downstream.service ?? `${name} 小端出口`, medium, parameters.smallDiameter, {
+      lineId,
+      supportLineId: `${lineId}-${key}-small`,
+    },
+  );
+  return nodeId;
+}
+
+export function placeSleeve(b, {
+  key,
+  name,
+  x,
+  y,
+  z,
+  yaw = 0,
+  medium,
+  lineId,
+  hostNodeId,
+  parameters,
+  stage,
+}) {
+  return b.instance(
+    `wall-sleeve-${medium}`,
+    key,
+    name,
+    x,
+    y,
+    z,
+    {
+      role: 'pipe-penetration',
+      fittingKind: 'sleeve',
+      lineId,
+      hostNodeId,
+      stage,
+      routeObstacle: 'solid',
+      clearanceRadius: '0',
+    },
+    parameters,
+    yaw,
+  );
 }

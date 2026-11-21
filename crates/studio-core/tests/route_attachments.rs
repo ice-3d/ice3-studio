@@ -455,6 +455,59 @@ fn sleeve_document(valid_crossing: bool) -> Document {
     document
 }
 
+fn split_sleeve_document() -> Document {
+    let mut document = sleeve_document(true);
+    for node_id in ["node-000001", "node-000002"] {
+        document
+            .scene
+            .nodes_mut()
+            .iter_mut()
+            .find(|node| node.id.as_str() == node_id)
+            .expect("first segment endpoint")
+            .transform
+            .translation
+            .z = 1.5;
+    }
+    document.scene.nodes_mut().extend([
+        instance(
+            "node-000010",
+            "Split left endpoint",
+            Vec3 {
+                x: -5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            "component-000001",
+            BTreeMap::new(),
+        ),
+        instance(
+            "node-000011",
+            "Split right endpoint",
+            Vec3 {
+                x: 5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            "component-000001",
+            BTreeMap::new(),
+        ),
+        connection_with(
+            "node-000012",
+            "node-000010",
+            "port",
+            "node-000011",
+            "port",
+            "relation-000002",
+            0.2,
+            "L-SLV",
+        ),
+    ]);
+    document
+        .relations
+        .push(relation("relation-000002", "node-000010", "node-000011"));
+    document
+}
+
 fn clone_sleeve(document: &mut Document, source_id: &str) {
     let source = document
         .scene
@@ -726,6 +779,17 @@ fn accepts_a_sleeve_that_crosses_a_real_wall() {
         diagnostic.code == DiagnosticCode::RoutePenetrationInvalid
             || diagnostic.code == DiagnosticCode::RouteAttachmentMisaligned
     }));
+}
+
+#[test]
+fn accepts_a_sleeve_when_a_later_split_line_segment_crosses_the_host() {
+    let diagnostics = validate_document(&split_sleeve_document());
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == DiagnosticCode::RoutePenetrationInvalid }),
+        "{diagnostics:?}",
+    );
 }
 
 #[test]
