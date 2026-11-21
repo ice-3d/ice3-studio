@@ -103,7 +103,7 @@ fn tee_definition() -> ComponentDefinition {
         unit: None,
     });
     definition.parts = vec![
-        part("run", 1.0, 0.0, 0.0, 0.0),
+        part("run", 1.0, 0.2, 0.0, 0.2),
         part("branch", 0.2, 0.2, 1.1, 0.2),
         part("collar", 0.3, 0.3, 0.0, 0.9),
     ];
@@ -571,6 +571,55 @@ fn tee_document() -> Document {
     document
 }
 
+fn crossing_line_through_tee_document() -> Document {
+    let mut document = tee_document();
+    document.scene.nodes_mut().extend([
+        instance(
+            "node-000009",
+            "Crossing start",
+            Vec3 {
+                x: -1.0,
+                y: 0.0,
+                z: -5.0,
+            },
+            "component-000001",
+            BTreeMap::new(),
+        ),
+        instance(
+            "node-000010",
+            "Crossing end",
+            Vec3 {
+                x: -1.0,
+                y: 0.0,
+                z: 5.0,
+            },
+            "component-000001",
+            BTreeMap::new(),
+        ),
+        connection_with(
+            "node-000011",
+            "node-000009",
+            "port",
+            "node-000010",
+            "port",
+            "relation-000004",
+            0.2,
+            "L-OTHER",
+        ),
+    ]);
+    document
+        .relations
+        .push(relation("relation-000004", "node-000009", "node-000010"));
+    document
+}
+
+fn diagnostic_codes(document: &Document) -> Vec<DiagnosticCode> {
+    validate_document(document)
+        .into_iter()
+        .map(|diagnostic| diagnostic.code)
+        .collect()
+}
+
 fn connection_for_port<'a>(
     document: &'a mut Document,
     port_name: &str,
@@ -698,5 +747,34 @@ fn rejects_duplicate_sleeves_for_the_same_line_and_host() {
         diagnostics
             .iter()
             .any(|diagnostic| { diagnostic.code == DiagnosticCode::RoutePenetrationInvalid })
+    );
+}
+
+#[test]
+fn fitting_does_not_collide_with_its_own_line() {
+    let diagnostics = diagnostic_codes(&sleeve_document(true));
+    assert!(!diagnostics.contains(&DiagnosticCode::RouteCollision));
+}
+
+#[test]
+fn fitting_remains_an_obstacle_to_an_unrelated_line() {
+    let diagnostics = diagnostic_codes(&crossing_line_through_tee_document());
+    assert!(diagnostics.contains(&DiagnosticCode::RouteCollision));
+}
+
+#[test]
+fn declared_penetration_host_collision_is_validated_by_the_attachment_gate() {
+    let valid = validate_document(&sleeve_document(true));
+    assert!(
+        !valid
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::RouteCollision)
+    );
+
+    let invalid = validate_document(&sleeve_document(false));
+    assert!(
+        invalid
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::RoutePenetrationInvalid)
     );
 }

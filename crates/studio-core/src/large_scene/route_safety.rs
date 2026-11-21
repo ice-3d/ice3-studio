@@ -107,6 +107,7 @@ struct ObstacleOwner {
     bounds: Bounds,
     class: ObstacleClass,
     narrow_phase: bool,
+    attachment_line_id: Option<String>,
 }
 
 pub fn validate_route_safety(
@@ -126,10 +127,35 @@ pub fn validate_route_safety_with_limits(
     let routes = route_facts(document, definitions, &mut diagnostics, &mut stats, limits);
     let obstacles = obstacle_owners(document, definitions, &mut diagnostics, &mut stats, limits);
     let stations = support_stations(document, &routes, &mut diagnostics);
+    let penetration_pairs = document
+        .scene
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            (node.metadata.get("role").map(String::as_str) == Some("pipe-penetration"))
+                .then(|| {
+                    Some((
+                        node.metadata.get("lineId")?.clone(),
+                        node.metadata.get("hostNodeId")?.clone(),
+                    ))
+                })
+                .flatten()
+        })
+        .collect::<BTreeSet<_>>();
 
     for route in &routes {
         let mut reported = BTreeSet::new();
         for obstacle in &obstacles {
+            if obstacle.attachment_line_id.as_ref() == route.line_id.as_ref()
+                && obstacle.attachment_line_id.is_some()
+            {
+                continue;
+            }
+            if route.line_id.as_ref().is_some_and(|line_id| {
+                penetration_pairs.contains(&(line_id.clone(), obstacle.source_id.to_string()))
+            }) {
+                continue;
+            }
             if let ObstacleClass::ClearanceSurface { clearance } = obstacle.class {
                 for points in route.points.windows(2) {
                     let segment = [points[0], points[1]];
@@ -433,6 +459,12 @@ fn obstacle_owners(
         let Some(bounds) = bounds else {
             continue;
         };
+        let attachment_line_id = matches!(
+            node.metadata.get("role").map(String::as_str),
+            Some("pipe-fitting" | "pipe-penetration")
+        )
+        .then(|| node.metadata.get("lineId").cloned())
+        .flatten();
         if owners.len() >= limits.max_obstacle_owners {
             diagnostics.push(Diagnostic {
                 code: DiagnosticCode::RouteSafetyBudget,
@@ -452,6 +484,7 @@ fn obstacle_owners(
             bounds,
             class,
             narrow_phase: matches!(node.content, NodeContent::ComponentInstance(_)),
+            attachment_line_id,
         });
     }
     owners.sort_by(|left, right| left.source_id.as_str().cmp(right.source_id.as_str()));

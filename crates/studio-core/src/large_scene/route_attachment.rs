@@ -50,20 +50,51 @@ impl AttachmentKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct RouteAttachmentLimits {
+    pub max_attachments: usize,
+    pub max_ports: usize,
+    pub max_penetration_candidates: usize,
+    pub max_triangle_pairs: usize,
+    pub max_diagnostics_per_attachment: usize,
+}
+
+impl Default for RouteAttachmentLimits {
+    fn default() -> Self {
+        Self {
+            max_attachments: MAX_ROUTE_ATTACHMENTS,
+            max_ports: MAX_ATTACHMENT_PORTS,
+            max_penetration_candidates: MAX_PENETRATION_CANDIDATES,
+            max_triangle_pairs: MAX_ATTACHMENT_TRIANGLE_PAIRS,
+            max_diagnostics_per_attachment: MAX_ATTACHMENT_DIAGNOSTICS,
+        }
+    }
+}
+
 pub(crate) fn validate_route_attachments(
     document: &Document,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
 ) -> Vec<Diagnostic> {
+    validate_route_attachments_with_limits(document, definitions, RouteAttachmentLimits::default())
+}
+
+pub(crate) fn validate_route_attachments_with_limits(
+    document: &Document,
+    definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    limits: RouteAttachmentLimits,
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     let mut count = 0_usize;
     let mut sleeve_keys = BTreeSet::new();
+    let mut penetration_candidates = 0_usize;
+    let mut triangle_pairs = 0_usize;
     for (index, node) in document.scene.nodes().iter().enumerate() {
         let role = node.metadata.get("role").map(String::as_str);
         if !matches!(role, Some("pipe-fitting" | "pipe-penetration")) {
             continue;
         }
         count += 1;
-        if count > MAX_ROUTE_ATTACHMENTS {
+        if count > limits.max_attachments {
             diagnostics.push(attachment_diagnostic(
                 DiagnosticCode::RouteAttachmentBudget,
                 index,
@@ -115,7 +146,8 @@ pub(crate) fn validate_route_attachments(
             ));
             continue;
         }
-        match resolved_attachment(document, definitions, node, index, kind) {
+        let diagnostics_before = diagnostics.len();
+        match resolved_attachment(document, definitions, node, index, kind, limits) {
             Ok(attachment) => {
                 if matches!(attachment.kind, AttachmentKind::Tee) {
                     validate_tee(document, &attachment, &mut diagnostics);
@@ -135,12 +167,39 @@ pub(crate) fn validate_route_attachments(
                             "duplicate sleeve for route and host",
                         ));
                     }
-                    validate_sleeve(document, definitions, &attachment, &mut diagnostics);
+                    validate_sleeve(
+                        document,
+                        definitions,
+                        &attachment,
+                        limits,
+                        &mut penetration_candidates,
+                        &mut triangle_pairs,
+                        &mut diagnostics,
+                    );
                 }
             }
             Err(diagnostic) => diagnostics.push(diagnostic),
         }
+        let produced = diagnostics.len() - diagnostics_before;
+        if produced > limits.max_diagnostics_per_attachment {
+            diagnostics.truncate(diagnostics_before + limits.max_diagnostics_per_attachment);
+            diagnostics.push(attachment_diagnostic(
+                DiagnosticCode::RouteAttachmentBudget,
+                index,
+                node.id.as_str(),
+                format!(
+                    "attachment diagnostic budget {} exceeded",
+                    limits.max_diagnostics_per_attachment
+                ),
+            ));
+        }
     }
+    diagnostics.sort_by(|left, right| {
+        left.object_id
+            .cmp(&right.object_id)
+            .then_with(|| left.pointer.cmp(&right.pointer))
+            .then_with(|| left.code.as_str().cmp(right.code.as_str()))
+    });
     diagnostics
 }
 
@@ -150,6 +209,7 @@ fn resolved_attachment(
     node: &SceneNode,
     index: usize,
     kind: AttachmentKind,
+    limits: RouteAttachmentLimits,
 ) -> Result<Attachment, Diagnostic> {
     let NodeContent::ComponentInstance(instance) = &node.content else {
         return Err(attachment_field_diagnostic(
@@ -169,7 +229,7 @@ fn resolved_attachment(
             "attachment component definition is missing",
         )
     })?;
-    if definition.ports.len() > MAX_ATTACHMENT_PORTS {
+    if definition.ports.len() > limits.max_ports {
         return Err(attachment_field_diagnostic(
             DiagnosticCode::RouteAttachmentInvalid,
             index,
@@ -346,6 +406,9 @@ fn validate_sleeve(
     document: &Document,
     definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
     attachment: &Attachment,
+    limits: RouteAttachmentLimits,
+    penetration_candidates: &mut usize,
+    triangle_pairs: &mut usize,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let host_id = attachment
@@ -400,6 +463,19 @@ fn validate_sleeve(
         ));
         return;
     }
+    *penetration_candidates += 1;
+    if *penetration_candidates > limits.max_penetration_candidates {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentBudget,
+            attachment.node_index,
+            &attachment.node_id,
+            format!(
+                "penetration candidate budget {} exceeded",
+                limits.max_penetration_candidates
+            ),
+        ));
+        return;
+    }
     let Ok(triangles) = host_triangles(document, &host.id) else {
         diagnostics.push(attachment_diagnostic(
             DiagnosticCode::RoutePenetrationInvalid,
@@ -409,11 +485,28 @@ fn validate_sleeve(
         ));
         return;
     };
-    let crossing = route.windows(2).any(|segment| {
-        triangles
-            .iter()
-            .any(|triangle| crate::geometry::segment_triangle([segment[0], segment[1]], *triangle))
-    });
+    let mut crossing = false;
+    'segments: for segment in route.windows(2) {
+        for triangle in &triangles {
+            if *triangle_pairs >= limits.max_triangle_pairs {
+                diagnostics.push(attachment_diagnostic(
+                    DiagnosticCode::RouteAttachmentBudget,
+                    attachment.node_index,
+                    &attachment.node_id,
+                    format!(
+                        "attachment triangle-pair budget {} exceeded",
+                        limits.max_triangle_pairs
+                    ),
+                ));
+                return;
+            }
+            *triangle_pairs += 1;
+            if crate::geometry::segment_triangle([segment[0], segment[1]], *triangle) {
+                crossing = true;
+                break 'segments;
+            }
+        }
+    }
     if !crossing {
         diagnostics.push(attachment_diagnostic(
             DiagnosticCode::RoutePenetrationInvalid,
@@ -448,10 +541,26 @@ fn validate_sleeve(
     }
     for port in [wall_in, wall_out] {
         let route_distance = point_to_route_distance(port.position, &route);
-        let surface_distance = triangles
-            .iter()
-            .map(|triangle| segment_triangle_distance([to_array(port.position); 2], *triangle))
-            .fold(f32::INFINITY, f32::min);
+        let mut surface_distance = f32::INFINITY;
+        for triangle in &triangles {
+            if *triangle_pairs >= limits.max_triangle_pairs {
+                diagnostics.push(attachment_diagnostic(
+                    DiagnosticCode::RouteAttachmentBudget,
+                    attachment.node_index,
+                    &attachment.node_id,
+                    format!(
+                        "attachment triangle-pair budget {} exceeded",
+                        limits.max_triangle_pairs
+                    ),
+                ));
+                return;
+            }
+            *triangle_pairs += 1;
+            surface_distance = surface_distance.min(segment_triangle_distance(
+                [to_array(port.position); 2],
+                *triangle,
+            ));
+        }
         if route_distance > ATTACHMENT_POSITION_TOLERANCE_CAP_M
             || surface_distance > SLEEVE_SURFACE_TOLERANCE_M
         {
@@ -712,5 +821,43 @@ mod tests {
                 && diagnostic.object_id.as_deref() == Some("node-000001")
                 && diagnostic.pointer.ends_with("/metadata/fittingKind")
         }));
+    }
+
+    #[test]
+    fn attachment_budget_exhaustion_fails_closed() {
+        let mut document = Document::new("budget-attachment");
+        document.scene.nodes_mut().push(SceneNode {
+            id: NodeId::from("node-000001"),
+            name: "Attachment".into(),
+            parent_id: None,
+            transform: Transform::IDENTITY,
+            material_id: None,
+            content: NodeContent::Primitive(Primitive::Box {
+                width: 1.0,
+                height: 1.0,
+                depth: 1.0,
+            }),
+            metadata: BTreeMap::from([
+                ("role".into(), "pipe-fitting".into()),
+                ("fittingKind".into(), "tee".into()),
+                ("lineId".into(), "L-001".into()),
+            ]),
+            visible: true,
+        });
+
+        let diagnostics = validate_route_attachments_with_limits(
+            &document,
+            &BTreeMap::new(),
+            RouteAttachmentLimits {
+                max_attachments: 0,
+                ..RouteAttachmentLimits::default()
+            },
+        );
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentBudget })
+        );
     }
 }
