@@ -115,6 +115,8 @@ pub(crate) fn validate_route_attachments(
             Ok(attachment) => {
                 if matches!(attachment.kind, AttachmentKind::Tee) {
                     validate_tee(document, &attachment, &mut diagnostics);
+                } else if matches!(attachment.kind, AttachmentKind::Reducer) {
+                    validate_reducer(document, &attachment, &mut diagnostics);
                 }
             }
             Err(diagnostic) => diagnostics.push(diagnostic),
@@ -263,6 +265,60 @@ fn validate_tee(document: &Document, attachment: &Attachment, diagnostics: &mut 
             attachment.node_index,
             &attachment.node_id,
             "tee requires one connection on each independent port",
+        ));
+    }
+}
+
+fn validate_reducer(
+    document: &Document,
+    attachment: &Attachment,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let (Some(large), Some(small)) = (attachment.ports.get("large"), attachment.ports.get("small"))
+    else {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            "reducer requires large and small ports",
+        ));
+        return;
+    };
+    if large.diameter <= small.diameter
+        || large.medium != small.medium
+        || dot(large.direction, small.direction) > -ATTACHMENT_AXIS_TOLERANCE_RADIANS.cos()
+    {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            "reducer requires decreasing diameters and opposite directions",
+        ));
+    }
+    let axis = normalize(Vec3 {
+        x: large.position.x - small.position.x,
+        y: large.position.y - small.position.y,
+        z: large.position.z - small.position.z,
+    });
+    if axis.is_none_or(|axis| dot(axis, large.direction) < ATTACHMENT_AXIS_TOLERANCE_RADIANS.cos())
+    {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentMisaligned,
+            attachment.node_index,
+            &attachment.node_id,
+            "reducer ports must be collinear",
+        ));
+    }
+    let counts = connection_port_counts(document, &attachment.line_id, &attachment.node_id);
+    if counts.get("large").copied() != Some(1)
+        || counts.get("small").copied() != Some(1)
+        || counts.len() != 2
+    {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            "reducer requires one connection on each port",
         ));
     }
 }

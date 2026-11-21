@@ -11,8 +11,12 @@ use studio_core::math::{Transform, Vec3};
 use studio_core::validation::{DiagnosticCode, validate_document};
 
 fn endpoint_definition() -> ComponentDefinition {
+    endpoint_definition_with_diameter("component-000001", 0.2)
+}
+
+fn endpoint_definition_with_diameter(id: &str, diameter: f32) -> ComponentDefinition {
     definition(
-        "component-000001",
+        id,
         "Endpoint",
         vec![ComponentPort {
             name: "port".into(),
@@ -28,7 +32,7 @@ fn endpoint_definition() -> ComponentDefinition {
                 z: 0.0,
             }),
             medium: "water".into(),
-            diameter: ScalarBinding::Literal(0.2),
+            diameter: ScalarBinding::Literal(diameter),
         }],
     )
 }
@@ -169,6 +173,29 @@ fn connection(
     to_port: &str,
     relation_id: &str,
 ) -> SceneNode {
+    connection_with(
+        id,
+        from_node,
+        from_port,
+        to_node,
+        to_port,
+        relation_id,
+        0.2,
+        "L-TEE",
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn connection_with(
+    id: &str,
+    from_node: &str,
+    from_port: &str,
+    to_node: &str,
+    to_port: &str,
+    relation_id: &str,
+    diameter: f32,
+    line_id: &str,
+) -> SceneNode {
     SceneNode {
         id: NodeId::from(id),
         name: format!("Connection {id}"),
@@ -185,14 +212,135 @@ fn connection(
                 port: to_port.into(),
             },
             medium: "water".into(),
-            diameter: 0.2,
+            diameter,
             route_policy: RoutePolicy::Direct,
             relation_id: RelationId::from(relation_id),
-            metadata: BTreeMap::from([("lineId".into(), "L-TEE".into())]),
+            metadata: BTreeMap::from([("lineId".into(), line_id.into())]),
         }),
         metadata: BTreeMap::new(),
         visible: true,
     }
+}
+
+fn reducer_definition(large: f32, small: f32) -> ComponentDefinition {
+    let mut definition = definition(
+        "component-000004",
+        "Reducer",
+        vec![
+            ComponentPort {
+                name: "large".into(),
+                part_id: "large-flange".into(),
+                position: Vector3Binding::Literal(Vec3 {
+                    x: -1.0,
+                    y: 0.0,
+                    z: 0.0,
+                }),
+                direction: Vector3Binding::Literal(Vec3 {
+                    x: -1.0,
+                    y: 0.0,
+                    z: 0.0,
+                }),
+                medium: "water".into(),
+                diameter: ScalarBinding::Literal(large),
+            },
+            ComponentPort {
+                name: "small".into(),
+                part_id: "small-flange".into(),
+                position: Vector3Binding::Literal(Vec3 {
+                    x: 1.0,
+                    y: 0.0,
+                    z: 0.0,
+                }),
+                direction: Vector3Binding::Literal(Vec3 {
+                    x: 1.0,
+                    y: 0.0,
+                    z: 0.0,
+                }),
+                medium: "water".into(),
+                diameter: ScalarBinding::Literal(small),
+            },
+        ],
+    );
+    definition.parts = vec![
+        part("large-flange", 0.2, 0.2, 0.0, 0.2),
+        part("small-flange", 0.2, 0.2, 0.0, 0.2),
+        part("shell", 1.8, 0.1, 0.0, 0.1),
+    ];
+    definition
+}
+
+fn reducer_document_with_diameters(large: f32, small: f32) -> Document {
+    let mut document = Document::new("reducer");
+    document.components = vec![
+        endpoint_definition_with_diameter("component-000003", large),
+        reducer_definition(large, small),
+        endpoint_definition_with_diameter("component-000005", small),
+    ];
+    let reducer_metadata = BTreeMap::from([
+        ("role".into(), "pipe-fitting".into()),
+        ("fittingKind".into(), "reducer".into()),
+        ("lineId".into(), "L-REDUCER".into()),
+    ]);
+    document.scene.nodes_mut().extend([
+        instance(
+            "node-000001",
+            "Large side",
+            Vec3 {
+                x: -5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            "component-000003",
+            BTreeMap::new(),
+        ),
+        instance(
+            "node-000002",
+            "Small side",
+            Vec3 {
+                x: 5.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            "component-000005",
+            BTreeMap::new(),
+        ),
+        instance(
+            "node-000005",
+            "Reducer",
+            Vec3::default(),
+            "component-000004",
+            reducer_metadata,
+        ),
+        connection_with(
+            "node-000006",
+            "node-000001",
+            "port",
+            "node-000005",
+            "large",
+            "relation-000001",
+            large,
+            "L-REDUCER",
+        ),
+        connection_with(
+            "node-000007",
+            "node-000005",
+            "small",
+            "node-000002",
+            "port",
+            "relation-000002",
+            small,
+            "L-REDUCER",
+        ),
+    ]);
+    document.relations.extend([
+        relation("relation-000001", "node-000001", "node-000005"),
+        relation("relation-000002", "node-000005", "node-000002"),
+    ]);
+    document
+}
+
+fn reducer_document() -> Document {
+    reducer_document_with_diameters(0.4, 0.2)
 }
 
 fn relation(id: &str, from: &str, to: &str) -> Relation {
@@ -372,4 +520,27 @@ fn rejects_a_tee_branch_that_is_collinear_with_the_run() {
             .iter()
             .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentMisaligned })
     );
+}
+
+#[test]
+fn accepts_a_reducer_with_two_different_diameters() {
+    let diagnostics = validate_document(&reducer_document());
+    assert!(
+        !diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentInvalid })
+    );
+}
+
+#[test]
+fn rejects_equal_or_reversed_reducer_diameters() {
+    for (large, small) in [(0.4, 0.4), (0.2, 0.4)] {
+        let document = reducer_document_with_diameters(large, small);
+        let diagnostics = validate_document(&document);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentInvalid })
+        );
+    }
 }
