@@ -12,6 +12,7 @@ import { ComputePanel } from '../compute/ComputePanel';
 import { ChangesPanel } from '../changeset/ChangesPanel';
 import { EvidenceDrawer, type EvidenceTab } from './EvidenceDrawer';
 import { mergeDiagnostics } from '../changeset/reviewModel';
+import { RouteInspector } from '../route/RouteInspector';
 
 export function Workbench() {
   const session = useSession();
@@ -84,6 +85,12 @@ export function Workbench() {
           </div>
           <div className="review-dock__panel" hidden={dock !== 'inspect'}>
             <ComputePanel status={session.compute} />
+            <RouteInspector
+              node={selected}
+              document={session.document}
+              revision={session.revision}
+              onSelect={(nodeId) => sessionStore.select([nodeId])}
+            />
             <FormRenderer
               node={selected}
               definition={selectedDefinition}

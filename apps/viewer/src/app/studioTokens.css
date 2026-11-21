@@ -632,6 +632,123 @@ h2 {
   padding-top: var(--space-1);
 }
 
+.route-inspector {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel-alt);
+}
+
+.route-inspector__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.route-inspector h3,
+.route-inspector h4 {
+  margin: 0;
+  color: var(--text);
+}
+
+.route-inspector h3 {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.route-inspector h4 {
+  margin-bottom: var(--space-2);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.route-inspector__revision {
+  color: var(--muted);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.route-inspector__segment {
+  display: grid;
+  gap: 5px;
+  padding: var(--space-2) 0;
+  border-top: 1px solid rgb(255 255 255 / 5%);
+  color: var(--muted);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.route-inspector__fact {
+  display: grid;
+  grid-template-columns: 42px minmax(56px, auto) minmax(70px, auto) 1fr;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 0;
+}
+
+.route-inspector__fact code {
+  color: var(--text-soft);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 9px;
+}
+
+.route-inspector__link,
+.route-inspector__related {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  cursor: pointer;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.route-inspector__link:hover,
+.route-inspector__related:hover {
+  color: var(--focus);
+  text-decoration: underline;
+}
+
+.route-inspector__related {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 5px;
+  color: var(--text-soft);
+}
+
+.route-inspector__related small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.route-inspector__warning,
+.route-inspector__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--warning);
+  background: rgb(224 170 84 / 7%);
+  color: var(--warning);
+  font-size: 10px;
+}
+
+.route-inspector__error {
+  display: grid;
+  gap: var(--space-2);
+  border-left-color: var(--danger);
+  background: rgb(234 124 118 / 7%);
+  color: var(--danger);
+}
+
 .inspector-form__heading {
   display: flex;
   align-items: flex-start;
