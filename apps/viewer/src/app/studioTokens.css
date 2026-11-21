@@ -722,13 +722,36 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  margin-bottom: 5px;
   color: var(--text-soft);
 }
 
 .route-inspector__related small {
   color: var(--muted);
   font-size: 9px;
+}
+
+.route-inspector__related-row {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 7px;
+}
+
+.route-inspector__host {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 9px;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.route-inspector__host:hover {
+  color: var(--focus);
 }
 
 .route-inspector__warning,

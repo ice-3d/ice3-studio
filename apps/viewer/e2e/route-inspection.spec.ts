@@ -26,6 +26,19 @@ test('inspects a selected fitting route without leaving Inspect', async ({ page 
         },
         visible: true,
       });
+      body.result.scene.nodes.push({
+        id: 'node-host',
+        name: 'RAS wall host',
+        parentId: null,
+        metadata: {},
+        content: { type: 'group' },
+        transform: {
+          translation: { x: 0, y: 0, z: 0 },
+          rotation: [0, 0, 0, 1],
+          scale: { x: 1, y: 1, z: 1 },
+        },
+        visible: true,
+      });
       await route.fulfill({ response, json: body });
       return;
     }
@@ -67,8 +80,8 @@ test('inspects a selected fitting route without leaving Inspect', async ({ page 
               fittingKind: 'reducer',
               lineId: 'L-E2E',
               supportLineId: null,
-              hostNodeId: null,
-              hostName: null,
+              hostNodeId: 'node-host',
+              hostName: 'RAS wall host',
             }],
             supports: [],
             truncated: {
@@ -93,4 +106,6 @@ test('inspects a selected fitting route without leaving Inspect', async ({ page 
   await expect(inspector).toContainText('L-E2E');
   await expect(inspector).toContainText('small');
   await expect(inspector).toContainText('0.200 m');
+  await page.getByRole('button', { name: 'Select host RAS wall host' }).click();
+  await expect(page.getByRole('form', { name: 'Inspect RAS wall host' })).toBeVisible();
 });

@@ -144,6 +144,7 @@ function RelatedFacts({
     nodeId: string;
     name: string;
     fittingKind?: string;
+    hostNodeId?: string | null;
     hostName?: string | null;
     supportGroup?: string | null;
   }>;
@@ -153,19 +154,30 @@ function RelatedFacts({
     <section>
       <h4>{title} · {items.length}</h4>
       {items.map((item) => (
-        <button
-          type="button"
-          className="route-inspector__related"
-          key={item.nodeId}
-          onClick={() => onSelect(item.nodeId)}
-        >
-          <span>{item.name}</span>
-          <small>
-            {[item.fittingKind, item.hostName, item.supportGroup, item.nodeId]
-              .filter(Boolean)
-              .join(' · ')}
-          </small>
-        </button>
+        <article className="route-inspector__related-row" key={item.nodeId}>
+          <button
+            type="button"
+            className="route-inspector__related"
+            onClick={() => onSelect(item.nodeId)}
+          >
+            <span>{item.name}</span>
+            <small>
+              {[item.fittingKind, item.supportGroup, item.nodeId]
+                .filter(Boolean)
+                .join(' · ')}
+            </small>
+          </button>
+          {item.hostNodeId && (
+            <button
+              type="button"
+              className="route-inspector__host"
+              aria-label={`Select host ${item.hostName ?? item.hostNodeId}`}
+              onClick={() => onSelect(item.hostNodeId!)}
+            >
+              Host · {item.hostName ?? item.hostNodeId}
+            </button>
+          )}
+        </article>
       ))}
     </section>
   );
