@@ -1,5 +1,5 @@
 {
-  "apiVersion": "1.4",
+  "apiVersion": "1.5",
   "methods": [
     "system.health",
     "system.capabilities",
@@ -23,6 +23,7 @@
     "scene.context",
     "scene.search",
     "component.get",
+    "route.inspect",
     "validation.run",
     "referenceAsset.register",
     "referenceAsset.get",
@@ -26249,6 +26250,697 @@
         "descriptor"
       ],
       "title": "ReferenceAssetRegisterResult",
+      "type": "object"
+    },
+    "RouteInspection": {
+      "$defs": {
+        "RouteInspectionAttachment": {
+          "properties": {
+            "fittingKind": {
+              "type": "string"
+            },
+            "hostName": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "hostNodeId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineId": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "role": {
+              "type": "string"
+            },
+            "supportLineId": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "nodeId",
+            "name",
+            "role",
+            "fittingKind",
+            "lineId"
+          ],
+          "type": "object"
+        },
+        "RouteInspectionPort": {
+          "properties": {
+            "diameter": {
+              "format": "float",
+              "type": "number"
+            },
+            "direction": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "medium": {
+              "type": "string"
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "port": {
+              "type": "string"
+            },
+            "position": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "nodeId",
+            "port",
+            "medium",
+            "diameter",
+            "position",
+            "direction"
+          ],
+          "type": "object"
+        },
+        "RouteInspectionSegment": {
+          "properties": {
+            "diameter": {
+              "format": "float",
+              "type": "number"
+            },
+            "from": {
+              "$ref": "#/$defs/RouteInspectionPort"
+            },
+            "medium": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "points": {
+              "items": {
+                "items": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "routePolicy": {
+              "$ref": "#/$defs/RoutePolicy"
+            },
+            "to": {
+              "$ref": "#/$defs/RouteInspectionPort"
+            }
+          },
+          "required": [
+            "nodeId",
+            "name",
+            "medium",
+            "diameter",
+            "routePolicy",
+            "from",
+            "to",
+            "points"
+          ],
+          "type": "object"
+        },
+        "RouteInspectionSupport": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "position": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "supportGroup": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "supportLineId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "nodeId",
+            "name",
+            "supportLineId",
+            "position"
+          ],
+          "type": "object"
+        },
+        "RouteInspectionTruncation": {
+          "properties": {
+            "attachments": {
+              "type": "boolean"
+            },
+            "points": {
+              "type": "boolean"
+            },
+            "segments": {
+              "type": "boolean"
+            },
+            "supports": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "segments",
+            "points",
+            "attachments",
+            "supports"
+          ],
+          "type": "object"
+        },
+        "RoutePolicy": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "direct",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "orthogonal",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "buried",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "elevation": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "rack",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "elevation"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/RouteInspectionAttachment"
+          },
+          "type": "array"
+        },
+        "lineId": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/RouteInspectionSegment"
+          },
+          "type": "array"
+        },
+        "supportLineIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "supports": {
+          "items": {
+            "$ref": "#/$defs/RouteInspectionSupport"
+          },
+          "type": "array"
+        },
+        "truncated": {
+          "$ref": "#/$defs/RouteInspectionTruncation"
+        }
+      },
+      "required": [
+        "revision",
+        "lineId",
+        "supportLineIds",
+        "segments",
+        "attachments",
+        "supports",
+        "truncated"
+      ],
+      "title": "RouteInspection",
+      "type": "object"
+    },
+    "RouteInspectionAttachment": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "fittingKind": {
+          "type": "string"
+        },
+        "hostName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hostNodeId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "supportLineId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "nodeId",
+        "name",
+        "role",
+        "fittingKind",
+        "lineId"
+      ],
+      "title": "RouteInspectionAttachment",
+      "type": "object"
+    },
+    "RouteInspectionParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "lineId": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "lineId"
+      ],
+      "title": "RouteInspectionParams",
+      "type": "object"
+    },
+    "RouteInspectionPort": {
+      "$defs": {
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "diameter": {
+          "format": "float",
+          "type": "number"
+        },
+        "direction": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "medium": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "port": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        }
+      },
+      "required": [
+        "nodeId",
+        "port",
+        "medium",
+        "diameter",
+        "position",
+        "direction"
+      ],
+      "title": "RouteInspectionPort",
+      "type": "object"
+    },
+    "RouteInspectionSegment": {
+      "$defs": {
+        "RouteInspectionPort": {
+          "properties": {
+            "diameter": {
+              "format": "float",
+              "type": "number"
+            },
+            "direction": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "medium": {
+              "type": "string"
+            },
+            "nodeId": {
+              "type": "string"
+            },
+            "port": {
+              "type": "string"
+            },
+            "position": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "nodeId",
+            "port",
+            "medium",
+            "diameter",
+            "position",
+            "direction"
+          ],
+          "type": "object"
+        },
+        "RoutePolicy": {
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "direct",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "orthogonal",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "depth": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "buried",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "depth"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "elevation": {
+                  "format": "float",
+                  "type": "number"
+                },
+                "kind": {
+                  "const": "rack",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "elevation"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "diameter": {
+          "format": "float",
+          "type": "number"
+        },
+        "from": {
+          "$ref": "#/$defs/RouteInspectionPort"
+        },
+        "medium": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "points": {
+          "items": {
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "routePolicy": {
+          "$ref": "#/$defs/RoutePolicy"
+        },
+        "to": {
+          "$ref": "#/$defs/RouteInspectionPort"
+        }
+      },
+      "required": [
+        "nodeId",
+        "name",
+        "medium",
+        "diameter",
+        "routePolicy",
+        "from",
+        "to",
+        "points"
+      ],
+      "title": "RouteInspectionSegment",
+      "type": "object"
+    },
+    "RouteInspectionSupport": {
+      "$defs": {
+        "Vec3": {
+          "properties": {
+            "x": {
+              "format": "float",
+              "type": "number"
+            },
+            "y": {
+              "format": "float",
+              "type": "number"
+            },
+            "z": {
+              "format": "float",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "z"
+          ],
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "supportGroup": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "supportLineId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "nodeId",
+        "name",
+        "supportLineId",
+        "position"
+      ],
+      "title": "RouteInspectionSupport",
+      "type": "object"
+    },
+    "RouteInspectionTruncation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "attachments": {
+          "type": "boolean"
+        },
+        "points": {
+          "type": "boolean"
+        },
+        "segments": {
+          "type": "boolean"
+        },
+        "supports": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "segments",
+        "points",
+        "attachments",
+        "supports"
+      ],
+      "title": "RouteInspectionTruncation",
       "type": "object"
     },
     "RpcRequest": {

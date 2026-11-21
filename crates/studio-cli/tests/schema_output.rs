@@ -29,9 +29,16 @@ fn writes_deterministic_schema_output() {
     assert!(schema["types"].get("ChangeSetImpactParams").is_some());
     assert!(schema["types"].get("ChangeSetImpactResult").is_some());
     assert!(schema["types"].get("IterationImpact").is_some());
+    assert!(schema["types"].get("RouteInspectionParams").is_some());
+    assert!(schema["types"].get("RouteInspection").is_some());
     let types = String::from_utf8(first_types).unwrap();
     assert!(types.contains("export type ChangeSetImpactResult"));
     assert!(types.contains("export type IterationImpact"));
+    assert!(types.contains("lineId: string"));
+    assert!(types.contains("supportLineIds: Array<string>"));
+    assert!(types.contains("revision: number"));
+    assert!(types.contains("revision?: number"));
+    assert!(!types.contains("line_id: string"));
 }
 
 #[test]

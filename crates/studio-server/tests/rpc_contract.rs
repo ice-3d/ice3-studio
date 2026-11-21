@@ -18,6 +18,54 @@ async fn capabilities_do_not_expose_a_retired_asset_driver() {
 }
 
 #[tokio::test]
+async fn route_inspection_is_a_read_only_public_method_with_stable_errors() {
+    let server = start_test_server(ServerConfig::for_tests("route-inspection-rpc")).await;
+    let capabilities = common::rpc(&server, "system.capabilities", serde_json::json!({})).await;
+    assert_eq!(capabilities["result"]["apiVersion"], "1.5");
+    assert!(
+        capabilities["result"]["methods"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("route.inspect"))
+    );
+
+    let manifest = common::rpc(&server, "system.agentManifest", serde_json::json!({})).await;
+    assert!(
+        manifest["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| {
+                tool["name"] == "route.inspect"
+                    && tool["sideEffect"] == "read"
+                    && tool["requiresApproval"] == false
+            })
+    );
+
+    let missing = common::rpc(
+        &server,
+        "route.inspect",
+        serde_json::json!({ "lineId": "L-MISSING" }),
+    )
+    .await;
+    assert_eq!(
+        missing["error"]["diagnosticCode"],
+        "ICE3_STUDIO_REFERENCE_INVALID"
+    );
+
+    let stale = common::rpc(
+        &server,
+        "route.inspect",
+        serde_json::json!({ "lineId": "L-MISSING", "revision": 99 }),
+    )
+    .await;
+    assert_eq!(
+        stale["error"]["diagnosticCode"],
+        "ICE3_STUDIO_REVISION_CONFLICT"
+    );
+}
+
+#[tokio::test]
 async fn health_reports_api_and_schema_versions() {
     let server = start_test_server(ServerConfig::for_tests("wwtp-mini")).await;
     let body: serde_json::Value = reqwest::get(server.health_url())
@@ -27,7 +75,7 @@ async fn health_reports_api_and_schema_versions() {
         .await
         .unwrap();
     assert_eq!(body["status"], "ok");
-    assert_eq!(body["apiVersion"], "1.4");
+    assert_eq!(body["apiVersion"], "1.5");
     assert_eq!(body["schemaVersion"], 2);
 }
 
@@ -133,7 +181,7 @@ async fn publishes_generated_api_schemas() {
         .text()
         .await
         .unwrap();
-    assert!(schema.contains("\"apiVersion\": \"1.4\""));
+    assert!(schema.contains("\"apiVersion\": \"1.5\""));
     assert!(schema.contains("node.create"));
     assert!(schema.contains("evaluation.stats"));
 }
@@ -365,7 +413,7 @@ async fn rejects_an_unsupported_json_rpc_version() {
 
 #[test]
 fn health_reports_route_safety_api_version() {
-    assert_eq!(studio_core::API_VERSION, "1.4");
+    assert_eq!(studio_core::API_VERSION, "1.5");
 }
 
 #[tokio::test]

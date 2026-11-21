@@ -19,9 +19,11 @@ pub const MAX_LINE_ID_CHARS: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub struct RouteInspectionParams {
     pub line_id: String,
+    #[ts(type = "number")]
+    #[ts(optional)]
     pub revision: Option<u64>,
 }
 
@@ -46,7 +48,7 @@ impl Default for RouteInspectionLimits {
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub struct RouteInspectionPort {
     pub node_id: String,
     pub port: String,
@@ -58,7 +60,7 @@ pub struct RouteInspectionPort {
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub struct RouteInspectionSegment {
     pub node_id: String,
     pub name: String,
@@ -86,7 +88,7 @@ impl RouteInspectionSegment {
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub struct RouteInspectionTruncation {
     pub segments: bool,
     pub points: bool,
@@ -96,8 +98,9 @@ pub struct RouteInspectionTruncation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub struct RouteInspection {
+    #[ts(type = "number")]
     pub revision: u64,
     pub line_id: String,
     pub support_line_ids: Vec<String>,
@@ -109,7 +112,7 @@ pub struct RouteInspection {
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub struct RouteInspectionAttachment {
     pub node_id: String,
     pub name: String,
@@ -123,7 +126,7 @@ pub struct RouteInspectionAttachment {
 
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub struct RouteInspectionSupport {
     pub node_id: String,
     pub name: String,
