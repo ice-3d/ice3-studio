@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-032
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 >
@@ -34,6 +34,9 @@ ChangeSet API、Google Chrome。
 - Axis tolerance is `2°`; sleeve surface target band is `0.15 m`.
 - Attachment limits: 512 instances, 3 ports per attachment, 8,192 participant cache entries,
   4,096 penetration candidates, 250,000 triangle pairs and 8 diagnostics per attachment.
+- Split hydraulic runs may use connection metadata `supportLineId` to bind support stations to
+  the physical main while retaining a shared fitting `lineId`; absent metadata falls back to
+  `lineId`.
 - No hard performance limit may be widened silently.
 - Git author and committer must be `damoqiongqiu <damoqiongqiu@126.com>`.
 - No competitor, vendor, or third-party product names in docs, code, comments, identifiers or commits.

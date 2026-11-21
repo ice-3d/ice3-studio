@@ -487,11 +487,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -503,7 +502,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [
@@ -3108,7 +3107,11 @@
             "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT",
             "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
             "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
-            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET"
+            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED",
+            "ICE3_STUDIO_ROUTE_PENETRATION_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET"
           ],
           "type": "string"
         },
@@ -4446,11 +4449,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -4462,7 +4464,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [
@@ -4656,7 +4658,11 @@
             "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT",
             "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
             "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
-            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET"
+            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED",
+            "ICE3_STUDIO_ROUTE_PENETRATION_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET"
           ],
           "type": "string"
         },
@@ -7511,11 +7517,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -7527,7 +7532,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [
@@ -10347,11 +10352,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -10363,7 +10367,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [
@@ -13186,11 +13190,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -13202,7 +13205,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [
@@ -13356,7 +13359,11 @@
             "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT",
             "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
             "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
-            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET"
+            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED",
+            "ICE3_STUDIO_ROUTE_PENETRATION_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET"
           ],
           "type": "string"
         },
@@ -15688,11 +15695,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -15704,7 +15710,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [
@@ -18887,11 +18893,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -18903,7 +18908,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [
@@ -19880,7 +19885,11 @@
             "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT",
             "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
             "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
-            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET"
+            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED",
+            "ICE3_STUDIO_ROUTE_PENETRATION_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET"
           ],
           "type": "string"
         }
@@ -20165,11 +20174,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -20181,7 +20189,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [
@@ -20335,7 +20343,11 @@
             "ICE3_STUDIO_ROUTE_CLEARANCE_INSUFFICIENT",
             "ICE3_STUDIO_ROUTE_SUPPORT_MISSING",
             "ICE3_STUDIO_ROUTE_SUPPORT_SPACING",
-            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET"
+            "ICE3_STUDIO_ROUTE_SAFETY_BUDGET",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_MISALIGNED",
+            "ICE3_STUDIO_ROUTE_PENETRATION_INVALID",
+            "ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET"
           ],
           "type": "string"
         },
@@ -23128,11 +23140,10 @@
           "additionalProperties": false,
           "properties": {
             "diameter": {
-              "format": "float",
-              "type": "number"
+              "$ref": "#/$defs/ScalarBinding"
             },
             "direction": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             },
             "medium": {
               "type": "string"
@@ -23144,7 +23155,7 @@
               "type": "string"
             },
             "position": {
-              "$ref": "#/$defs/Vec3"
+              "$ref": "#/$defs/Vector3Binding"
             }
           },
           "required": [

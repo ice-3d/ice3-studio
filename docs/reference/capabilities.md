@@ -14,7 +14,8 @@ camelCase，并保留历史 snake_case 别名双读（见
 [ADR-003](../decisions/0003-wire-format-camel-case.md)）；1.2 要求四个变更集写方法
 携带 `idempotencyKey`，重试不再产生重复副作用；1.3 让 `changeset.evaluate` 附带
 `spatial` 预检摘要（改动包围盒、越界节点数），它是信息性的，不影响 `status`；1.4
-增加五个稳定路由安全 Diagnostic code，method 和 Operation 不变。
+增加五个稳定路由安全 Diagnostic code 和四个附件 Diagnostic code，method 和 Operation
+不变。
 历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`。capabilities 调用方必须按当前 generated schema 解析，不能把版本
@@ -91,8 +92,25 @@ camelCase，并保留历史 snake_case 别名双读（见
 管线安全预检同时进入 `document.apply`、dry run 和 ChangeSet evaluate。它对正式路由
 中心线执行实体碰撞、净空面、端点接入和支撑布局检查，并有确定性的宽相位、候选窄相位
 顺序。`routeObstacle` 支持 `solid`（缺省）、`ignored`、`clearance-surface`；
-`routeClearance`、`maxSupportSpacing` 和 `lineId` 的非法值失败关闭。
+`routeClearance`、`maxSupportSpacing`、`lineId` 和可选 `supportLineId` 的非法值失败关闭。
 connection 未声明 `lineId` 时不执行资产级支撑布局。
+
+`ComponentPort.position`、`direction` 和 `diameter` 均为 binding：字面量、参数引用和
+受控表达式会先按实例参数解析，再应用实例世界变换。附件使用以下字符串 metadata：
+
+| `role` | `fittingKind` | 必需连接端口 | 额外事实 |
+|---|---|---|---|
+| `pipe-fitting` | `tee` | `run-in`、`run-out`、`branch` | 三个端口必须各接一条连接，方向和几何有效 |
+| `pipe-fitting` | `reducer` | `large`、`small` | 小端直径必须小于大端直径 |
+| `pipe-penetration` | `sleeve` | `wall-in`、`wall-out`（组件端口） | `hostNodeId` 必须是管线真实穿越的宿主 |
+
+附件 `lineId` 必须匹配真实 connection。三通或异径管拆分主管时，各 connection 可声明
+独立 `supportLineId`，让支撑点绑定该段而不丢失共享的附件 `lineId`；省略时回退到
+`lineId`。附件不会与自身线路产生碰撞假阳性，但仍作为其它线路的实体障碍。
+
+位置容差为 `max(0.02m, diameter × 0.05)`，上限 `0.10m`；轴向容差 `2°`，套管表面
+目标带 `0.15m`。附件上限为 512 个实例、每附件 3 个端口、8,192 个 participant 缓存项、
+4,096 个穿墙候选、250,000 个三角形对和每附件 8 条诊断；超限失败关闭。
 
 端点接触段豁免为 `1.5m`。非 Buried 路线缺省最大支撑间距为 `6m`，支撑水平投影容差为
 `1m`；超过 `15°` 的转弯要求在 `max(1m, 4 × diameter)` 内有支撑。跨越净空面的支撑
@@ -154,7 +172,8 @@ connection 32 条碰撞报告；耗尽时失败关闭。
 | relation（3） | `relation.create`、`relation.update`、`relation.delete` |
 | constraint（2） | `constraint.upsert`、`constraint.delete` |
 
-`component` 的 part content 支持 `group`、`box`、`plane`、`cylinder`、`sphere`、
+`component` 的端口位置、方向和直径使用 binding；part content 支持
+`group`、`box`、`plane`、`cylinder`、`sphere`、
 `customMesh`、`sweep` 与 `extrude`（二维轮廓沿 +Z 拉伸；支持参数/表达式高度）。
 `ComponentPart.subtract` 支持盒、圆柱（`axis` 可选 `x`/`y`/`z`）与球，求值时
 通过 BSP CSG 从任意部件几何中减去（`CsgTooLarge` 上限：底模 60,000 / 切体 20,000 三角形）。

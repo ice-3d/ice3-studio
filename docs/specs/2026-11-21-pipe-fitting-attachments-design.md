@@ -2,15 +2,15 @@
 
 > Document ID: ICE3-STUDIO-SPEC-035
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
 ## 1. 摘要
 
-`ICE3-STUDIO-SPEC-013` 的工艺拓扑、连续路径、碰撞、道路净空和支撑门禁已经交付，但
-穿墙套管、三通和异径管仍未实体化。当前管线端点可以对齐，分支仍可能从同一点叠出，
-不同直径之间没有显式过渡构件，穿越墙体处也没有可识别的套管。
+`ICE3-STUDIO-SPEC-013` 的工艺拓扑、连续路径、碰撞、道路净空和支撑门禁已经交付。
+本设计把当时的穿墙套管、三通和异径管缺口补成可验证的组件实例：分支使用独立端口，
+不同直径之间具有显式过渡几何，穿越墙体处具有绑定真实宿主的套管。
 
 本设计补齐这三类附件，并保持 Studio 的通用边界：
 
@@ -197,7 +197,8 @@ Component Instance 或 instance set 的派生 geometry，但必须参与路线�
 
 - 附件校验使用 `route_connection`，不另写粗路由。
 - 屏障穿越复用 route safety 的障碍提取和 segment-to-triangle 窄相位。
-- 支吊架仍按 connection `lineId` 检查，不把三通、异径管或套管当作支撑站点。
+- 支吊架使用 connection `supportLineId` 检查分段线路，不把三通、异径管或套管当作
+  支撑站点；缺省时 `supportLineId` 回退到 `lineId`。
 - 附件是实际 steel 几何，对其它管线仍可构成障碍。
 - 对自身 `lineId`，附件几何不作为碰撞障碍，避免套管或三通包围自身管道导致假阳性。
 - 对无关 `lineId`，附件几何正常进入障碍集。
@@ -377,7 +378,7 @@ Diagnostic 规则：
 
 ## 16. 性能与门禁
 
-- route safety 的 99 条连接污水厂 p95 仍不超过 `150 ms`。
+- route safety 的 65 条连接污水厂 p95 仍不超过 `150 ms`。
 - 大型工业 fixture route safety p95 仍不超过 `250 ms`。
 - 附件新增后污水厂有效三角形、唯一三角形、节点、实例和材质保持在
   `ICE3-STUDIO-SPEC-012` 预算内。
@@ -391,7 +392,7 @@ Diagnostic 规则：
 - 现有不含附件的项目不产生新错误或新节点。
 - 未知 `role` 保持现有行为；只有两个新 role 进入附件校验。
 - 已有资产中的 `pipe-flange`、`pipe-collar`、`pipe-valve` 和支撑 metadata 不变。
-- `SPEC-013` 在本设计全部验收通过后标记为 Implemented。
+- `SPEC-013` 已随本设计全部验收通过标记为 Implemented。
 
 ## 18. 交付顺序
 

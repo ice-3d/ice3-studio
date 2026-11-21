@@ -184,6 +184,9 @@ glTF/GLB 纹理路径越界、缺失、符号链接逃逸、摘要/字节冲突�
   并保持当前 revision 不变。
 - GPU device 丢失或失败后不再进入调度，直到进程重启或 host 显式重新初始化；CPU/GPU
   geometry cache 继续分别 keyed。
+- 附件校验失败时保持 committed revision 不变。先检查 `role`、`fittingKind`、`lineId`、
+  端口唯一性和套管 `hostNodeId`，再检查端口世界坐标、轴向、直径和宿主三角面穿越；
+  不得通过删除诊断或放宽位置/预算上限来绕过失败。
 
 ChangeSet version 冲突和过期 approved digest 使用 `ICE3_STUDIO_OPERATION_INVALID` 返回具体
 message；base revision 过期使用 `ICE3_STUDIO_REVISION_CONFLICT`。

@@ -1,5 +1,7 @@
 import { LIE_ALONG_X, cylinder, pipeMaterialForMedium } from './model-kit.mjs';
 
+const REDUCER_STEPS = 6;
+
 const number = (name, defaultValue) => ({
   name,
   valueType: { kind: 'number', minimum: 0.01, maximum: 100 },
@@ -33,17 +35,28 @@ function teeParts(b, prefix) {
 }
 
 function reducerParts(b, prefix) {
+  const shell = Array.from({ length: REDUCER_STEPS }, (_, index) => {
+    const center = (index + 0.5) / REDUCER_STEPS;
+    return b.part(
+      `${prefix}-step-${index + 1}`,
+      b.cylinder(
+        {
+          expr: `(largeDiameter + (smallDiameter - largeDiameter) * ${center}) / 2`,
+        },
+        { expr: `length / ${REDUCER_STEPS}` },
+        24,
+      ),
+      { expr: `-length / 2 + length * ${center}` }, 0, 0,
+      'pipe-process', { rotation: LIE_ALONG_X },
+    );
+  });
   return [
     b.part(
       `${prefix}-large-flange`,
       b.cylinder({ expr: 'largeDiameter * 0.62' }, 0.10, 24),
       { expr: '-length / 2' }, 0, 0, 'steel', { rotation: LIE_ALONG_X },
     ),
-    b.part(
-      `${prefix}-shell`,
-      b.cylinder({ expr: '(largeDiameter + smallDiameter) / 4' }, { expr: 'length' }, 24),
-      0, 0, 0, 'pipe-process', { rotation: LIE_ALONG_X },
-    ),
+    ...shell,
     b.part(
       `${prefix}-small-flange`,
       b.cylinder({ expr: 'smallDiameter * 0.72' }, 0.10, 24),

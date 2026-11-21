@@ -35,7 +35,7 @@ test('command wrapper and site module produce the same deterministic plan', asyn
   );
 });
 
-test('visual review entry exposes four deterministic inspection distances', async (context) => {
+test('visual review entry exposes six deterministic inspection distances', async (context) => {
   const scriptUrl = new URL('../../scripts/wastewater-visual-review.mjs', import.meta.url);
   let module;
   try {
@@ -54,18 +54,26 @@ test('visual review entry exposes four deterministic inspection distances', asyn
     'process-mid',
     'building-close',
     'equipment-close',
+    'pipe-fittings',
+    'wall-penetration',
   ]);
   assert.deepEqual(
     views.map(({ distance }) => distance),
-    [360, 58, 42, 30],
+    [360, 58, 42, 30, 18, 18],
   );
   assert.deepEqual(views[3]?.target, [62, 2.2, 10]);
-  assert.ok(views.every(({ url }) => (
-    url.startsWith('http://127.0.0.1:8150/?')
-    && url.includes('token=wastewater-review')
-    && url.includes('target=')
-    && url.includes('view=')
-  )));
+  assert.deepEqual(views[4]?.target, [426, 6.5, -3]);
+  assert.deepEqual(views[5]?.target, [378.5, 6.5, -125]);
+  for (const view of views) {
+    const url = new URL(view.url);
+    assert.equal(url.origin, 'http://127.0.0.1:8150');
+    assert.equal(url.searchParams.get('token'), 'wastewater-review');
+    assert.equal(url.searchParams.get('target'), view.target.join(','));
+    assert.equal(
+      url.searchParams.get('view'),
+      [...view.orientation, view.distance].join(','),
+    );
+  }
 });
 
 test('capability report proves the asset exercises advanced Studio modeling paths', async () => {
@@ -1492,6 +1500,28 @@ test('pipe attachment components expose independent fitting ports', () => {
   assert.ok(sleeve.parts.length >= 2);
 });
 
+test('reducer shell exposes a stepped diameter transition', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const reducer = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition)
+    .find(({ name }) => name.startsWith('Pipe reducer ('));
+  assert.ok(reducer);
+  const steps = reducer.parts
+    .filter(({ id }) => /-step-\d+$/.test(id))
+    .sort((left, right) => left.id.localeCompare(right.id, 'en', { numeric: true }));
+  assert.ok(steps.length >= 4);
+  const radii = steps.map(({ content }) => Function(
+    'largeDiameter',
+    'smallDiameter',
+    'length',
+    `"use strict"; return (${content.radius.expr});`,
+  )(0.3, 0.25, 1.2));
+  assert.ok(radii.every((radius, index) => (
+    index === 0 || radius < radii[index - 1]
+  )), `${radii.join(', ')}`);
+});
+
 test('wastewater plan contains executable fittings and real host sleeves', () => {
   const plan = buildLegacyPlan('wastewater-plant');
   const fittings = plan.operations.filter(({ instance }) => (
@@ -1510,6 +1540,34 @@ test('wastewater plan contains executable fittings and real host sleeves', () =>
   for (const sleeve of sleeves) {
     assert.ok(nodeIds.has(sleeve.instance.metadata.hostNodeId));
   }
+});
+
+test('gas wall sleeve stays outside the gas holder pressure vessel', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const holder = plan.operations.find(({ name }) => name === 'GH-101 沼气柜');
+  const sleeve = plan.operations.find(({ name }) => name === 'SLV-101 沼气主管穿墙套管');
+  assert.ok(holder);
+  assert.ok(sleeve);
+  const definition = plan.operations.find(({ type, definition: value }) => (
+    type === 'component.define' && value.id === holder.instance.definitionId
+  ))?.definition;
+  assert.ok(definition);
+  const sphere = definition.parts.find(({ id }) => id.endsWith('-sphere'));
+  assert.ok(sphere);
+  const center = holder.transform.translation;
+  const position = sleeve.transform.translation;
+  const radius = Number(sphere.content.radius);
+  const sphereY = center.y + Number(sphere.transform?.translation?.y ?? 0);
+  const sleeveRadius = Number(sleeve.instance.parameters.sleeveDiameter) / 2;
+  const distance = Math.hypot(
+    position.x - center.x,
+    position.y - sphereY,
+    position.z - center.z,
+  );
+  assert.ok(
+    distance >= radius + sleeveRadius,
+    `gas sleeve is ${distance.toFixed(2)} m from holder centre`,
+  );
 });
 
 test('every tee has one connection on each functional port', async () => {

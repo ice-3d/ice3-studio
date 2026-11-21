@@ -1022,11 +1022,11 @@ function buildPlan(projectId) {
     'GH-101 → GF-101 安全放空', 'biogas', 0.35);
 
   b.instance('pipe-bulkhead', 'bulkhead-gas', 'GAS-WALL-101 沼气穿越墙',
-    380, 0, -125, { stage: 'sludge', tag: 'GAS-WALL-101', clearanceRadius: '0' });
+    378.5, 0, -125, { stage: 'sludge', tag: 'GAS-WALL-101', clearanceRadius: '0' });
   placeSleeve(b, {
     key: 'sleeve-gas-house',
     name: 'SLV-101 沼气主管穿墙套管',
-    x: 380,
+    x: 378.5,
     y: 6.5,
     z: -125,
     medium: 'biogas',
