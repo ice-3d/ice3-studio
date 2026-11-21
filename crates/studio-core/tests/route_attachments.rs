@@ -508,6 +508,57 @@ fn split_sleeve_document() -> Document {
     document
 }
 
+fn off_crossing_sleeve_document() -> Document {
+    let mut document = sleeve_document(true);
+    document.scene.nodes_mut().extend([
+        instance(
+            "node-000010",
+            "Detached left endpoint",
+            Vec3 {
+                x: -5.0,
+                y: 0.0,
+                z: 1.05,
+            },
+            "component-000001",
+            BTreeMap::new(),
+        ),
+        instance(
+            "node-000011",
+            "Detached right endpoint",
+            Vec3 {
+                x: 5.0,
+                y: 0.0,
+                z: 1.05,
+            },
+            "component-000001",
+            BTreeMap::new(),
+        ),
+        connection_with(
+            "node-000012",
+            "node-000010",
+            "port",
+            "node-000011",
+            "port",
+            "relation-000002",
+            0.2,
+            "L-SLV",
+        ),
+    ]);
+    document
+        .relations
+        .push(relation("relation-000002", "node-000010", "node-000011"));
+    document
+        .scene
+        .nodes_mut()
+        .iter_mut()
+        .find(|node| node.id.as_str() == "node-000006")
+        .expect("sleeve")
+        .transform
+        .translation
+        .z = 1.05;
+    document
+}
+
 fn clone_sleeve(document: &mut Document, source_id: &str) {
     let source = document
         .scene
@@ -760,6 +811,33 @@ fn accepts_a_reducer_with_two_different_diameters() {
 }
 
 #[test]
+fn reports_reducer_axis_errors_as_misalignment() {
+    let mut document = reducer_document();
+    let reducer = document
+        .components
+        .iter_mut()
+        .find(|definition| definition.id == ComponentId::from("component-000004"))
+        .expect("reducer definition");
+    reducer
+        .ports
+        .iter_mut()
+        .find(|port| port.name == "small")
+        .expect("small port")
+        .direction = Vector3Binding::Literal(Vec3 {
+        x: -1.0,
+        y: 0.0,
+        z: 0.0,
+    });
+    let diagnostics = validate_document(&document);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentMisaligned }),
+        "{diagnostics:?}",
+    );
+}
+
+#[test]
 fn rejects_equal_or_reversed_reducer_diameters() {
     for (large, small) in [(0.4, 0.4), (0.2, 0.4)] {
         let document = reducer_document_with_diameters(large, small);
@@ -793,6 +871,67 @@ fn accepts_a_sleeve_when_a_later_split_line_segment_crosses_the_host() {
 }
 
 #[test]
+fn sleeve_ports_must_follow_the_route_that_crosses_the_host() {
+    let diagnostics = validate_document(&off_crossing_sleeve_document());
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentMisaligned }),
+        "{diagnostics:?}",
+    );
+}
+
+#[test]
+fn sleeve_position_tolerance_scales_down_for_small_pipes() {
+    let mut document = sleeve_document(true);
+    let sleeve = document
+        .components
+        .iter_mut()
+        .find(|definition| definition.id == ComponentId::from("component-000006"))
+        .expect("sleeve definition");
+    sleeve
+        .ports
+        .iter_mut()
+        .find(|port| port.name == "wall-in")
+        .expect("wall-in port")
+        .position = Vector3Binding::Literal(Vec3 {
+        x: -0.35,
+        y: 0.05,
+        z: 0.0,
+    });
+    let diagnostics = validate_document(&document);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentMisaligned }),
+        "{diagnostics:?}",
+    );
+}
+
+#[test]
+fn reports_sleeve_diameter_errors_as_invalid() {
+    let mut document = sleeve_document(true);
+    let sleeve = document
+        .components
+        .iter_mut()
+        .find(|definition| definition.id == ComponentId::from("component-000006"))
+        .expect("sleeve definition");
+    sleeve
+        .ports
+        .iter_mut()
+        .find(|port| port.name == "wall-in")
+        .expect("wall-in port")
+        .diameter = ScalarBinding::Literal(0.1);
+    let diagnostics = validate_document(&document);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentInvalid }),
+        "{diagnostics:?}",
+    );
+}
+
+#[test]
 fn rejects_a_sleeve_that_only_touches_the_host_bounds() {
     let diagnostics = validate_document(&sleeve_document(false));
     assert!(
@@ -812,6 +951,53 @@ fn rejects_duplicate_sleeves_for_the_same_line_and_host() {
             .iter()
             .any(|diagnostic| { diagnostic.code == DiagnosticCode::RoutePenetrationInvalid })
     );
+}
+
+#[test]
+fn rejects_role_and_fitting_kind_mismatches() {
+    let mut sleeve = sleeve_document(true);
+    let sleeve_node = sleeve
+        .scene
+        .nodes_mut()
+        .iter_mut()
+        .find(|node| node.id.as_str() == "node-000006")
+        .expect("sleeve");
+    sleeve_node
+        .metadata
+        .insert("role".into(), "pipe-fitting".into());
+    let NodeContent::ComponentInstance(instance) = &mut sleeve_node.content else {
+        panic!("sleeve must be a component instance");
+    };
+    instance
+        .metadata
+        .insert("role".into(), "pipe-fitting".into());
+
+    let mut tee = tee_document();
+    let tee_node = tee
+        .scene
+        .nodes_mut()
+        .iter_mut()
+        .find(|node| node.id.as_str() == "node-000005")
+        .expect("tee");
+    tee_node
+        .metadata
+        .insert("role".into(), "pipe-penetration".into());
+    let NodeContent::ComponentInstance(instance) = &mut tee_node.content else {
+        panic!("tee must be a component instance");
+    };
+    instance
+        .metadata
+        .insert("role".into(), "pipe-penetration".into());
+
+    for document in [sleeve, tee] {
+        let diagnostics = validate_document(&document);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentInvalid }),
+            "{diagnostics:?}",
+        );
+    }
 }
 
 #[test]

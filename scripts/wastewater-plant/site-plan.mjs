@@ -1042,7 +1042,7 @@ function buildPlan(projectId) {
   });
 
   b.instance('pipe-bulkhead', 'bulkhead-return', 'RAS-WALL-101 回流污泥穿越墙',
-    275, 0, 29.75, {
+    275, 0, 29.725, {
       stage: 'secondary',
       tag: 'RAS-WALL-101',
       clearanceRadius: '0',
@@ -1052,7 +1052,7 @@ function buildPlan(projectId) {
     name: 'SLV-102 回流污泥穿池壁套管',
     x: 275,
     y: 4,
-    z: 29.75,
+    z: 29.725,
     yaw: Math.PI / 2,
     medium: 'return-sludge',
     lineId: returnHeaderLineId,
@@ -1061,7 +1061,7 @@ function buildPlan(projectId) {
       pipeDiameter: 0.3,
       sleeveDiameter: 0.5,
       wallThickness: 0.45,
-      extension: 0.10,
+      extension: 0.05,
     },
     stage: 'secondary',
   });

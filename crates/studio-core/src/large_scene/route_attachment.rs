@@ -117,6 +117,21 @@ pub(crate) fn validate_route_attachments_with_limits(
             ));
             continue;
         };
+        let expected_role = if matches!(kind, AttachmentKind::Sleeve) {
+            "pipe-penetration"
+        } else {
+            "pipe-fitting"
+        };
+        if role != Some(expected_role) {
+            diagnostics.push(attachment_field_diagnostic(
+                DiagnosticCode::RouteAttachmentInvalid,
+                index,
+                node.id.as_str(),
+                "/scene/nodes/{index}/metadata/role",
+                format!("{expected_role} is required for this fittingKind"),
+            ));
+            continue;
+        }
         if node
             .metadata
             .get("lineId")
@@ -363,15 +378,20 @@ fn validate_reducer(
         ));
         return;
     };
-    if large.diameter <= small.diameter
-        || large.medium != small.medium
-        || dot(large.direction, small.direction) > -ATTACHMENT_AXIS_TOLERANCE_RADIANS.cos()
-    {
+    if large.diameter <= small.diameter || large.medium != small.medium {
         diagnostics.push(attachment_diagnostic(
             DiagnosticCode::RouteAttachmentInvalid,
             attachment.node_index,
             &attachment.node_id,
-            "reducer requires decreasing diameters and opposite directions",
+            "reducer requires decreasing diameters and compatible media",
+        ));
+    }
+    if dot(large.direction, small.direction) > -ATTACHMENT_AXIS_TOLERANCE_RADIANS.cos() {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentMisaligned,
+            attachment.node_index,
+            &attachment.node_id,
+            "reducer ports must face in opposite directions",
         ));
     }
     let axis = normalize(Vec3 {
@@ -491,8 +511,9 @@ fn validate_sleeve(
         ));
         return;
     };
-    let mut crossing = false;
-    'routes: for (route, _) in &routes {
+    let mut crossing_routes = Vec::new();
+    for (route, route_diameter) in &routes {
+        let mut crossing = false;
         for segment in route.windows(2) {
             for triangle in &triangles {
                 if *triangle_pairs >= limits.max_triangle_pairs {
@@ -510,18 +531,25 @@ fn validate_sleeve(
                 *triangle_pairs += 1;
                 if crate::geometry::segment_triangle([segment[0], segment[1]], *triangle) {
                     crossing = true;
-                    break 'routes;
+                    break;
                 }
             }
+            if crossing {
+                break;
+            }
+        }
+        if crossing {
+            crossing_routes.push((route, *route_diameter));
         }
     }
-    if !crossing {
+    if crossing_routes.is_empty() {
         diagnostics.push(attachment_diagnostic(
             DiagnosticCode::RoutePenetrationInvalid,
             attachment.node_index,
             &attachment.node_id,
             format!("line {} does not cross host {host_id}", attachment.line_id),
         ));
+        return;
     }
     let (Some(wall_in), Some(wall_out)) = (
         attachment.ports.get("wall-in"),
@@ -538,23 +566,36 @@ fn validate_sleeve(
     if wall_in.diameter <= pipe_diameter
         || !approximately_equal(wall_out.diameter, wall_in.diameter)
         || wall_in.medium != wall_out.medium
-        || dot(wall_in.direction, wall_out.direction) > -ATTACHMENT_AXIS_TOLERANCE_RADIANS.cos()
     {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            "sleeve diameter or media is invalid",
+        ));
+    }
+    if dot(wall_in.direction, wall_out.direction) > -ATTACHMENT_AXIS_TOLERANCE_RADIANS.cos() {
         diagnostics.push(attachment_diagnostic(
             DiagnosticCode::RouteAttachmentMisaligned,
             attachment.node_index,
             &attachment.node_id,
-            "sleeve diameter, media, or axis is invalid",
+            "sleeve ports must face in opposite directions",
         ));
     }
     for port in [wall_in, wall_out] {
-        let route_distance = routes
+        let (route_distance, route_diameter) = crossing_routes
             .iter()
-            .flat_map(|(route, _)| route.windows(2))
-            .map(|segment| {
-                point_segment_distance(to_array(port.position), [segment[0], segment[1]])
+            .map(|(route, diameter)| {
+                let distance = route
+                    .windows(2)
+                    .map(|segment| {
+                        point_segment_distance(to_array(port.position), [segment[0], segment[1]])
+                    })
+                    .fold(f32::INFINITY, f32::min);
+                (distance, *diameter)
             })
-            .fold(f32::INFINITY, f32::min);
+            .min_by(|left, right| left.0.total_cmp(&right.0))
+            .expect("at least one route crosses the host");
         let mut surface_distance = f32::INFINITY;
         for triangle in &triangles {
             if *triangle_pairs >= limits.max_triangle_pairs {
@@ -575,7 +616,7 @@ fn validate_sleeve(
                 *triangle,
             ));
         }
-        if route_distance > ATTACHMENT_POSITION_TOLERANCE_CAP_M
+        if route_distance > attachment_position_tolerance(route_diameter)
             || surface_distance > SLEEVE_SURFACE_TOLERANCE_M
         {
             diagnostics.push(attachment_diagnostic(
@@ -588,6 +629,13 @@ fn validate_sleeve(
             ));
         }
     }
+}
+
+fn attachment_position_tolerance(diameter: f32) -> f32 {
+    (diameter * ATTACHMENT_POSITION_TOLERANCE_RATIO).clamp(
+        ATTACHMENT_POSITION_TOLERANCE_FLOOR_M,
+        ATTACHMENT_POSITION_TOLERANCE_CAP_M,
+    )
 }
 
 fn routes_for_line(
