@@ -514,7 +514,7 @@ fn collect_endpoint_cluster(
     }
 }
 
-fn component_bounds(
+pub(crate) fn component_bounds(
     document: &Document,
     node: &SceneNode,
     definition: &ComponentDefinition,

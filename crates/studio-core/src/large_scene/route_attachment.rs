@@ -1,12 +1,16 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::document::{Document, NodeContent, SceneNode};
-use crate::ids::ComponentId;
+use crate::geometry::{segment_bounds_distance, segment_triangle_distance, world_bounds};
+use crate::ids::{ComponentId, NodeId};
+use crate::large_scene::cache::MemoryGeometryStore;
 use crate::large_scene::component::ComponentDefinition;
 use crate::large_scene::connection::InstancePortRef;
-use crate::large_scene::route::{ResolvedPort, resolve_port};
-use crate::math::Vec3;
+use crate::large_scene::evaluate::evaluate_large_scene_selected;
+use crate::large_scene::route::{ResolvedPort, resolve_port, route_connection};
+use crate::math::{Transform, Vec3};
 use crate::validation::{Diagnostic, DiagnosticCode};
+use glam::{Mat4, Quat, Vec3 as GlamVec3};
 
 pub const MAX_ROUTE_ATTACHMENTS: usize = 512;
 pub const MAX_ATTACHMENT_PORTS: usize = 3;
@@ -31,7 +35,6 @@ struct Attachment {
     node_id: String,
     kind: AttachmentKind,
     line_id: String,
-    #[allow(dead_code)]
     host_node_id: Option<String>,
     ports: BTreeMap<String, ResolvedPort>,
 }
@@ -53,6 +56,7 @@ pub(crate) fn validate_route_attachments(
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
     let mut count = 0_usize;
+    let mut sleeve_keys = BTreeSet::new();
     for (index, node) in document.scene.nodes().iter().enumerate() {
         let role = node.metadata.get("role").map(String::as_str);
         if !matches!(role, Some("pipe-fitting" | "pipe-penetration")) {
@@ -117,6 +121,21 @@ pub(crate) fn validate_route_attachments(
                     validate_tee(document, &attachment, &mut diagnostics);
                 } else if matches!(attachment.kind, AttachmentKind::Reducer) {
                     validate_reducer(document, &attachment, &mut diagnostics);
+                } else if matches!(attachment.kind, AttachmentKind::Sleeve) {
+                    let host_id = attachment
+                        .host_node_id
+                        .as_ref()
+                        .expect("sleeve metadata validated");
+                    let key = format!("{}\0{host_id}", attachment.line_id);
+                    if !sleeve_keys.insert(key) {
+                        diagnostics.push(attachment_diagnostic(
+                            DiagnosticCode::RoutePenetrationInvalid,
+                            attachment.node_index,
+                            &attachment.node_id,
+                            "duplicate sleeve for route and host",
+                        ));
+                    }
+                    validate_sleeve(document, definitions, &attachment, &mut diagnostics);
                 }
             }
             Err(diagnostic) => diagnostics.push(diagnostic),
@@ -321,6 +340,261 @@ fn validate_reducer(
             "reducer requires one connection on each port",
         ));
     }
+}
+
+fn validate_sleeve(
+    document: &Document,
+    definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    attachment: &Attachment,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let host_id = attachment
+        .host_node_id
+        .as_ref()
+        .expect("sleeve metadata validated");
+    let Some(host) = document
+        .scene
+        .nodes()
+        .iter()
+        .find(|node| node.id.as_str() == host_id)
+    else {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            format!("sleeve host {host_id} does not exist"),
+        ));
+        return;
+    };
+    if host.metadata.get("routeObstacle").map(String::as_str) == Some("ignored") {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            "sleeve host must be a route barrier",
+        ));
+        return;
+    }
+    let Some(route) = first_route_for_line(document, definitions, &attachment.line_id) else {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            format!("sleeve line {} has no route", attachment.line_id),
+        ));
+        return;
+    };
+    let pipe_diameter = route_pipe_diameter(document, &attachment.line_id).unwrap_or(0.0);
+    let candidate = attachment_host_bounds(document, definitions, host).is_none_or(|bounds| {
+        route.windows(2).any(|segment| {
+            segment_bounds_distance([segment[0], segment[1]], &bounds)
+                <= pipe_diameter / 2.0 + crate::geometry::CLASH_EPSILON
+        })
+    });
+    if !candidate {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RoutePenetrationInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            format!("line {} does not cross host {host_id}", attachment.line_id),
+        ));
+        return;
+    }
+    let Ok(triangles) = host_triangles(document, &host.id) else {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RoutePenetrationInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            "sleeve host geometry cannot be evaluated",
+        ));
+        return;
+    };
+    let crossing = route.windows(2).any(|segment| {
+        triangles
+            .iter()
+            .any(|triangle| crate::geometry::segment_triangle([segment[0], segment[1]], *triangle))
+    });
+    if !crossing {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RoutePenetrationInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            format!("line {} does not cross host {host_id}", attachment.line_id),
+        ));
+    }
+    let (Some(wall_in), Some(wall_out)) = (
+        attachment.ports.get("wall-in"),
+        attachment.ports.get("wall-out"),
+    ) else {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentInvalid,
+            attachment.node_index,
+            &attachment.node_id,
+            "sleeve requires wall-in and wall-out ports",
+        ));
+        return;
+    };
+    if wall_in.diameter <= pipe_diameter
+        || !approximately_equal(wall_out.diameter, wall_in.diameter)
+        || wall_in.medium != wall_out.medium
+        || dot(wall_in.direction, wall_out.direction) > -ATTACHMENT_AXIS_TOLERANCE_RADIANS.cos()
+    {
+        diagnostics.push(attachment_diagnostic(
+            DiagnosticCode::RouteAttachmentMisaligned,
+            attachment.node_index,
+            &attachment.node_id,
+            "sleeve diameter, media, or axis is invalid",
+        ));
+    }
+    for port in [wall_in, wall_out] {
+        let route_distance = point_to_route_distance(port.position, &route);
+        let surface_distance = triangles
+            .iter()
+            .map(|triangle| segment_triangle_distance([to_array(port.position); 2], *triangle))
+            .fold(f32::INFINITY, f32::min);
+        if route_distance > ATTACHMENT_POSITION_TOLERANCE_CAP_M
+            || surface_distance > SLEEVE_SURFACE_TOLERANCE_M
+        {
+            diagnostics.push(attachment_diagnostic(
+                DiagnosticCode::RouteAttachmentMisaligned,
+                attachment.node_index,
+                &attachment.node_id,
+                format!(
+                    "sleeve port is {route_distance:.3} m off route and {surface_distance:.3} m off the host surface"
+                ),
+            ));
+        }
+    }
+}
+
+fn first_route_for_line(
+    document: &Document,
+    definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    line_id: &str,
+) -> Option<Vec<[f32; 3]>> {
+    document.scene.nodes().iter().find_map(|node| {
+        let NodeContent::Connection(connection) = &node.content else {
+            return None;
+        };
+        (connection.metadata.get("lineId").map(String::as_str) == Some(line_id))
+            .then(|| route_connection(document, definitions, connection).ok())
+            .flatten()
+    })
+}
+
+fn route_pipe_diameter(document: &Document, line_id: &str) -> Option<f32> {
+    document.scene.nodes().iter().find_map(|node| {
+        let NodeContent::Connection(connection) = &node.content else {
+            return None;
+        };
+        (connection.metadata.get("lineId").map(String::as_str) == Some(line_id))
+            .then_some(connection.diameter)
+    })
+}
+
+fn attachment_host_bounds(
+    document: &Document,
+    definitions: &BTreeMap<ComponentId, &ComponentDefinition>,
+    host: &SceneNode,
+) -> Option<crate::geometry::Bounds> {
+    if let NodeContent::ComponentInstance(instance) = &host.content {
+        return definitions
+            .get(&instance.definition_id)
+            .and_then(|definition| {
+                crate::large_scene::route_safety::component_bounds(document, host, definition)
+            });
+    }
+    world_bounds(document, host).ok().flatten()
+}
+
+fn host_triangles(document: &Document, host_id: &NodeId) -> Result<Vec<[[f32; 3]; 3]>, ()> {
+    let mut store = MemoryGeometryStore::default();
+    let selected = BTreeSet::from([host_id.clone()]);
+    let evaluated =
+        evaluate_large_scene_selected(document, &mut store, None, &selected).map_err(|_| ())?;
+    let mut triangles = Vec::new();
+    for node in evaluated.nodes.iter().filter(|node| {
+        node.owner_id
+            .split('/')
+            .next()
+            .is_some_and(|owner| owner == host_id.as_str())
+    }) {
+        let Some(mesh_key) = &node.mesh_key else {
+            continue;
+        };
+        let Some(mesh) = evaluated.meshes.get(mesh_key) else {
+            continue;
+        };
+        let matrix = transform_matrix(node.transform);
+        for triangle in mesh.indices.as_chunks::<3>().0 {
+            let mut world = [[0.0_f32; 3]; 3];
+            for (target, index) in world.iter_mut().zip(triangle) {
+                let position = mesh.vertices[*index as usize].position;
+                let point =
+                    matrix.transform_point3(GlamVec3::new(position[0], position[1], position[2]));
+                *target = [point.x, point.y, point.z];
+            }
+            triangles.push(world);
+        }
+    }
+    Ok(triangles)
+}
+
+fn transform_matrix(transform: Transform) -> Mat4 {
+    Mat4::from_scale_rotation_translation(
+        GlamVec3::new(transform.scale.x, transform.scale.y, transform.scale.z),
+        Quat::from_array(transform.rotation),
+        GlamVec3::new(
+            transform.translation.x,
+            transform.translation.y,
+            transform.translation.z,
+        ),
+    )
+}
+
+fn point_to_route_distance(point: Vec3, route: &[[f32; 3]]) -> f32 {
+    route
+        .windows(2)
+        .map(|segment| point_segment_distance(to_array(point), [segment[0], segment[1]]))
+        .fold(f32::INFINITY, f32::min)
+}
+
+fn point_segment_distance(point: [f32; 3], segment: [[f32; 3]; 2]) -> f32 {
+    let direction = [
+        segment[1][0] - segment[0][0],
+        segment[1][1] - segment[0][1],
+        segment[1][2] - segment[0][2],
+    ];
+    let length_squared =
+        direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2];
+    if length_squared <= f32::EPSILON {
+        return distance(point, segment[0]);
+    }
+    let offset = [
+        point[0] - segment[0][0],
+        point[1] - segment[0][1],
+        point[2] - segment[0][2],
+    ];
+    let ratio = ((offset[0] * direction[0] + offset[1] * direction[1] + offset[2] * direction[2])
+        / length_squared)
+        .clamp(0.0, 1.0);
+    distance(
+        point,
+        [
+            segment[0][0] + direction[0] * ratio,
+            segment[0][1] + direction[1] * ratio,
+            segment[0][2] + direction[2] * ratio,
+        ],
+    )
+}
+
+fn distance(left: [f32; 3], right: [f32; 3]) -> f32 {
+    ((left[0] - right[0]).powi(2) + (left[1] - right[1]).powi(2) + (left[2] - right[2]).powi(2))
+        .sqrt()
+}
+
+fn to_array(value: Vec3) -> [f32; 3] {
+    [value.x, value.y, value.z]
 }
 
 fn connection_port_counts(

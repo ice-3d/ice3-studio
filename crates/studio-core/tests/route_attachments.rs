@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use studio_core::document::{Document, NodeContent, Relation, SceneNode};
+use studio_core::geometry::Primitive;
 use studio_core::ids::{ComponentId, NodeId, RelationId};
 use studio_core::large_scene::component::{
     ComponentDefinition, ComponentInstance, ComponentParameter, ComponentPart, ComponentPort,
@@ -343,6 +344,130 @@ fn reducer_document() -> Document {
     reducer_document_with_diameters(0.4, 0.2)
 }
 
+fn sleeve_definition() -> ComponentDefinition {
+    let mut definition = definition(
+        "component-000006",
+        "Wall sleeve",
+        vec![
+            ComponentPort {
+                name: "wall-in".into(),
+                part_id: "wall-in".into(),
+                position: Vector3Binding::Literal(Vec3 {
+                    x: -0.35,
+                    y: 0.0,
+                    z: 0.0,
+                }),
+                direction: Vector3Binding::Literal(Vec3 {
+                    x: -1.0,
+                    y: 0.0,
+                    z: 0.0,
+                }),
+                medium: "water".into(),
+                diameter: ScalarBinding::Literal(0.4),
+            },
+            ComponentPort {
+                name: "wall-out".into(),
+                part_id: "wall-out".into(),
+                position: Vector3Binding::Literal(Vec3 {
+                    x: 0.35,
+                    y: 0.0,
+                    z: 0.0,
+                }),
+                direction: Vector3Binding::Literal(Vec3 {
+                    x: 1.0,
+                    y: 0.0,
+                    z: 0.0,
+                }),
+                medium: "water".into(),
+                diameter: ScalarBinding::Literal(0.4),
+            },
+        ],
+    );
+    definition.parts = vec![
+        part("wall-in", 0.3, 0.4, 0.0, 0.4),
+        part("wall-out", 0.3, 0.4, 0.0, 0.4),
+    ];
+    definition
+}
+
+fn sleeve_document(valid_crossing: bool) -> Document {
+    let z = if valid_crossing { 0.0 } else { 1.05 };
+    let mut document = Document::new("sleeve");
+    document.components = vec![
+        endpoint_definition_with_diameter("component-000001", 0.2),
+        sleeve_definition(),
+    ];
+    document.scene.nodes_mut().extend([
+        instance(
+            "node-000001",
+            "Left endpoint",
+            Vec3 { x: -5.0, y: 0.0, z },
+            "component-000001",
+            BTreeMap::new(),
+        ),
+        instance(
+            "node-000002",
+            "Right endpoint",
+            Vec3 { x: 5.0, y: 0.0, z },
+            "component-000001",
+            BTreeMap::new(),
+        ),
+        SceneNode {
+            id: NodeId::from("node-000005"),
+            name: "Wall".into(),
+            parent_id: None,
+            transform: Transform::IDENTITY,
+            material_id: None,
+            content: NodeContent::Primitive(Primitive::Box {
+                width: 0.5,
+                height: 2.0,
+                depth: 2.0,
+            }),
+            metadata: BTreeMap::from([("role".into(), "structure".into())]),
+            visible: true,
+        },
+        instance(
+            "node-000006",
+            "Sleeve",
+            Vec3 { x: 0.0, y: 0.0, z },
+            "component-000006",
+            BTreeMap::from([
+                ("role".into(), "pipe-penetration".into()),
+                ("fittingKind".into(), "sleeve".into()),
+                ("lineId".into(), "L-SLV".into()),
+                ("hostNodeId".into(), "node-000005".into()),
+            ]),
+        ),
+        connection_with(
+            "node-000007",
+            "node-000001",
+            "port",
+            "node-000002",
+            "port",
+            "relation-000001",
+            0.2,
+            "L-SLV",
+        ),
+    ]);
+    document
+        .relations
+        .push(relation("relation-000001", "node-000001", "node-000002"));
+    document
+}
+
+fn clone_sleeve(document: &mut Document, source_id: &str) {
+    let source = document
+        .scene
+        .nodes()
+        .iter()
+        .find(|node| node.id.as_str() == source_id)
+        .expect("sleeve source")
+        .clone();
+    let mut duplicate = source;
+    duplicate.id = NodeId::from("node-000009");
+    document.scene.nodes_mut().push(duplicate);
+}
+
 fn relation(id: &str, from: &str, to: &str) -> Relation {
     Relation {
         id: RelationId::from(id),
@@ -543,4 +668,35 @@ fn rejects_equal_or_reversed_reducer_diameters() {
                 .any(|diagnostic| { diagnostic.code == DiagnosticCode::RouteAttachmentInvalid })
         );
     }
+}
+
+#[test]
+fn accepts_a_sleeve_that_crosses_a_real_wall() {
+    let diagnostics = validate_document(&sleeve_document(true));
+    assert!(!diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == DiagnosticCode::RoutePenetrationInvalid
+            || diagnostic.code == DiagnosticCode::RouteAttachmentMisaligned
+    }));
+}
+
+#[test]
+fn rejects_a_sleeve_that_only_touches_the_host_bounds() {
+    let diagnostics = validate_document(&sleeve_document(false));
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == DiagnosticCode::RoutePenetrationInvalid })
+    );
+}
+
+#[test]
+fn rejects_duplicate_sleeves_for_the_same_line_and_host() {
+    let mut document = sleeve_document(true);
+    clone_sleeve(&mut document, "node-000006");
+    let diagnostics = validate_document(&document);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.code == DiagnosticCode::RoutePenetrationInvalid })
+    );
 }
