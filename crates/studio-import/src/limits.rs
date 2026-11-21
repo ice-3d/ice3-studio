@@ -2,6 +2,7 @@ use std::mem::size_of;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use studio_assets::{MAX_TEXTURE_BYTES, MAX_TEXTURE_COUNT, MAX_TEXTURE_TOTAL_BYTES};
 
 use crate::{ImportError, SourceScene};
 
@@ -86,6 +87,30 @@ pub fn validate_scene_limits(
         )));
     }
 
+    if scene.resources.len() > MAX_TEXTURE_COUNT {
+        return Err(limit_exceeded(format!(
+            "scene has {} texture resources; limit is {MAX_TEXTURE_COUNT}",
+            scene.resources.len()
+        )));
+    }
+    let mut texture_bytes = 0_usize;
+    for resource in &scene.resources {
+        if resource.bytes.len() > MAX_TEXTURE_BYTES {
+            return Err(limit_exceeded(format!(
+                "texture resource has {} bytes; per-image limit is {MAX_TEXTURE_BYTES}",
+                resource.bytes.len()
+            )));
+        }
+        texture_bytes = texture_bytes
+            .checked_add(resource.bytes.len())
+            .ok_or_else(|| limit_exceeded("texture byte count overflowed"))?;
+    }
+    if texture_bytes > MAX_TEXTURE_TOTAL_BYTES {
+        return Err(limit_exceeded(format!(
+            "scene has {texture_bytes} texture bytes; limit is {MAX_TEXTURE_TOTAL_BYTES}"
+        )));
+    }
+
     let memory = estimated_scene_bytes(scene)
         .ok_or_else(|| limit_exceeded("estimated scene memory overflowed"))?;
     if memory > limits.max_memory_bytes {
@@ -107,6 +132,13 @@ fn estimated_scene_bytes(scene: &SourceScene) -> Option<usize> {
             .nodes
             .capacity()
             .checked_mul(size_of::<crate::SourceNode>())?,
+    )?;
+    total = checked_add(
+        total,
+        scene
+            .resources
+            .capacity()
+            .checked_mul(size_of::<crate::SourceResource>())?,
     )?;
     total = checked_add(
         total,
@@ -174,6 +206,14 @@ fn estimated_scene_bytes(scene: &SourceScene) -> Option<usize> {
             )?;
             total = checked_add(
                 total,
+                primitive
+                    .uvs
+                    .as_ref()
+                    .map_or(0, Vec::capacity)
+                    .checked_mul(size_of::<[f32; 2]>())?,
+            )?;
+            total = checked_add(
+                total,
                 primitive.indices.capacity().checked_mul(size_of::<u32>())?,
             )?;
         }
@@ -182,6 +222,11 @@ fn estimated_scene_bytes(scene: &SourceScene) -> Option<usize> {
         total = checked_add(total, material.id.capacity())?;
         total = checked_add(total, material.name.capacity())?;
         total = checked_add(total, json_bytes(&material.extras)?)?;
+    }
+    for resource in &scene.resources {
+        total = checked_add(total, resource.digest.capacity())?;
+        total = checked_add(total, resource.media_type.capacity())?;
+        total = checked_add(total, resource.bytes.capacity())?;
     }
     for warning in &scene.warnings {
         total = checked_add(total, warning.code.capacity())?;

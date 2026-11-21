@@ -6,7 +6,7 @@ use serde::Serialize;
 use sha2::Digest;
 use studio_assets::{
     AssetError, AssetMetrics, BudgetProfile, BudgetResult, BudgetStatus, PreparationMetadata,
-    PrepareOptions, prepare_canonical,
+    PrepareOptions, prepare_canonical_bundle,
 };
 #[cfg(feature = "fbx")]
 use studio_import::FbxImporter;
@@ -32,8 +32,9 @@ use studio_import::{
     GltfImporter, ImportError, ImportRequest, ImportWarning, NativeImportLimits, ObjImporter,
     SourceImporter, SourceImporterRegistry, execute_worker_request, to_canonical,
 };
-use tempfile::NamedTempFile;
 use thiserror::Error;
+
+use crate::publish::{PublishError, publish_asset_bundle, texture_namespace};
 
 #[cfg(debug_assertions)]
 const DEBUG_WORKER_TIMEOUT_ENV: &str = "ICE3_STUDIO_IMPORT_WORKER_TIMEOUT_MS";
@@ -74,6 +75,8 @@ pub enum ImportCommandError {
     Asset(#[from] AssetError),
     #[error("{0}")]
     Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Publish(#[from] PublishError),
     #[error("output already exists")]
     OutputExists,
     #[error("output must have a valid file name")]
@@ -90,6 +93,7 @@ impl ImportCommandError {
             Self::Import(error) => error.code(),
             Self::Asset(error) => error.code(),
             Self::Io(_) => "ICE3_STUDIO_ASSET_IO",
+            Self::Publish(error) => error.code(),
             Self::OutputExists => "ICE3_STUDIO_ASSET_OUTPUT_EXISTS",
             Self::InvalidOutputName => "ICE3_STUDIO_ASSET_INVALID_OPTIONS",
             Self::WarningAsError { code, .. } => code,
@@ -244,25 +248,26 @@ pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportComma
     }
 
     let canonical = to_canonical(&imported.scene);
-    let artifact = prepare_canonical(
+    let bundle = prepare_canonical_bundle(
         &canonical,
         PrepareOptions {
-            asset_id: options.asset_id,
+            asset_id: options.asset_id.clone(),
             source_format: canonical.source_format.clone(),
             source_digest: format!("sha256:{}", imported.source_digest),
             crease_angle_degrees: 30.0,
             generate_edges: false,
             budget: BudgetProfile::interactive_desktop_v1(),
+            texture_namespace: texture_namespace(&options.output)?,
         },
     )?;
-    if options.warnings_as_errors && artifact.budget.status == BudgetStatus::Warning {
+    if options.warnings_as_errors && bundle.budget.status == BudgetStatus::Warning {
         return Err(ImportCommandError::WarningAsError {
             code: "ICE3_STUDIO_ASSET_BUDGET_WARNING".into(),
             message: "asset exceeds one or more soft budget limits".into(),
         });
     }
     if options.warnings_as_errors
-        && let Some(warning) = artifact.warnings.first()
+        && let Some(warning) = bundle.warnings.first()
     {
         return Err(ImportCommandError::WarningAsError {
             code: warning.code.clone(),
@@ -270,14 +275,14 @@ pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportComma
         });
     }
     let mut warnings = imported.warnings;
-    warnings.extend(artifact.warnings.iter().map(|warning| ImportWarning {
+    warnings.extend(bundle.warnings.iter().map(|warning| ImportWarning {
         code: warning.code.clone(),
         message: warning.message.clone(),
         path: warning.path.clone(),
     }));
     warnings.sort();
     warnings.dedup();
-    write_atomic_output(&options.output, &artifact.bytes, options.force)?;
+    publish_asset_bundle(&bundle, &options.output, None, options.force)?;
 
     Ok(ImportReport {
         command: "import".into(),
@@ -285,11 +290,11 @@ pub fn import_source(options: ImportOptions) -> Result<ImportReport, ImportComma
         adapter: imported.adapter,
         warnings,
         source_digest: imported.source_digest,
-        bytes: artifact.bytes.len(),
-        metrics: artifact.metrics,
-        content_digest: artifact.content_digest,
-        preparation: artifact.preparation,
-        budget: artifact.budget,
+        bytes: bundle.glb.len(),
+        metrics: bundle.metrics,
+        content_digest: bundle.content_digest,
+        preparation: bundle.preparation,
+        budget: bundle.budget,
     })
 }
 
@@ -317,75 +322,5 @@ fn map_jt_worker_error(error: ImportError) -> ImportCommandError {
         .into()
     } else {
         error.into()
-    }
-}
-
-fn write_atomic_output(output: &Path, bytes: &[u8], force: bool) -> Result<(), ImportCommandError> {
-    if output.exists() && !force {
-        return Err(ImportCommandError::OutputExists);
-    }
-    let parent = output
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    std::fs::create_dir_all(parent)?;
-    let mut temporary = NamedTempFile::new_in(parent)?;
-    std::io::Write::write_all(&mut temporary, bytes)?;
-    temporary.as_file().sync_all()?;
-    persist_temporary_output(temporary, output, force)
-}
-
-fn persist_temporary_output(
-    temporary: NamedTempFile,
-    output: &Path,
-    force: bool,
-) -> Result<(), ImportCommandError> {
-    if force {
-        temporary
-            .persist(output)
-            .map(|_| ())
-            .map_err(|error| ImportCommandError::Io(error.error))
-    } else {
-        match temporary.persist_noclobber(output) {
-            Ok(_) => Ok(()),
-            Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
-                Err(ImportCommandError::OutputExists)
-            }
-            Err(error) => Err(ImportCommandError::Io(error.error)),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Write;
-
-    use super::*;
-
-    #[test]
-    fn non_force_publication_never_replaces_a_concurrently_created_file() {
-        let root = tempfile::tempdir().unwrap();
-        let output = root.path().join("plant.glb");
-        let mut temporary = tempfile::NamedTempFile::new_in(root.path()).unwrap();
-        temporary.write_all(b"new").unwrap();
-        std::fs::write(&output, b"keep").unwrap();
-
-        let error = persist_temporary_output(temporary, &output, false).unwrap_err();
-
-        assert!(matches!(error, ImportCommandError::OutputExists));
-        assert_eq!(std::fs::read(&output).unwrap(), b"keep");
-    }
-
-    #[test]
-    fn force_publication_replaces_an_existing_file() {
-        let root = tempfile::tempdir().unwrap();
-        let output = root.path().join("plant.glb");
-        let mut temporary = tempfile::NamedTempFile::new_in(root.path()).unwrap();
-        temporary.write_all(b"new").unwrap();
-        std::fs::write(&output, b"keep").unwrap();
-
-        persist_temporary_output(temporary, &output, true).unwrap();
-
-        assert_eq!(std::fs::read(&output).unwrap(), b"new");
     }
 }

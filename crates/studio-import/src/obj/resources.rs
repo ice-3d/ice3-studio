@@ -63,6 +63,7 @@ pub fn read_obj_resources(path: &Path) -> Result<ObjResources, ImportError> {
                 let code = if message.contains("escapes")
                     || message.contains("relative")
                     || message.contains("scheme")
+                    || message.contains("symbolic link")
                 {
                     "ICE3_STUDIO_IMPORT_OBJ_RESOURCE_IGNORED"
                 } else {

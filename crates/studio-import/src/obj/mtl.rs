@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde_json::json;
+use studio_assets::surface::AlphaMode;
 
 use crate::{ImportError, SourceMaterial};
 
@@ -33,6 +34,10 @@ pub fn parse_mtl(bytes: &[u8]) -> Result<BTreeMap<String, SourceMaterial>, Impor
                         name: name.clone(),
                         base_color: [1.0; 3],
                         opacity: 1.0,
+                        alpha_mode: AlphaMode::Opaque,
+                        alpha_cutoff: 0.5,
+                        double_sided: false,
+                        surface: None,
                         extras: json!({"ice3": {"id": name}}),
                     });
                 current = Some(name);

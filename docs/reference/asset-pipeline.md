@@ -27,7 +27,7 @@ JT 的唯一外部例外是部署方提供的 host-owned `ICE3_JT_CONVERTER`；S
 
 | Adapter | 输入 | 保留内容 |
 |---|---|---|
-| `gltf` | `.gltf`、`.glb` | 层级、共享 Mesh、Material、extras 和 Selection |
+| `gltf` | `.gltf`、`.glb` | 层级、共享 Mesh、PBR Surface、四类贴图、sampler、`TEXCOORD_0`、extras 和 Selection |
 | `obj` | `.obj`、`.mtl` | object/group、多边形三角化、同目录 MTL 和单位 warning |
 | `fbx` | ASCII/Binary `.fbx` | 层级、transform、实例、颜色和 bounded metadata |
 | `usd` | `.usda`、`.usdc` | prim path、prototype、实例、Geometry 和颜色 |
@@ -35,9 +35,14 @@ JT 的唯一外部例外是部署方提供的 host-owned `ICE3_JT_CONVERTER`；S
 | `ifc` | IFC4X3 `.ifc` | 空间层级、GlobalId、Pset/Qto/System、实例和单位 |
 | `jt` | `.jt` | 层级、共享实例、材质、JT metadata 和受控 converter 输出 |
 
-外部 resource 限定在 source 同目录。FBX、USD、STEP、IFC 与 JT 在隔离 worker 中执行，
-并受到 node、triangle、decoded-memory、timeout、response 和 stderr 上限约束。失败关闭，
-不发布部分输出。
+外部 resource 限定在 source 同目录。glTF/GLB 的 base-color、normal、occlusion 和
+metallic-roughness 贴图无论来自外部文件、data URI 还是 GLB bufferView，都会归一化为
+内容寻址资源；路径越界、符号链接逃逸、未知图片格式或超限都失败关闭。第一阶段只保留
+`TEXCOORD_0`，高 UV 通道产生确定性 warning 并跳过对应贴图槽。
+
+FBX、USD、STEP、IFC 与 JT 在隔离 worker 中执行，并受到 node、triangle、
+decoded-memory、texture-byte、timeout、response 和 stderr 上限约束。失败关闭，不发布
+部分输出。
 
 ## 3. Shared Prepare
 
@@ -52,7 +57,8 @@ JT 的唯一外部例外是部署方提供的 host-owned `ICE3_JT_CONVERTER`；S
 - `PreparationMetadata`；
 - built-in 或 custom budget result；
 - BIN chunk content digest；
-- warning 和稳定 failure code。
+- warning 和稳定 failure code；
+- 与 GLB 同事务发布的 `PreparedResource` 纹理文件和相对 URI。
 
 | 命令 | 默认 edges | 主要用途 |
 |---|---|---|
@@ -87,8 +93,12 @@ budget profile。Soft limit 生成 warning，hard limit 失败关闭；
 - 默认拒绝已存在 output；
 - `--force` 才替换；
 - 任一 validation 或 rename 失败时恢复上一份成功输出；
-- GLB 与 report 成对发布；
+- `plant.glb`、`plant.textures/` 与可选 report 成组发布；
 - Tileset 只有在所有 part 和 profile 校验通过后才整体可见。
+
+纹理目录使用输出文件 stem 加 `.textures`，资源 URI 是
+`<stem>.textures/<sha256>.<png|jpg|webp>`。发布时先落纹理、最后替换 GLB；失败会恢复旧
+GLB、旧纹理目录和旧 report。相同图片字节只发布一份。
 
 ## 5. Partition、LOD 与 Render Batch
 
@@ -99,6 +109,7 @@ Mesh 的实例保持在同一 partition unit；LOD、proxy 和 batching 不改�
 | 产物 | 作用 |
 |---|---|
 | `parts/part-NNN.glb` | Fine partition，按 camera work set 加载 |
+| `parts/textures/*.png|jpg|webp` | tile GLB 引用的内容寻址材质资源 |
 | `coarse/*.glb` | Coarse proxy 或 chunk，提供远距离和过渡覆盖 |
 | `tileset.json` | OGC 3D Tiles 1.1 explicit hierarchy、bounds、error 和 relative URI |
 | `bindings.json` | 业务设备、Selection、bounds 和 metadata 的发布清单 |
@@ -165,6 +176,10 @@ node --test scripts/tests/partition-contract.test.mjs
 门禁必须覆盖：
 
 - deterministic bytes 和 content digest；
+- 四个材质槽、PBR 因子、UV transform、sampler、alpha 和双面状态；
+- GLB 引用的每个纹理 URI 均存在并通过 SHA-256 校验；
+- import/build 的 GLB、纹理和 report 事务回滚；
+- 无 Source Surface 的 canonical 输出保持历史字节；
 - node、mesh、primitive、triangle、edge、material 和 Selection 统计；
 - fine/LOD/coarse edge role、width 和 color；
 - Tileset URI、bounds、hierarchy 和 partition-scoped Node ID；

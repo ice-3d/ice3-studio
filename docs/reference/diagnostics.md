@@ -74,10 +74,10 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_IMPORT_UNSUPPORTED` | 自动 adapter 无法根据扩展名选择格式 |
 | `ICE3_STUDIO_IMPORT_ADAPTER_UNAVAILABLE` | 显式 adapter 不存在或与扩展名不匹配 |
 | `ICE3_STUDIO_IMPORT_REGISTRY_INVALID` | adapter ID 或扩展名重复/无效 |
-| `ICE3_STUDIO_IMPORT_INVALID_SOURCE` | Source、OBJ face 或 MTL 内容无效 |
+| `ICE3_STUDIO_IMPORT_INVALID_SOURCE` | Source、OBJ face、MTL、材质或纹理内容无效 |
 | `ICE3_STUDIO_IMPORT_EMPTY_GEOMETRY` | Source 不包含可导入三角形 |
 | `ICE3_STUDIO_IMPORT_RESOURCE_IGNORED` | 不安全或缺失资源被忽略 |
-| `ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED` | node、triangle 或 decoded-memory 预算越界 |
+| `ICE3_STUDIO_IMPORT_LIMIT_EXCEEDED` | node、triangle、decoded-memory 或 texture-resource 预算越界 |
 | `ICE3_STUDIO_IMPORT_TIMEOUT` | native source worker 超过硬 timeout 并被终止 |
 | `ICE3_STUDIO_IMPORT_WORKER_PROTOCOL_INVALID` | worker response 版本、长度或 bincode 无效 |
 | `ICE3_STUDIO_IMPORT_WORKER_FAILED` | worker 异常退出或崩溃 |
@@ -89,7 +89,11 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_IMPORT_OBJ_RESOURCE_IGNORED` | MTL 路径越界或不安全 |
 | `ICE3_STUDIO_IMPORT_OBJ_MATERIAL_UNAVAILABLE` | 引用的 MTL 或 material 不可用 |
 | `ICE3_STUDIO_IMPORT_PRIMITIVE_UNSUPPORTED` | glTF 非三角形 primitive 被跳过 |
-| `ICE3_STUDIO_IMPORT_RESOURCE_UNSUPPORTED` | glTF animation、skin、texture 等资源被跳过 |
+| `ICE3_STUDIO_IMPORT_RESOURCE_UNSUPPORTED` | glTF animation、skin 或 camera 等资源被跳过 |
+| `ICE3_STUDIO_IMPORT_TEXTURE_COORDINATE_UNSUPPORTED` | 贴图绑定到 `TEXCOORD_1+`，或 UV accessor 编码无法安全导入；该贴图槽被跳过 |
+| `ICE3_STUDIO_IMPORT_TEXTURE_FORMAT_UNSUPPORTED` | 可选贴图不是 PNG、JPEG 或 WebP；该贴图槽被跳过 |
+| `ICE3_STUDIO_IMPORT_TEXTURE_TARGET_UNSUPPORTED` | emissive texture 等第一阶段未支持槽位被跳过 |
+| `ICE3_STUDIO_IMPORT_MATERIAL_EXTENSION_UNSUPPORTED` | 材质扩展未进入第一阶段，相关槽位被跳过 |
 | `ICE3_STUDIO_IMPORT_FBX_*` | FBX animation、skin、camera、light、texture、NURBS 或 decoder warning |
 | `ICE3_STUDIO_IMPORT_USD_UNSUPPORTED_RESOURCE` | USD camera、light、skeleton、volume 等资源被跳过 |
 | `ICE3_STUDIO_IMPORT_STEP_SCHEMA_UNSUPPORTED` | STEP schema 不是 AP242 |
@@ -104,6 +108,10 @@ Diagnostic code 仍是主要机器契约。
 | `ICE3_STUDIO_IMPORT_JT_EXPORT_INVALID` | Converter 输出不是合法的 regular-file GLB |
 | `ICE3_STUDIO_IMPORT_JT_GEOMETRY_INVALID` | JT 层级、transform、bounds 或 metadata 映射无效 |
 | `ICE3_STUDIO_IMPORT_JT_TIMEOUT` | JT converter/worker 超过配置期限并被终止 |
+
+glTF/GLB 纹理路径越界、缺失、符号链接逃逸、摘要/字节冲突、声明 MIME 与内容不符或没有
+可用数据源时，导入失败关闭，不会降级为“成功但少一张图”的 warning。第一阶段只输出
+`TEXCOORD_0`；高 UV 通道和未支持材质扩展只跳过对应贴图槽，材质因子仍保留。
 
 ## 4. Asset Prepare 与 Partition CLI 代码
 

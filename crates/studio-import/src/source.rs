@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use studio_assets::surface::{AlphaMode, TextureSampler, TextureTransform};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,8 +37,56 @@ pub struct SourceMaterial {
     pub name: String,
     pub base_color: [f32; 3],
     pub opacity: f32,
+    #[serde(default)]
+    pub alpha_mode: AlphaMode,
+    #[serde(default = "default_alpha_cutoff")]
+    pub alpha_cutoff: f32,
+    #[serde(default)]
+    pub double_sided: bool,
+    #[serde(default)]
+    pub surface: Option<SourceSurface>,
     #[serde(with = "json_value")]
     pub extras: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SourceSurface {
+    pub metallic: f32,
+    pub roughness: f32,
+    #[serde(default)]
+    pub emissive: Option<[f32; 3]>,
+    #[serde(default)]
+    pub base_color_texture: Option<SourceTextureBinding>,
+    #[serde(default)]
+    pub normal_texture: Option<SourceNormalTexture>,
+    #[serde(default)]
+    pub occlusion_texture: Option<SourceTextureBinding>,
+    #[serde(default)]
+    pub metallic_roughness_texture: Option<SourceTextureBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SourceNormalTexture {
+    pub binding: SourceTextureBinding,
+    pub scale: f32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SourceTextureBinding {
+    pub resource: String,
+    #[serde(default)]
+    pub tex_coord: u32,
+    #[serde(default)]
+    pub transform: TextureTransform,
+    #[serde(default)]
+    pub sampler: TextureSampler,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SourceResource {
+    pub digest: String,
+    pub media_type: String,
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -45,6 +94,8 @@ pub struct SourcePrimitive {
     pub positions: Vec<[f32; 3]>,
     pub normals: Option<Vec<[f32; 3]>>,
     pub colors: Option<Vec<[f32; 3]>>,
+    #[serde(default)]
+    pub uvs: Option<Vec<[f32; 2]>>,
     pub indices: Vec<u32>,
     pub material: Option<usize>,
 }
@@ -84,9 +135,15 @@ pub struct SourceScene {
     pub nodes: Vec<SourceNode>,
     pub meshes: Vec<SourceMesh>,
     pub materials: Vec<SourceMaterial>,
+    #[serde(default)]
+    pub resources: Vec<SourceResource>,
     pub warnings: Vec<ImportWarning>,
     #[serde(with = "json_value")]
     pub asset_extras: Value,
+}
+
+fn default_alpha_cutoff() -> f32 {
+    0.5
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

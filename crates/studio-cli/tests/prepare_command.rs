@@ -3,6 +3,10 @@ use std::process::{Command, Output};
 
 use serde_json::{Value, json};
 
+const PNG_BYTES: &[u8] = &[
+    0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, b'I', b'H', b'D', b'R',
+];
+
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/source-import")
@@ -119,6 +123,55 @@ fn build_emits_edges_report_and_budget() {
                 .as_str()
                 .unwrap()
         )
+    );
+}
+
+#[test]
+fn build_publishes_textures_and_report_together() {
+    let root = textured_cli_fixture();
+    let output = root.path().join("plant.glb");
+    let report = root.path().join("plant.report.json");
+    let result = cli(&[
+        "build",
+        root.path().join("surface.gltf").to_str().unwrap(),
+        "--output",
+        output.to_str().unwrap(),
+        "--asset-id",
+        "plant",
+        "--report",
+        report.to_str().unwrap(),
+    ]);
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    assert!(output.is_file());
+    assert!(report.is_file());
+    assert!(root.path().join("plant.textures").is_dir());
+}
+
+#[test]
+fn conflicting_texture_directory_blocks_without_writing_glb() {
+    let root = textured_cli_fixture();
+    let output = root.path().join("plant.glb");
+    std::fs::create_dir(root.path().join("plant.textures")).unwrap();
+    std::fs::write(root.path().join("plant.textures/keep"), "keep").unwrap();
+
+    let result = cli(&[
+        "import",
+        root.path().join("surface.gltf").to_str().unwrap(),
+        "--output",
+        output.to_str().unwrap(),
+        "--asset-id",
+        "plant",
+    ]);
+
+    assert!(!result.status.success());
+    assert!(!output.exists());
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("plant.textures/keep")).unwrap(),
+        "keep"
     );
 }
 
@@ -552,4 +605,65 @@ fn failed_second_publish_removes_new_report_and_preserves_output_path() {
     assert!(String::from_utf8_lossy(&result.stderr).contains("ICE3_STUDIO_ASSET_OUTPUT_EXISTS"));
     assert_eq!(std::fs::read_link(&output).unwrap(), missing_target);
     assert!(!report.exists());
+}
+
+fn textured_cli_fixture() -> tempfile::TempDir {
+    let root = tempfile::tempdir().unwrap();
+    let positions = [[0.0_f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+    let uvs = [[0.0_f32, 0.0], [1.0, 0.0], [0.0, 1.0]];
+    let indices = [0_u16, 1, 2];
+    let mut binary = Vec::new();
+    for value in positions.into_iter().flatten() {
+        binary.extend_from_slice(&value.to_le_bytes());
+    }
+    for value in uvs.into_iter().flatten() {
+        binary.extend_from_slice(&value.to_le_bytes());
+    }
+    for value in indices {
+        binary.extend_from_slice(&value.to_le_bytes());
+    }
+    std::fs::write(root.path().join("mesh.bin"), binary).unwrap();
+    let texture_dir = root.path().join("textures");
+    std::fs::create_dir(&texture_dir).unwrap();
+    std::fs::write(texture_dir.join("base.png"), PNG_BYTES).unwrap();
+    let gltf = json!({
+        "asset": {"version": "2.0"},
+        "buffers": [{"uri": "mesh.bin", "byteLength": 66}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 24},
+            {"buffer": 0, "byteOffset": 60, "byteLength": 6}
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5126, "count": 3, "type": "VEC2"},
+            {"bufferView": 2, "componentType": 5123, "count": 3, "type": "SCALAR"}
+        ],
+        "images": [{"uri": "textures/base.png"}],
+        "samplers": [{"wrapS": 10497, "wrapT": 10497}],
+        "textures": [{"source": 0, "sampler": 0}],
+        "materials": [{
+            "pbrMetallicRoughness": {
+                "baseColorTexture": {"index": 0},
+                "metallicFactor": 0.8,
+                "roughnessFactor": 0.25
+            }
+        }],
+        "meshes": [{
+            "primitives": [{
+                "attributes": {"POSITION": 0, "TEXCOORD_0": 1},
+                "indices": 2,
+                "material": 0
+            }]
+        }],
+        "nodes": [{"mesh": 0}],
+        "scenes": [{"nodes": [0]}],
+        "scene": 0
+    });
+    std::fs::write(
+        root.path().join("surface.gltf"),
+        serde_json::to_vec(&gltf).unwrap(),
+    )
+    .unwrap();
+    root
 }

@@ -32,7 +32,8 @@ pub use obj::ObjImporter;
 pub use registry::SourceImporterRegistry;
 pub use source::{
     ImportError, ImportRequest, ImportWarning, SourceCapabilities, SourceFormat, SourceImporter,
-    SourceMaterial, SourceMesh, SourceNode, SourcePrimitive, SourceScene,
+    SourceMaterial, SourceMesh, SourceNode, SourceNormalTexture, SourcePrimitive, SourceResource,
+    SourceScene, SourceSurface, SourceTextureBinding,
 };
 #[cfg(feature = "step")]
 pub use step::StepImporter;
@@ -72,6 +73,7 @@ pub fn to_canonical(source: &SourceScene) -> studio_assets::canonical::Canonical
                         positions: primitive.positions.clone(),
                         normals: primitive.normals.clone(),
                         colors: primitive.colors.clone(),
+                        uvs: primitive.uvs.clone(),
                         indices: primitive.indices.clone(),
                         material: primitive.material,
                     })
@@ -87,10 +89,51 @@ pub fn to_canonical(source: &SourceScene) -> studio_assets::canonical::Canonical
                 name: material.name.clone(),
                 base_color: material.base_color,
                 opacity: material.opacity,
+                alpha_mode: material.alpha_mode,
+                alpha_cutoff: material.alpha_cutoff,
+                double_sided: material.double_sided,
+                surface: material.surface.as_ref().map(map_surface),
                 extras: material.extras.clone(),
                 texture: None,
             })
             .collect(),
+        resources: source
+            .resources
+            .iter()
+            .map(|resource| studio_assets::canonical::CanonicalResource {
+                digest: resource.digest.clone(),
+                media_type: resource.media_type.clone(),
+                bytes: resource.bytes.clone(),
+            })
+            .collect(),
         asset_extras: source.asset_extras.clone(),
+    }
+}
+
+fn map_surface(surface: &SourceSurface) -> studio_assets::canonical::CanonicalSurface {
+    studio_assets::canonical::CanonicalSurface {
+        metallic: surface.metallic,
+        roughness: surface.roughness,
+        emissive: surface.emissive,
+        base_color_texture: surface.base_color_texture.as_ref().map(map_binding),
+        normal_texture: surface.normal_texture.as_ref().map(|normal| {
+            studio_assets::canonical::CanonicalNormalTexture {
+                binding: map_binding(&normal.binding),
+                scale: normal.scale,
+            }
+        }),
+        occlusion_texture: surface.occlusion_texture.as_ref().map(map_binding),
+        metallic_roughness_texture: surface.metallic_roughness_texture.as_ref().map(map_binding),
+    }
+}
+
+fn map_binding(
+    binding: &SourceTextureBinding,
+) -> studio_assets::canonical::CanonicalTextureBinding {
+    studio_assets::canonical::CanonicalTextureBinding {
+        resource: binding.resource.clone(),
+        tex_coord: binding.tex_coord,
+        transform: binding.transform,
+        sampler: binding.sampler,
     }
 }

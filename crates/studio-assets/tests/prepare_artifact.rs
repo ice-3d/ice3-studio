@@ -3,6 +3,7 @@ use studio_assets::canonical::{
     CanonicalMaterial, CanonicalMesh, CanonicalNode, CanonicalPrimitive, CanonicalScene,
     PreparedGlbOptions, write_prepared_glb,
 };
+use studio_assets::surface::AlphaMode;
 use studio_assets::{
     BudgetProfile, BudgetStatus, PrepareOptions, SourceGlb, read_glb_bytes,
     validate_prepared_profile,
@@ -82,6 +83,10 @@ fn unused_materials_do_not_gain_edge_materials() {
         name: "Unused".into(),
         base_color: [0.1, 0.2, 0.3],
         opacity: 1.0,
+        alpha_mode: AlphaMode::Opaque,
+        alpha_cutoff: 0.5,
+        double_sided: false,
+        surface: None,
         extras: json!({"ice3": {"id": "unused"}}),
         texture: None,
     });
@@ -198,6 +203,7 @@ fn invalid_crease_angle_is_rejected_even_when_edges_are_skipped() {
                 crease_angle_degrees,
                 generate_edges: false,
                 budget: BudgetProfile::interactive_desktop_v1(),
+                texture_namespace: String::new(),
             },
         )
         .unwrap_err();
@@ -345,6 +351,7 @@ fn options_with_budget(generate_edges: bool, budget: BudgetProfile) -> PrepareOp
         crease_angle_degrees: 30.0,
         generate_edges,
         budget,
+        texture_namespace: String::new(),
     }
 }
 
@@ -372,6 +379,7 @@ fn triangle_scene() -> CanonicalScene {
                 positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
                 normals: Some(vec![[0.0, 0.0, 1.0]; 3]),
                 colors: None,
+                uvs: None,
                 indices: vec![0, 1, 2],
                 material: Some(0),
             }],
@@ -382,9 +390,14 @@ fn triangle_scene() -> CanonicalScene {
             name: "Glass".into(),
             base_color: [0.2, 0.5, 0.9],
             opacity: 1.0,
+            alpha_mode: AlphaMode::Opaque,
+            alpha_cutoff: 0.5,
+            double_sided: false,
+            surface: None,
             extras: json!({"ice3": {"id": "glass"}}),
             texture: None,
         }],
+        resources: Vec::new(),
         asset_extras: json!({"coordinateSystem": {"upAxis": "y"}}),
     }
 }

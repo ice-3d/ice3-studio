@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-031
 >
-> Status: Proposed
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
@@ -61,7 +61,7 @@
 - Consumes: 无。
 - Produces: `studio_assets::surface::{AlphaMode, TextureTransform, TextureSampler}`；`SourceMaterial::{alpha_mode, alpha_cutoff, double_sided, surface}`；`SourceScene.resources: Vec<SourceResource>`；`SourcePrimitive.uvs: Option<Vec<[f32; 2]>>`。
 
-- [ ] **Step 1: Write the failing compatibility test**
+- [x] **Step 1: Write the failing compatibility test**
 
 ```rust
 use serde_json::json;
@@ -86,13 +86,13 @@ fn source_material_defaults_keep_old_records_compatible() {
 }
 ```
 
-- [ ] **Step 2: Run the test and verify the missing contract**
+- [x] **Step 2: Run the test and verify the missing contract**
 
 Run: `cargo test -p studio-import --test source_surface source_material_defaults_keep_old_records_compatible`
 
 Expected: FAIL because new fields and `studio_assets::surface` do not exist.
 
-- [ ] **Step 3: Add the shared scalar types**
+- [x] **Step 3: Add the shared scalar types**
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -158,7 +158,7 @@ Export the module from `studio-assets/src/lib.rs`:
 pub mod surface;
 ```
 
-- [ ] **Step 4: Add the Source model types and serde defaults**
+- [x] **Step 4: Add the Source model types and serde defaults**
 
 ```rust
 use studio_assets::surface::{AlphaMode, TextureSampler, TextureTransform};
@@ -230,7 +230,7 @@ Add `#[serde(default)] pub resources: Vec<SourceResource>` to `SourceScene`, and
 `#[serde(default, skip_serializing_if = "Option::is_none")] pub uvs: Option<Vec<[f32; 2]>>`
 to `SourcePrimitive`.
 
-- [ ] **Step 5: Update every Source literal with historical defaults**
+- [x] **Step 5: Update every Source literal with historical defaults**
 
 In every listed importer and test constructor, add:
 
@@ -245,19 +245,19 @@ Add `uvs: None` to every `SourcePrimitive` literal and `resources: Vec::new()` t
 `SourceScene` literal. Update `to_canonical` only enough to compile; it deliberately still
 ignores the new fields until Task 8.
 
-- [ ] **Step 6: Run the compatibility test**
+- [x] **Step 6: Run the compatibility test**
 
 Run: `cargo test -p studio-import --test source_surface source_material_defaults_keep_old_records_compatible`
 
 Expected: PASS.
 
-- [ ] **Step 7: Run importer regressions**
+- [x] **Step 7: Run importer regressions**
 
 Run: `cargo test -p studio-import`
 
 Expected: PASS with existing glTF, OBJ, FBX, USD, STEP, IFC and Worker tests unchanged except mechanical struct defaults.
 
-- [ ] **Step 8: Format and commit**
+- [x] **Step 8: Format and commit**
 
 ```bash
 cargo fmt --all
@@ -276,7 +276,7 @@ git commit -m "feat(import): add material surface source contract"
 - Consumes: Task 1 的 `SourceScene.resources`。
 - Produces: `WORKER_PROTOCOL_VERSION = 2`；`WorkerResponse::V2` 成功响应；`WorkerResponse::V2Failure` 失败响应。
 
-- [ ] **Step 1: Write the failing protocol test**
+- [x] **Step 1: Write the failing protocol test**
 
 ```rust
 #[test]
@@ -302,13 +302,13 @@ fn protocol_two_round_trips_image_resources() {
 
 Add `SourceResource` to the test import list.
 
-- [ ] **Step 2: Run the test and observe V2 rejection**
+- [x] **Step 2: Run the test and observe V2 rejection**
 
 Run: `cargo test -p studio-import --test worker_protocol protocol_two_round_trips_image_resources`
 
 Expected: FAIL with `unsupported response protocol 2`.
 
-- [ ] **Step 3: Bump the protocol and accept only V2**
+- [x] **Step 3: Bump the protocol and accept only V2**
 
 ```rust
 pub const WORKER_PROTOCOL_VERSION: u32 = 2;
@@ -337,19 +337,19 @@ Make `execute_worker_request_inner` emit `WorkerResponse::V2`, make
 `write_worker_failure` emit `V2Failure`, and change `decode_worker_response` to accept V2,
 accept V2Failure after `validate_worker_error_code`, and return protocol errors for V1/V1Failure.
 
-- [ ] **Step 4: Update protocol mismatch tests**
+- [x] **Step 4: Update protocol mismatch tests**
 
 Change the existing wrong-version test to encode `WorkerResponse::V1` and expect
 `unsupported response protocol 1`. Keep trailing-byte and structured-failure tests, switching
 their success/failure variants to V2/V2Failure.
 
-- [ ] **Step 5: Run Worker tests**
+- [x] **Step 5: Run Worker tests**
 
 Run: `cargo test -p studio-import --test worker_protocol`
 
 Expected: PASS for V2 success, V2 failure, wrong protocol, trailing bytes and resource bytes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cargo fmt --all
@@ -371,7 +371,7 @@ git commit -m "feat(import): carry image resources in worker protocol v2"
 - Consumes: `SourceGlb` 的 `base_dir`、`buffers` 和现有 URI confinement。
 - Produces: `ImageResource { digest: String, media_type: String, bytes: Vec<u8> }`; `read_image_uri(uri, base_dir, declared_media_type, max_bytes)`; `read_image_buffer_view(source, image, max_bytes)`; `validate_image_bytes(bytes, declared_media_type, max_bytes)`.
 
-- [ ] **Step 1: Write failing format and confinement tests**
+- [x] **Step 1: Write failing format and confinement tests**
 
 ```rust
 use std::path::Path;
@@ -418,13 +418,13 @@ fn rejects_a_symlink_that_escapes_the_source_directory() {
 }
 ```
 
-- [ ] **Step 2: Run and verify missing image API**
+- [x] **Step 2: Run and verify missing image API**
 
 Run: `cargo test -p studio-assets --test image_resources`
 
 Expected: FAIL because `studio_assets::image` does not exist.
 
-- [ ] **Step 3: Add bounded URI reading without changing existing callers**
+- [x] **Step 3: Add bounded URI reading without changing existing callers**
 
 In `glb.rs`, factor the current body of `read_bounded_uri` into:
 
@@ -518,7 +518,7 @@ pub fn read_bounded_uri_with_limit(
 Keep `pub fn read_bounded_uri(...)` delegating with `usize::MAX` so existing buffer and OBJ
 behavior does not change.
 
-- [ ] **Step 4: Add image format validation and content addressing**
+- [x] **Step 4: Add image format validation and content addressing**
 
 ```rust
 use std::path::Path;
@@ -589,7 +589,7 @@ pub const MAX_TEXTURE_COUNT: usize = 4096;
 
 Export the constants and use `MAX_TEXTURE_BYTES` as the default per-image reader limit.
 
-- [ ] **Step 5: Export the image module**
+- [x] **Step 5: Export the image module**
 
 ```rust
 pub mod image;
@@ -600,14 +600,14 @@ pub use image::{
 };
 ```
 
-- [ ] **Step 6: Run the focused tests**
+- [x] **Step 6: Run the focused tests**
 
 Run: `cargo test -p studio-assets --test image_resources`
 
 Expected: PASS for PNG, unknown bytes, parent escape and Unix symlink escape. Add and run
 separate assertions for over-limit data URI and external file before committing.
 
-- [ ] **Step 7: Count resource bytes in scene limits**
+- [x] **Step 7: Count resource bytes in scene limits**
 
 Add this failing test to `worker_protocol.rs`:
 
@@ -641,7 +641,7 @@ Run: `cargo test -p studio-import --test worker_protocol rejects_image_resources
 
 Expected: PASS after the accounting change.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cargo fmt --all
@@ -661,7 +661,7 @@ git commit -m "feat(assets): validate bounded image resources"
 - Consumes: Task 1 的 `SourceScene.resources`、`SourcePrimitive.uvs`；Task 3 的 `ImageResource`。
 - Produces: `read_accessor` 对 normalized UBYTE/USHORT 返回归一化 F32；glTF import 产出去重且按 digest 排序的 `SourceResource`；`TEXCOORD_0` 进入 `SourcePrimitive.uvs`。
 
-- [ ] **Step 1: Write the failing normalized accessor test**
+- [x] **Step 1: Write the failing normalized accessor test**
 
 ```rust
 #[test]
@@ -678,13 +678,13 @@ fn normalized_unsigned_texcoords_decode_to_float_unit_range() {
 
 The helper writes a GLB with accessor 1 as `VEC2 / UNSIGNED_SHORT / normalized=true`.
 
-- [ ] **Step 2: Run and observe normalized rejection**
+- [x] **Step 2: Run and observe normalized rejection**
 
 Run: `cargo test -p studio-assets --test source_reader normalized_unsigned_texcoords_decode_to_float_unit_range`
 
 Expected: FAIL with `normalized accessors are unsupported`.
 
-- [ ] **Step 3: Decode normalized integer accessors as F32**
+- [x] **Step 3: Decode normalized integer accessors as F32**
 
 In `read_accessor`, read `normalized` instead of rejecting it. Add `COMPONENT_U8`, accept
 U8/U16/U32/F32, and when normalized is true:
@@ -704,7 +704,7 @@ let divisor = match component_type {
 Build the normal F32 value vector and return `AccessorData::F32`; preserve existing unnormalized
 variants and their current index behavior.
 
-- [ ] **Step 4: Write the failing glTF image/UV import test**
+- [x] **Step 4: Write the failing glTF image/UV import test**
 
 ```rust
 #[test]
@@ -728,7 +728,7 @@ fn imports_external_data_and_triangle_uvs_as_resources() {
 `uv_gltf_json` writes F32 VEC3 positions, F32 VEC2 UVs, U16 indices, one image and
 `"samplers": [{"wrapS": 10497, "wrapT": 10497}]`.
 
-- [ ] **Step 5: Implement glTF UV and image loading**
+- [x] **Step 5: Implement glTF UV and image loading**
 
 Add:
 
@@ -801,7 +801,7 @@ Move `warnings` initialization before material import so Task 5 can record textu
 Remove `textures`, `images`, and `samplers` from `add_unsupported_resource_warnings`; animations,
 skins and cameras remain unsupported.
 
-- [ ] **Step 6: Run glTF and accessor tests**
+- [x] **Step 6: Run glTF and accessor tests**
 
 Run: `cargo test -p studio-assets --test source_reader normalized_unsigned_texcoords_decode_to_float_unit_range`
 
@@ -809,13 +809,13 @@ Run: `cargo test -p studio-import --test gltf_import imports_external_data_and_t
 
 Expected: PASS.
 
-- [ ] **Step 7: Add embedded image coverage**
+- [x] **Step 7: Add embedded image coverage**
 
 Add a GLB fixture in test code where `image.bufferView` points at a PNG and `mimeType` is
 `image/png`. Assert one resource, no `ICE3_STUDIO_IMPORT_RESOURCE_UNSUPPORTED` warning for
 `images`, and exact PNG bytes.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cargo fmt --all
@@ -833,7 +833,7 @@ git commit -m "feat(import): load gltf images and source uvs"
 - Consumes: Task 1 的 Source surface/binding；Task 4 的图片资源表与 UV。
 - Produces: `import_material` 解析四个贴图槽、PBR 因子、alpha、double-sided 和 `KHR_texture_transform`；稳定 warning codes。
 
-- [ ] **Step 1: Write the failing complete-surface test**
+- [x] **Step 1: Write the failing complete-surface test**
 
 ```rust
 #[test]
@@ -861,13 +861,13 @@ fn imports_all_surface_slots_and_texture_parameters() {
 The fixture uses four images with valid headers in `textures/` and one material carrying
 baseColor, normal, occlusion and metallic-roughness textureInfo objects.
 
-- [ ] **Step 2: Run and observe missing surface data**
+- [x] **Step 2: Run and observe missing surface data**
 
 Run: `cargo test -p studio-import --test gltf_import imports_all_surface_slots_and_texture_parameters`
 
 Expected: FAIL because `surface` is `None`.
 
-- [ ] **Step 3: Parse material state and factors**
+- [x] **Step 3: Parse material state and factors**
 
 Implement
 `import_material(value, index, asset_id, source, resources, warnings)` and:
@@ -923,7 +923,7 @@ let surface = Some(SourceSurface {
 `factor` must reject non-finite values and clamp only values accepted by the current source
 contract; alpha cutoff is range-checked to `[0,1]`.
 
-- [ ] **Step 4: Implement textureInfo resolution**
+- [x] **Step 4: Implement textureInfo resolution**
 
 ```rust
 fn import_texture_info(
@@ -993,7 +993,7 @@ numbers with `ICE3_STUDIO_IMPORT_INVALID_SOURCE`.
 present, resolve the sampler index, then copy `magFilter`, `minFilter`, `wrapS` and `wrapT`;
 accept only values in the glTF sampler enums and reject non-integer or out-of-range values.
 
-- [ ] **Step 5: Add warning behavior tests**
+- [x] **Step 5: Add warning behavior tests**
 
 ```rust
 #[test]
@@ -1033,7 +1033,7 @@ fn warns_for_emissive_textures_and_unknown_material_extensions() {
 }
 ```
 
-- [ ] **Step 6: Implement warning gates before image loading**
+- [x] **Step 6: Implement warning gates before image loading**
 
 Resolve texture, UV channel and transform first. If effective `tex_coord != 0`, return `None`
 and insert the coordinate warning before loading image bytes. That keeps an unsupported channel
@@ -1045,14 +1045,14 @@ under `material.extensions` that is not handled by the base glTF material contra
 `ICE3_STUDIO_IMPORT_MATERIAL_EXTENSION_UNSUPPORTED` with the extension name in a deterministic
 message; do not copy unknown extension JSON into surface fields.
 
-- [ ] **Step 7: Run full glTF import tests**
+- [x] **Step 7: Run full glTF import tests**
 
 Run: `cargo test -p studio-import --test gltf_import`
 
 Expected: PASS for complete surface, embedded/external/data images, transform, sampler,
 alpha, double-sided and warning gates.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cargo fmt --all
@@ -1075,7 +1075,7 @@ git commit -m "feat(import): preserve gltf material surfaces"
 - Consumes: Task 1 的共享 `AlphaMode`、`TextureTransform`、`TextureSampler`。
 - Produces: `CanonicalSurface`、`CanonicalTextureBinding`、`CanonicalNormalTexture`、`CanonicalResource`；`CanonicalMaterial::{alpha_mode, alpha_cutoff, double_sided, surface}`；`CanonicalScene.resources`；`CanonicalPrimitive.uvs`。
 
-- [ ] **Step 1: Write the failing legacy-default test**
+- [x] **Step 1: Write the failing legacy-default test**
 
 ```rust
 #[test]
@@ -1113,13 +1113,13 @@ surface: None,
 `alpha_mode` is authoritative only when a surface is present. This distinction is required
 because older canonical callers did not carry alpha mode.
 
-- [ ] **Step 2: Run and observe missing fields/types**
+- [x] **Step 2: Run and observe missing fields/types**
 
 Run: `cargo test -p studio-assets --test canonical_writer canonical_material_defaults_keep_legacy_texture_behavior`
 
 Expected: FAIL because the new canonical fields and `AlphaMode` import do not exist.
 
-- [ ] **Step 3: Add canonical surface types**
+- [x] **Step 3: Add canonical surface types**
 
 ```rust
 use crate::surface::{AlphaMode, TextureSampler, TextureTransform};
@@ -1169,7 +1169,7 @@ pub surface: Option<CanonicalSurface>,
 Add `pub resources: Vec<CanonicalResource>` to `CanonicalScene` and
 `pub uvs: Option<Vec<[f32; 2]>>` to `CanonicalPrimitive`.
 
-- [ ] **Step 4: Update every canonical literal mechanically**
+- [x] **Step 4: Update every canonical literal mechanically**
 
 Add the historical defaults to all material literals:
 
@@ -1183,7 +1183,7 @@ surface: None,
 Add `uvs: None` to all primitive literals and `resources: Vec::new()` to all scene literals.
 Do not change writer behavior in this task.
 
-- [ ] **Step 5: Add validation tests for invalid material state**
+- [x] **Step 5: Add validation tests for invalid material state**
 
 ```rust
 #[test]
@@ -1209,7 +1209,7 @@ fn rejects_invalid_alpha_and_surface_values() {
 }
 ```
 
-- [ ] **Step 6: Extend `validate_materials` minimally**
+- [x] **Step 6: Extend `validate_materials` minimally**
 
 ```rust
 if !material.alpha_cutoff.is_finite()
@@ -1228,13 +1228,13 @@ if !material.alpha_cutoff.is_finite()
 
 Leave resource/UV length validation for Task 7.
 
-- [ ] **Step 7: Run canonical tests**
+- [x] **Step 7: Run canonical tests**
 
 Run: `cargo test -p studio-assets`
 
 Expected: PASS for legacy defaults and invalid alpha/surface checks; existing output remains unchanged.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cargo fmt --all
@@ -1253,7 +1253,7 @@ git commit -m "feat(assets): add canonical surface contract"
 - Consumes: Task 6 的 canonical surface/resource/UV 类型；现有 `BinaryBuilder` 和 material index deduplication。
 - Produces: `texture_registry(...)` 输出稳定 image/sampler/texture 表；`write_texture_info(...)`；primitive `TEXCOORD_0` accessor；legacy `texture` 与 surface base-color 冲突检测。
 
-- [ ] **Step 1: Write the failing four-slot/UV test**
+- [x] **Step 1: Write the failing four-slot/UV test**
 
 ```rust
 #[test]
@@ -1326,13 +1326,13 @@ fn binding(
 }
 ```
 
-- [ ] **Step 2: Run and observe surface fields ignored**
+- [x] **Step 2: Run and observe surface fields ignored**
 
 Run: `cargo test -p studio-assets --test texture_pipeline writes_four_surface_slots_uvs_and_transform`
 
 Expected: FAIL because metallic remains `0.0` and normal/occlusion slots are absent.
 
-- [ ] **Step 3: Build stable image, sampler and texture registries**
+- [x] **Step 3: Build stable image, sampler and texture registries**
 
 ```rust
 #[derive(Default)]
@@ -1387,7 +1387,7 @@ digest exists exactly once in `scene.resources` and bytes rehash to the declared
 resource bytes. When emitting `images`, sort `ImageKey` and emit either the prepared namespace
 URI for `Resource` or the existing relative URI for `External`.
 
-- [ ] **Step 4: Write textureInfo helper and material parameters**
+- [x] **Step 4: Write textureInfo helper and material parameters**
 
 ```rust
 fn write_texture_info(
@@ -1432,7 +1432,7 @@ Legacy `material.texture` remains a base-color path and uses its `uv_scale`. If 
 surface base-color exist and their resource/path, UV scale, transform or sampler differ, return
 `AssetError::InvalidGlb("legacy and surface base-color textures conflict")`.
 
-- [ ] **Step 5: Emit `TEXCOORD_0` only when source UV or an actual texture requires it**
+- [x] **Step 5: Emit `TEXCOORD_0` only when source UV or an actual texture requires it**
 
 ```rust
 let material_uses_texture = source_material.is_some_and(|index| {
@@ -1472,7 +1472,7 @@ algorithm so imported and non-imported canonical geometry use identical data wit
 through `EvaluatedMesh`. `surface_has_texture` returns true only when at least one of the four
 surface slots is `Some`.
 
-- [ ] **Step 6: Write the sampler-dedup test**
+- [x] **Step 6: Write the sampler-dedup test**
 
 ```rust
 #[test]
@@ -1506,14 +1506,14 @@ fn one_image_with_two_samplers_gets_two_texture_indices() {
 }
 ```
 
-- [ ] **Step 7: Run the focused tests**
+- [x] **Step 7: Run the focused tests**
 
 Run: `cargo test -p studio-assets --test texture_pipeline`
 
 Expected: PASS for all slots, transforms, UV accessor, legacy texture, no-UV fallback and
 sampler-aware texture deduplication.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cargo fmt --all
@@ -1531,7 +1531,7 @@ git commit -m "feat(assets): write complete material surfaces"
 - Consumes: Task 1 Source Surface/resources/UV；Task 6 Canonical Surface/resources/UV。
 - Produces: `to_canonical` 逐字段复制 factor、四槽、transform、sampler、alpha、double-sided、UV 和去重资源。
 
-- [ ] **Step 1: Write the failing mapping test**
+- [x] **Step 1: Write the failing mapping test**
 
 ```rust
 use serde_json::json;
@@ -1615,13 +1615,13 @@ fn maps_all_surface_fields_and_source_uvs() {
 }
 ```
 
-- [ ] **Step 2: Run and observe ignored fields**
+- [x] **Step 2: Run and observe ignored fields**
 
 Run: `cargo test -p studio-import --test material_mapping maps_all_surface_fields_and_source_uvs`
 
 Expected: FAIL because `to_canonical` still writes defaults and empty resources.
 
-- [ ] **Step 3: Implement exact field mapping**
+- [x] **Step 3: Implement exact field mapping**
 
 ```rust
 meshes: source.meshes.iter().map(|mesh| studio_assets::canonical::CanonicalMesh {
@@ -1664,7 +1664,7 @@ resources: source.resources.iter().map(|resource| {
 Implement `map_surface` and `map_binding` as direct struct conversions. Do not clone-modify
 JSON, and do not fabricate resource paths.
 
-- [ ] **Step 4: Keep mapping pure and validate at prepare**
+- [x] **Step 4: Keep mapping pure and validate at prepare**
 
 `to_canonical` remains infallible and performs direct structure mapping. Missing resource
 digests, duplicate digests and digest/byte mismatches are rejected by Task 7 canonical
@@ -1685,13 +1685,13 @@ fn map_binding(
 
 Do not change the `to_canonical` signature in this task.
 
-- [ ] **Step 5: Run mapping and importer suites**
+- [x] **Step 5: Run mapping and importer suites**
 
 Run: `cargo test -p studio-import`
 
 Expected: PASS for mapping and all existing importers with default fields.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cargo fmt --all
@@ -1713,7 +1713,7 @@ git commit -m "feat(import): map surfaces into canonical assets"
 - Consumes: Task 7/8 的 canonical surface、resources、UV。
 - Produces: `PrepareOptions.texture_namespace: String`; `PreparedResource`; `PreparedAssetBundle { glb, texture_uri_prefix, resources, metrics, preparation, budget, content_digest, warnings }`; `prepare_canonical_bundle(...)`。
 
-- [ ] **Step 1: Write the failing bundle namespace test**
+- [x] **Step 1: Write the failing bundle namespace test**
 
 ```rust
 #[test]
@@ -1740,13 +1740,13 @@ fn bundle_names_resources_inside_the_requested_directory() {
 }
 ```
 
-- [ ] **Step 2: Run and observe missing bundle API**
+- [x] **Step 2: Run and observe missing bundle API**
 
 Run: `cargo test -p studio-assets --test texture_pipeline bundle_names_resources_inside_the_requested_directory`
 
 Expected: FAIL because `prepare_canonical_bundle`, namespace and resource output do not exist.
 
-- [ ] **Step 3: Add bundle types and move rather than duplicate GLB bytes**
+- [x] **Step 3: Add bundle types and move rather than duplicate GLB bytes**
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1797,7 +1797,7 @@ pub fn prepare_canonical_bundle(
 Add `texture_namespace: String` to `PrepareOptions`. All existing constructors use an empty
 string unless they emit bundle resources.
 
-- [ ] **Step 4: Generate URI from digest and media type**
+- [x] **Step 4: Generate URI from digest and media type**
 
 ```rust
 fn prepared_resources(
@@ -1876,7 +1876,7 @@ Use one `resource_uri(digest, media_type, namespace)` helper in both
 same image URI map; it cannot independently default to `textures/...` after namespace
 preparation. Emit `mimeType` on Prepared GLB image objects.
 
-- [ ] **Step 5: Write profile validation failures**
+- [x] **Step 5: Write profile validation failures**
 
 ```rust
 #[test]
@@ -1908,7 +1908,7 @@ fn rejects_a_texture_uri_that_escapes_the_asset_directory() {
 }
 ```
 
-- [ ] **Step 6: Extend profile checks**
+- [x] **Step 6: Extend profile checks**
 
 Validate:
 
@@ -1921,14 +1921,14 @@ Validate:
 - every image has a relative URI, no `..`, no absolute path, no scheme, no bufferView;
 - image `mimeType`, when present, matches the URI extension.
 
-- [ ] **Step 7: Run assets tests**
+- [x] **Step 7: Run assets tests**
 
 Run: `cargo test -p studio-assets`
 
 Expected: PASS for bundle namespace, digest URIs, resource bytes, four-slot profile checks and
 legacy texture output.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cargo fmt --all
@@ -1950,7 +1950,7 @@ git commit -m "feat(assets): prepare textured asset bundles"
 - Consumes: Task 9 `PreparedAssetBundle` 和 `prepare_canonical_bundle`。
 - Produces: `texture_namespace(output: &Path) -> Result<String, PublishError>`; `publish_asset_bundle(bundle, output, report, force) -> Result<(), PublishError>`; import/build 发布 `plant.glb` 与 `plant.textures/`。
 
-- [ ] **Step 1: Write the failing transparent import test**
+- [x] **Step 1: Write the failing transparent import test**
 
 ```rust
 #[test]
@@ -1982,13 +1982,13 @@ fn import_publishes_glb_and_every_referenced_texture() {
 }
 ```
 
-- [ ] **Step 2: Run and observe missing sidecar**
+- [x] **Step 2: Run and observe missing sidecar**
 
 Run: `cargo test -p studio-cli --test import import_publishes_glb_and_every_referenced_texture`
 
 Expected: FAIL because the GLB references `plant.textures/...` but the directory is not published.
 
-- [ ] **Step 3: Add namespace derivation**
+- [x] **Step 3: Add namespace derivation**
 
 ```rust
 use std::path::{Component, Path, PathBuf};
@@ -2027,7 +2027,7 @@ The physical directory is `output.with_file_name(texture_namespace(output))`; th
 uses percent-encoded path segments while preserving the same decoded directory name.
 Reject a report path equal to the GLB output or texture directory before creating staging.
 
-- [ ] **Step 4: Implement staged bundle publication**
+- [x] **Step 4: Implement staged bundle publication**
 
 ```rust
 pub fn publish_asset_bundle(
@@ -2144,7 +2144,7 @@ the backup back. Every backup name is unique and lives beside the original targe
 `expected_namespace + "/"`, strips that prefix, and writes the remainder beneath `root`; this
 prevents both doubled namespaces and a URI that escapes the staged texture directory.
 
-- [ ] **Step 5: Switch import and build to bundle preparation**
+- [x] **Step 5: Switch import and build to bundle preparation**
 
 In both commands:
 
@@ -2172,7 +2172,7 @@ to the same publication function.
 Map `PublishError::OutputExists` to the existing `ICE3_STUDIO_ASSET_OUTPUT_EXISTS`; map the
 other variants to asset I/O with rollback details preserved.
 
-- [ ] **Step 6: Add build transaction and no-clobber tests**
+- [x] **Step 6: Add build transaction and no-clobber tests**
 
 ```rust
 #[test]
@@ -2218,7 +2218,7 @@ fn conflicting_texture_directory_blocks_without_writing_glb() {
 }
 ```
 
-- [ ] **Step 7: Add an injected rollback unit test**
+- [x] **Step 7: Add an injected rollback unit test**
 
 Factor the final rename sequence into:
 
@@ -2274,7 +2274,7 @@ fn failed_report_publish_restores_glb_and_texture_directory() {
 }
 ```
 
-- [ ] **Step 8: Run CLI import/build tests**
+- [x] **Step 8: Run CLI import/build tests**
 
 Run: `cargo test -p studio-cli --test import`
 
@@ -2283,7 +2283,7 @@ Run: `cargo test -p studio-cli --test prepare_command`
 Expected: PASS for textured sidecars, no-clobber, force replacement, report rollback and all
 pre-existing untextured behavior.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 cargo fmt --all
@@ -2301,7 +2301,7 @@ git commit -m "feat(cli): publish textured asset bundles"
 - Consumes: Task 9 `PreparedAssetBundle`；Task 10 publication helpers only where reusable。
 - Produces: partition staging 中的 `parts/textures/<digest>.<ext>`；每个 tile 的相对 URI 可解析；整个 tileset 原子发布。
 
-- [ ] **Step 1: Write the failing partition resource test**
+- [x] **Step 1: Write the failing partition resource test**
 
 ```rust
 #[test]
@@ -2328,13 +2328,13 @@ fn partition_publishes_textures_beside_part_glbs() {
 }
 ```
 
-- [ ] **Step 2: Run and observe missing tile textures**
+- [x] **Step 2: Run and observe missing tile textures**
 
 Run: `cargo test -p studio-cli --test partition_command partition_publishes_textures_beside_part_glbs`
 
 Expected: FAIL because tiles reference `textures/...` but staging contains only GLBs and `tileset.json`.
 
-- [ ] **Step 3: Prepare a bundle with tile-relative namespace**
+- [x] **Step 3: Prepare a bundle with tile-relative namespace**
 
 ```rust
 let canonical = to_canonical(&imported.scene);
@@ -2355,7 +2355,7 @@ let bundle = prepare_canonical_bundle(
 
 Write `bundle.glb` to the existing temporary Prepared GLB path, not `artifact.bytes`.
 
-- [ ] **Step 4: Carry bundle resources into staging**
+- [x] **Step 4: Carry bundle resources into staging**
 
 Change the staging signature:
 
@@ -2413,7 +2413,7 @@ fn write_texture_resources(
 Keep the existing atomic `publish_directory` call unchanged. A resource write failure drops the
 staging directory and never publishes `dist`.
 
-- [ ] **Step 5: Add missing-resource and collision tests**
+- [x] **Step 5: Add missing-resource and collision tests**
 
 ```rust
 #[test]
@@ -2445,14 +2445,14 @@ fn texture_staging_rejects_escape_and_conflicting_duplicate_uris() {
 }
 ```
 
-- [ ] **Step 6: Run partition tests**
+- [x] **Step 6: Run partition tests**
 
 Run: `cargo test -p studio-cli --test partition_command`
 
 Expected: PASS for textures beside tile GLBs, no-clobber, force directory replacement and all
 existing untextured partitions.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cargo fmt --all
@@ -2476,7 +2476,7 @@ git commit -m "feat(partition): publish material textures with tiles"
 - Consumes: Tasks 1-11 的全部公开行为。
 - Produces: 端到端材质验收、稳定 diagnostic 文档、Implemented 状态和完整门禁证据。
 
-- [ ] **Step 1: Write the end-to-end acceptance test**
+- [x] **Step 1: Write the end-to-end acceptance test**
 
 ```rust
 #[test]
@@ -2519,14 +2519,14 @@ fn imported_material_survives_import_and_build_with_all_resources() {
 Add assertions for all four slots, transform, sampler, alpha mask, double-sided and exact
 `TEXCOORD_0` values in both outputs.
 
-- [ ] **Step 2: Run the acceptance test and fix gaps**
+- [x] **Step 2: Run the acceptance test and fix gaps**
 
 Run: `cargo test -p studio-cli --test textured_material_fidelity`
 
 Expected: PASS only after every required material path is connected. Fix the owning task and
 rerun its focused tests rather than weakening this acceptance test.
 
-- [ ] **Step 3: Lock the legacy output baseline**
+- [x] **Step 3: Lock the legacy output baseline**
 
 The canonical legacy golden digest `e3da988f73c5955b395b89d28268ff93a0004ddfd17def9a3765a66b24768d6d`
 is locked in Task 6. Re-run that focused test here and do not add a CLI-source golden that mixes
@@ -2538,7 +2538,7 @@ cargo test -p studio-assets --test canonical_writer canonical_material_defaults_
 
 Expected: PASS with the exact legacy canonical digest.
 
-- [ ] **Step 4: Update diagnostics documentation**
+- [x] **Step 4: Update diagnostics documentation**
 
 Add exact code, trigger and recovery rows for:
 
@@ -2551,7 +2551,7 @@ ICE3_STUDIO_IMPORT_MATERIAL_EXTENSION_UNSUPPORTED
 
 State that missing/escaping resources fail import and are not downgraded to warnings.
 
-- [ ] **Step 5: Update the asset pipeline reference**
+- [x] **Step 5: Update the asset pipeline reference**
 
 Document:
 
@@ -2561,14 +2561,14 @@ Document:
 - current non-goals and other import formats;
 - `TEXCOORD_1+` warning behavior.
 
-- [ ] **Step 6: Mark the implementation state only after all tests pass**
+- [x] **Step 6: Mark the implementation state only after all tests pass**
 
 Change SPEC-034 and PLAN-031 front matter from `Proposed` to `Implemented`, update both index
 rows in `docs/README.md`. Update
 `docs/reference/capabilities.md` and `README.md` only where the verified current behavior
 changed.
 
-- [ ] **Step 7: Run format, lint and all Rust tests**
+- [x] **Step 7: Run format, lint and all Rust tests**
 
 Run: `cargo fmt --all -- --check`
 
@@ -2578,7 +2578,7 @@ Run: `cargo test --workspace --all-features`
 
 Expected: exit 0 with no warnings and no failing tests.
 
-- [ ] **Step 8: Run documentation and schema gates**
+- [x] **Step 8: Run documentation and schema gates**
 
 Run: `node scripts/check-docs.mjs`
 
@@ -2586,7 +2586,7 @@ Run: `cargo run -p studio-cli -- schema --check`
 
 Expected: documentation index complete; generated schema unchanged or intentionally updated and checked in.
 
-- [ ] **Step 9: Run Prepare performance baseline**
+- [x] **Step 9: Run Prepare performance baseline**
 
 Run: `npm run benchmark:prepare`
 
@@ -2594,13 +2594,13 @@ Expected: p95, peak RSS, bytes and digest gates pass. If and only if the machine
 baseline legitimately changes, review the diff, keep p95 within the documented limit, and
 commit the updated `benchmarks/prepare-baseline.json`.
 
-- [ ] **Step 10: Run the repository verification gate**
+- [x] **Step 10: Run the repository verification gate**
 
 Run: `npm run verify`
 
 Expected: all repository gates pass. Do not claim completion from a partial cargo run.
 
-- [ ] **Step 11: Commit final acceptance and documentation**
+- [x] **Step 11: Commit final acceptance and documentation**
 
 ```bash
 cargo fmt --all
@@ -2610,14 +2610,14 @@ git commit -m "test(import): verify material surface fidelity"
 
 ## Completion Checklist
 
-- [ ] Source Surface, resource and UV contracts have serde defaults and Worker V2 coverage.
-- [ ] External, data URI and bufferView images normalize to content-addressed resources.
-- [ ] glTF PBR factors, four texture slots, alpha, double-sided, transform and sampler survive.
-- [ ] `TEXCOORD_0` survives; unsupported UV channels warn and do not misbind.
-- [ ] Canonical writer emits full surfaces, sampler-aware texture indices and conditional UVs.
-- [ ] Prepared profile validates all slots, transform, sampler and relative resource URIs.
-- [ ] Import and build atomically publish GLB, textures and report.
-- [ ] Partition atomically publishes tile GLBs and `parts/textures/`.
-- [ ] Untextured historical output remains byte-identical.
-- [ ] Diagnostics, asset pipeline, capabilities and indexes match implemented code.
-- [ ] Format, lint, workspace tests, schema, docs, Prepare benchmark and `npm run verify` pass.
+- [x] Source Surface, resource and UV contracts have serde defaults and Worker V2 coverage.
+- [x] External, data URI and bufferView images normalize to content-addressed resources.
+- [x] glTF PBR factors, four texture slots, alpha, double-sided, transform and sampler survive.
+- [x] `TEXCOORD_0` survives; unsupported UV channels warn and do not misbind.
+- [x] Canonical writer emits full surfaces, sampler-aware texture indices and conditional UVs.
+- [x] Prepared profile validates all slots, transform, sampler and relative resource URIs.
+- [x] Import and build atomically publish GLB, textures and report.
+- [x] Partition atomically publishes tile GLBs and `parts/textures/`.
+- [x] Untextured historical output remains byte-identical.
+- [x] Diagnostics, asset pipeline, capabilities and indexes match implemented code.
+- [x] Format, lint, workspace tests, schema, docs, Prepare benchmark and `npm run verify` pass.

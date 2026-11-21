@@ -184,10 +184,13 @@ fn refresh_artifact_stats(artifact: &mut PartitionArtifact) -> Result<(), Pipeli
     let metrics = artifact
         .files
         .iter()
-        .map(crate::partition::build::part_edge_metrics)
+        .map(crate::partition::build::part_metrics)
         .collect::<Result<Vec<_>, _>>()?;
-    artifact.stats.edge_segment_count = metrics.iter().map(|(segments, _)| segments).sum();
-    artifact.stats.edge_bytes = metrics.iter().map(|(_, bytes)| bytes).sum();
+    artifact.stats.edge_segment_count = metrics
+        .iter()
+        .map(|metrics| metrics.edge_segment_count)
+        .sum();
+    artifact.stats.edge_bytes = metrics.iter().map(|metrics| metrics.edge_bytes).sum();
     artifact.stats.max_part_bytes = artifact
         .files
         .iter()

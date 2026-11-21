@@ -30,7 +30,7 @@ npm run dev          # 自动选 projects/ 里最新的工程，打印 Viewer UR
 
 `Ctrl+C` 停止。只想跑契约测试用的小工程：`npm run dev:mini`。
 
-提交前跑全量门禁（32 道，含 fmt / clippy / 测试 / Engine+prepare parity / schema /
+提交前跑全量门禁（34 道，含 fmt / clippy / 测试 / Engine+prepare parity / schema /
 文档契约 / fixture / viewer / E2E / 依赖审计）：
 
 ```bash
@@ -59,7 +59,7 @@ npm run verify
 | 几何 | 参数化 primitive、sweep、稳定顶点序的三角网格求值、圆角盒（12 边倒角/圆角） |
 | 组件 | component definition、typed parameter、part override、实例化 |
 | 装配 | 有向/无向 typed relation、port 感知连接、工艺线成链校验 |
-| 材质 | metallic / roughness / emissive / uvScale、**底色贴图、法线贴图、ORM 打包图**（R 遮蔽 / G 粗糙度 / B 金属度）、alpha blend、directional/flat/water shading |
+| 材质 | metallic / roughness / emissive / uvScale、**底色贴图、法线贴图、ORM 打包图**（R 遮蔽 / G 粗糙度 / B 金属度）、glTF/GLB 四槽贴图导入、sampler/UV transform、alpha、directional/flat/water shading |
 | 布局 | instance set、确定性实例展开、批量变换 |
 | 事务 | 原子事务、幂等键、revision 冲突检测、undo/redo（深度 200） |
 | 输出 | 标准 GLB、Runtime preview、原生 partition/LOD Tileset bundle、BOM/STEP/STL/OBJ/IFC/DXF |
@@ -125,14 +125,17 @@ asset id 一致（演示资产为 `ice3-virtual-wwtp`），否则设备剧本的
 验证几何、材质和源 revision 一致。
 
 原生支持的源格式：glTF/GLB、OBJ/MTL、FBX（ASCII/Binary）、USD（ASCII/Binary）、
-STEP AP242、IFC4X3、JT。前六种由 Studio 自带 worker 解析，无需外部 DCC；JT 是唯一例外，
-由部署方通过 `ICE3_JT_CONVERTER` 提供组织批准的 converter，Studio 固定调用参数并校验
-输出。worker 有硬超时、进程树清理、崩溃隔离、512 MiB response / 1 MiB stderr 上限，
-默认预算 1,000,000 nodes、20,000,000 triangles、512 MiB decoded memory、120 秒。
+STEP AP242、IFC4X3、JT。glTF/GLB 与 OBJ/MTL 由 Studio 原生 adapter 解析；FBX、USD、
+STEP、IFC 和 JT 通过隔离 worker，无需外部 DCC。JT 是唯一 converter 例外，由部署方通过
+`ICE3_JT_CONVERTER` 提供组织批准的 converter，Studio 固定调用参数并校验输出。worker
+有硬超时、进程树清理、崩溃隔离、512 MiB response / 1 MiB stderr 上限，默认预算
+1,000,000 nodes、20,000,000 triangles、512 MiB decoded memory、120 秒。
 
 `import` 生成 `ice3-prepared` profile、真实 metrics 和 `interactive-desktop-v1` budget，
 默认不生成 render edges；`build` 默认以 30° crease angle 生成 `mode=1`、
 `role="edges"`、`widthPx=3` 的 line primitive。两者发布前都做校验，失败不覆盖已有文件。
+glTF/GLB 材质贴图按内容摘要发布到 `<output-stem>.textures/` 或 partition 的
+`parts/textures/`；GLB 只引用相对的 content-addressed URI，缺失或越界资源失败关闭。
 
 ## 6. 工程与场景
 

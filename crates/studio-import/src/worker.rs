@@ -23,7 +23,7 @@ use crate::{
     SourceImporterRegistry, WorkerLimits, validate_scene_limits,
 };
 
-pub const WORKER_PROTOCOL_VERSION: u32 = 1;
+pub const WORKER_PROTOCOL_VERSION: u32 = 2;
 const MAX_WORKER_REQUEST_BYTES: usize = 1_048_576;
 const MAX_WORKER_RESPONSE_BYTES: usize = 536_870_912;
 const MAX_WORKER_STDERR_BYTES: usize = 1_048_576;
@@ -58,6 +58,10 @@ pub enum WorkerResponse {
     V2 {
         source_scene: crate::SourceScene,
         warnings: Vec<ImportWarning>,
+    },
+    V2Failure {
+        code: String,
+        message: String,
     },
 }
 
@@ -243,7 +247,7 @@ fn execute_worker_request_inner(
     scene.warnings.dedup();
     validate_scene_limits(&scene, &limits)?;
 
-    let response = WorkerResponse::V1 {
+    let response = WorkerResponse::V2 {
         warnings: scene.warnings.clone(),
         source_scene: scene,
     };
@@ -269,11 +273,11 @@ pub fn decode_worker_response(bytes: &[u8]) -> Result<crate::SourceScene, Import
         ));
     }
     let (mut scene, warnings) = match response {
-        WorkerResponse::V1 {
+        WorkerResponse::V2 {
             source_scene,
             warnings,
         } => (source_scene, warnings),
-        WorkerResponse::V1Failure { code, message } => {
+        WorkerResponse::V2Failure { code, message } => {
             validate_worker_error_code(&code)?;
             if message.is_empty() || message.len() > 65_536 {
                 return Err(protocol_invalid(
@@ -282,8 +286,11 @@ pub fn decode_worker_response(bytes: &[u8]) -> Result<crate::SourceScene, Import
             }
             return Err(ImportError::WorkerReported { code, message });
         }
-        WorkerResponse::V2 { .. } => {
-            return Err(protocol_invalid("unsupported response protocol 2".into()));
+        WorkerResponse::V1 { .. } => {
+            return Err(protocol_invalid("unsupported response protocol 1".into()));
+        }
+        WorkerResponse::V1Failure { .. } => {
+            return Err(protocol_invalid("unsupported response protocol 1".into()));
         }
     };
     let mut all_warnings: std::collections::BTreeSet<_> = scene.warnings.iter().cloned().collect();
@@ -293,7 +300,7 @@ pub fn decode_worker_response(bytes: &[u8]) -> Result<crate::SourceScene, Import
 }
 
 fn write_worker_failure(request_path: &Path, error: &ImportError) -> Result<(), ImportError> {
-    let response = WorkerResponse::V1Failure {
+    let response = WorkerResponse::V2Failure {
         code: error.code().to_owned(),
         message: error.to_string(),
     };
@@ -761,12 +768,14 @@ mod tests {
                     positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
                     normals: None,
                     colors: None,
+                    uvs: None,
                     indices: vec![0, 1, 2],
                     material: None,
                 }],
                 extras: serde_json::json!({}),
             }],
             materials: Vec::new(),
+            resources: Vec::new(),
             warnings: Vec::new(),
             asset_extras: serde_json::json!({}),
         }
@@ -795,7 +804,7 @@ mod tests {
 
     #[test]
     fn ignores_worker_stdout_and_accepts_the_response_file() {
-        let response = WorkerResponse::V1 {
+        let response = WorkerResponse::V2 {
             source_scene: fixture_scene(),
             warnings: Vec::new(),
         };
@@ -846,7 +855,7 @@ mod tests {
 
     #[test]
     fn preserves_a_reported_source_error_from_a_worker() {
-        let response = WorkerResponse::V1Failure {
+        let response = WorkerResponse::V2Failure {
             code: "ICE3_STUDIO_IMPORT_INVALID_SOURCE".into(),
             message: "truncated source".into(),
         };
@@ -913,7 +922,7 @@ mod tests {
 
     #[test]
     fn timeout_deadline_includes_worker_launch_and_rejects_a_late_completion() {
-        let response = WorkerResponse::V1 {
+        let response = WorkerResponse::V2 {
             source_scene: fixture_scene(),
             warnings: Vec::new(),
         };
@@ -983,7 +992,7 @@ mod tests {
 
     #[test]
     fn rejects_oversized_worker_response() {
-        let response = WorkerResponse::V1 {
+        let response = WorkerResponse::V2 {
             source_scene: fixture_scene(),
             warnings: Vec::new(),
         };

@@ -196,19 +196,47 @@ fn pack_glb(json: &[u8], binary: &[u8]) -> Vec<u8> {
 }
 
 pub fn read_bounded_uri(uri: &str, base_dir: &Path) -> AssetResult<Vec<u8>> {
+    read_bounded_uri_with_limit(uri, base_dir, usize::MAX)
+}
+
+pub fn read_bounded_uri_with_limit(
+    uri: &str,
+    base_dir: &Path,
+    max_bytes: usize,
+) -> AssetResult<Vec<u8>> {
     if let Some(payload) = uri.strip_prefix("data:") {
         let (metadata, data) = payload
             .split_once(',')
             .ok_or_else(|| invalid("data URI is invalid"))?;
-        if metadata.ends_with(";base64") {
-            return base64::engine::general_purpose::STANDARD
-                .decode(data)
-                .map_err(|_| invalid("data URI payload is invalid"));
+        let maximum_encoded = if max_bytes == usize::MAX {
+            None
+        } else {
+            Some(
+                max_bytes
+                    .checked_mul(4)
+                    .and_then(|value| value.checked_div(3))
+                    .and_then(|value| value.checked_add(8))
+                    .ok_or_else(|| invalid("data URI size overflowed"))?,
+            )
+        };
+        if maximum_encoded.is_some_and(|maximum| data.len() > maximum) {
+            return Err(invalid("external resource exceeds its size limit"));
         }
-        return percent_decode_str(data)
-            .decode_utf8()
-            .map(|value| value.into_owned().into_bytes())
-            .map_err(|_| invalid("data URI payload is invalid"));
+        let bytes = if metadata.ends_with(";base64") {
+            base64::engine::general_purpose::STANDARD
+                .decode(data)
+                .map_err(|_| invalid("data URI payload is invalid"))?
+        } else {
+            percent_decode_str(data)
+                .decode_utf8()
+                .map_err(|_| invalid("data URI payload is invalid"))?
+                .into_owned()
+                .into_bytes()
+        };
+        if bytes.len() > max_bytes {
+            return Err(invalid("external resource exceeds its size limit"));
+        }
+        return Ok(bytes);
     }
     if Path::new(uri).is_absolute() || looks_like_scheme(uri) {
         return Err(invalid("external resource URI must be relative"));
@@ -235,6 +263,11 @@ pub fn read_bounded_uri(uri: &str, base_dir: &Path) -> AssetResult<Vec<u8>> {
     let base =
         std::fs::canonicalize(base_dir).map_err(|_| invalid("source directory is missing"))?;
     let target = base.join(relative);
+    let metadata =
+        std::fs::symlink_metadata(&target).map_err(|_| invalid("external resource is missing"))?;
+    if metadata.file_type().is_symlink() {
+        return Err(invalid("external resource must not be a symbolic link"));
+    }
     let canonical = std::fs::canonicalize(&target)
         .map_err(|_| invalid(&format!("external resource is missing: {uri}")))?;
     if !canonical.starts_with(&base) {
@@ -242,11 +275,22 @@ pub fn read_bounded_uri(uri: &str, base_dir: &Path) -> AssetResult<Vec<u8>> {
             "external resource URI escapes the source directory",
         ));
     }
+    let size = std::fs::metadata(&canonical)
+        .map_err(|_| invalid("external resource is unreadable"))?
+        .len();
+    if size > max_bytes as u64 {
+        return Err(invalid("external resource exceeds its size limit"));
+    }
     std::fs::read(canonical)
         .map_err(|_| invalid(&format!("external resource is unreadable: {uri}")))
 }
 
 fn parse_glb(bytes: &[u8]) -> AssetResult<(Vec<u8>, Vec<u8>)> {
+    let (json, binary) = parse_glb_slices(bytes)?;
+    Ok((json.to_vec(), binary.to_vec()))
+}
+
+pub(crate) fn parse_glb_slices(bytes: &[u8]) -> AssetResult<(&[u8], &[u8])> {
     if bytes.len() < 12 {
         return Err(invalid("GLB header is truncated"));
     }
@@ -278,9 +322,9 @@ fn parse_glb(bytes: &[u8]) -> AssetResult<(Vec<u8>, Vec<u8>)> {
             .ok_or_else(|| invalid("GLB chunk length is invalid"))?;
         let data = &bytes[offset + 8..end];
         match (chunk_index, kind) {
-            (0, JSON_CHUNK) => json = Some(data.to_vec()),
+            (0, JSON_CHUNK) => json = Some(data),
             (0, _) => return Err(invalid("GLB JSON chunk must be first")),
-            (1, BIN_CHUNK) => binary = Some(data.to_vec()),
+            (1, BIN_CHUNK) => binary = Some(data),
             (_, JSON_CHUNK) => return Err(invalid("GLB must contain exactly one JSON chunk")),
             (_, BIN_CHUNK) => return Err(invalid("GLB BIN chunk must be second and unique")),
             _ => {}

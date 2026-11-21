@@ -1,19 +1,21 @@
 use std::fmt;
-use std::io::Write;
 use std::path::{Path, PathBuf};
+#[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use serde_json::Value;
 use studio_assets::{
     AssetBuildReport, AssetError, BudgetProfile, BudgetResult, BudgetStatus, PreparationMetadata,
-    PrepareOptions, PrepareWarning, prepare_canonical, read_glb, validate_crease_angle,
-    validate_prepared_profile,
+    PrepareOptions, PrepareWarning, prepare_canonical, prepare_canonical_bundle, read_glb,
+    validate_crease_angle, validate_prepared_profile,
 };
 use studio_import::{ImportWarning, NativeImportLimits, to_canonical};
+#[cfg(test)]
 use tempfile::NamedTempFile;
 
 use crate::import::{ImportCommandError, import_source_scene};
+use crate::publish::{PublishError, publish_asset_bundle, texture_namespace};
 
 #[derive(Debug, Clone)]
 pub struct PrepareCommandOptions {
@@ -53,6 +55,7 @@ pub struct PrepareCommandOutput {
 pub enum PrepareCommandError {
     Import(ImportCommandError),
     Asset(AssetError),
+    Publish(PublishError),
     InvalidOptions(String),
     OutputExists,
     WarningAsError {
@@ -73,6 +76,7 @@ impl PrepareCommandError {
         match self {
             Self::Import(error) => error.code(),
             Self::Asset(error) => error.code(),
+            Self::Publish(error) => error.code(),
             Self::InvalidOptions(_) => "ICE3_STUDIO_ASSET_INVALID_OPTIONS",
             Self::OutputExists => "ICE3_STUDIO_ASSET_OUTPUT_EXISTS",
             Self::WarningAsError { code, .. } => code,
@@ -90,6 +94,7 @@ impl fmt::Display for PrepareCommandError {
         match self {
             Self::Import(error) => write!(formatter, "{error}"),
             Self::Asset(error) => write!(formatter, "{error}"),
+            Self::Publish(error) => write!(formatter, "{error}"),
             Self::InvalidOptions(message) | Self::ReportWriteFailed(message) => {
                 formatter.write_str(message)
             }
@@ -119,6 +124,7 @@ impl std::error::Error for PrepareCommandError {
         match self {
             Self::Import(error) => Some(error),
             Self::Asset(error) => Some(error),
+            Self::Publish(error) => Some(error),
             Self::RollbackFailed { primary, .. } => Some(primary.as_ref()),
             Self::Io(error) => Some(error),
             _ => None,
@@ -135,6 +141,12 @@ impl From<ImportCommandError> for PrepareCommandError {
 impl From<AssetError> for PrepareCommandError {
     fn from(error: AssetError) -> Self {
         Self::Asset(error)
+    }
+}
+
+impl From<PublishError> for PrepareCommandError {
+    fn from(error: PublishError) -> Self {
+        Self::Publish(error)
     }
 }
 
@@ -156,7 +168,7 @@ pub fn run_build(
         options.limits,
     )?;
     let source_digest = digest_label(&imported.source_digest);
-    let artifact = prepare_canonical(
+    let bundle = prepare_canonical_bundle(
         &to_canonical(&imported.scene),
         PrepareOptions {
             asset_id: options.asset_id.clone(),
@@ -165,11 +177,12 @@ pub fn run_build(
             crease_angle_degrees: options.crease_angle_degrees,
             generate_edges: !options.skip_edges,
             budget,
+            texture_namespace: texture_namespace(&options.output)?,
         },
     )?;
-    let warnings = prepare_warnings(&imported.warnings, &artifact.warnings);
+    let warnings = prepare_warnings(&imported.warnings, &bundle.warnings);
     if options.warnings_as_errors {
-        if artifact.budget.status == BudgetStatus::Warning {
+        if bundle.budget.status == BudgetStatus::Warning {
             return Err(PrepareCommandError::WarningAsError {
                 code: "ICE3_STUDIO_ASSET_BUDGET_WARNING".into(),
                 message: "asset exceeds one or more soft budget limits".into(),
@@ -185,19 +198,21 @@ pub fn run_build(
     let report = AssetBuildReport::new(
         "build",
         source_digest,
-        digest_label(&artifact.content_digest),
+        digest_label(&bundle.content_digest),
         options.asset_id,
-        artifact.metrics,
-        artifact.preparation,
-        artifact.budget,
+        bundle.metrics,
+        bundle.preparation.clone(),
+        bundle.budget.clone(),
         warnings,
     );
     let report_bytes = report_json(&report)?;
-    publish_outputs(
+    publish_asset_bundle(
+        &bundle,
         &options.output,
-        &artifact.bytes,
-        options.report.as_deref(),
-        &report_bytes,
+        options
+            .report
+            .as_deref()
+            .map(|path| (path, report_bytes.as_slice())),
         options.force,
     )?;
     Ok(PrepareCommandOutput {
@@ -259,6 +274,7 @@ fn inspect_source(options: InspectOptions) -> Result<AssetBuildReport, PrepareCo
             crease_angle_degrees,
             generate_edges: !options.skip_edges,
             budget,
+            texture_namespace: String::new(),
         },
     )?;
     let warnings = prepare_warnings(&imported.warnings, &artifact.warnings);
@@ -371,83 +387,7 @@ fn report_json(report: &AssetBuildReport) -> Result<Vec<u8>, PrepareCommandError
     Ok(bytes)
 }
 
-fn publish_outputs(
-    output_path: &Path,
-    output_bytes: &[u8],
-    report_path: Option<&Path>,
-    report_bytes: &[u8],
-    force: bool,
-) -> Result<(), PrepareCommandError> {
-    if report_path.is_some_and(|path| path == output_path) {
-        return Err(PrepareCommandError::InvalidOptions(
-            "output and report paths must differ".into(),
-        ));
-    }
-    if !force && (output_path.exists() || report_path.is_some_and(Path::exists)) {
-        return Err(PrepareCommandError::OutputExists);
-    }
-    let output_parent = output_path
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    std::fs::create_dir_all(output_parent)?;
-    let mut output_temp = NamedTempFile::new_in(output_parent)?;
-    output_temp.write_all(output_bytes)?;
-    output_temp.as_file().sync_all()?;
-
-    let mut report_temp = match report_path {
-        Some(path) => {
-            let parent = path
-                .parent()
-                .filter(|path| !path.as_os_str().is_empty())
-                .unwrap_or_else(|| Path::new("."));
-            std::fs::create_dir_all(parent)
-                .map_err(|error| PrepareCommandError::ReportWriteFailed(error.to_string()))?;
-            let mut temporary = NamedTempFile::new_in(parent)
-                .map_err(|error| PrepareCommandError::ReportWriteFailed(error.to_string()))?;
-            temporary
-                .write_all(report_bytes)
-                .map_err(|error| PrepareCommandError::ReportWriteFailed(error.to_string()))?;
-            temporary
-                .as_file()
-                .sync_all()
-                .map_err(|error| PrepareCommandError::ReportWriteFailed(error.to_string()))?;
-            Some((path.to_path_buf(), temporary))
-        }
-        None => None,
-    };
-
-    if force {
-        return publish_force(output_path, output_temp, report_temp);
-    }
-
-    let report_created = if let Some((path, temporary)) = report_temp.take() {
-        temporary.persist_noclobber(&path).map_err(|error| {
-            if error.error.kind() == std::io::ErrorKind::AlreadyExists {
-                PrepareCommandError::OutputExists
-            } else {
-                PrepareCommandError::ReportWriteFailed(error.error.to_string())
-            }
-        })?;
-        Some(path)
-    } else {
-        None
-    };
-    match output_temp.persist_noclobber(output_path) {
-        Ok(_) => Ok(()),
-        Err(error) => {
-            if let Some(path) = report_created {
-                let _ = std::fs::remove_file(path);
-            }
-            if error.error.kind() == std::io::ErrorKind::AlreadyExists {
-                Err(PrepareCommandError::OutputExists)
-            } else {
-                Err(PrepareCommandError::Io(error.error))
-            }
-        }
-    }
-}
-
+#[cfg(test)]
 fn publish_force(
     output_path: &Path,
     output_temp: NamedTempFile,
@@ -505,6 +445,7 @@ fn publish_force(
     Ok(())
 }
 
+#[cfg(test)]
 fn move_to_backup(path: &Path) -> Result<Option<PathBuf>, PrepareCommandError> {
     if !path.exists() {
         return Ok(None);
@@ -514,6 +455,7 @@ fn move_to_backup(path: &Path) -> Result<Option<PathBuf>, PrepareCommandError> {
     Ok(Some(backup))
 }
 
+#[cfg(test)]
 fn unique_backup_path(path: &Path) -> PathBuf {
     let parent = path
         .parent()
@@ -530,6 +472,7 @@ fn unique_backup_path(path: &Path) -> PathBuf {
     parent.join(format!(".{name}.{}.{nonce}.backup", std::process::id()))
 }
 
+#[cfg(test)]
 fn restore_backup(path: &Path, backup: Option<&Path>) -> Vec<String> {
     let mut details = remove_published_path(path);
     if let Some(backup) = backup
@@ -544,6 +487,7 @@ fn restore_backup(path: &Path, backup: Option<&Path>) -> Vec<String> {
     details
 }
 
+#[cfg(test)]
 fn remove_published_path(path: &Path) -> Vec<String> {
     match std::fs::symlink_metadata(path) {
         Ok(_) => match std::fs::remove_file(path) {
@@ -561,6 +505,7 @@ fn remove_published_path(path: &Path) -> Vec<String> {
     }
 }
 
+#[cfg(test)]
 fn remove_backup(backup: Option<&Path>) -> Vec<String> {
     let Some(backup) = backup else {
         return Vec::new();
@@ -575,6 +520,7 @@ fn remove_backup(backup: Option<&Path>) -> Vec<String> {
     }
 }
 
+#[cfg(test)]
 fn with_rollback_details(
     primary: PrepareCommandError,
     details: Vec<String>,

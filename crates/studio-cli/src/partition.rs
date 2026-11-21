@@ -5,13 +5,13 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use studio_assets::{
     AssetError, AssetMetrics, BudgetProfile, BudgetResult, BudgetStatus, PreparationMetadata,
-    PrepareOptions, PrepareWarning, prepare_canonical, read_glb, validate_crease_angle,
-    validate_prepared_profile,
+    PrepareOptions, PrepareWarning, PreparedResource, prepare_canonical_bundle, read_glb,
+    validate_crease_angle, validate_prepared_glb_bytes, validate_prepared_profile,
 };
 use studio_import::{ImportError, ImportWarning, NativeImportLimits, to_canonical};
 use studio_pipeline::{
-    AssetProfile, LodAllocationMode, PartitionStats, PipelineError, RenderBatchMode,
-    SemanticProxyMode, build_with_profile,
+    AssetProfile, LodAllocationMode, PartitionArtifact, PartitionFile, PartitionStats,
+    PipelineError, RenderBatchMode, SemanticProxyMode, build_with_profile,
 };
 
 use crate::import::{ImportCommandError, import_source_scene};
@@ -203,8 +203,9 @@ pub fn partition_source(options: PartitionOptions) -> Result<PartitionOutput, Pa
         options.limits,
     )?;
     let source_digest = digest_label(&imported.source_digest);
-    let artifact = prepare_canonical(
-        &to_canonical(&imported.scene),
+    let canonical = to_canonical(&imported.scene);
+    let bundle = prepare_canonical_bundle(
+        &canonical,
         PrepareOptions {
             asset_id: options.asset_id.clone(),
             source_format: imported.scene.source_format.as_str().into(),
@@ -212,10 +213,11 @@ pub fn partition_source(options: PartitionOptions) -> Result<PartitionOutput, Pa
             crease_angle_degrees: options.crease_angle_degrees,
             generate_edges: !options.skip_edges,
             budget,
+            texture_namespace: "textures".into(),
         },
     )?;
-    let warnings = merge_warnings(&imported.warnings, &artifact.warnings);
-    reject_warnings_as_errors(&options, &artifact.budget, &warnings)?;
+    let warnings = merge_warnings(&imported.warnings, &bundle.warnings);
+    reject_warnings_as_errors(&options, &bundle.budget, &warnings)?;
 
     let profile = profile_from_options(&options);
     let parent = output_parent(&options.output);
@@ -224,20 +226,14 @@ pub fn partition_source(options: PartitionOptions) -> Result<PartitionOutput, Pa
         .prefix(".ice3-studio-partition-source-")
         .suffix(".glb")
         .tempfile_in(&parent)?;
-    prepared_file.write_all(&artifact.bytes)?;
+    prepared_file.write_all(&bundle.glb)?;
     prepared_file.as_file().sync_all()?;
     let prepared = read_glb(prepared_file.path())?;
     validate_prepared_profile(&prepared)?;
 
     let partition = build_with_profile(&prepared, &options.asset_id, &profile)?;
-    for file in &partition.files {
-        let parsed = studio_assets::read_glb_bytes(&file.bytes, &std::env::temp_dir())?;
-        validate_prepared_profile(&parsed).map_err(|error| {
-            PartitionError::Validation(format!("{}: {error}", file.relative_path))
-        })?;
-    }
-
-    let staging = write_staging(&parent, &partition)?;
+    let stats = PartitionStatsReport::from(&partition.stats);
+    let (staging, files) = write_staging(&parent, partition, &bundle.resources)?;
     publish_directory(staging, &options.output, options.force)?;
 
     Ok(PartitionOutput {
@@ -247,19 +243,11 @@ pub fn partition_source(options: PartitionOptions) -> Result<PartitionOutput, Pa
         asset_id: options.asset_id,
         source_digest,
         profile: profile.id,
-        files: partition
-            .files
-            .iter()
-            .map(|file| PartitionFileReport {
-                path: file.relative_path.clone(),
-                bytes: file.byte_length,
-                sha256: file.content_hash.clone(),
-            })
-            .collect(),
-        stats: PartitionStatsReport::from(&partition.stats),
-        metrics: artifact.metrics,
-        preparation: artifact.preparation,
-        budget: artifact.budget,
+        files,
+        stats,
+        metrics: bundle.metrics,
+        preparation: bundle.preparation,
+        budget: bundle.budget,
         warnings,
     })
 }
@@ -372,23 +360,83 @@ fn output_parent(output: &Path) -> PathBuf {
 
 fn write_staging(
     parent: &Path,
-    artifact: &studio_pipeline::PartitionArtifact,
-) -> Result<tempfile::TempDir, PartitionError> {
+    artifact: PartitionArtifact,
+    resources: &[PreparedResource],
+) -> Result<(tempfile::TempDir, Vec<PartitionFileReport>), PartitionError> {
+    let PartitionArtifact {
+        mut files, tileset, ..
+    } = artifact;
     let staging = tempfile::Builder::new()
         .prefix(".ice3-studio-partition-staging-")
         .tempdir_in(parent)?;
-    for file in &artifact.files {
-        let path = staging.path().join(&file.relative_path);
+    files.sort_by_key(|file| std::cmp::Reverse(file.byte_length));
+    let mut reports = Vec::with_capacity(files.len());
+    for file in files {
+        let PartitionFile {
+            relative_path,
+            content_hash,
+            byte_length,
+            bytes,
+        } = file;
+        let path = staging.path().join(&relative_path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(path, &file.bytes)?;
+        std::fs::write(&path, &bytes)?;
+        validate_prepared_glb_bytes(&bytes)
+            .map_err(|error| PartitionError::Validation(format!("{relative_path}: {error}")))?;
+        drop(bytes);
+        reports.push(PartitionFileReport {
+            path: relative_path,
+            bytes: byte_length,
+            sha256: content_hash,
+        });
     }
-    let mut tileset = serde_json::to_vec_pretty(&artifact.tileset)
+    reports.sort_by(|left, right| left.path.cmp(&right.path));
+    let mut tileset = serde_json::to_vec_pretty(&tileset)
         .map_err(|error| PartitionError::Validation(error.to_string()))?;
     tileset.push(b'\n');
     std::fs::write(staging.path().join("tileset.json"), tileset)?;
-    Ok(staging)
+    write_texture_resources(staging.path(), resources)?;
+    Ok((staging, reports))
+}
+
+fn write_texture_resources(
+    staging_root: &Path,
+    resources: &[PreparedResource],
+) -> Result<(), PartitionError> {
+    let mut seen = std::collections::BTreeMap::<String, &[u8]>::new();
+    for resource in resources {
+        let relative = Path::new(&resource.uri);
+        if relative.is_absolute()
+            || relative.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            })
+        {
+            return Err(PartitionError::Validation(
+                "partition texture path escapes its output".into(),
+            ));
+        }
+        if seen
+            .insert(resource.uri.clone(), &resource.bytes)
+            .is_some_and(|previous| previous != resource.bytes)
+        {
+            return Err(PartitionError::Validation(
+                "partition texture URI has conflicting bytes".into(),
+            ));
+        }
+        let path = staging_root.join("parts").join(relative);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, &resource.bytes)?;
+    }
+    Ok(())
 }
 
 fn publish_directory(
@@ -477,6 +525,34 @@ mod tests {
             "keep"
         );
         assert!(!output.join("new.txt").exists());
+    }
+
+    #[test]
+    fn texture_staging_rejects_escape_and_conflicting_duplicate_uris() {
+        let root = tempfile::tempdir().unwrap();
+        let escaped = PreparedResource {
+            uri: "../outside.png".into(),
+            digest: "a".repeat(64),
+            media_type: "image/png".into(),
+            bytes: vec![1],
+        };
+        let escape_error = write_texture_resources(root.path(), &[escaped]).unwrap_err();
+        assert_eq!(escape_error.code(), "ICE3_STUDIO_ASSET_TILESET_INVALID");
+
+        let first = PreparedResource {
+            uri: "textures/same.png".into(),
+            digest: "a".repeat(64),
+            media_type: "image/png".into(),
+            bytes: vec![1],
+        };
+        let second = PreparedResource {
+            uri: "textures/same.png".into(),
+            digest: "b".repeat(64),
+            media_type: "image/png".into(),
+            bytes: vec![2],
+        };
+        let collision = write_texture_resources(root.path(), &[first, second]).unwrap_err();
+        assert_eq!(collision.code(), "ICE3_STUDIO_ASSET_TILESET_INVALID");
     }
 
     #[test]

@@ -1,6 +1,7 @@
 mod common;
 
-use common::{minimal_binary, packed_fixture};
+use common::{minimal_binary, pack_glb, packed_fixture};
+use serde_json::json;
 use studio_assets::{read_accessor, read_glb, validate_prepared_profile};
 
 #[test]
@@ -25,6 +26,40 @@ fn rejects_truncated_glb() {
     let error = studio_assets::read_glb_bytes(&[0x67, 0x6C, 0x54, 0x46], &std::env::temp_dir())
         .unwrap_err();
     assert_eq!(error.code(), "ICE3_ASSET_INVALID_GLB");
+}
+
+#[test]
+fn normalized_unsigned_texcoords_decode_to_float_unit_range() {
+    let values = [0_u16, 0, u16::MAX, 32_768];
+    let binary = values
+        .into_iter()
+        .flat_map(u16::to_le_bytes)
+        .collect::<Vec<_>>();
+    let gltf = json!({
+        "asset": {"version": "2.0"},
+        "buffers": [{"byteLength": binary.len()}],
+        "bufferViews": [{
+            "buffer": 0,
+            "byteOffset": 0,
+            "byteLength": binary.len()
+        }],
+        "accessors": [{
+            "bufferView": 0,
+            "componentType": 5123,
+            "count": 2,
+            "type": "VEC2",
+            "normalized": true
+        }]
+    });
+    let glb = pack_glb(&serde_json::to_vec(&gltf).unwrap(), &binary);
+    let source = studio_assets::read_glb_bytes(&glb, &std::env::temp_dir()).unwrap();
+
+    let values = studio_assets::read_accessor(&source, 0).unwrap();
+
+    assert_eq!(
+        values.as_f32().unwrap(),
+        [0.0, 0.0, 1.0, 32_768.0 / 65_535.0]
+    );
 }
 
 #[test]
