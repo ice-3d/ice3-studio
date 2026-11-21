@@ -55,6 +55,28 @@ const cylinder = (r, h, segments = 40) => ({
 // 每团多两级细分就是几万个三角形，远景看不出差别。
 const sphere = (radius, segments = 10, rings = 6) => ({ kind: 'sphere', radius, segments, rings });
 
+const PIPE_MATERIAL = {
+  'raw-water': 'pipe-raw',
+  'screened-water': 'pipe-raw',
+  'lifted-water': 'pipe-raw',
+  'degritted-water': 'pipe-raw',
+  'settled-water': 'pipe-process',
+  'mixed-liquor': 'pipe-process',
+  'secondary-effluent': 'pipe-clean',
+  'filtered-water': 'pipe-clean',
+  'final-effluent': 'pipe-clean',
+  'waste-sludge': 'pipe-sludge',
+  'thickened-sludge': 'pipe-sludge',
+  'digested-sludge': 'pipe-sludge',
+  'primary-sludge': 'pipe-primary-sludge',
+  'return-sludge': 'pipe-return-sludge',
+  biogas: 'pipe-biogas',
+  chemical: 'pipe-chemical',
+  air: 'pipe-air',
+};
+
+export const pipeMaterialForMedium = (medium) => PIPE_MATERIAL[medium] ?? 'pipe-process';
+
 export function planSupportStations(route, maxSpacing = 6) {
   if (!Array.isArray(route) || route.length < 2 || !Number.isFinite(maxSpacing) || maxSpacing <= 0) {
     return [];
@@ -330,27 +352,6 @@ function createBuilder() {
     if (y < -0.999999) return [1, 0, 0, 0];
     const lengthQ = Math.hypot(z, 0, -x, 1 + y);
     return [z / lengthQ, 0, -x / lengthQ, (1 + y) / lengthQ];
-  };
-
-  // 管道按介质分色，和真实厂区一样用颜色编码工艺流向。
-  const PIPE_MATERIAL = {
-    'raw-water': 'pipe-raw',
-    'screened-water': 'pipe-raw',
-    'lifted-water': 'pipe-raw',
-    'degritted-water': 'pipe-raw',
-    'settled-water': 'pipe-process',
-    'mixed-liquor': 'pipe-process',
-    'secondary-effluent': 'pipe-clean',
-    'filtered-water': 'pipe-clean',
-    'final-effluent': 'pipe-clean',
-    'waste-sludge': 'pipe-sludge',
-    'thickened-sludge': 'pipe-sludge',
-    'digested-sludge': 'pipe-sludge',
-    'primary-sludge': 'pipe-primary-sludge',
-    'return-sludge': 'pipe-return-sludge',
-    biogas: 'pipe-biogas',
-    chemical: 'pipe-chemical',
-    'air': 'pipe-air',
   };
 
   // 走线策略按介质分工，这决定了图面上能看见什么：

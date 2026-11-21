@@ -51,6 +51,7 @@ import {
   validateProcessGraph,
   validateWastewaterPlan,
 } from './validate.mjs';
+import { definePipeAttachmentComponents } from './pipe-attachments.mjs';
 
 export const requiredProcessGraph = [
   {
@@ -699,6 +700,21 @@ function buildPlan(projectId) {
     ]);
   b.define('service-canopy', 'Service canopy',
     serviceCanopy(b, 'svc', { length: 10, width: 6, height: 5 }), []);
+  definePipeAttachmentComponents(b, [
+    'screened-water',
+    'lifted-water',
+    'settled-water',
+    'mixed-liquor',
+    'secondary-effluent',
+    'return-sludge',
+    'waste-sludge',
+    'primary-sludge',
+    'thickened-sludge',
+    'digested-sludge',
+    'biogas',
+    'air',
+    'chemical',
+  ]);
 
   // 场地：按功能分区铺草坪，四周留出环形主干道。
   // Each surface class gets a deeper physical separation than the camera's

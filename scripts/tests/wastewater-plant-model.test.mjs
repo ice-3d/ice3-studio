@@ -1462,3 +1462,32 @@ test('pump skid headers connect to every pump body', () => {
     assert.ok(ids.has(`lps-discharge-branch-${index}`));
   }
 });
+
+test('pipe attachment components expose independent fitting ports', () => {
+  const plan = buildLegacyPlan('wastewater-plant');
+  const definitions = plan.operations
+    .filter(({ type }) => type === 'component.define')
+    .map(({ definition }) => definition);
+  const tee = definitions.find(({ name }) => name.startsWith('Pipe tee ('));
+  const reducer = definitions.find(({ name }) => name.startsWith('Pipe reducer ('));
+  const sleeve = definitions.find(({ name }) => name.startsWith('Wall sleeve ('));
+
+  assert.ok(tee);
+  assert.ok(reducer);
+  assert.ok(sleeve);
+  assert.deepEqual(
+    tee.ports.map(({ name }) => name).sort(),
+    ['branch', 'run-in', 'run-out'],
+  );
+  assert.deepEqual(
+    reducer.ports.map(({ name }) => name).sort(),
+    ['large', 'small'],
+  );
+  assert.deepEqual(
+    sleeve.ports.map(({ name }) => name).sort(),
+    ['wall-in', 'wall-out'],
+  );
+  assert.ok(tee.parts.length >= 4);
+  assert.ok(reducer.parts.length >= 3);
+  assert.ok(sleeve.parts.length >= 2);
+});
