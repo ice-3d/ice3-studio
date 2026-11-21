@@ -8,7 +8,7 @@
 >
 > **For agentic workers:** REQUIRED SUB-SKILL: Use executing-plans. This repository
 > defaults to Native execution. Do not spawn or delegate to sub-agents unless the
-> user explicitly authorizes them. Steps use checkbox (`- [ ]`) syntax for tracking.
+> user explicitly authorizes them. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 交付通用三通、异径管和穿墙套管契约、Core 对齐校验、参数化资产组件和污水厂迁移。
 
@@ -84,7 +84,7 @@ ChangeSet API、Google Chrome。
 - Produces: `ComponentPort::{position: Vector3Binding, direction: Vector3Binding, diameter: ScalarBinding}`;
   `resolve_port` resolves all three bindings before applying the instance world transform.
 
-- [ ] **Step 1: Write the failing parameterized-port test**
+- [x] **Step 1: Write the failing parameterized-port test**
 
 Add to `crates/studio-core/tests/connections.rs`:
 
@@ -151,7 +151,7 @@ fn parameterized_component_port_uses_instance_parameters() {
 }
 ```
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [x] **Step 2: Run the test and verify it fails**
 
 Run:
 
@@ -161,7 +161,7 @@ cargo test -p studio-core --test connections parameterized_component_port_uses_i
 
 Expected: compile failure because `ComponentPort` fields are numeric, not bindings.
 
-- [ ] **Step 3: Change the port contract to bindings**
+- [x] **Step 3: Change the port contract to bindings**
 
 In `component.rs`, change `ComponentPort` to:
 
@@ -178,7 +178,7 @@ pub struct ComponentPort {
 
 Existing JSON numeric literals remain compatible because both binding enums are `untagged`.
 
-- [ ] **Step 4: Expose binding resolution**
+- [x] **Step 4: Expose binding resolution**
 
 Change the visibility of the existing helpers in `evaluate.rs`:
 
@@ -200,7 +200,7 @@ pub(crate) fn resolve_vector3(
 
 Do not duplicate expression evaluation.
 
-- [ ] **Step 5: Resolve port bindings in `resolve_port`**
+- [x] **Step 5: Resolve port bindings in `resolve_port`**
 
 In `route.rs`, carry the instance parameter map alongside the definition ID:
 
@@ -234,7 +234,7 @@ let port_diameter = resolve_scalar(&port.diameter, &resolved_parameters)
 
 Use `port_position`, `port_direction` and `port_diameter` in the existing transform code.
 
-- [ ] **Step 6: Mechanically update existing Rust test literals**
+- [x] **Step 6: Mechanically update existing Rust test literals**
 
 Wrap existing numeric literals:
 
@@ -246,7 +246,7 @@ diameter: ScalarBinding::Literal(0.2),
 
 Apply this to the six existing `ComponentPort` literals in `crates/studio-core`.
 
-- [ ] **Step 7: Run connection and schema tests**
+- [x] **Step 7: Run connection and schema tests**
 
 Run:
 
@@ -259,7 +259,7 @@ cargo test -p studio-core --test schema_output
 
 Expected: all tests pass and generated schemas represent binding fields.
 
-- [ ] **Step 8: Format and commit**
+- [x] **Step 8: Format and commit**
 
 ```bash
 cargo fmt --all
@@ -287,7 +287,7 @@ git commit -m "feat(core): parameterize component ports"
 - Produces: `validate_route_attachments(document, definitions) -> Vec<Diagnostic>`;
   internal `AttachmentKind::{Tee, Reducer, Sleeve}`; public diagnostic constants.
 
-- [ ] **Step 1: Write the failing malformed-metadata test**
+- [x] **Step 1: Write the failing malformed-metadata test**
 
 Add a unit test in `route_attachment.rs`:
 
@@ -324,7 +324,7 @@ fn rejects_unknown_attachment_kind() {
 }
 ```
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [x] **Step 2: Run the test and verify it fails**
 
 Run:
 
@@ -334,7 +334,7 @@ cargo test -p studio-core route_attachment::tests::rejects_unknown_attachment_ki
 
 Expected: compile failure because the module and Diagnostic variants do not exist.
 
-- [ ] **Step 3: Add stable Diagnostic codes**
+- [x] **Step 3: Add stable Diagnostic codes**
 
 Add to `DiagnosticCode`:
 
@@ -355,7 +355,7 @@ RouteAttachmentBudget,
 
 Add the four strings to `DIAGNOSTIC_CODES` and `as_str`.
 
-- [ ] **Step 4: Add the attachment parser**
+- [x] **Step 4: Add the attachment parser**
 
 Create `route_attachment.rs`:
 
@@ -507,7 +507,7 @@ fn attachment_field_diagnostic(
 
 Remove the unused `BTreeSet` import when the later tasks have finished.
 
-- [ ] **Step 5: Wire attachment validation into scene validation**
+- [x] **Step 5: Wire attachment validation into scene validation**
 
 In `mod.rs`:
 
@@ -526,7 +526,7 @@ diagnostics.extend(
 );
 ```
 
-- [ ] **Step 6: Document all four codes**
+- [x] **Step 6: Document all four codes**
 
 Add exact rows to `docs/reference/diagnostics.md`:
 
@@ -537,7 +537,7 @@ Add exact rows to `docs/reference/diagnostics.md`:
 | `ICE3_STUDIO_ROUTE_ATTACHMENT_BUDGET` | 附件或穿越检查预算耗尽 |
 ```
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 ```bash
 cargo test -p studio-core route_attachment::tests::rejects_unknown_attachment_kind
@@ -547,7 +547,7 @@ cargo fmt --all -- --check
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add crates/studio-core/src/validation.rs \
@@ -573,7 +573,7 @@ git commit -m "feat(core): define route attachment contract"
 - Produces: tee validation requiring `run-in`, `run-out`, `branch` distinct ports, matching run diameters,
   collinear run axes and a branch angle in `30°..=150°`.
 
-- [ ] **Step 1: Write the failing valid/invalid tee tests**
+- [x] **Step 1: Write the failing valid/invalid tee tests**
 
 Create `route_attachments.rs` with a fixture helper and these assertions:
 
@@ -633,7 +633,7 @@ The helper `tee_document()` must create:
 - three connections sharing `lineId="L-TEE"`;
 - direct routes that terminate at `run-in`, `run-out` and `branch`.
 
-- [ ] **Step 2: Run the test and verify it fails**
+- [x] **Step 2: Run the test and verify it fails**
 
 ```bash
 cargo test -p studio-core --test route_attachments accepts_a_tee_with_three_distinct_connected_ports
@@ -641,7 +641,7 @@ cargo test -p studio-core --test route_attachments accepts_a_tee_with_three_dist
 
 Expected: tee diagnostics are missing.
 
-- [ ] **Step 3: Extend the parsed attachment into a resolved attachment**
+- [x] **Step 3: Extend the parsed attachment into a resolved attachment**
 
 Add internal types and parse component ports:
 
@@ -722,7 +722,7 @@ fn resolved_attachment(
 }
 ```
 
-- [ ] **Step 4: Implement the tee validator**
+- [x] **Step 4: Implement the tee validator**
 
 Add:
 
@@ -800,7 +800,7 @@ fn dot(left: Vec3, right: Vec3) -> f32 {
 Use the existing `Vec3` import and add `std::f32::consts::{cos}` only if imported directly;
 plain `f32::cos()` calls are acceptable.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 ```bash
 cargo test -p studio-core --test route_attachments tee
@@ -809,7 +809,7 @@ cargo test -p studio-core --test connections
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_attachment.rs \
@@ -830,7 +830,7 @@ git commit -m "feat(core): validate pipe tees"
 - Produces: reducer validation requiring strict diameter decrease, equal medium, opposing directions,
   collinear centers and one connection per port.
 
-- [ ] **Step 1: Write the failing reducer tests**
+- [x] **Step 1: Write the failing reducer tests**
 
 Add:
 
@@ -858,7 +858,7 @@ fn rejects_equal_or_reversed_reducer_diameters() {
 The fixture uses ports `large` and `small`, direct connections on both sides,
 and the same `lineId`.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```bash
 cargo test -p studio-core --test route_attachments reducer
@@ -866,7 +866,7 @@ cargo test -p studio-core --test route_attachments reducer
 
 Expected: reducer cases are not validated yet.
 
-- [ ] **Step 3: Implement reducer validation**
+- [x] **Step 3: Implement reducer validation**
 
 Add:
 
@@ -921,7 +921,7 @@ fn validate_reducer(
 
 Call `validate_reducer` from the main attachment loop.
 
-- [ ] **Step 4: Verify no connection-diameter regression**
+- [x] **Step 4: Verify no connection-diameter regression**
 
 Run:
 
@@ -933,7 +933,7 @@ cargo test -p studio-core --test large_scene_validation
 
 Expected: PASS. Existing direct connections still reject mismatched diameters.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_attachment.rs \
@@ -949,7 +949,7 @@ git commit -m "feat(core): validate pipe reducers"
 - Modify: `crates/studio-core/src/large_scene/route_attachment.rs`
 - Modify: `crates/studio-core/tests/route_attachments.rs`
 
-- [ ] **Step 1: Write the failing sleeve tests**
+- [x] **Step 1: Write the failing sleeve tests**
 
 Add:
 
@@ -991,7 +991,7 @@ fn rejects_duplicate_sleeves_for_the_same_line_and_host() {
 through its center. `sleeve_document(false)` moves the route just outside the box triangles
 while still touching the expanded AABB.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```bash
 cargo test -p studio-core --test route_attachments sleeve
@@ -999,7 +999,7 @@ cargo test -p studio-core --test route_attachments sleeve
 
 Expected: sleeve checks are absent.
 
-- [ ] **Step 3: Add a selected-host triangle helper**
+- [x] **Step 3: Add a selected-host triangle helper**
 
 In `route_attachment.rs`:
 
@@ -1045,7 +1045,7 @@ fn host_triangles(
 This helper is called only after an AABB candidate exists. A document without a candidate
 must not evaluate host geometry.
 
-- [ ] **Step 4: Implement sleeve validation**
+- [x] **Step 4: Implement sleeve validation**
 
 Add the wall-in/wall-out checks:
 
@@ -1152,7 +1152,7 @@ fn validate_sleeve(
 Implement `first_route_for_line`, `route_pipe_diameter` and
 `point_to_route_distance` in this module; do not duplicate `route_connection`.
 
-- [ ] **Step 5: Reject duplicate sleeve associations**
+- [x] **Step 5: Reject duplicate sleeve associations**
 
 Before running sleeve validation, build:
 
@@ -1169,7 +1169,7 @@ if !sleeve_keys.insert(key) {
 }
 ```
 
-- [ ] **Step 6: Run tests and update diagnostics docs**
+- [x] **Step 6: Run tests and update diagnostics docs**
 
 ```bash
 cargo test -p studio-core --test route_attachments sleeve
@@ -1178,7 +1178,7 @@ cargo test -p studio-server --test verification_contract
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_attachment.rs \
@@ -1199,7 +1199,7 @@ git commit -m "feat(core): validate penetration sleeves"
 - Consumes: `ObstacleOwner`, route `line_id`, attachment node metadata `role=pipe-fitting|pipe-penetration`.
 - Produces: self-line attachment obstacle exemption without suppressing unrelated route collisions.
 
-- [ ] **Step 1: Write failing self-line and cross-line tests**
+- [x] **Step 1: Write failing self-line and cross-line tests**
 
 Add:
 
@@ -1248,7 +1248,7 @@ fn declared_penetration_host_collision_is_validated_by_the_attachment_gate() {
 }
 ```
 
-- [ ] **Step 2: Run and verify self-line collision**
+- [x] **Step 2: Run and verify self-line collision**
 
 ```bash
 cargo test -p studio-core --test route_attachments fitting_does_not_collide_with_its_own_line
@@ -1256,7 +1256,7 @@ cargo test -p studio-core --test route_attachments fitting_does_not_collide_with
 
 Expected: FAIL with `RouteCollision`.
 
-- [ ] **Step 3: Carry attachment line identity into obstacles**
+- [x] **Step 3: Carry attachment line identity into obstacles**
 
 Extend `ObstacleOwner`:
 
@@ -1329,7 +1329,7 @@ if route
 This exemption is line/host specific. The attachment gate validates the crossing; an invalid
 or missing sleeve therefore still fails the complete `validate_document` result.
 
-- [ ] **Step 4: Add attachment limits**
+- [x] **Step 4: Add attachment limits**
 
 In `route_attachment.rs`:
 
@@ -1377,7 +1377,7 @@ pub(crate) fn validate_route_attachments_with_limits(
 
 The existing unlimited public entry uses `RouteAttachmentLimits::default()`.
 
-- [ ] **Step 5: Run focused tests**
+- [x] **Step 5: Run focused tests**
 
 ```bash
 cargo test -p studio-core --test route_attachments fitting_
@@ -1387,7 +1387,7 @@ cargo test -p studio-core --test route_safety
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add crates/studio-core/src/large_scene/route_safety.rs \
@@ -1411,7 +1411,7 @@ git commit -m "fix(core): isolate fitting obstacle checks"
 - Produces: `definePipeAttachmentComponents(b)`; component keys
   `pipe-tee-<medium>`, `pipe-reducer-<medium>`, `wall-sleeve-<medium>`.
 
-- [ ] **Step 1: Write failing component-contract tests**
+- [x] **Step 1: Write failing component-contract tests**
 
 Add to `scripts/tests/wastewater-plant-model.test.mjs`:
 
@@ -1437,7 +1437,7 @@ test('pipe attachment components expose independent fitting ports', () => {
 });
 ```
 
-- [ ] **Step 2: Run and verify missing definitions**
+- [x] **Step 2: Run and verify missing definitions**
 
 ```bash
 node --test scripts/tests/wastewater-plant-model.test.mjs
@@ -1445,7 +1445,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: FAIL because attachment definitions are absent.
 
-- [ ] **Step 3: Implement the reusable component geometry**
+- [x] **Step 3: Implement the reusable component geometry**
 
 Create `pipe-attachments.mjs`:
 
@@ -1591,7 +1591,7 @@ export function definePipeAttachmentComponents(b, media) {
 The cylinder and its cut both use local Y before the `LIE_ALONG_X` part transform.
 Do not add a solid inner cylinder.
 
-- [ ] **Step 4: Register components in the wastewater plan**
+- [x] **Step 4: Register components in the wastewater plan**
 
 In `site-plan.mjs`, import and call:
 
@@ -1615,7 +1615,7 @@ definePipeAttachmentComponents(b, [
 ]);
 ```
 
-- [ ] **Step 5: Run JavaScript tests**
+- [x] **Step 5: Run JavaScript tests**
 
 ```bash
 node --test scripts/tests/wastewater-plant-model.test.mjs
@@ -1624,7 +1624,7 @@ node scripts/check-docs.mjs
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/wastewater-plant/pipe-attachments.mjs \
@@ -1648,7 +1648,7 @@ git commit -m "feat(asset): add pipe attachment components"
 - Produces: `placeTee`, `placeReducer`, `placeSleeve`; asset validation
   `validatePipeFittingTopology(plan)` and migration counters.
 
-- [ ] **Step 1: Write failing migration tests**
+- [x] **Step 1: Write failing migration tests**
 
 Add:
 
@@ -1684,7 +1684,7 @@ test('every tee has one connection on each functional port', () => {
 
 Import `validatePipeFittingTopology` in the test file.
 
-- [ ] **Step 2: Run and verify failure**
+- [x] **Step 2: Run and verify failure**
 
 ```bash
 node --test scripts/tests/wastewater-plant-model.test.mjs
@@ -1692,7 +1692,7 @@ node --test scripts/tests/wastewater-plant-model.test.mjs
 
 Expected: no fittings or sleeves exist yet.
 
-- [ ] **Step 3: Add asset placement helpers**
+- [x] **Step 3: Add asset placement helpers**
 
 Add to `pipe-attachments.mjs`:
 
@@ -1811,7 +1811,7 @@ export function placeSleeve(b, {
 The actual asset names may use Chinese display text, but metadata values and component keys
 must remain stable ASCII identifiers.
 
-- [ ] **Step 4: Migrate a tee into the gas header**
+- [x] **Step 4: Migrate a tee into the gas header**
 
 Replace the two direct digester-to-collector connections with a real tee:
 
@@ -1839,7 +1839,7 @@ placeTee(b, {
 
 Keep the remaining collector-to-holder and holder-to-flare connections unchanged.
 
-- [ ] **Step 5: Migrate a reducer into a single existing route**
+- [x] **Step 5: Migrate a reducer into a single existing route**
 
 Split one sludge route around a real diameter transition:
 
@@ -1860,7 +1860,7 @@ placeReducer(b, {
 
 Remove the old direct `rws-1/waste-out-a -> th-1/inlet` connection.
 
-- [ ] **Step 6: Add sleeves at real host crossings**
+- [x] **Step 6: Add sleeves at real host crossings**
 
 Add a real bulkhead definition before the connection block:
 
@@ -1932,7 +1932,7 @@ placeSleeve(b, {
 Use the bulkhead instance node IDs returned by `b.state.nodes.get(...)` as
 `hostNodeId`; those IDs are the real hosts checked by Core.
 
-- [ ] **Step 7: Add asset-level topology validation**
+- [x] **Step 7: Add asset-level topology validation**
 
 In `validate.mjs`:
 
@@ -1975,7 +1975,7 @@ export function validatePipeFittingTopology(plan) {
 
 Call it from `validateWastewaterPlan`.
 
-- [ ] **Step 8: Run asset tests and route benchmark**
+- [x] **Step 8: Run asset tests and route benchmark**
 
 ```bash
 node --test scripts/tests/wastewater-plant-model.test.mjs
@@ -1985,7 +1985,7 @@ npm run benchmark:route-safety
 
 Expected: all pass; route-safety p95 limits remain `150 ms` and `250 ms`.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add scripts/wastewater-plant/pipe-attachments.mjs \
@@ -2009,7 +2009,7 @@ git commit -m "feat(asset): migrate wastewater pipe fittings"
 - Modify: `docs/reference/capabilities.md`
 - Modify: `projects/README.md`
 
-- [ ] **Step 1: Add fitting close-up review views**
+- [x] **Step 1: Add fitting close-up review views**
 
 Add to `REVIEW_VIEWS`:
 
@@ -2032,7 +2032,7 @@ Object.freeze({
 
 Add a test that both URLs preserve exact target, view and token.
 
-- [ ] **Step 2: Rebuild the project through the public API**
+- [x] **Step 2: Rebuild the project through the public API**
 
 Run:
 
@@ -2046,7 +2046,7 @@ cargo run --release -p studio-cli -- serve \
 
 Expected: server reports the latest rebuilt revision and no validation errors.
 
-- [ ] **Step 3: Open the fitting views in Google Chrome**
+- [x] **Step 3: Open the fitting views in Google Chrome**
 
 Run:
 
@@ -2065,13 +2065,13 @@ Expected visual checks:
 - no floating fittings, black faces, unexpected shadows or resource errors;
 - no road clearance or collision diagnostics.
 
-- [ ] **Step 4: Update documentation status**
+- [x] **Step 4: Update documentation status**
 
 Change `SPEC-035` and `PLAN-032` to `Implemented` only after all gates pass.
 Update `SPEC-013` only when its remaining sleeve, tee and reducer items are complete.
 Update the index rows, Diagnostics, capabilities and wastewater project guide.
 
-- [ ] **Step 5: Run complete verification**
+- [x] **Step 5: Run complete verification**
 
 ```bash
 cargo fmt --all -- --check
@@ -2090,7 +2090,7 @@ Expected:
 - Viewer E2E passes;
 - dependency audit reports zero vulnerabilities.
 
-- [ ] **Step 6: Commit final acceptance and documentation**
+- [x] **Step 6: Commit final acceptance and documentation**
 
 ```bash
 git add scripts/wastewater-visual-review.mjs \
@@ -2099,7 +2099,7 @@ git add scripts/wastewater-visual-review.mjs \
 git commit -m "test(route): verify pipe fitting attachments"
 ```
 
-- [ ] **Step 7: Final branch review and merge**
+- [x] **Step 7: Final branch review and merge**
 
 Review the full branch diff against `main`, verify author identity is
 `damoqiongqiu <damoqiongqiu@126.com>`, then merge locally with `--no-ff`.
@@ -2109,17 +2109,17 @@ Do not push unless the user explicitly asks.
 
 ## Completion Checklist
 
-- [ ] Component Port bindings resolve from instance parameters.
-- [ ] Attachment metadata and four stable Diagnostic codes are documented.
-- [ ] Tee requires three distinct connected ports and valid geometry.
-- [ ] Reducer supports different diameters without weakening connection matching.
-- [ ] Sleeve requires a real host triangle crossing and aligned surface ports.
-- [ ] Self-line attachment collision is suppressed; unrelated-line collision remains.
-- [ ] Attachment and penetration budgets fail closed.
-- [ ] Reusable asset components are registered.
-- [ ] Wastewater plant contains real tees, reducers and sleeves.
-- [ ] Asset topology validation covers every fitting.
-- [ ] Google Chrome close-up review passes.
-- [ ] `npm run benchmark:route-safety` remains within limits.
-- [ ] `npm run verify` passes.
-- [ ] `SPEC-035`, `PLAN-032` and `SPEC-013` status match delivered behavior.
+- [x] Component Port bindings resolve from instance parameters.
+- [x] Attachment metadata and four stable Diagnostic codes are documented.
+- [x] Tee requires three distinct connected ports and valid geometry.
+- [x] Reducer supports different diameters without weakening connection matching.
+- [x] Sleeve requires a real host triangle crossing and aligned surface ports.
+- [x] Self-line attachment collision is suppressed; unrelated-line collision remains.
+- [x] Attachment and penetration budgets fail closed.
+- [x] Reusable asset components are registered.
+- [x] Wastewater plant contains real tees, reducers and sleeves.
+- [x] Asset topology validation covers every fitting.
+- [x] Google Chrome close-up review passes.
+- [x] `npm run benchmark:route-safety` remains within limits.
+- [x] `npm run verify` passes.
+- [x] `SPEC-035`, `PLAN-032` and `SPEC-013` status match delivered behavior.
