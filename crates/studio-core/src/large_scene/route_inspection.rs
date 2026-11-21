@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -235,18 +235,118 @@ pub fn inspect_route(
             points,
         });
     }
+    let support_line_ids = segments
+        .iter()
+        .filter_map(|segment| {
+            let node = document
+                .scene
+                .nodes()
+                .iter()
+                .find(|node| node.id.as_str() == segment.node_id)?;
+            let NodeContent::Connection(connection) = &node.content else {
+                return None;
+            };
+            connection
+                .metadata
+                .get("supportLineId")
+                .filter(|value| !value.is_empty())
+                .cloned()
+                .or_else(|| connection.metadata.get("lineId").cloned())
+        })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    let mut attachments = document
+        .scene
+        .nodes()
+        .iter()
+        .filter(|node| {
+            node.metadata.get("lineId").map(String::as_str) == Some(line_id)
+                && matches!(
+                    node.metadata.get("role").map(String::as_str),
+                    Some("pipe-fitting" | "pipe-penetration")
+                )
+                && node.metadata.contains_key("fittingKind")
+        })
+        .map(|node| {
+            let host_node_id = node.metadata.get("hostNodeId").cloned();
+            let host_name = host_node_id.as_ref().and_then(|host_id| {
+                document
+                    .scene
+                    .nodes()
+                    .iter()
+                    .find(|host| host.id.as_str() == host_id)
+                    .map(|host| host.name.clone())
+            });
+            RouteInspectionAttachment {
+                node_id: node.id.to_string(),
+                name: node.name.clone(),
+                role: node.metadata["role"].clone(),
+                fitting_kind: node.metadata["fittingKind"].clone(),
+                line_id: line_id.to_string(),
+                support_line_id: node
+                    .metadata
+                    .get("supportLineId")
+                    .filter(|value| !value.is_empty())
+                    .cloned(),
+                host_node_id,
+                host_name,
+            }
+        })
+        .collect::<Vec<_>>();
+    attachments.sort_by(|left, right| left.node_id.cmp(&right.node_id));
+    let attachments_truncated = attachments.len() > limits.max_attachments;
+    attachments.truncate(limits.max_attachments);
+
+    let supported_lines = support_line_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let mut supports = document
+        .scene
+        .nodes()
+        .iter()
+        .filter_map(|node| {
+            let support_line_id = node
+                .metadata
+                .get("supportLineId")
+                .filter(|value| !value.is_empty())
+                .or_else(|| {
+                    node.metadata
+                        .get("lineId")
+                        .filter(|value| !value.is_empty())
+                })?;
+            if node.metadata.get("role").map(String::as_str) != Some("pipe-support")
+                || !supported_lines.contains(support_line_id.as_str())
+            {
+                return None;
+            }
+            Some(RouteInspectionSupport {
+                node_id: node.id.to_string(),
+                name: node.name.clone(),
+                support_line_id: support_line_id.clone(),
+                support_group: node.metadata.get("supportGroup").cloned(),
+                position: node.transform.translation,
+            })
+        })
+        .collect::<Vec<_>>();
+    supports.sort_by(|left, right| left.node_id.cmp(&right.node_id));
+    let supports_truncated = supports.len() > limits.max_supports;
+    supports.truncate(limits.max_supports);
+
     Ok(RouteInspection {
         revision: actual,
         line_id: line_id.to_string(),
-        support_line_ids: Vec::new(),
+        support_line_ids,
         segments,
-        attachments: Vec::new(),
-        supports: Vec::new(),
+        attachments,
+        supports,
         truncated: RouteInspectionTruncation {
             segments: segments_truncated,
             points: points_truncated,
-            attachments: false,
-            supports: false,
+            attachments: attachments_truncated,
+            supports: supports_truncated,
         },
     })
 }
