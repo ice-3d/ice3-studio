@@ -119,6 +119,7 @@
 | `ICE3-STUDIO-PLAN-031` | [导入材质表面保真实施计划](plans/2026-11-20-import-material-surface-fidelity.md) | Implemented | glTF/GLB 材质槽、UV、受控资源和事务发布 |
 | `ICE3-STUDIO-PLAN-032` | [管线附件实体化实施计划](plans/2026-11-21-pipe-fitting-attachments.md) | Implemented | 参数化端口、三通/异径管/套管校验、资产组件与污水厂迁移 |
 | `ICE3-STUDIO-PLAN-033` | [连接与管线附件检视实施计划](plans/2026-11-21-route-inspection.md) | Implemented | `route.inspect`、Agent 工具、Viewer Inspector 与 Chrome 验收 |
+| `ICE3-STUDIO-PLAN-034` | [Agent 材质内省实施计划](plans/2026-11-22-material-introspection.md) | Approved | `material.get`、有效 surface、schema 与 Agent 评测 |
 
 ## 6. 状态说明
 
