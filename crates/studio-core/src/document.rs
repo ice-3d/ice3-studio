@@ -150,7 +150,7 @@ pub enum NodeContent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub enum MaterialShading {
     Directional,
     Flat,
@@ -159,7 +159,7 @@ pub enum MaterialShading {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase")]
 pub struct Material {
     pub id: MaterialId,
     pub name: String,
@@ -172,6 +172,7 @@ pub struct Material {
     /// means "use the built-in dielectric defaults", which keeps projects that
     /// never cared about PBR byte-identical.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     pub surface: Option<MaterialSurface>,
 }
 
@@ -179,7 +180,7 @@ pub struct Material {
 /// model so an export needs no interpretation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[ts(export)]
+#[ts(export, rename_all = "camelCase", optional_fields = nullable)]
 pub struct MaterialSurface {
     /// 0 = dielectric, 1 = metal.
     #[serde(default)]

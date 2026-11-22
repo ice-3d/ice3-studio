@@ -4,6 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::document::{Material, MaterialSurface};
 use crate::geometry::{Bounds, EvaluatedMesh};
 use crate::ids::{ComponentId, MaterialId};
 use crate::large_scene::component::ComponentDefinition;
@@ -423,6 +424,7 @@ pub struct EvaluationQueryResult {
 }
 
 pub const MAX_PART_SUMMARIES: usize = 100;
+pub const MAX_MATERIAL_ID_CHARS: usize = 256;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -524,6 +526,27 @@ pub struct ComponentGetResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub definition: Option<ComponentDefinition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[ts(export, rename_all = "camelCase")]
+pub struct MaterialGetParams {
+    /// 材质 ID，通常来自 `scene.search` 或 `scene.bom` 返回的 `materialId`。
+    pub material_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, rename_all = "camelCase")]
+pub struct MaterialGetResult {
+    /// 读取所基于的已提交 revision。
+    #[ts(type = "number")]
+    pub revision: u64,
+    /// Document 中存储的完整材质。
+    pub material: Material,
+    /// 无显式 surface 时填充的规范电介质默认值。
+    pub effective_surface: MaterialSurface,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, TS)]

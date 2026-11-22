@@ -4,9 +4,12 @@ use studio_core::agent_contract::{
     AgentLimits, ChangeImpactCounts, ComponentDefinitionSummary, ComponentGetParams,
     ComponentGetResult, ComponentPartKind, ComponentPartSummary, EvaluationInclude,
     EvaluationQueryItem, EvaluationQueryRequest, IterationImpact, IterationImpactReason,
-    IterationImpactScope, MAX_PART_SUMMARIES, RuntimePreviewRequest, SceneSearchField,
-    SceneSearchItem, SceneSearchRequest, SceneSearchScope,
+    IterationImpactScope, MAX_MATERIAL_ID_CHARS, MAX_PART_SUMMARIES, MaterialGetParams,
+    MaterialGetResult, RuntimePreviewRequest, SceneSearchField, SceneSearchItem,
+    SceneSearchRequest, SceneSearchScope,
 };
+use studio_core::document::{Material, MaterialSurface};
+use studio_core::ids::MaterialId;
 use ts_rs::TS;
 
 #[test]
@@ -199,4 +202,84 @@ fn component_get_typescript_marks_summary_fields_required() {
     assert!(part_summary.contains("referencedDefinitionId: ComponentId | null"));
 
     assert_eq!(MAX_PART_SUMMARIES, 100);
+}
+
+#[test]
+fn material_get_serializes_camel_case_and_rejects_unknown_fields() {
+    let request = MaterialGetParams {
+        material_id: "material-000001".into(),
+    };
+    let value = serde_json::to_value(&request).unwrap();
+    assert_eq!(value["materialId"], "material-000001");
+    assert!(value.get("material_id").is_none());
+    assert_eq!(MAX_MATERIAL_ID_CHARS, 256);
+
+    let rejected = serde_json::from_value::<MaterialGetParams>(serde_json::json!({
+        "materialId": "material-000001",
+        "includeUsage": true
+    }));
+    assert!(rejected.is_err());
+}
+
+#[test]
+fn material_get_result_preserves_stored_and_effective_surface_distinction() {
+    let material = Material {
+        id: MaterialId::from("material-000001"),
+        name: "Default dielectric".into(),
+        base_color: [0.4, 0.5, 0.6, 1.0],
+        opacity: 1.0,
+        edge_color: None,
+        shading: None,
+        surface: None,
+    };
+    let result = MaterialGetResult {
+        revision: 1,
+        effective_surface: material
+            .surface
+            .clone()
+            .unwrap_or_else(MaterialSurface::dielectric),
+        material,
+    };
+    let value = serde_json::to_value(&result).unwrap();
+    assert_eq!(
+        value["material"]["baseColor"][0].as_f64().unwrap() as f32,
+        0.4_f32
+    );
+    assert!(value["material"].get("surface").is_none());
+    assert_eq!(value["effectiveSurface"]["metallic"], 0.0);
+    assert_eq!(
+        value["effectiveSurface"]["roughness"].as_f64().unwrap() as f32,
+        0.9_f32
+    );
+    assert_eq!(
+        value["effectiveSurface"]["uvScale"],
+        serde_json::json!([1.0, 1.0])
+    );
+}
+
+#[test]
+fn material_typescript_uses_wire_names_and_optional_surface() {
+    let params = MaterialGetParams::decl();
+    assert!(params.contains("materialId: string"));
+    assert!(!params.contains("material_id"));
+
+    let result = MaterialGetResult::decl();
+    assert!(result.contains("revision: number"));
+    assert!(result.contains("material: Material"));
+    assert!(result.contains("effectiveSurface: MaterialSurface"));
+
+    let material = Material::decl();
+    assert!(material.contains("baseColor:"));
+    assert!(material.contains("edgeColor:"));
+    assert!(material.contains("surface?: MaterialSurface"));
+    assert!(!material.contains("base_color"));
+
+    let surface = MaterialSurface::decl();
+    assert!(surface.contains("uvScale:"));
+    assert!(surface.contains("baseColorTexture?:"));
+    assert!(surface.contains("ormTexture?:"));
+
+    let shading = studio_core::document::MaterialShading::decl();
+    assert!(shading.contains("\"directional\""));
+    assert!(shading.contains("\"water\""));
 }
