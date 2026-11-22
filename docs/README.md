@@ -24,7 +24,7 @@
 | `ICE3-STUDIO-GUIDE-003` | [污水处理厂工程](../projects/README.md) | Implemented | 默认开发工程、总平面、工艺拓扑、统计与扩展方式 |
 | `ICE3-STUDIO-GUIDE-004` | [本地入门](guides/getting-started.md) | Implemented | 本地启动、API、Source Import、Prepare、partition、导出和验证 |
 | `ICE3-STUDIO-GUIDE-005` | [MCP 适配器](guides/mcp.md) | Implemented | 把 Agent manifest 暴露为 MCP tools，供 Claude Desktop / Cursor 直接加载 |
-| `ICE3-STUDIO-GUIDE-006` | [Agent 评测基线](guides/agent-eval.md) | Implemented | 20 条契约任务 × pass^3，覆盖读取、提案、幂等与权限边界 |
+| `ICE3-STUDIO-GUIDE-006` | [Agent 评测基线](guides/agent-eval.md) | Implemented | 21 条契约任务 × pass^3，覆盖读取、材质、提案、幂等与权限边界 |
 
 ## 3. 参考与决策
 
@@ -81,7 +81,7 @@
 | `ICE3-STUDIO-SPEC-034` | [导入材质表面保真](specs/2026-11-20-import-material-surface-fidelity-design.md) | Implemented | glTF/GLB 四类贴图、源 UV、transform、sampler 与受控资源发布 |
 | `ICE3-STUDIO-SPEC-035` | [管线附件实体化](specs/2026-11-21-pipe-fitting-attachments-design.md) | Implemented | 参数化附件端口、三通/异径管/套管校验、资产组件和污水厂迁移 |
 | `ICE3-STUDIO-SPEC-036` | [连接与管线附件检视](specs/2026-11-21-route-inspection-design.md) | Implemented | `route.inspect` 分段路由、解析端口、附件、宿主、支撑与 Viewer 审查 |
-| `ICE3-STUDIO-SPEC-037` | [Agent 材质内省](specs/2026-11-22-material-introspection-design.md) | Approved | `material.get` 返回单材质定义、committed revision 与有效 surface |
+| `ICE3-STUDIO-SPEC-037` | [Agent 材质内省](specs/2026-11-22-material-introspection-design.md) | Implemented | `material.get` 返回单材质定义、committed revision 与有效 surface |
 
 ## 5. 实施计划
 
@@ -119,7 +119,7 @@
 | `ICE3-STUDIO-PLAN-031` | [导入材质表面保真实施计划](plans/2026-11-20-import-material-surface-fidelity.md) | Implemented | glTF/GLB 材质槽、UV、受控资源和事务发布 |
 | `ICE3-STUDIO-PLAN-032` | [管线附件实体化实施计划](plans/2026-11-21-pipe-fitting-attachments.md) | Implemented | 参数化端口、三通/异径管/套管校验、资产组件与污水厂迁移 |
 | `ICE3-STUDIO-PLAN-033` | [连接与管线附件检视实施计划](plans/2026-11-21-route-inspection.md) | Implemented | `route.inspect`、Agent 工具、Viewer Inspector 与 Chrome 验收 |
-| `ICE3-STUDIO-PLAN-034` | [Agent 材质内省实施计划](plans/2026-11-22-material-introspection.md) | Approved | `material.get`、有效 surface、schema 与 Agent 评测 |
+| `ICE3-STUDIO-PLAN-034` | [Agent 材质内省实施计划](plans/2026-11-22-material-introspection.md) | Implemented | `material.get`、有效 surface、schema 与 Agent 评测 |
 
 ## 6. 状态说明
 

@@ -8,14 +8,14 @@
 
 ## 1. 它测什么，不测什么
 
-`npm run eval` 用 20 条任务驱动公开的 JSON-RPC 契约，每条任务跑 3 次，三次全过
+`npm run eval` 用 21 条任务驱动公开的 JSON-RPC 契约，每条任务跑 3 次，三次全过
 才计为通过（`pass^3`）。
 
 **它测的**：任务是否可解、契约是否自洽、诊断码是否稳定、幂等与权限边界是否守住。
 每次任务都起一个全新服务、一份全新的 wastewater fixture，任务之间不共享状态。
 
 **它不测的**：语言模型的能力。当前执行者 `scripts/eval/tasks.mjs` 里的参考实现
-是"标准答案"——它按正确顺序调正确的方法。因此 20/20 只证明任务可解、grader 接线正确，
+是"标准答案"——它按正确顺序调正确的方法。因此 21/21 只证明任务可解、grader 接线正确，
 不构成模型评测结论。
 
 接入模型时，实现同一个 client 表面（`call(method, params)`）替换参考实现即可，
@@ -45,13 +45,13 @@ OPENAI_API_KEY=... node scripts/eval/run.mjs --client scripts/eval/clients/opena
 
 没有 `finalMethod` 的任务是比较多次响应的复合断言（分页是否重不漏、重试是否重复追加、
 越权是否被拒），外部 solver 无法把它们交回来，因此会被跳过并在报告的 `skipped` 里列出。
-参考实现跑满 20 条，外部 solver 跑 15 条。
+参考实现跑满 21 条，外部 solver 跑 16 条。
 
 ## 4. 覆盖范围
 
 | 类别 | 任务 |
 |---|---|
-| 读取 | `context-summary`、`search-by-name`、`search-pagination`、`search-projection`、`search-kind-filter`、`measure-distance`、`bom-grouping`、`clash-audit`、`evaluation-query` |
+| 读取 | `context-summary`、`search-by-name`、`search-pagination`、`search-projection`、`search-kind-filter`、`measure-distance`、`bom-grouping`、`material-get`、`clash-audit`、`evaluation-query` |
 | 提案 | `changeset-create`、`changeset-add-node`、`changeset-evaluate`、`changeset-impact`、`changeset-remove` |
 | 约束 | `idempotent-add-replay`、`idempotency-key-reuse`、`version-conflict`、`invalid-operation`、`commit-denied`、`discard-proposal` |
 
@@ -81,7 +81,7 @@ OPENAI_API_KEY=... node scripts/eval/run.mjs --client scripts/eval/clients/opena
 
 ```json
 {
-  "summary": { "tasks": 20, "attemptsPerTask": 3, "stable": 20, "unstable": [] },
+  "summary": { "tasks": 21, "attemptsPerTask": 3, "stable": 21, "unstable": [] },
   "tasks": [{ "id": "search-by-name", "stable": true, "attempts": [{ "passed": true }] }]
 }
 ```
