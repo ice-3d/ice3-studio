@@ -29,11 +29,26 @@ fn writes_deterministic_schema_output() {
     assert!(schema["types"].get("ChangeSetImpactParams").is_some());
     assert!(schema["types"].get("ChangeSetImpactResult").is_some());
     assert!(schema["types"].get("IterationImpact").is_some());
+    assert!(schema["types"].get("MaterialGetParams").is_some());
+    assert!(schema["types"].get("MaterialGetResult").is_some());
     assert!(schema["types"].get("RouteInspectionParams").is_some());
     assert!(schema["types"].get("RouteInspection").is_some());
     let types = String::from_utf8(first_types).unwrap();
     assert!(types.contains("export type ChangeSetImpactResult"));
     assert!(types.contains("export type IterationImpact"));
+    assert!(types.contains("export type MaterialGetResult"));
+    assert!(types.contains("materialId: string"));
+    assert!(types.contains("effectiveSurface: MaterialSurface"));
+    assert!(types.contains("baseColor: [number, number, number, number]"));
+    let material = types
+        .split_once("export type Material = {")
+        .expect("Material binding")
+        .1
+        .split_once("};")
+        .expect("Material binding end")
+        .0;
+    assert!(material.contains("baseColor:"));
+    assert!(!material.contains("base_color:"));
     assert!(types.contains("lineId: string"));
     assert!(types.contains("supportLineIds: Array<string>"));
     assert!(types.contains("revision: number"));

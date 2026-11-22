@@ -3,10 +3,10 @@ import type { MaterialId } from "./MaterialId";
 import type { MaterialShading } from "./MaterialShading";
 import type { MaterialSurface } from "./MaterialSurface";
 
-export type Material = { id: MaterialId, name: string, base_color: [number, number, number, number], opacity: number, edge_color: [number, number, number, number] | null, shading: MaterialShading | null, 
+export type Material = { id: MaterialId, name: string, baseColor: [number, number, number, number], opacity: number, edgeColor: [number, number, number, number] | null, shading: MaterialShading | null, 
 /**
  * Physical surface description (metallic/roughness/emissive/texture). `None`
  * means "use the built-in dielectric defaults", which keeps projects that
  * never cared about PBR byte-identical.
  */
-surface: MaterialSurface | null, };
+surface?: MaterialSurface, };

@@ -1,5 +1,5 @@
 {
-  "apiVersion": "1.5",
+  "apiVersion": "1.6",
   "methods": [
     "system.health",
     "system.capabilities",
@@ -23,6 +23,7 @@
     "scene.context",
     "scene.search",
     "component.get",
+    "material.get",
     "route.inspect",
     "validation.run",
     "referenceAsset.register",
@@ -22650,6 +22651,196 @@
         "reasons"
       ],
       "title": "IterationImpact",
+      "type": "object"
+    },
+    "MaterialGetParams": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "materialId": {
+          "description": "材质 ID，通常来自 `scene.search` 或 `scene.bom` 返回的 `materialId`。",
+          "type": "string"
+        }
+      },
+      "required": [
+        "materialId"
+      ],
+      "title": "MaterialGetParams",
+      "type": "object"
+    },
+    "MaterialGetResult": {
+      "$defs": {
+        "Material": {
+          "properties": {
+            "baseColor": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "edgeColor": {
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "opacity": {
+              "format": "float",
+              "type": "number"
+            },
+            "shading": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialShading"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "surface": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/MaterialSurface"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Physical surface description (metallic/roughness/emissive/texture). `None`\nmeans \"use the built-in dielectric defaults\", which keeps projects that\nnever cared about PBR byte-identical."
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "baseColor",
+            "opacity"
+          ],
+          "type": "object"
+        },
+        "MaterialShading": {
+          "enum": [
+            "directional",
+            "flat",
+            "water"
+          ],
+          "type": "string"
+        },
+        "MaterialSurface": {
+          "additionalProperties": false,
+          "description": "Physically based surface parameters, aligned with glTF's metallic-roughness\nmodel so an export needs no interpretation.",
+          "properties": {
+            "baseColorTexture": {
+              "description": "Relative path of the base-colour image, resolved against the glTF file.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "emissive": {
+              "description": "Linear RGB emitted by the surface, independent of lighting.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "metallic": {
+              "default": 0.0,
+              "description": "0 = dielectric, 1 = metal.",
+              "format": "float",
+              "type": "number"
+            },
+            "normalScale": {
+              "description": "Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.",
+              "format": "float",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "normalTexture": {
+              "description": "Relative path of a tangent-space normal map; shares the base-colour UVs.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "ormTexture": {
+              "description": "Relative path of a packed occlusion/roughness/metallic image:\nR = ambient occlusion, G = roughness, B = metallic. One file drives both\nglTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a\nsecond copy of the same bytes would only waste bandwidth.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "roughness": {
+              "default": 0.8999999761581421,
+              "description": "0 = mirror, 1 = fully diffuse.",
+              "format": "float",
+              "type": "number"
+            },
+            "uvScale": {
+              "default": [
+                1.0,
+                1.0
+              ],
+              "description": "Texture tiling in UV units per texture repeat; UVs are metres, so this is\n\"metres per tile\" inverted.",
+              "items": {
+                "format": "float",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "effectiveSurface": {
+          "$ref": "#/$defs/MaterialSurface",
+          "description": "无显式 surface 时填充的规范电介质默认值。"
+        },
+        "material": {
+          "$ref": "#/$defs/Material",
+          "description": "Document 中存储的完整材质。"
+        },
+        "revision": {
+          "description": "读取所基于的已提交 revision。",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "revision",
+        "material",
+        "effectiveSurface"
+      ],
+      "title": "MaterialGetResult",
       "type": "object"
     },
     "MaterialPatch": {

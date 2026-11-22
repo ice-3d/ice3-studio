@@ -6,8 +6,9 @@ use schemars::schema_for;
 use studio_core::agent_contract::{
     AgentManifest, BomRequest, BomResult, BomRow, ClashPair, ClashRequest, ClashResult,
     ComponentGetParams, ComponentGetResult, EvaluationQueryRequest, EvaluationQueryResult,
-    IterationImpact, MeasurePoint, MeasureRequest, MeasureResult, RuntimePreviewRequest,
-    SceneContext, SceneSearchRequest, SceneSearchResult, ValidationRunRequest,
+    IterationImpact, MaterialGetParams, MaterialGetResult, MeasurePoint, MeasureRequest,
+    MeasureResult, RuntimePreviewRequest, SceneContext, SceneSearchRequest, SceneSearchResult,
+    ValidationRunRequest,
 };
 use studio_core::apply::{ApplyRequest, ApplyResult};
 use studio_core::document::Document;
@@ -73,6 +74,7 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "scene.context",
             "scene.search",
             "component.get",
+            "material.get",
             "route.inspect",
             "validation.run",
             "referenceAsset.register",
@@ -130,6 +132,8 @@ pub fn generate(output: &Path, check: bool) -> Result<(), SchemaError> {
             "EvaluationQueryResult": schema_for!(EvaluationQueryResult),
             "ComponentGetParams": schema_for!(ComponentGetParams),
             "ComponentGetResult": schema_for!(ComponentGetResult),
+            "MaterialGetParams": schema_for!(MaterialGetParams),
+            "MaterialGetResult": schema_for!(MaterialGetResult),
             "RouteInspectionParams": schema_for!(RouteInspectionParams),
             "RouteInspection": schema_for!(RouteInspection),
             "RouteInspectionSegment": schema_for!(RouteInspectionSegment),

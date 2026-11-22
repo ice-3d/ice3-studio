@@ -9,12 +9,13 @@
 Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API。Viewer 没有私有写入
 路径；所有修改都必须进入事务或 ChangeSet。
 
-`API_VERSION` 当前为 `1.5`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
+`API_VERSION` 当前为 `1.6`。项目仍处于 pre-release。1.1 统一了 Operation 字段命名，
 读回显从 snake_case 变为 camelCase（见 [ADR-003](../decisions/0003-wire-format-camel-case.md)）；
 1.2 要求 `changeset.create`、`addOperations`、`removeOperations`、`discard` 携带
 `idempotencyKey`；1.3 在 `changeset.evaluate` 的返回里增加 `spatial` 预检摘要，
 它是可选字段，不参与状态判定；1.4 新增管线路径碰撞、净空面、支撑布局和路由安全预算
-五个 Diagnostic code；1.5 增加只读 `route.inspect`。历史 API 曾包含
+五个 Diagnostic code；1.5 增加只读 `route.inspect`；1.6 增加只读 `material.get`。
+历史 API 曾包含
 `system.capabilities.toolchain`，Phase 5B 随 Sidecar 退役删除了该字段；当前 schema
 不含 `toolchain`，客户端必须按当前 generated schema 解析 capabilities。该形状变化
 不承诺向后兼容，不能把 `1.0` 当作兼容性承诺。
@@ -54,8 +55,8 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 
 ## 3. 方法清单
 
-静态 Schema 固化 42 个方法；运行中的 `system.capabilities` 另有两个实验性 GPU scene
-方法，共 44 个。
+静态 Schema 固化 43 个方法；运行中的 `system.capabilities` 另有两个实验性 GPU scene
+方法，共 45 个。
 
 | 方法 | 写 | 参数 | 返回 |
 |---|---:|---|---|
@@ -77,6 +78,7 @@ Studio Server 对外部 Agent、脚本和 Web Viewer 暴露同一组公开 API�
 | `scene.context` | 否 | 无 | 有界项目摘要 |
 | `scene.search` | 否 | `SceneSearchRequest` | revision-bound page |
 | `component.get` | 否 | `ComponentGetParams` | 单个组件定义的有界摘要 |
+| `material.get` | 否 | `MaterialGetParams` | 单材质定义、committed revision 与有效 surface |
 | `route.inspect` | 否 | `RouteInspectionParams` | 按 line ID 返回有界路由、端口、附件、宿主和支撑 |
 | `scene.bounds` | 否 | 无 | 按 Node ID 的 world bounds |
 | `scene.measure` | 否 | `MeasureRequest` | 距离、逐轴差值与净空 |
@@ -234,6 +236,11 @@ Document。
 同构的完整定义（全部 parts binding 与参数绑定）。修改既有定义——加端口、改部件
 绑定——的标准工作流是 `component.get includeParts` 读出完整定义，本地修改后
 `component.update` 全量写回。完整定义无截断；最大定义约 1.4 MiB，仅在需要修改时请求。
+
+`material.get` 接受 `{ materialId }`，返回 committed Document 中原始 `Material` 和始终
+有值的 `effectiveSurface`。无显式 surface 时，Material 保留缺省状态，effectiveSurface
+使用 metallic 0、roughness 0.9、uvScale `[1,1]` 的规范电介质默认值。未知、非法或过长
+ID 返回 `ICE3_STUDIO_REFERENCE_INVALID`。方法不返回引用节点、几何或贴图文件。
 
 `route.inspect` 接受 `{ lineId, revision? }`，返回 committed Document 的同源线路事实。
 `revision` 提供时必须等于当前 revision。响应包括：

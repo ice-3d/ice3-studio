@@ -147,6 +147,26 @@ export const tasks = [
     },
   },
   {
+    id: 'material-get',
+    finalMethod: 'material.get',
+    goal: 'Read one material without downloading the full document.',
+    async run({ client }) {
+      return client.call('material.get', { materialId: 'mat-000001' });
+    },
+    check(result, { assert }) {
+      assert(result.revision > 0, 'committed revision');
+      assert(result.material.id === 'mat-000001', 'material id');
+      assert(result.material.name === 'Concrete', 'material name');
+      assert(result.material.baseColor.length === 4, 'camelCase base color');
+      assert(result.material.surface === undefined, 'stored surface remains absent');
+      assert(result.effectiveSurface.metallic === 0, 'default metallic');
+      assert(
+        Math.abs(result.effectiveSurface.roughness - 0.9) < 1e-6,
+        'default roughness',
+      );
+    },
+  },
+  {
     id: 'clash-audit',
     finalMethod: 'scene.clashes',
     goal: 'Run a clearance audit and get a structured answer.',

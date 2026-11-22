@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-PLAN-034
 >
-> Status: Approved
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 >
@@ -90,7 +90,7 @@ manifest、Agent eval 与文档同步更新。
 - Produces: `MaterialGetParams { material_id: String }`,
   `MaterialGetResult { revision: u64, material: Material, effective_surface: MaterialSurface }`.
 
-- [ ] **Step 1: Add failing wire and TypeScript tests**
+- [x] **Step 1: Add failing wire and TypeScript tests**
 
 In `crates/studio-core/tests/agent_contract.rs`, extend imports with:
 
@@ -177,7 +177,7 @@ fn material_typescript_uses_wire_names_and_optional_surface() {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 CARGO_TARGET_DIR=$PWD/target \
@@ -187,7 +187,7 @@ CARGO_TARGET_DIR=$PWD/target \
 Expected: FAIL because the material contract types do not exist and Material TypeScript still uses
 snake_case and non-optional surface fields.
 
-- [ ] **Step 3: Implement Core declarations and correct Material TS metadata**
+- [x] **Step 3: Implement Core declarations and correct Material TS metadata**
 
 In `crates/studio-core/src/agent_contract.rs`, import:
 
@@ -250,7 +250,7 @@ pub struct MaterialSurface {
 
 Keep all existing derives, serde attributes, fields and defaults. Only add or adjust TS metadata.
 
-- [ ] **Step 4: Regenerate per-crate bindings and verify GREEN**
+- [x] **Step 4: Regenerate per-crate bindings and verify GREEN**
 
 ```bash
 CARGO_TARGET_DIR=$PWD/target cargo test -p studio-core --lib
@@ -260,7 +260,7 @@ CARGO_TARGET_DIR=$PWD/target cargo test -p studio-core --test agent_contract
 Expected: PASS. Generated bindings include camelCase Material fields, optional texture fields,
 lowercase `MaterialShading` variants, `MaterialGetParams` and `MaterialGetResult`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add crates/studio-core/src/agent_contract.rs \
@@ -293,7 +293,7 @@ git commit -m "feat(core): define material introspection contract"
 - Produces: JSON-RPC `material.get`, API `1.6`, manifest tool
   `MaterialGetParams -> MaterialGetResult`, static schema count 43.
 
-- [ ] **Step 1: Write failing RPC tests**
+- [x] **Step 1: Write failing RPC tests**
 
 Create `crates/studio-server/tests/material_get.rs`:
 
@@ -464,7 +464,7 @@ async fn material_get_is_available_to_read_only_callers_and_advertised() {
 }
 ```
 
-- [ ] **Step 2: Run tests and verify RED**
+- [x] **Step 2: Run tests and verify RED**
 
 ```bash
 CARGO_TARGET_DIR=$PWD/target \
@@ -473,7 +473,7 @@ CARGO_TARGET_DIR=$PWD/target \
 
 Expected: FAIL because `material.get` is unknown and not advertised.
 
-- [ ] **Step 3: Implement facade, dispatch and manifest**
+- [x] **Step 3: Implement facade, dispatch and manifest**
 
 In `crates/studio-server/src/agent.rs`, import:
 
@@ -614,7 +614,7 @@ In `scripts/eval/tasks.mjs`, add after `bom-grouping`:
 },
 ```
 
-- [ ] **Step 4: Update API contract tests**
+- [x] **Step 4: Update API contract tests**
 
 In `crates/studio-server/tests/rpc_contract.rs`, change all API expectations from `1.5` to
 `1.6`, update the route inspection capability/method assertions accordingly, add
@@ -642,7 +642,7 @@ assert!(types.contains("baseColor: [number, number, number, number]"));
 assert!(!types.contains("base_color:"));
 ```
 
-- [ ] **Step 5: Generate schema and verify GREEN**
+- [x] **Step 5: Generate schema and verify GREEN**
 
 ```bash
 CARGO_TARGET_DIR=$PWD/target cargo run -q -p studio-cli -- schema --output schemas
@@ -657,7 +657,7 @@ node scripts/eval/run.mjs --attempts 1
 Expected: PASS. Static schema contains 43 methods; runtime advertises the same 43 plus two
 experimental GPU methods. Agent eval runs 21 tasks and `material-get` passes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add crates/studio-server/src/agent.rs \
@@ -690,7 +690,7 @@ git commit -m "feat(api): expose material introspection"
 - Consumes: public `material.get`.
 - Produces: Implemented documentation and final verification evidence.
 
-- [ ] **Step 1: Update public documentation**
+- [x] **Step 1: Update public documentation**
 
 `docs/reference/api.md`:
 
@@ -741,7 +741,7 @@ metallic 0、roughness 0.9、uvScale [1,1] 的规范电介质默认值。未知�
 
 `docs/specs/2026-11-22-material-introspection-design.md`: status `Implemented`.
 
-- [ ] **Step 2: Run complete gate**
+- [x] **Step 2: Run complete gate**
 
 ```bash
 cargo fmt --all -- --check
@@ -765,7 +765,7 @@ Expected:
 - Viewer unit/typecheck/build/E2E and dependency audit pass;
 - all 34 root verification gates pass.
 
-- [ ] **Step 3: Commit acceptance**
+- [x] **Step 3: Commit acceptance**
 
 Mark all completed plan checkboxes, then:
 
@@ -774,7 +774,7 @@ git add scripts/eval/tasks.mjs docs README.md schemas crates apps
 git commit -m "test(material): verify agent material introspection"
 ```
 
-- [ ] **Step 4: Final review and local merge**
+- [x] **Step 4: Final review and local merge**
 
 Run the executing-plans final self-review because repository policy prohibits sub-agents unless
 the user explicitly enables them. Fix Critical/Important findings with RED→GREEN tests, verify
@@ -784,12 +784,12 @@ the merged result, and merge locally with `--no-ff`. Do not push unless the user
 
 ## Completion Checklist
 
-- [ ] `material.get` is read-only, revision-bound and does not mutate any state.
-- [ ] Explicit Material fields round-trip with camelCase wire names.
-- [ ] Missing surface returns dielectric `effectiveSurface` without adding a stored surface.
-- [ ] Empty, malformed, overlong and absent IDs return stable `REFERENCE_INVALID`.
-- [ ] Material TypeScript bindings use camelCase and optional omitted fields.
-- [ ] Server capabilities, manifest, static schema and aggregate bindings expose API 1.6.
-- [ ] Agent eval includes and passes `material-get`.
-- [ ] SPEC-037 and PLAN-034 are `Implemented`.
-- [ ] Root `npm run verify` and route-safety benchmark pass.
+- [x] `material.get` is read-only, revision-bound and does not mutate any state.
+- [x] Explicit Material fields round-trip with camelCase wire names.
+- [x] Missing surface returns dielectric `effectiveSurface` without adding a stored surface.
+- [x] Empty, malformed, overlong and absent IDs return stable `REFERENCE_INVALID`.
+- [x] Material TypeScript bindings use camelCase and optional omitted fields.
+- [x] Server capabilities, manifest, static schema and aggregate bindings expose API 1.6.
+- [x] Agent eval includes and passes `material-get`.
+- [x] SPEC-037 and PLAN-034 are `Implemented`.
+- [x] Root `npm run verify` and route-safety benchmark pass.

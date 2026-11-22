@@ -968,6 +968,7 @@ fn dispatch(
                 "scene.context".into(),
                 "scene.search".into(),
                 "component.get".into(),
+                "material.get".into(),
                 "route.inspect".into(),
                 "scene.bounds".into(),
                 "scene.measure".into(),
@@ -1188,6 +1189,12 @@ fn dispatch(
             let request: studio_core::agent_contract::ComponentGetParams =
                 serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
             serde_json::to_value(crate::agent::component_get(session, request)?)
+                .map_err(serialize_error)
+        }
+        "material.get" => {
+            let request: studio_core::agent_contract::MaterialGetParams =
+                serde_json::from_value(request.params.clone()).map_err(invalid_params)?;
+            serde_json::to_value(crate::agent::material_get(session, request)?)
                 .map_err(serialize_error)
         }
         "route.inspect" => {
