@@ -21,7 +21,13 @@ async fn capabilities_do_not_expose_a_retired_asset_driver() {
 async fn route_inspection_is_a_read_only_public_method_with_stable_errors() {
     let server = start_test_server(ServerConfig::for_tests("route-inspection-rpc")).await;
     let capabilities = common::rpc(&server, "system.capabilities", serde_json::json!({})).await;
-    assert_eq!(capabilities["result"]["apiVersion"], "1.5");
+    assert_eq!(capabilities["result"]["apiVersion"], "1.6");
+    assert!(
+        capabilities["result"]["methods"]
+            .as_array()
+            .unwrap()
+            .contains(&serde_json::json!("material.get"))
+    );
     assert!(
         capabilities["result"]["methods"]
             .as_array()
@@ -37,6 +43,17 @@ async fn route_inspection_is_a_read_only_public_method_with_stable_errors() {
             .iter()
             .any(|tool| {
                 tool["name"] == "route.inspect"
+                    && tool["sideEffect"] == "read"
+                    && tool["requiresApproval"] == false
+            })
+    );
+    assert!(
+        manifest["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| {
+                tool["name"] == "material.get"
                     && tool["sideEffect"] == "read"
                     && tool["requiresApproval"] == false
             })
@@ -232,7 +249,7 @@ async fn health_reports_api_and_schema_versions() {
         .await
         .unwrap();
     assert_eq!(body["status"], "ok");
-    assert_eq!(body["apiVersion"], "1.5");
+    assert_eq!(body["apiVersion"], "1.6");
     assert_eq!(body["schemaVersion"], 2);
 }
 
@@ -338,7 +355,7 @@ async fn publishes_generated_api_schemas() {
         .text()
         .await
         .unwrap();
-    assert!(schema.contains("\"apiVersion\": \"1.5\""));
+    assert!(schema.contains("\"apiVersion\": \"1.6\""));
     assert!(schema.contains("node.create"));
     assert!(schema.contains("evaluation.stats"));
 }
@@ -570,7 +587,7 @@ async fn rejects_an_unsupported_json_rpc_version() {
 
 #[test]
 fn health_reports_route_safety_api_version() {
-    assert_eq!(studio_core::API_VERSION, "1.5");
+    assert_eq!(studio_core::API_VERSION, "1.6");
 }
 
 #[tokio::test]

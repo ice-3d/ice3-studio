@@ -8,13 +8,14 @@ use studio_core::agent_contract::{
     AgentIdempotency, AgentLimits, AgentManifest, AgentSideEffect, AgentTool, AgentWorkflow,
     ComponentDefinitionSummary, ComponentGetParams, ComponentGetResult, ComponentPartKind,
     ComponentPartSummary, EvaluationInclude, EvaluationQueryItem, EvaluationQueryRequest,
-    EvaluationQueryResult, MAX_EVALUATION_NODES, MAX_PART_SUMMARIES, MAX_SEARCH_LIMIT,
-    RelationTypeCount, SceneContentKind, SceneContentKindCount, SceneContext,
-    SceneCoordinateSystem, SceneCounts, SceneFacets, SceneSearchField, SceneSearchItem,
-    SceneSearchRequest, SceneSearchResult, SceneSearchScope,
+    EvaluationQueryResult, MAX_EVALUATION_NODES, MAX_MATERIAL_ID_CHARS, MAX_PART_SUMMARIES,
+    MAX_SEARCH_LIMIT, MaterialGetParams, MaterialGetResult, RelationTypeCount, SceneContentKind,
+    SceneContentKindCount, SceneContext, SceneCoordinateSystem, SceneCounts, SceneFacets,
+    SceneSearchField, SceneSearchItem, SceneSearchRequest, SceneSearchResult, SceneSearchScope,
 };
-use studio_core::document::NodeContent;
+use studio_core::document::{MaterialSurface, NodeContent};
 use studio_core::geometry::{Bounds, TriangleMesh};
+use studio_core::ids::MaterialId;
 use studio_core::large_scene::component::PartContent;
 use studio_core::large_scene::evaluate::evaluated_scene_bounds;
 use studio_core::math::Vec3;
@@ -146,6 +147,17 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                 "read access is unavailable",
                 "ComponentGetParams",
                 Some("ComponentGetResult"),
+            ),
+            tool(
+                "material.get",
+                "Read one material definition and its effective surface.",
+                AgentSideEffect::Read,
+                false,
+                AgentIdempotency::None,
+                access.can_read,
+                "read access is unavailable",
+                "MaterialGetParams",
+                Some("MaterialGetResult"),
             ),
             tool(
                 "route.inspect",
@@ -333,6 +345,7 @@ pub(crate) fn manifest(authority: RequestAuthority) -> AgentManifest {
                     "scene.context",
                     "scene.search",
                     "component.get|evaluation.query",
+                    "material.get",
                     "route.inspect",
                     "validation.run",
                 ],
@@ -709,6 +722,57 @@ pub(crate) fn component_get(
             .unwrap_or(false)
             .then(|| component.clone()),
     })
+}
+
+pub(crate) fn material_get(
+    session: &mut Session,
+    request: MaterialGetParams,
+) -> Result<MaterialGetResult, RpcError> {
+    if request.material_id.trim().is_empty()
+        || request.material_id.chars().count() > MAX_MATERIAL_ID_CHARS
+        || !MaterialId::from(request.material_id.clone()).is_valid()
+    {
+        return Err(material_reference_error(
+            &request.material_id,
+            "invalid_id",
+            "material ID is invalid",
+        ));
+    }
+    let material = session
+        .document
+        .materials
+        .iter()
+        .find(|material| material.id.as_str() == request.material_id)
+        .cloned()
+        .ok_or_else(|| {
+            material_reference_error(&request.material_id, "not_found", "material does not exist")
+        })?;
+    let effective_surface = material
+        .surface
+        .clone()
+        .unwrap_or_else(MaterialSurface::dielectric);
+    Ok(MaterialGetResult {
+        revision: session.document.revision.as_u64(),
+        material,
+        effective_surface,
+    })
+}
+
+fn material_reference_error(material_id: &str, category: &str, message: &str) -> RpcError {
+    RpcError::with_diagnostic(
+        -32010,
+        DiagnosticCode::ReferenceInvalid.as_str(),
+        format!(
+            "{}: {message}: {material_id}",
+            DiagnosticCode::ReferenceInvalid.as_str()
+        ),
+        Some(serde_json::json!({
+            "category": category,
+            "retryable": false,
+            "objectId": material_id,
+            "suggestions": ["run scene.search to list valid materialId values"]
+        })),
+    )
 }
 
 fn part_kind(content: &PartContent) -> ComponentPartKind {

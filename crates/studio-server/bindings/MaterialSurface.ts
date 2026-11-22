@@ -16,28 +16,28 @@ roughness: number,
 /**
  * Linear RGB emitted by the surface, independent of lighting.
  */
-emissive: [number, number, number] | null, 
+emissive?: [number, number, number] | null, 
 /**
  * Texture tiling in UV units per texture repeat; UVs are metres, so this is
  * "metres per tile" inverted.
  */
-uv_scale: [number, number], 
+uvScale: [number, number], 
 /**
  * Relative path of the base-colour image, resolved against the glTF file.
  */
-base_color_texture: string | null, 
+baseColorTexture?: string | null, 
 /**
  * Relative path of a tangent-space normal map; shares the base-colour UVs.
  */
-normal_texture: string | null, 
+normalTexture?: string | null, 
 /**
  * Perturbation strength for `normalTexture`, 0..=2, 1 is neutral.
  */
-normal_scale: number | null, 
+normalScale?: number | null, 
 /**
  * Relative path of a packed occlusion/roughness/metallic image:
  * R = ambient occlusion, G = roughness, B = metallic. One file drives both
  * glTF slots (`occlusionTexture` and `metallicRoughnessTexture`), because a
  * second copy of the same bytes would only waste bandwidth.
  */
-orm_texture: string | null, };
+ormTexture?: string | null, };
