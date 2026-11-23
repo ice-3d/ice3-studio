@@ -62,6 +62,7 @@ export type AgentIntent = {
 
 export type AgentTransport = {
   readonly connection: AgentConnection;
+  connect(): void;
   submitIntent(intent: AgentIntent): Promise<{ requestId: string }>;
   cancel(runId: string): Promise<void>;
   subscribe(listener: (event: AgentEvent) => void): () => void;

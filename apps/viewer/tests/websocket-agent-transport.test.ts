@@ -119,3 +119,13 @@ test('sends cancel and reports unavailable close state', async () => {
   assert.equal(transport.connection, 'unavailable');
   assert.ok(events.some((event) => event.type === 'gateway.unavailable'));
 });
+
+test('connects on startup to expose gateway availability', () => {
+  FakeWebSocket.instances = [];
+  const transport = createWebSocketAgentTransport({
+    token: 'session-token',
+    WebSocketImpl: implementation,
+  });
+  transport.connect();
+  assert.equal(FakeWebSocket.instances.length, 1);
+});

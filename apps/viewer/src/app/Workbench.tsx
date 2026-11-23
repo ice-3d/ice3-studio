@@ -7,13 +7,14 @@ import { Viewport } from '../viewport/Viewport';
 import { FormRenderer } from '../forms/FormRenderer';
 import { useChangeSet, useChangeSetStore } from '../changeset/ChangeSetProvider';
 import { AgentPanel } from '../agent/AgentPanel';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ComputePanel } from '../compute/ComputePanel';
 import { ChangesPanel } from '../changeset/ChangesPanel';
 import { EvidenceDrawer, type EvidenceTab } from './EvidenceDrawer';
 import { mergeDiagnostics } from '../changeset/reviewModel';
 import { RouteInspector } from '../route/RouteInspector';
 import type { StudioTransform } from '../api/StudioClient';
+import { useAgent, useAgentStore } from '../agent/AgentProvider';
 import {
   useEditorDrafts,
   useEditorDraftStore,
@@ -25,10 +26,13 @@ import type {
   GizmoMode,
   TransformSpace,
 } from '../editor/types';
+import type { SceneAdapter } from '../viewport/SceneAdapter';
 
 export function Workbench() {
   const session = useSession();
   const sessionStore = useSessionStore();
+  const agent = useAgent();
+  const agentStore = useAgentStore();
   const changeSetStore = useChangeSetStore();
   const changeSet = useChangeSet();
   const editorDrafts = useEditorDrafts();
@@ -38,6 +42,7 @@ export function Workbench() {
   const [transformSpace, setTransformSpace] = useState<TransformSpace>('local');
   const [evidenceTab, setEvidenceTab] = useState<EvidenceTab>('operations');
   const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const viewportAdapter = useRef<SceneAdapter | null>(null);
   const nodes = session.document?.scene.nodes ?? [];
   const selected = nodes.find((node) => node.id === session.selectionIds[0]);
   const definitionId = typeof selected?.content?.definitionId === 'string'
@@ -114,6 +119,30 @@ export function Workbench() {
       );
     }
   };
+
+  const submitAgent = async (text: string): Promise<void> => {
+    const camera = viewportAdapter.current?.getCameraContext();
+    if (!camera || !session.document) {
+      throw new Error('Scene context is unavailable');
+    }
+    await agentStore.submit({
+      text,
+      context: {
+        projectId: session.projectId,
+        revision: session.revision,
+        selectionIds: session.selectionIds,
+        focusNodeId: selected?.id ?? null,
+        camera,
+      },
+    });
+  };
+
+  useEffect(() => {
+    const changeSetId = agent.linkedChangeSetId;
+    if (!changeSetId) return;
+    void changeSetStore.loadLinked(changeSetId)
+      .finally(() => setDock('changes'));
+  }, [agent.linkedChangeSetId, changeSetStore]);
   const changeSetEntries = changeSet.record?.entries ?? [];
   const diagnostics = mergeDiagnostics(
     session.diagnostics,
@@ -172,6 +201,9 @@ export function Workbench() {
           onTransformPreviewCancel={() => {
             if (selected) editorDraftStore.cancelPreview(selected.id);
           }}
+          onAdapter={(adapter) => {
+            viewportAdapter.current = adapter;
+          }}
         />
         <aside aria-label="Review dock" className="review-dock">
           <div role="tablist" aria-label="Review" className="review-dock__tabs">
@@ -189,10 +221,14 @@ export function Workbench() {
           </div>
           <div className="review-dock__panel" hidden={dock !== 'agent'}>
             <AgentPanel
+              store={agentStore}
               projectId={session.projectId}
               revision={session.revision}
               focusName={selected?.name ?? null}
               onOpenManual={() => setDock('inspect')}
+              onSubmit={submitAgent}
+              onCancel={() => agentStore.cancel()}
+              onReviewChanges={() => setDock('changes')}
             />
           </div>
           <div className="review-dock__panel" hidden={dock !== 'inspect'}>

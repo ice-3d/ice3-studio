@@ -32,6 +32,7 @@ function manualTransport(options: {
   const listeners = new Set<(event: AgentEvent) => void>();
   return {
     connection: options.connection ?? 'connected',
+    connect() {},
     cancelled: [],
     submitIntent: options.submitIntent ?? (async () => ({
       requestId: options.requestId ?? 'request-1',

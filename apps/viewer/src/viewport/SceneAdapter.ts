@@ -16,6 +16,7 @@ import {
   type ICETilesetEvent,
 } from 'ice3';
 import type { StudioReferenceAsset, StudioTransform } from '../api/StudioClient';
+import type { AgentCameraContext } from '../agent/transport';
 import type { StudioReferenceBinding } from '../session/SessionStore';
 import { measureBounds, type Measurement } from './measure';
 import {
@@ -207,6 +208,10 @@ export class SceneAdapter {
     return this.currentScene
       ? sceneTransformFrame(this.currentScene, nodeId, baseTransform)
       : null;
+  }
+
+  getCameraContext(): AgentCameraContext | null {
+    return this.camera ? cameraContextFrom(this.camera) : null;
   }
 
   /** Bind the freshly published scene and reset per-scene explosion state. */
@@ -716,6 +721,20 @@ export function sceneTransformFrame(
   return {
     origin: [position.x, position.y, position.z],
     parentMatrix,
+  };
+}
+
+export function cameraContextFrom(camera: {
+  readonly fov: number;
+  getPosition(): { x: number; y: number; z: number };
+  getTarget(): { x: number; y: number; z: number };
+}): AgentCameraContext {
+  const position = camera.getPosition();
+  const target = camera.getTarget();
+  return {
+    position: [position.x, position.y, position.z],
+    target: [target.x, target.y, target.z],
+    fov: camera.fov,
   };
 }
 

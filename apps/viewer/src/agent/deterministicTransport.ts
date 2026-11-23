@@ -10,6 +10,7 @@ export function createDeterministicTransport(options: {
   };
   return {
     connection: 'connected',
+    connect() {},
     async submitIntent() {
       const requestId = crypto.randomUUID();
       const runId = 'deterministic-run';

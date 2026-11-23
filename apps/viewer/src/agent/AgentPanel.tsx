@@ -3,6 +3,7 @@ import { AgentStore } from './AgentStore';
 
 const unavailableStore = new AgentStore({
   connection: 'unavailable',
+  connect: () => {},
   submitIntent: async () => ({ requestId: '' }),
   cancel: async () => {},
   subscribe: () => () => {},
@@ -15,6 +16,8 @@ type AgentPanelProps = {
   focusName?: string | null;
   onOpenManual?: () => void;
   onSubmit?: (text: string) => Promise<void> | void;
+  onCancel?: () => Promise<void> | void;
+  onReviewChanges?: () => void;
 };
 
 export function AgentPanel({
@@ -24,6 +27,8 @@ export function AgentPanel({
   focusName,
   onOpenManual,
   onSubmit,
+  onCancel,
+  onReviewChanges,
 }: AgentPanelProps) {
   const [text, setText] = useState('');
   const snapshot = useSyncExternalStore(store.subscribe, () => store.snapshot);
@@ -102,6 +107,15 @@ export function AgentPanel({
               </button>
             </div>
           </form>
+          {snapshot.runStatus === 'running' && (
+            <button
+              type="button"
+              className="button button--secondary"
+              onClick={() => void onCancel?.()}
+            >
+              Cancel
+            </button>
+          )}
           {snapshot.error ? <p className="form-error" role="alert">{snapshot.error}</p> : null}
           {snapshot.plan ? (
             <section className="agent-plan" aria-label="Latest Agent plan">
@@ -116,6 +130,15 @@ export function AgentPanel({
                 <p key={`${index}-${message}`}>{message}</p>
               ))}
             </section>
+          ) : null}
+          {snapshot.linkedChangeSetId ? (
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={onReviewChanges}
+            >
+              Review changes
+            </button>
           ) : null}
         </>
       )}

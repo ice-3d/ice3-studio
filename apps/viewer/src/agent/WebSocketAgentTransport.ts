@@ -82,6 +82,9 @@ export function createWebSocketAgentTransport(options: {
     get connection() {
       return connection;
     },
+    connect() {
+      ensureSocket();
+    },
     async submitIntent(intent) {
       const requestId = crypto.randomUUID();
       sendOrQueue(serializeAgentClientMessage({

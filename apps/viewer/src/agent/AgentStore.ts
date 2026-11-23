@@ -67,6 +67,7 @@ export class AgentStore extends ExternalStore<AgentSnapshot> {
       truncated: false,
     });
     transport.subscribe((event) => this.applyEvent(event));
+    transport.connect();
   }
 
   async submit(input: AgentSubmission): Promise<void> {
