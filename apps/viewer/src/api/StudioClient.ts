@@ -392,6 +392,10 @@ export class StudioClient {
     ?? localStorage.getItem('ice3-studio-token')
     ?? __STUDIO_TOKEN__;
 
+  get sessionToken(): string {
+    return this.token;
+  }
+
   health(): Promise<{ apiVersion: string; schemaVersion: number }> {
     return fetch('/health', { credentials: 'include' }).then((response) => response.json());
   }

@@ -75,6 +75,9 @@ test('removes a staged operation and invalidates the candidate', async ({ page }
 });
 
 test('keeps review available when Agent Gateway is offline', async ({ page }) => {
+  await page.routeWebSocket('**/agent/ws**', (socket) => {
+    socket.close({ code: 1011, reason: 'offline test' });
+  });
   await page.goto('/');
   await page.getByRole('tab', { name: 'Agent' }).click();
   await expect(page.getByText('Agent Gateway is offline')).toBeVisible();
