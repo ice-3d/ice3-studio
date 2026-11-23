@@ -81,7 +81,7 @@ Objects / 3D Scene / Review dock：
 | Objects | 对象搜索、层级过滤、source/derived identity、完整实体 Selection |
 | 3D Scene | WebGL2 默认、WebGPU 实验性显式开启；渲染当前 revision 或 candidate |
 | Agent | 默认 tab：网关状态、工程、revision、焦点对象、计划与活动 |
-| Inspect | 人工参数检查与 `instance.update` 编译，可被 Agent 显式接手 |
+| Inspect | 人工 Transform、图元尺寸、组件参数和材质草稿，支持视口手柄、本地撤销和 Stage |
 | Changes | 候选 diff、诊断、审阅与人工批准 |
 | Evidence | Operations、Timeline、Diagnostics |
 

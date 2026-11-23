@@ -172,6 +172,11 @@ Agent 焦点，只有点击 `Inspect selected object` 才进入人工参数编�
 Agent Gateway 不可用时界面显示离线状态，但对象搜索、参数检查、candidate review 和人工
 提交保持可用。Viewer 不自带模型凭据、Prompt 或 Agent policy。
 
+Inspect 的人工编辑先写入浏览器内 `EditorDraftStore`。Transform 手柄、数值字段、图元尺寸、
+组件参数和已有材质分配共享同一草稿；Stage 才把实际变化编译为 typed Operation 并进入
+ChangeSet。草稿不是 Document 真源，不写项目文件，revision 前进时进入 stale，commit
+成功后清除。
+
 ## 3. 真源与派生值
 
 可序列化 `Document` 加 operation history 是持久真源。Component Definition、Instance、

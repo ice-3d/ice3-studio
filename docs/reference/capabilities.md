@@ -578,7 +578,8 @@ Preview 不启动外部进程，也没有可选优化器 fallback。预览失败
 | `app` | Workbench 主框架、Agent-first Review dock、表头与视觉 token |
 | `viewport` | 视口、SceneAdapter、相机取景、测量工具（双选距离/间隙）、剖切面（Section 开关 + 高度滑块，`?section=` 可预置）、爆炸视图（Explode 开关 + 强度滑块，`?explode=` 可预置）、方向光阴影（Studio 默认关闭，`?shadows=1` 显式启用） |
 | `navigation` | 对象搜索、层级过滤、对象树与树模型 |
-| `forms` | 表单渲染、实例参数、表单到操作的编译 |
+| `editor` | 本地 Transform/图元/材质/组件参数草稿、命令栈、最小 Operation 编译与 Inspector |
+| `forms` | 名称、显隐和组件参数表单渲染 |
 | `changeset` | 候选变更的 Provider、Store 与类型 |
 | `agent` | Agent Mission Control、上下文、对话 Store 与传输层 |
 | `session` | 会话与令牌管理 |
@@ -599,6 +600,16 @@ JSON Pointer，并在存在 `objectId` 时直接定位对象。
 
 Selection 以完整业务实体或 source object 为单位。参考资产中多个派生 selection 会归并到
 同一 binding；视口和对象树使用同一实体身份，不把池壁、栏杆或其它面片当成独立实体。
+
+### 11.1 人工编辑
+
+- Inspect 支持已有节点的 Transform、图元尺寸、组件参数和材质分配。
+- Transform 手柄支持 move/rotate/scale、local/world、Shift 吸附和 Esc 取消。
+- 草稿通过 `node.update`、`primitive.update`、`instance.update`、`material.assign`
+  进入既有 ChangeSet；不新增写 RPC。
+- 草稿支持本地 Undo/Redo；Stage 后保持 staged，commit 后清除，revision 前进时进入
+  stale。
+- 创建、删除、复制、重新挂载、多选和草稿磁盘持久化仍未实现。
 
 ## 12. Agent 工具脚本
 
