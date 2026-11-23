@@ -469,6 +469,10 @@ export class StudioClient {
     return this.rpc('changeset.get', { changeSetId });
   }
 
+  changeSetCandidate(changeSetId: string): Promise<ChangeSetEvaluation> {
+    return this.rpc('changeset.getCandidate', { changeSetId });
+  }
+
   addChangeSetOperations(
     changeSetId: string,
     expectedVersion: number,

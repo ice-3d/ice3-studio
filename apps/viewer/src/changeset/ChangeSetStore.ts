@@ -196,6 +196,38 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
     });
   }
 
+  async loadLinked(changeSetId: string): Promise<void> {
+    const [record, candidate] = await Promise.all([
+      this.client.changeSet?.(changeSetId),
+      this.client.changeSetCandidate?.(changeSetId),
+    ]);
+    if (!record || !candidate) {
+      throw new Error('Linked ChangeSet is unavailable');
+    }
+    this.update({
+      ...this.snapshot,
+      record,
+      active: candidate,
+      reviewedDigest: null,
+      canApprove: false,
+      status: normalizeStatus(candidate.status),
+      candidateUrl: null,
+      impact: null,
+      error: null,
+    });
+    if (candidate.candidateDigest && this.client.candidatePreview) {
+      try {
+        const preview = await this.client.candidatePreview(candidate.candidateDigest);
+        this.update({ ...this.snapshot, candidateUrl: preview.url });
+      } catch (error) {
+        this.update({
+          ...this.snapshot,
+          error: error instanceof Error ? error.message : 'Candidate preview failed',
+        });
+      }
+    }
+  }
+
   /// Cost prediction is advisory: a failure must not block review.
   private async loadImpact(changeSetId: string, version: number): Promise<void> {
     if (!this.client.changeSetImpact) return;

@@ -22,6 +22,7 @@ export type ChangeSetClient = {
   ): Promise<{ version: number }>;
   evaluateChangeSet(changeSetId: string, expectedVersion: number): Promise<ChangeSetEvaluation>;
   changeSet?(changeSetId: string): Promise<ChangeSetRecord>;
+  changeSetCandidate?(changeSetId: string): Promise<ChangeSetEvaluation>;
   commitChangeSet(
     changeSetId: string,
     expectedVersion: number,
