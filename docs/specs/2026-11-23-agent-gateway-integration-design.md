@@ -2,7 +2,7 @@
 
 > Document ID: ICE3-STUDIO-SPEC-039
 >
-> Status: Approved
+> Status: Implemented
 >
 > Owner: ICE3 Studio maintainers
 
@@ -288,6 +288,10 @@ Agent 面板状态：
 
 `changeset.linked` 卡片显示 ChangeSet ID、状态、候选可审阅状态和 `Review changes`。
 消息、计划和工具列表有界滚动；长内容不挤压编辑器。
+
+在线且存在焦点对象时，面板在目标输入下方提供一个次要的 `Inspect selected object`
+入口。它把上下文交还给人工参数编辑，但不削弱 `Run with Agent` 的主操作层级。移动端
+顺序固定为 3D Scene → Agent/Review dock → Objects，让 Agent 工作流先于对象管理出现。
 
 键盘：
 

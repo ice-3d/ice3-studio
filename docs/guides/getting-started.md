@@ -36,11 +36,23 @@ npm run dev
 运行，直到按下 `Ctrl+C`。可用 `STUDIO_PROJECTS_DIR` 更换 projects root，或用
 `STUDIO_PORT` 更换端口。
 
+需要在线 Agent 时，Host 先启动独立 loopback Gateway，再把 URL 交给 Studio：
+
+```bash
+STUDIO_AGENT_GATEWAY_URL=ws://127.0.0.1:9130/agent \
+STUDIO_AGENT_GATEWAY_TOKEN='<optional host-only token>' \
+npm run dev
+```
+
+Gateway token 不会进入浏览器。没有配置 Gateway 时，对象浏览、Inspect、Changes 和人工
+提交照常使用。
+
 ## 3. Workbench
 
 Workbench 保留 Objects、3D Scene 和 Review dock 三栏：
 
-- `Agent` 是默认 tab，显示 Gateway 状态、project、revision 和焦点 object。
+- `Agent` 是默认 AI 任务控制台，显示目标输入、Gateway/run 状态、project、revision、
+  焦点、计划、工具进度和链接的 ChangeSet。
 - 在 Objects 或 3D Scene 中选择对象会把完整业务实体设为 Agent 焦点。
 - 点击 `Inspect selected object` 后才进入人工参数编辑。
 - `Changes` 显示 candidate，Evidence bar 显示 Operations、Timeline 和 Diagnostics。
