@@ -28,11 +28,15 @@ function manualTransport(options: {
 } = {}): AgentTransport & {
   emit(event: AgentEvent): void;
   cancelled: string[];
+  connectCount: number;
 } {
   const listeners = new Set<(event: AgentEvent) => void>();
   return {
     connection: options.connection ?? 'connected',
-    connect() {},
+    connectCount: 0,
+    connect() {
+      this.connectCount += 1;
+    },
     cancelled: [],
     submitIntent: options.submitIntent ?? (async () => ({
       requestId: options.requestId ?? 'request-1',
@@ -105,6 +109,63 @@ test('cancels the active run and ignores late events', async () => {
   assert.equal(store.snapshot.runStatus, 'cancelled');
 });
 
+test('does not send an empty run id while the run is starting', async () => {
+  const transport = manualTransport();
+  const store = new AgentStore(transport);
+  await store.submit({ text: 'Move it', context });
+  assert.equal(store.snapshot.runStatus, 'starting');
+  assert.equal(store.snapshot.runId, null);
+
+  await store.cancel();
+
+  assert.deepEqual(transport.cancelled, []);
+  assert.equal(store.snapshot.runStatus, 'starting');
+});
+
+test('rejects an unavailable submission so the objective remains editable', async () => {
+  const transport = manualTransport({ connection: 'unavailable' });
+  const store = new AgentStore(transport);
+
+  await assert.rejects(
+    () => store.submit({ text: 'Keep this objective', context }),
+    /unavailable/,
+  );
+  assert.equal(store.snapshot.runStatus, 'idle');
+  assert.equal(store.snapshot.error, 'Agent Gateway is unavailable');
+});
+
+test('retries the connection when the Gateway is not connected', async () => {
+  const transport = manualTransport({ connection: 'error' });
+  const store = new AgentStore(transport);
+  const initialConnects = transport.connectCount;
+
+  await store.retry();
+
+  assert.equal(transport.connectCount, initialConnects + 1);
+  assert.equal(store.snapshot.runStatus, 'idle');
+});
+
+test('resubmits the last objective after reconnecting', async () => {
+  let submissions = 0;
+  const transport = manualTransport({
+    submitIntent: async () => ({ requestId: `request-${++submissions}` }),
+  });
+  const store = new AgentStore(transport);
+  await store.submit({ text: 'Move it', context });
+  transport.emit({
+    type: 'gateway.unavailable',
+    protocolVersion: 1,
+    message: 'Agent Gateway connection closed',
+  });
+
+  await store.retry();
+  transport.emit({ type: 'connection.updated', connection: 'connected' });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(submissions, 2);
+  assert.equal(store.snapshot.requestId, 'request-2');
+});
+
 test('bounds streamed messages and tool status', async () => {
   const transport = manualTransport();
   const store = new AgentStore(transport);
@@ -164,6 +225,28 @@ test('links a ChangeSet and records failed runs', async () => {
   });
   assert.equal(store.snapshot.runStatus, 'failed');
   assert.equal(store.snapshot.error, 'Evaluation failed');
+});
+
+test('marks an active run as failed when the Gateway disconnects', async () => {
+  const transport = manualTransport();
+  const store = new AgentStore(transport);
+  await store.submit({ text: 'Move it', context });
+  transport.emit({
+    type: 'run.started',
+    protocolVersion: 1,
+    requestId: 'request-1',
+    runId: 'run-1',
+  });
+
+  transport.emit({
+    type: 'gateway.unavailable',
+    protocolVersion: 1,
+    message: 'Agent Gateway connection closed',
+  });
+
+  assert.equal(store.snapshot.connection, 'unavailable');
+  assert.equal(store.snapshot.runStatus, 'failed');
+  assert.equal(store.snapshot.error, 'Agent Gateway connection closed');
 });
 
 test('retry resubmits the last unmapped context', async () => {

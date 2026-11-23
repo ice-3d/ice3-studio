@@ -83,6 +83,12 @@ export function createWebSocketAgentTransport(options: {
       return connection;
     },
     connect() {
+      if (
+        socket
+        && (socket.readyState === WebSocketImpl.CLOSING || socket.readyState === WebSocketImpl.CLOSED)
+      ) {
+        socket = null;
+      }
       ensureSocket();
     },
     async submitIntent(intent) {

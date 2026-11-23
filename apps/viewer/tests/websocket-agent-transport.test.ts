@@ -129,3 +129,19 @@ test('connects on startup to expose gateway availability', () => {
   transport.connect();
   assert.equal(FakeWebSocket.instances.length, 1);
 });
+
+test('reconnects after the previous socket has closed', () => {
+  FakeWebSocket.instances = [];
+  const transport = createWebSocketAgentTransport({
+    token: 'session-token',
+    WebSocketImpl: implementation,
+  });
+  transport.connect();
+  const first = FakeWebSocket.instances[0]!;
+  first.open();
+  first.close();
+
+  transport.connect();
+
+  assert.equal(FakeWebSocket.instances.length, 2);
+});

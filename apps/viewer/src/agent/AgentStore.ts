@@ -49,6 +49,7 @@ export type AgentSubmission = {
 
 export class AgentStore extends ExternalStore<AgentSnapshot> {
   private lastSubmission: AgentSubmission | null = null;
+  private retryAfterConnect = false;
 
   constructor(private readonly transport: AgentTransport) {
     super({
@@ -72,11 +73,13 @@ export class AgentStore extends ExternalStore<AgentSnapshot> {
 
   async submit(input: AgentSubmission): Promise<void> {
     if (this.snapshot.connection !== 'connected') {
+      this.retryAfterConnect = false;
+      const message = 'Agent Gateway is unavailable';
       this.update({
         ...this.snapshot,
-        error: 'Agent Gateway is unavailable',
+        error: message,
       });
-      return;
+      throw new Error(message);
     }
     this.lastSubmission = structuredClone(input);
     this.update({
@@ -100,17 +103,20 @@ export class AgentStore extends ExternalStore<AgentSnapshot> {
       });
       this.update({ ...this.snapshot, requestId });
     } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
       this.update({
         ...this.snapshot,
         runStatus: 'failed',
-        error: cause instanceof Error ? cause.message : String(cause),
+        error: message,
       });
+      throw new Error(message);
     }
   }
 
   async cancel(): Promise<void> {
     const runId = this.snapshot.runId;
-    await this.transport.cancel(runId ?? '');
+    if (!runId) return;
+    await this.transport.cancel(runId);
     this.update({
       ...this.snapshot,
       runStatus: 'cancelled',
@@ -119,7 +125,17 @@ export class AgentStore extends ExternalStore<AgentSnapshot> {
   }
 
   async retry(): Promise<void> {
-    if (this.lastSubmission) await this.submit(this.lastSubmission);
+    if (this.snapshot.connection !== 'connected') {
+      this.retryAfterConnect = this.lastSubmission !== null;
+      this.transport.connect();
+      return;
+    }
+    if (!this.lastSubmission) return;
+    try {
+      await this.submit(this.lastSubmission);
+    } catch {
+      // The snapshot carries the user-facing error.
+    }
   }
 
   dismissError(): void {
@@ -129,12 +145,21 @@ export class AgentStore extends ExternalStore<AgentSnapshot> {
   private applyEvent(event: AgentEvent): void {
     if (event.type === 'connection.updated') {
       this.update({ ...this.snapshot, connection: event.connection });
+      if (event.connection === 'connected' && this.retryAfterConnect) {
+        this.retryAfterConnect = false;
+        if (this.lastSubmission) {
+          void this.submit(this.lastSubmission).catch(() => {});
+        }
+      }
       return;
     }
     if (event.type === 'gateway.unavailable') {
+      const interrupted = this.snapshot.runStatus === 'starting'
+        || this.snapshot.runStatus === 'running';
       this.update({
         ...this.snapshot,
         connection: 'unavailable',
+        runStatus: interrupted ? 'failed' : this.snapshot.runStatus,
         error: event.message,
       });
       return;

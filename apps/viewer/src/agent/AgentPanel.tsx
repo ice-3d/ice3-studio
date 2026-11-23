@@ -184,7 +184,7 @@ export function AgentPanel({
               <span className="panel-kicker">Run</span>
               <strong>{runLabel(snapshot.runStatus)}</strong>
             </div>
-            {running ? (
+            {running && snapshot.runId ? (
               <button
                 type="button"
                 className="button button--secondary"
