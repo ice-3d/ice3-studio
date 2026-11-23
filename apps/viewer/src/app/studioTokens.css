@@ -2033,3 +2033,81 @@ h2 {
   align-items: center;
   gap: 6px;
 }
+
+.transform-gizmo {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.transform-gizmo__handle {
+  pointer-events: all;
+  cursor: grab;
+}
+
+.transform-gizmo__handle:active {
+  cursor: grabbing;
+}
+
+.transform-gizmo__handle line,
+.transform-gizmo__handle circle {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.transform-gizmo__handle line {
+  fill: none;
+}
+
+.transform-gizmo__handle--x {
+  color: #ef6b63;
+}
+
+.transform-gizmo__handle--y {
+  color: #70c879;
+}
+
+.transform-gizmo__handle--z {
+  color: #5aa7ea;
+}
+
+.transform-gizmo__center {
+  color: #d9e4e8;
+}
+
+.transform-gizmo__center circle {
+  fill: var(--canvas);
+}
+
+.transform-gizmo__ring circle {
+  fill: none;
+  stroke-width: 2.5;
+  opacity: 0.88;
+}
+
+.transform-gizmo [aria-disabled="true"] {
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+.transform-gizmo text {
+  fill: currentColor;
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--canvas);
+  stroke-width: 3px;
+}
+
+.transform-gizmo__label {
+  fill: var(--text-soft);
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+}

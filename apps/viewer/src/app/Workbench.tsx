@@ -110,6 +110,28 @@ export function Workbench() {
           reference={session.reference}
           selectionIds={session.selectionIds}
           onSelection={(ids) => sessionStore.select(ids)}
+          editActive={dock === 'inspect'}
+          transformTarget={selected && editorValues
+            ? { nodeId: selected.id, transform: editorValues.transform }
+            : null}
+          transformMode={gizmoMode}
+          transformSpace={transformSpace}
+          onTransformPreviewStart={() => {
+            if (selected) editorDraftStore.beginPreview(selected.id);
+          }}
+          onTransformPreview={(transform) => {
+            if (!selected || !editorValues) return;
+            editorDraftStore.updatePreview(selected.id, {
+              ...editorValues,
+              transform: structuredClone(transform),
+            });
+          }}
+          onTransformPreviewEnd={() => {
+            if (selected) editorDraftStore.finishPreview(selected.id);
+          }}
+          onTransformPreviewCancel={() => {
+            if (selected) editorDraftStore.cancelPreview(selected.id);
+          }}
         />
         <aside aria-label="Review dock" className="review-dock">
           <div role="tablist" aria-label="Review" className="review-dock__tabs">
