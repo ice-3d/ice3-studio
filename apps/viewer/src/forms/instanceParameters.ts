@@ -43,6 +43,15 @@ export function compileParameterChanges(
     : [];
 }
 
+export function compileTypedParameterChanges(
+  definition: ComponentDefinition,
+  nodeId: string,
+  instance: ComponentInstance,
+  draft: ParameterDraft,
+): Operation[] {
+  return compileParameterChanges(definition, nodeId, instance, draft);
+}
+
 function parseParameter(
   valueType: Record<string, unknown> & { kind: string },
   raw: string,
