@@ -123,6 +123,19 @@ export function AgentPanel({
         </form>
       ) : null}
 
+      {connected && focusName ? (
+        <div className="agent-manual-handoff">
+          <span>Need precise control of {focusName}?</span>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={onOpenManual}
+          >
+            Inspect selected object
+          </button>
+        </div>
+      ) : null}
+
       {snapshot.connection === 'unavailable' || snapshot.connection === 'error' ? (
         <div className="agent-offline">
           <div className="agent-offline__heading">

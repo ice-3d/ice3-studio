@@ -3,16 +3,13 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use axum::extract::ws::{Message as DownstreamMessage, WebSocket};
-use axum::http::{header::AUTHORIZATION, HeaderValue, Uri};
+use axum::http::{HeaderValue, Uri, header::AUTHORIZATION};
 use futures_util::{SinkExt, StreamExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
-use tokio_tungstenite::tungstenite::{
-    client::IntoClientRequest,
-    Message as UpstreamMessage,
-};
+use tokio_tungstenite::tungstenite::{Message as UpstreamMessage, client::IntoClientRequest};
 
 pub const MAX_AGENT_MESSAGE_BYTES: usize = 1024 * 1024;
 const MAX_INTENT_TEXT_BYTES: usize = 32 * 1024;
@@ -98,7 +95,10 @@ pub fn validate_gateway_url(value: &str) -> Result<(), AgentBridgeError> {
     if authority.as_str().contains('@') {
         return Err(AgentBridgeError::Config);
     }
-    if !matches!(authority.host(), "127.0.0.1" | "[::1]" | "::1" | "localhost") {
+    if !matches!(
+        authority.host(),
+        "127.0.0.1" | "[::1]" | "::1" | "localhost"
+    ) {
         return Err(AgentBridgeError::Config);
     }
     Ok(())
@@ -146,13 +146,11 @@ async fn relay(
     config: AgentGatewayConfig,
 ) -> Result<(), AgentBridgeError> {
     let request = upstream_request(&config)?;
-    let (upstream, _) = tokio::time::timeout(
-        CONNECT_TIMEOUT,
-        tokio_tungstenite::connect_async(request),
-    )
-    .await
-    .map_err(|_| AgentBridgeError::Unavailable)?
-    .map_err(|_| AgentBridgeError::Unavailable)?;
+    let (upstream, _) =
+        tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(request))
+            .await
+            .map_err(|_| AgentBridgeError::Unavailable)?
+            .map_err(|_| AgentBridgeError::Unavailable)?;
 
     let (mut downstream_tx, mut downstream_rx) = downstream.split();
     let (mut upstream_tx, mut upstream_rx) = upstream.split();
@@ -227,12 +225,16 @@ fn upstream_request(
 
 fn parse_protocol_message(value: &str) -> Result<Value, AgentBridgeError> {
     if value.len() > MAX_AGENT_MESSAGE_BYTES {
-        return Err(AgentBridgeError::Protocol("message exceeds size limit".into()));
+        return Err(AgentBridgeError::Protocol(
+            "message exceeds size limit".into(),
+        ));
     }
-    let value: Value =
-        serde_json::from_str(value).map_err(|_| AgentBridgeError::Protocol("invalid JSON".into()))?;
+    let value: Value = serde_json::from_str(value)
+        .map_err(|_| AgentBridgeError::Protocol("invalid JSON".into()))?;
     if !value.is_object() || value["protocolVersion"] != 1 {
-        return Err(AgentBridgeError::Protocol("unsupported protocol version".into()));
+        return Err(AgentBridgeError::Protocol(
+            "unsupported protocol version".into(),
+        ));
     }
     if !value["type"].is_string() {
         return Err(AgentBridgeError::Protocol("message type is missing".into()));
@@ -259,15 +261,22 @@ fn validate_client_message(value: &str) -> Result<(), AgentBridgeError> {
                 .filter(|text| !text.trim().is_empty())
                 .ok_or_else(|| AgentBridgeError::Protocol("intent text is missing".into()))?;
             if text.len() > MAX_INTENT_TEXT_BYTES {
-                return Err(AgentBridgeError::Protocol("intent text exceeds limit".into()));
+                return Err(AgentBridgeError::Protocol(
+                    "intent text exceeds limit".into(),
+                ));
             }
             if !intent.get("projectId").is_some_and(Value::is_string)
                 || !intent.get("revision").is_some_and(Value::is_u64)
                 || !intent.get("selectionIds").is_some_and(Value::is_array)
             {
-                return Err(AgentBridgeError::Protocol("intent context is invalid".into()));
+                return Err(AgentBridgeError::Protocol(
+                    "intent context is invalid".into(),
+                ));
             }
-            if intent["selectionIds"].as_array().is_some_and(|items| items.len() > 64) {
+            if intent["selectionIds"]
+                .as_array()
+                .is_some_and(|items| items.len() > 64)
+            {
                 return Err(AgentBridgeError::Protocol("selection exceeds limit".into()));
             }
             validate_camera(&intent["camera"])?;
@@ -315,8 +324,13 @@ fn validate_camera(value: &Value) -> Result<(), AgentBridgeError> {
             .as_array()
             .filter(|values| values.len() == 3)
             .ok_or_else(|| AgentBridgeError::Protocol("camera vector is invalid".into()))?;
-        if !values.iter().all(|value| value.as_f64().is_some_and(f64::is_finite)) {
-            return Err(AgentBridgeError::Protocol("camera vector is invalid".into()));
+        if !values
+            .iter()
+            .all(|value| value.as_f64().is_some_and(f64::is_finite))
+        {
+            return Err(AgentBridgeError::Protocol(
+                "camera vector is invalid".into(),
+            ));
         }
         Ok(())
     };
@@ -366,14 +380,13 @@ mod tests {
 
     #[test]
     fn rejects_unknown_message_types() {
-        assert!(validate_client_message(
-            r#"{"type":"agent.execute_shell","protocolVersion":1}"#
-        )
-        .is_err());
-        assert!(validate_server_message(
-            r#"{"type":"tool.raw_payload","protocolVersion":1}"#
-        )
-        .is_err());
+        assert!(
+            validate_client_message(r#"{"type":"agent.execute_shell","protocolVersion":1}"#)
+                .is_err()
+        );
+        assert!(
+            validate_server_message(r#"{"type":"tool.raw_payload","protocolVersion":1}"#).is_err()
+        );
     }
 
     #[test]

@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use futures_util::{SinkExt, StreamExt};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 
@@ -46,18 +46,26 @@ async fn handle_connection(
         let value: Value = serde_json::from_str(text.as_str())?;
         match value["type"].as_str() {
             Some("ping") => {
-                send(&mut socket, json!({
-                    "type": "pong",
-                    "protocolVersion": 1
-                })).await?;
+                send(
+                    &mut socket,
+                    json!({
+                        "type": "pong",
+                        "protocolVersion": 1
+                    }),
+                )
+                .await?;
             }
             Some("run.cancel") => {
                 let run_id = value["runId"].as_str().unwrap_or("run-1");
-                send(&mut socket, json!({
-                    "type": "run.finished",
-                    "protocolVersion": 1,
-                    "runId": run_id
-                })).await?;
+                send(
+                    &mut socket,
+                    json!({
+                        "type": "run.finished",
+                        "protocolVersion": 1,
+                        "runId": run_id
+                    }),
+                )
+                .await?;
             }
             Some("intent.submit") => {
                 handle_intent(&mut socket, &client, &config, &value).await?;
@@ -76,9 +84,7 @@ async fn handle_intent(
     config: &FixtureConfig,
     value: &Value,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let request_id = value["requestId"]
-        .as_str()
-        .ok_or("requestId is missing")?;
+    let request_id = value["requestId"].as_str().ok_or("requestId is missing")?;
     let intent = &value["intent"];
     if intent["projectId"] != config.project_id
         || !intent["revision"].is_u64()
@@ -88,79 +94,106 @@ async fn handle_intent(
         return Err("intent context is invalid".into());
     }
     let run_id = format!("run-{}", now_suffix());
-    send(socket, json!({
-        "type": "run.started",
-        "protocolVersion": 1,
-        "requestId": request_id,
-        "runId": run_id
-    }))
+    send(
+        socket,
+        json!({
+            "type": "run.started",
+            "protocolVersion": 1,
+            "requestId": request_id,
+            "runId": run_id
+        }),
+    )
     .await?;
-    send(socket, json!({
-        "type": "plan.updated",
-        "protocolVersion": 1,
-        "runId": run_id,
-        "summary": "Planning the edit"
-    }))
+    send(
+        socket,
+        json!({
+            "type": "plan.updated",
+            "protocolVersion": 1,
+            "runId": run_id,
+            "summary": "Planning the edit"
+        }),
+    )
     .await?;
-    send(socket, json!({
-        "type": "tool.updated",
-        "protocolVersion": 1,
-        "runId": run_id,
-        "toolName": "scene.search",
-        "phase": "started",
-        "summary": "Searching the scene"
-    }))
+    send(
+        socket,
+        json!({
+            "type": "tool.updated",
+            "protocolVersion": 1,
+            "runId": run_id,
+            "toolName": "scene.search",
+            "phase": "started",
+            "summary": "Searching the scene"
+        }),
+    )
     .await?;
 
-    if intent["text"].as_str().is_some_and(|text| text.contains("[disconnect]")) {
+    if intent["text"]
+        .as_str()
+        .is_some_and(|text| text.contains("[disconnect]"))
+    {
         tokio::time::sleep(Duration::from_millis(100)).await;
         socket.close(None).await?;
         return Ok(());
     }
 
-    send(socket, json!({
-        "type": "message.delta",
-        "protocolVersion": 1,
-        "runId": run_id,
-        "text": "Found the clarifier"
-    }))
+    send(
+        socket,
+        json!({
+            "type": "message.delta",
+            "protocolVersion": 1,
+            "runId": run_id,
+            "text": "Found the clarifier"
+        }),
+    )
     .await?;
-    send(socket, json!({
-        "type": "tool.updated",
-        "protocolVersion": 1,
-        "runId": run_id,
-        "toolName": "scene.search",
-        "phase": "finished",
-        "summary": "Found the clarifier"
-    }))
+    send(
+        socket,
+        json!({
+            "type": "tool.updated",
+            "protocolVersion": 1,
+            "runId": run_id,
+            "toolName": "scene.search",
+            "phase": "finished",
+            "summary": "Found the clarifier"
+        }),
+    )
     .await?;
     tokio::time::sleep(Duration::from_millis(600)).await;
 
     match create_change_set(client, config, intent["revision"].as_u64().unwrap_or(0)).await {
         Ok(change_set_id) => {
-            send(socket, json!({
-                "type": "changeset.linked",
-                "protocolVersion": 1,
-                "runId": run_id,
-                "changeSetId": change_set_id,
-                "entryIds": []
-            }))
+            send(
+                socket,
+                json!({
+                    "type": "changeset.linked",
+                    "protocolVersion": 1,
+                    "runId": run_id,
+                    "changeSetId": change_set_id,
+                    "entryIds": []
+                }),
+            )
             .await?;
-            send(socket, json!({
-                "type": "run.finished",
-                "protocolVersion": 1,
-                "runId": run_id
-            }))
+            send(
+                socket,
+                json!({
+                    "type": "run.finished",
+                    "protocolVersion": 1,
+                    "runId": run_id
+                }),
+            )
             .await?;
         }
         Err(error) => {
-            send(socket, json!({
-                "type": "run.failed",
-                "protocolVersion": 1,
-                "runId": run_id,
-                "diagnosticCode": "ICE3_AGENT_RUN_FAILED",
-                "message": error.to_string()
-            }))
+            send(
+                socket,
+                json!({
+                    "type": "run.failed",
+                    "protocolVersion": 1,
+                    "runId": run_id,
+                    "diagnosticCode": "ICE3_AGENT_RUN_FAILED",
+                    "message": error.to_string()
+                }),
+            )
             .await?;
         }
     }
@@ -173,38 +206,56 @@ async fn create_change_set(
     base_revision: u64,
 ) -> Result<String, Box<dyn Error + Send + Sync>> {
     let suffix = now_suffix();
-    let created = rpc(client, config, json!({
-        "baseRevision": base_revision,
-        "title": "Agent E2E",
-        "idempotencyKey": format!("agent-e2e-create-{suffix}")
-    }), "changeset.create").await?;
+    let created = rpc(
+        client,
+        config,
+        json!({
+            "baseRevision": base_revision,
+            "title": "Agent E2E",
+            "idempotencyKey": format!("agent-e2e-create-{suffix}")
+        }),
+        "changeset.create",
+    )
+    .await?;
     let change_set_id = created["id"]
         .as_str()
         .ok_or("ChangeSet ID is missing")?
         .to_owned();
     let version = created["version"].as_u64().ok_or("version is missing")?;
-    let added = rpc(client, config, json!({
-        "changeSetId": change_set_id,
-        "expectedVersion": version,
-        "idempotencyKey": format!("agent-e2e-add-{suffix}"),
-        "entries": [{
-            "source": { "kind": "agent", "label": "deterministic-fixture" },
-            "operation": {
-                "type": "node.update",
-                "nodeId": "node-000002",
-                "name": "Agent E2E Clarifier",
-                "transform": null,
-                "visible": null,
-                "metadata": null
-            }
-        }]
-    }), "changeset.addOperations").await?;
+    let added = rpc(
+        client,
+        config,
+        json!({
+            "changeSetId": change_set_id,
+            "expectedVersion": version,
+            "idempotencyKey": format!("agent-e2e-add-{suffix}"),
+            "entries": [{
+                "source": { "kind": "agent", "label": "deterministic-fixture" },
+                "operation": {
+                    "type": "node.update",
+                    "nodeId": "node-000001",
+                    "name": "Agent E2E Ground",
+                    "transform": null,
+                    "visible": null,
+                    "metadata": null
+                }
+            }]
+        }),
+        "changeset.addOperations",
+    )
+    .await?;
     let version = added["version"].as_u64().ok_or("version is missing")?;
-    let evaluated = rpc(client, config, json!({
-        "changeSetId": change_set_id,
-        "expectedVersion": version,
-        "includeCandidate": false
-    }), "changeset.evaluate").await?;
+    let evaluated = rpc(
+        client,
+        config,
+        json!({
+            "changeSetId": change_set_id,
+            "expectedVersion": version,
+            "includeCandidate": false
+        }),
+        "changeset.evaluate",
+    )
+    .await?;
     if evaluated["status"] != "ready" {
         return Err(format!("ChangeSet evaluation failed: {evaluated}").into());
     }
@@ -234,7 +285,10 @@ async fn rpc(
     if let Some(error) = response.get("error") {
         return Err(format!("Studio RPC failed: {error}").into());
     }
-    response.get("result").cloned().ok_or_else(|| "RPC result is missing".into())
+    response
+        .get("result")
+        .cloned()
+        .ok_or_else(|| "RPC result is missing".into())
 }
 
 async fn send(

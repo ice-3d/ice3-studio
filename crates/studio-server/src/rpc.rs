@@ -38,12 +38,12 @@ use tower_http::services::{ServeDir, ServeFile};
 use ts_rs::TS;
 
 use crate::ServerEvent;
+use crate::agent_bridge::AgentGatewayConfig;
 use crate::auth::{approval_cookie, bearer_token};
 use crate::capabilities::{
     RequestAuthority, WriteMode, agent_access, authorize_write, classify_request_authority,
 };
 use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
-use crate::agent_bridge::AgentGatewayConfig;
 use crate::preview::{PreviewAdapter, export_source};
 use crate::preview_packet::PACKET_MEDIA_TYPE;
 use crate::scene_session::{

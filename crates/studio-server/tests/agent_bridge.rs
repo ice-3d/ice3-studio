@@ -1,13 +1,13 @@
 use std::time::Duration;
 
 use axum::{
+    Router,
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     response::IntoResponse,
     routing::get,
-    Router,
 };
 use futures_util::{SinkExt, StreamExt};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use studio_server::{ServerConfig, start_test_server};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{connect_async, tungstenite};
@@ -163,9 +163,8 @@ async fn unconfigured_gateway_reports_unavailable() {
 async fn forwards_host_configured_token_only_upstream() {
     let (url, upstream_task) = start_upstream(Some("upstream-secret")).await;
     let mut config = ServerConfig::for_tests("bridge-token");
-    config.agent_gateway = Some(
-        studio_server::AgentGatewayConfig::new(url, Some("upstream-secret".into())).unwrap(),
-    );
+    config.agent_gateway =
+        Some(studio_server::AgentGatewayConfig::new(url, Some("upstream-secret".into())).unwrap());
     let server = start_test_server(config).await;
     let ws_url = format!(
         "{}/agent/ws?token={}",

@@ -19,6 +19,34 @@ test('opens on Agent mission control with the current project context', async ({
   await expect(mission.getByText(String(revision), { exact: true })).toBeVisible();
 });
 
+test('keeps Scene, Agent and Objects ordered on mobile without overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  const scene = page.getByRole('region', { name: 'Model viewport' });
+  const agent = page.getByRole('region', { name: 'Agent mission control' });
+  const objects = page.getByRole('navigation', { name: 'Project navigation' });
+  const run = page.getByRole('button', { name: 'Run with Agent' });
+  await expect(agent).toBeVisible();
+  await expect(run).toBeVisible();
+
+  const [sceneBox, agentBox, objectsBox, runBox] = await Promise.all([
+    scene.boundingBox(),
+    agent.boundingBox(),
+    objects.boundingBox(),
+    run.boundingBox(),
+  ]);
+  if (!sceneBox || !agentBox || !objectsBox || !runBox) {
+    throw new Error('Mobile workbench regions must have layout boxes');
+  }
+  expect(sceneBox.y).toBeLessThan(agentBox.y);
+  expect(agentBox.y).toBeLessThan(objectsBox.y);
+  expect(runBox.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(
+    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+  )).toBe(true);
+});
+
 test('stages, reviews, and commits a form change', async ({ page }) => {
   await page.goto('/');
   const initialRevision = await currentRevision(page);
