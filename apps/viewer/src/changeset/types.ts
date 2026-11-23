@@ -28,6 +28,7 @@ export type ChangeSetClient = {
     approvedDigest: string,
     idempotencyKey: string,
   ): Promise<{ revision: number }>;
+  discardChangeSet?(changeSetId: string): Promise<ChangeSetRecord>;
   candidatePreview?(candidateDigest: string): Promise<{ url: string }>;
   /** 代价预测；旧客户端可以省略，面板会退化成只显示 diff。 */
   changeSetImpact?(changeSetId: string, expectedVersion: number): Promise<ChangeSetImpact>;

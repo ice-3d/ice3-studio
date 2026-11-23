@@ -54,6 +54,39 @@ export function Workbench() {
     }
   }, [dock, editorDraftStore, editorDrafts.drafts, selected, session.revision]);
 
+  useEffect(() => {
+    if (!session.document) return;
+    for (const draft of Object.values(editorDrafts.drafts)) {
+      if (draft.status === 'stale') continue;
+      const current = session.document.scene.nodes.find((node) => node.id === draft.nodeId);
+      if (!current) {
+        editorDraftStore.markStale(draft.nodeId, 'Object no longer exists');
+      } else if (
+        current.content?.type !== draft.baseNode.content?.type
+      ) {
+        editorDraftStore.markStale(draft.nodeId, 'Object content type changed');
+      } else if (draft.baseRevision !== session.revision && draft.status !== 'staged') {
+        editorDraftStore.markStale(draft.nodeId, 'Project revision changed');
+      }
+    }
+  }, [editorDraftStore, editorDrafts.drafts, session.document, session.revision]);
+
+  useEffect(() => {
+    if (changeSet.status === 'discarded') {
+      editorDraftStore.restoreStagedAsDirty();
+    }
+  }, [changeSet.status, editorDraftStore]);
+
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent): void => {
+      if (!editorDraftStore.hasDirtyDrafts()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', guard);
+    return () => window.removeEventListener('beforeunload', guard);
+  }, [editorDraftStore]);
+
   const updateEditorValues = (values: EditorValues): void => {
     if (!selected) return;
     editorDraftStore.ensure(selected, session.revision);
@@ -239,8 +272,12 @@ export function Workbench() {
                   className="button button--primary"
                   disabled={!changeSet.canApprove}
                   onClick={async () => {
-                    await changeSetStore.commit();
+                    const committedRevision = await changeSetStore.commit();
                     await sessionStore.refresh();
+                    if (selected) {
+                      editorDraftStore.clear(selected.id);
+                      editorDraftStore.ensure(selected, committedRevision);
+                    }
                   }}
                 >
                   Approve &amp; commit

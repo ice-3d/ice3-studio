@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { StudioMaterial, StudioVec3 } from '../api/StudioClient';
 import {
   eulerDegreesToQuaternion,
@@ -190,9 +190,11 @@ function NumericInput({
   const formatted = formatNumber(value);
   const [text, setText] = useState(formatted);
   const [error, setError] = useState<string | null>(null);
+  const lastCommitted = useRef(formatted);
 
   useEffect(() => {
     setText(formatted);
+    lastCommitted.current = formatted;
   }, [formatted]);
 
   const commit = (): void => {
@@ -206,7 +208,10 @@ function NumericInput({
       return;
     }
     setError(null);
-    if (next !== value) onCommit(next);
+    const nextFormatted = formatNumber(next);
+    if (nextFormatted !== lastCommitted.current) onCommit(next);
+    lastCommitted.current = nextFormatted;
+    setText(nextFormatted);
   };
 
   return (
@@ -224,7 +229,6 @@ function NumericInput({
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
-            commit();
             event.currentTarget.blur();
           }
           if (event.key === 'Escape') {

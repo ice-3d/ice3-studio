@@ -522,6 +522,13 @@ export class StudioClient {
     });
   }
 
+  discardChangeSet(changeSetId: string): Promise<ChangeSetRecord> {
+    return this.rpc('changeset.discard', {
+      changeSetId,
+      idempotencyKey: `viewer-discard-${changeSetId}`,
+    });
+  }
+
   subscribe(onEvent: (event: { event: string; revision?: number }) => void): () => void {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(

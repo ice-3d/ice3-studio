@@ -356,3 +356,44 @@ test('closes the active candidate after a successful commit', async () => {
   assert.equal(store.snapshot.candidateUrl, null);
   assert.equal(store.snapshot.canApprove, false);
 });
+
+test('discards the active candidate and clears its preview', async () => {
+  let discardedId: string | null = null;
+  const client: ChangeSetClient = {
+    createChangeSet: async () => ({ id: 'changeset-0008', version: 1 }),
+    addChangeSetOperations: async () => ({ version: 2 }),
+    removeChangeSetOperations: async () => ({ version: 3 }),
+    evaluateChangeSet: async () => ({
+      changeSetId: 'changeset-0008',
+      version: 2,
+      baseRevision: 2,
+      status: 'ready',
+      candidateDigest: 'sha256:candidate',
+      diff,
+      diagnostics: [],
+    }),
+    commitChangeSet: async () => ({ revision: 3 }),
+    discardChangeSet: async (changeSetId: string) => {
+      discardedId = changeSetId;
+      return { ...changeSet, id: changeSetId, status: 'discarded' };
+    },
+  };
+  const store = new ChangeSetStore(client);
+  store.acceptEvaluation({
+    changeSetId: 'changeset-0008',
+    version: 2,
+    baseRevision: 2,
+    status: 'ready',
+    candidateDigest: 'sha256:candidate',
+    diff,
+    diagnostics: [],
+  });
+  store.updateCandidatePreview('blob:candidate');
+
+  await store.discard();
+
+  assert.equal(discardedId, 'changeset-0008');
+  assert.equal(store.snapshot.active, null);
+  assert.equal(store.snapshot.candidateUrl, null);
+  assert.equal(store.snapshot.status, 'discarded');
+});

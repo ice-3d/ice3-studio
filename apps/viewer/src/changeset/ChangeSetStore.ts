@@ -178,6 +178,24 @@ export class ChangeSetStore extends ExternalStore<ChangeSetSnapshot> {
     return result.revision;
   }
 
+  async discard(): Promise<void> {
+    const active = this.snapshot.active;
+    if (!active || !this.client.discardChangeSet) {
+      throw new Error('No discardable ChangeSet');
+    }
+    const record = await this.client.discardChangeSet(active.changeSetId);
+    this.update({
+      ...this.snapshot,
+      active: null,
+      record,
+      status: 'discarded',
+      candidateUrl: null,
+      canApprove: false,
+      impact: null,
+      error: null,
+    });
+  }
+
   /// Cost prediction is advisory: a failure must not block review.
   private async loadImpact(changeSetId: string, version: number): Promise<void> {
     if (!this.client.changeSetImpact) return;
