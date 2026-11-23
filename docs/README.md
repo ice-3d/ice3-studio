@@ -121,6 +121,7 @@
 | `ICE3-STUDIO-PLAN-032` | [管线附件实体化实施计划](plans/2026-11-21-pipe-fitting-attachments.md) | Implemented | 参数化端口、三通/异径管/套管校验、资产组件与污水厂迁移 |
 | `ICE3-STUDIO-PLAN-033` | [连接与管线附件检视实施计划](plans/2026-11-21-route-inspection.md) | Implemented | `route.inspect`、Agent 工具、Viewer Inspector 与 Chrome 验收 |
 | `ICE3-STUDIO-PLAN-034` | [Agent 材质内省实施计划](plans/2026-11-22-material-introspection.md) | Implemented | `material.get`、有效 surface、schema 与 Agent 评测 |
+| `ICE3-STUDIO-PLAN-035` | [人工 Transform 与基础编辑闭环实施计划](plans/2026-11-23-human-transform-editing.md) | Proposed | 本地草稿、视口手柄、最小 Operation、Chrome E2E 与完整门禁 |
 
 ## 6. 状态说明
 
