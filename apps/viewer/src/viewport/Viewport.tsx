@@ -14,7 +14,11 @@ type Props = {
   selectionIds: readonly string[];
   onSelection: (ids: readonly string[]) => void;
   editActive?: boolean;
-  transformTarget?: { nodeId: string; transform: StudioTransform } | null;
+  transformTarget?: {
+    nodeId: string;
+    baseTransform: StudioTransform;
+    transform: StudioTransform;
+  } | null;
   transformMode?: GizmoMode;
   transformSpace?: TransformSpace;
   onTransformPreviewStart?: () => void;
@@ -96,6 +100,7 @@ export function Viewport({
     gizmo.current?.setActive(editActive && Boolean(transformTarget));
     gizmo.current?.setTarget(
       transformTarget?.nodeId ?? null,
+      transformTarget?.baseTransform ?? null,
       transformTarget?.transform ?? null,
     );
   }, [editActive, transformTarget]);

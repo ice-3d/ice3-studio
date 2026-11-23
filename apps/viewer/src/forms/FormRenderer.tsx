@@ -66,7 +66,11 @@ export function FormRenderer({ node, definition, values, onValues }: Props) {
   };
 
   return (
-    <section className="inspector-form" aria-label={`Inspect ${node.name}`}>
+    <form
+      className="inspector-form"
+      aria-label={`Inspect ${node.name}`}
+      onSubmit={(event) => event.preventDefault()}
+    >
       <div className="inspector-form__heading">
         <div>
           <span className="panel-kicker">Selection</span>
@@ -163,7 +167,7 @@ export function FormRenderer({ node, definition, values, onValues }: Props) {
         </fieldset>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
-    </section>
+    </form>
   );
 }
 

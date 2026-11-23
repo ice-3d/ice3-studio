@@ -175,13 +175,15 @@ export class SceneAdapter {
 
   setTransformOverride(
     nodeId: string | null,
+    baseTransform: StudioTransform | null,
     transform: StudioTransform | null,
   ): void {
     this.clearTransformOverride();
-    if (!nodeId || !transform || !this.currentScene) return;
+    if (!nodeId || !baseTransform || !transform || !this.currentScene) return;
     applySceneTransformOverride(
       this.currentScene,
       nodeId,
+      baseTransform,
       transform,
       this.transformOverrideOriginals,
     );
@@ -194,12 +196,12 @@ export class SceneAdapter {
     this.engine?.requestRender('draft-transform-clear');
   }
 
-  getTransformFrame(nodeId: string): {
+  getTransformFrame(nodeId: string, baseTransform: StudioTransform): {
     origin: [number, number, number];
     parentMatrix: number[];
   } | null {
     return this.currentScene
-      ? sceneTransformFrame(this.currentScene, nodeId)
+      ? sceneTransformFrame(this.currentScene, nodeId, baseTransform)
       : null;
   }
 
@@ -634,15 +636,43 @@ export class SceneAdapter {
 export function applySceneTransformOverride(
   scene: ICEScene,
   nodeId: string,
+  baseTransform: StudioTransform,
   transform: StudioTransform,
   originals: Map<ICENode, number[]>,
 ): ICENode | null {
-  const node = findSceneNodeBySelectionId(scene, nodeId);
-  if (!node) return null;
-  if (!originals.has(node)) originals.set(node, localMatrixOf(node));
-  node.setLocalMatrix(transformMatrix(transform) as never);
-  node.updateWorldMatrix();
-  return node;
+  const roots = findSceneTransformRoots(scene, nodeId);
+  if (roots.length === 0) return null;
+  for (const [node, matrix] of originals) {
+    if (roots.includes(node)) node.setLocalMatrix(matrix as never);
+  }
+  for (const node of roots) {
+    if (!originals.has(node)) originals.set(node, localMatrixOf(node));
+  }
+  for (const node of roots) {
+    const original = originals.get(node);
+    if (!original) continue;
+    const parentWorld = node.parent
+      ? [...node.parent.updateWorldMatrix().elements]
+      : identityMatrix();
+    const parentInverse = invertMatrix(parentWorld);
+    if (!parentInverse) continue;
+    const baseWorld = multiplyMatrices(
+      parentWorld,
+      transformMatrix(baseTransform),
+    );
+    const baseInverse = invertMatrix(baseWorld);
+    if (!baseInverse) continue;
+    const nextWorld = multiplyMatrices(
+      parentWorld,
+      transformMatrix(transform),
+    );
+    const delta = multiplyMatrices(nextWorld, baseInverse);
+    const originalWorld = multiplyMatrices(parentWorld, original);
+    const desiredWorld = multiplyMatrices(delta, originalWorld);
+    node.setLocalMatrix(multiplyMatrices(parentInverse, desiredWorld) as never);
+    node.updateWorldMatrix();
+  }
+  return roots[0] ?? null;
 }
 
 export function restoreSceneTransformOverrides(
@@ -659,15 +689,24 @@ export function restoreSceneTransformOverrides(
 export function sceneTransformFrame(
   scene: ICEScene,
   nodeId: string,
+  baseTransform: StudioTransform,
 ): { origin: [number, number, number]; parentMatrix: number[] } | null {
   const node = findSceneNodeBySelectionId(scene, nodeId);
-  if (!node) return null;
-  const position = node.getWorldPosition();
+  const roots = node ? [node] : findSceneTransformRoots(scene, nodeId);
+  const root = roots[0];
+  if (!root) return null;
+  const parentMatrix = root.parent
+    ? [...root.parent.updateWorldMatrix().elements]
+    : identityMatrix();
+  const sourceWorld = multiplyMatrices(parentMatrix, transformMatrix(baseTransform));
+  const position = node ? node.getWorldPosition() : {
+    x: sourceWorld[12]!,
+    y: sourceWorld[13]!,
+    z: sourceWorld[14]!,
+  };
   return {
     origin: [position.x, position.y, position.z],
-    parentMatrix: node.parent
-      ? [...node.parent.updateWorldMatrix().elements]
-      : identityMatrix(),
+    parentMatrix,
   };
 }
 
@@ -685,6 +724,76 @@ function findSceneNodeBySelectionId(scene: ICEScene, nodeId: string): ICENode | 
     if (found) return found;
   }
   return null;
+}
+
+function findSceneTransformRoots(scene: ICEScene, nodeId: string): ICENode[] {
+  const matches = (node: ICENode): boolean => (
+    node.selectionId === nodeId
+    || node.selectionId?.split('/', 1)[0] === nodeId
+  );
+  const roots: ICENode[] = [];
+  const visit = (node: ICENode, matchedAncestor: boolean): void => {
+    const matched = matches(node);
+    if (matched && !matchedAncestor) roots.push(node);
+    for (const child of node.children) {
+      visit(child, matchedAncestor || matched);
+    }
+  };
+  for (const child of scene.children) visit(child, false);
+  return roots;
+}
+
+function invertMatrix(source: readonly number[]): number[] | null {
+  const a00 = source[0]!;
+  const a01 = source[1]!;
+  const a02 = source[2]!;
+  const a03 = source[3]!;
+  const a10 = source[4]!;
+  const a11 = source[5]!;
+  const a12 = source[6]!;
+  const a13 = source[7]!;
+  const a20 = source[8]!;
+  const a21 = source[9]!;
+  const a22 = source[10]!;
+  const a23 = source[11]!;
+  const a30 = source[12]!;
+  const a31 = source[13]!;
+  const a32 = source[14]!;
+  const a33 = source[15]!;
+  const b00 = a00 * a11 - a01 * a10;
+  const b01 = a00 * a12 - a02 * a10;
+  const b02 = a00 * a13 - a03 * a10;
+  const b03 = a01 * a12 - a02 * a11;
+  const b04 = a01 * a13 - a03 * a11;
+  const b05 = a02 * a13 - a03 * a12;
+  const b06 = a20 * a31 - a21 * a30;
+  const b07 = a20 * a32 - a22 * a30;
+  const b08 = a20 * a33 - a23 * a30;
+  const b09 = a21 * a32 - a22 * a31;
+  const b10 = a21 * a33 - a23 * a31;
+  const b11 = a22 * a33 - a23 * a32;
+  const determinant = b00 * b11 - b01 * b10 + b02 * b09
+    + b03 * b08 - b04 * b07 + b05 * b06;
+  if (Math.abs(determinant) < 1e-12) return null;
+  const value = 1 / determinant;
+  return [
+    (a11 * b11 - a12 * b10 + a13 * b09) * value,
+    (-a01 * b11 + a02 * b10 - a03 * b09) * value,
+    (a31 * b05 - a32 * b04 + a33 * b03) * value,
+    (-a21 * b05 + a22 * b04 - a23 * b03) * value,
+    (-a10 * b11 + a12 * b08 - a13 * b07) * value,
+    (a00 * b11 - a02 * b08 + a03 * b07) * value,
+    (-a30 * b05 + a32 * b02 - a33 * b01) * value,
+    (a20 * b05 - a22 * b02 + a23 * b01) * value,
+    (a10 * b10 - a11 * b08 + a13 * b06) * value,
+    (-a00 * b10 + a01 * b08 - a03 * b06) * value,
+    (a30 * b04 - a31 * b02 + a33 * b00) * value,
+    (-a20 * b04 + a21 * b02 - a23 * b00) * value,
+    (-a10 * b09 + a11 * b07 - a12 * b06) * value,
+    (a00 * b09 - a01 * b07 + a02 * b06) * value,
+    (-a30 * b03 + a31 * b01 - a32 * b00) * value,
+    (a20 * b03 - a21 * b01 + a22 * b00) * value,
+  ];
 }
 
 function identityMatrix(): number[] {

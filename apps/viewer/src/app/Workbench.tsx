@@ -13,6 +13,7 @@ import { ChangesPanel } from '../changeset/ChangesPanel';
 import { EvidenceDrawer, type EvidenceTab } from './EvidenceDrawer';
 import { mergeDiagnostics } from '../changeset/reviewModel';
 import { RouteInspector } from '../route/RouteInspector';
+import type { StudioTransform } from '../api/StudioClient';
 import {
   useEditorDrafts,
   useEditorDraftStore,
@@ -145,7 +146,11 @@ export function Workbench() {
           onSelection={(ids) => sessionStore.select(ids)}
           editActive={dock === 'inspect'}
           transformTarget={selected && editorValues
-            ? { nodeId: selected.id, transform: editorValues.transform }
+            ? {
+                nodeId: selected.id,
+                baseTransform: selectedDraft?.baseNode.transform ?? identityEditorTransform(),
+                transform: editorValues.transform,
+              }
             : null}
           transformMode={gizmoMode}
           transformSpace={transformSpace}
@@ -342,4 +347,12 @@ export function Workbench() {
       </section>
     </main>
   );
+}
+
+function identityEditorTransform(): StudioTransform {
+  return {
+    translation: { x: 0, y: 0, z: 0 },
+    rotation: [0, 0, 0, 1],
+    scale: { x: 1, y: 1, z: 1 },
+  };
 }

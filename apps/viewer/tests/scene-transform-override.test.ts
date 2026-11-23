@@ -16,7 +16,12 @@ test('moves the exact selected scene node and restores its matrix', () => {
   });
   scene.addChild(node);
   const originals = new Map<ICENode, number[]>();
-  const moved = applySceneTransformOverride(scene, 'node-000001', {
+  const base = {
+    translation: { x: 0, y: 0, z: 0 },
+    rotation: [0, 0, 0, 1] as [number, number, number, number],
+    scale: { x: 1, y: 1, z: 1 },
+  };
+  const moved = applySceneTransformOverride(scene, 'node-000001', base, {
     translation: { x: 2, y: 3, z: 4 },
     rotation: [0, 0, 0, 1],
     scale: { x: 1, y: 1, z: 1 },
@@ -31,7 +36,12 @@ test('moves the exact selected scene node and restores its matrix', () => {
 
 test('returns null for an unavailable node', () => {
   const scene = new ICEScene({ id: 'test-scene' });
-  assert.equal(applySceneTransformOverride(scene, 'missing', {
+  const base = {
+    translation: { x: 0, y: 0, z: 0 },
+    rotation: [0, 0, 0, 1] as [number, number, number, number],
+    scale: { x: 1, y: 1, z: 1 },
+  };
+  assert.equal(applySceneTransformOverride(scene, 'missing', base, {
     translation: { x: 0, y: 0, z: 0 },
     rotation: [0, 0, 0, 1],
     scale: { x: 1, y: 1, z: 1 },
@@ -52,7 +62,12 @@ test('moves the source entity group containing derived children', () => {
   }));
   scene.addChild(source);
   const originals = new Map<ICENode, number[]>();
-  const moved = applySceneTransformOverride(scene, 'node-000001', {
+  const base = {
+    translation: { x: 0, y: 0, z: 0 },
+    rotation: [0, 0, 0, 1] as [number, number, number, number],
+    scale: { x: 1, y: 1, z: 1 },
+  };
+  const moved = applySceneTransformOverride(scene, 'node-000001', base, {
     translation: { x: 5, y: 0, z: 0 },
     rotation: [0, 0, 0, 1],
     scale: { x: 1, y: 1, z: 1 },
@@ -74,7 +89,41 @@ test('reports the selection origin and parent frame', () => {
   });
   parent.addChild(child);
   scene.addChild(parent);
-  const frame = sceneTransformFrame(scene, 'node-000001');
+  const frame = sceneTransformFrame(scene, 'node-000001', {
+    translation: { x: 0, y: 0, z: 0 },
+    rotation: [0, 0, 0, 1],
+    scale: { x: 1, y: 1, z: 1 },
+  });
   assert.deepEqual(frame?.origin, [12, 3, 4]);
   assert.equal(frame?.parentMatrix[12], 10);
+});
+
+test('moves multiple derived roots when no source group exists', () => {
+  const scene = new ICEScene({ id: 'test-scene' });
+  const first = new ICENode({
+    id: 'node-000001/part-1',
+    selectionId: 'node-000001/part-1',
+    position: [1, 0, 0],
+  });
+  const second = new ICENode({
+    id: 'node-000001/part-2',
+    selectionId: 'node-000001/part-2',
+    position: [0, 2, 0],
+  });
+  scene.addChild(first);
+  scene.addChild(second);
+  const base = {
+    translation: { x: 0, y: 0, z: 0 },
+    rotation: [0, 0, 0, 1] as [number, number, number, number],
+    scale: { x: 1, y: 1, z: 1 },
+  };
+  const originals = new Map<ICENode, number[]>();
+  applySceneTransformOverride(scene, 'node-000001', base, {
+    translation: { x: 5, y: 0, z: 0 },
+    rotation: [0, 0, 0, 1],
+    scale: { x: 1, y: 1, z: 1 },
+  }, originals);
+  assert.equal(first.getWorldPosition().x, 6);
+  assert.equal(second.getWorldPosition().x, 5);
+  assert.equal(second.getWorldPosition().y, 2);
 });

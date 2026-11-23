@@ -37,6 +37,7 @@ export class TransformGizmo {
   private readonly options: TransformGizmoOptions;
   private active = false;
   private nodeId: string | null = null;
+  private baseTransform: StudioTransform | null = null;
   private transform: StudioTransform | null = null;
   private mode: GizmoMode = 'move';
   private space: TransformSpace = 'local';
@@ -70,9 +71,17 @@ export class TransformGizmo {
     this.scheduleRender();
   }
 
-  setTarget(nodeId: string | null, transform: StudioTransform | null): void {
+  setTarget(
+    nodeId: string | null,
+    baseTransform: StudioTransform | null,
+    transform: StudioTransform | null,
+  ): void {
     this.nodeId = nodeId;
+    this.baseTransform = baseTransform ? structuredClone(baseTransform) : null;
     this.transform = transform ? structuredClone(transform) : null;
+    if (!this.drag && nodeId && this.baseTransform && this.transform) {
+      this.adapter.setTransformOverride(nodeId, this.baseTransform, this.transform);
+    }
     this.scheduleRender();
   }
 
@@ -104,7 +113,7 @@ export class TransformGizmo {
       : null;
     const axis = target?.dataset.gizmoAxis as Axis | undefined;
     if (!axis || target?.getAttribute('aria-disabled') === 'true') return;
-    const frame = this.adapter.getTransformFrame(this.nodeId);
+    const frame = this.adapter.getTransformFrame(this.nodeId, this.baseTransform ?? this.transform);
     if (!frame) return;
     event.preventDefault();
     event.stopPropagation();
@@ -130,7 +139,11 @@ export class TransformGizmo {
     );
     if (!next) return;
     this.transform = next;
-    this.adapter.setTransformOverride(this.nodeId, next);
+    this.adapter.setTransformOverride(
+      this.nodeId,
+      this.baseTransform ?? next,
+      next,
+    );
     this.options.preview(next);
     this.scheduleRender();
   };
@@ -156,7 +169,11 @@ export class TransformGizmo {
     this.drag = null;
     this.options.cancelPreview();
     if (this.nodeId && this.transform) {
-      this.adapter.setTransformOverride(this.nodeId, this.transform);
+      this.adapter.setTransformOverride(
+        this.nodeId,
+        this.baseTransform ?? this.transform,
+        this.transform,
+      );
     }
   };
 
@@ -166,7 +183,11 @@ export class TransformGizmo {
     this.drag = null;
     this.options.cancelPreview();
     if (this.nodeId && this.transform) {
-      this.adapter.setTransformOverride(this.nodeId, this.transform);
+      this.adapter.setTransformOverride(
+        this.nodeId,
+        this.baseTransform ?? this.transform,
+        this.transform,
+      );
     }
     this.scheduleRender();
   };
@@ -182,7 +203,10 @@ export class TransformGizmo {
   private render(): void {
     this.svg.replaceChildren();
     if (!this.active || !this.nodeId || !this.transform) return;
-    const frame = this.adapter.getTransformFrame(this.nodeId);
+    const frame = this.adapter.getTransformFrame(
+      this.nodeId,
+      this.baseTransform ?? this.transform,
+    );
     if (!frame) return;
     const origin = this.adapter.projectPoint(frame.origin);
     if (!origin.visible) return;
@@ -322,7 +346,10 @@ export class TransformGizmo {
     shift: boolean,
   ): StudioTransform | null {
     if (!this.nodeId) return null;
-    const frame = this.adapter.getTransformFrame(this.nodeId);
+    const frame = this.adapter.getTransformFrame(
+      this.nodeId,
+      this.baseTransform ?? drag.base,
+    );
     if (!frame) return null;
     const origin = this.adapter.projectPoint(frame.origin);
     const next = structuredClone(drag.base);

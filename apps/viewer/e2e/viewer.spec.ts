@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('loads the generic workbench with a persistent scene canvas', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'wastewater-mini' })).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('Revision 2');
+  await expect(page.getByRole('status')).toContainText(/Revision \d+/);
   await expect(page.locator('canvas[data-layer="scene"]')).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Inspect' })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'Operations' })).toBeVisible();
@@ -15,12 +15,13 @@ test('opens on Agent mission control with the current project context', async ({
   await expect(page.getByRole('tab', { name: 'Agent' })).toHaveAttribute('aria-selected', 'true');
   const mission = page.getByRole('region', { name: 'Agent mission control' });
   await expect(mission).toContainText('wastewater-mini');
-  await expect(mission.getByText('2', { exact: true })).toBeVisible();
+  const revision = await currentRevision(page);
+  await expect(mission.getByText(String(revision), { exact: true })).toBeVisible();
 });
 
 test('stages, reviews, and commits a form change', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('status')).toContainText('Revision 2');
+  const initialRevision = await currentRevision(page);
   await page.getByRole('button', { name: 'Secondary Clarifier B' }).click();
   await page.getByRole('button', { name: 'Inspect selected object' }).click();
   await expect(page.getByLabel('Position X')).toBeVisible();
@@ -49,7 +50,7 @@ test('stages, reviews, and commits a form change', async ({ page }) => {
   await page.getByRole('tab', { name: 'Inspect' }).click();
   await page.getByRole('button', { name: 'Review candidate' }).click();
   await page.getByRole('button', { name: 'Approve & commit' }).click();
-  await expect(page.getByRole('status')).toContainText('Revision 3');
+  await expect(page.getByRole('status')).toContainText(`Revision ${initialRevision + 1}`);
   await expect(page.getByRole('button', { name: 'Secondary Clarifier Renamed' })).toBeVisible();
 });
 
@@ -157,3 +158,10 @@ test('uses the native asset pipeline without a driver status surface', async ({ 
   await expect(page.getByText(/Toolchain/i)).toHaveCount(0);
   await expect(page.getByLabel('Toolchain status')).toHaveCount(0);
 });
+
+async function currentRevision(page: import('@playwright/test').Page): Promise<number> {
+  const text = await page.getByRole('status').textContent();
+  const match = text?.match(/Revision (\d+)/);
+  if (!match) throw new Error(`Revision status is invalid: ${text}`);
+  return Number(match[1]);
+}

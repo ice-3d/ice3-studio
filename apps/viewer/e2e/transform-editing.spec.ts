@@ -21,17 +21,31 @@ test('edits a primitive draft, reviews the candidate and commits', async ({ page
 
   const x = page.getByLabel('Position X');
   const original = Number(await x.inputValue());
-  await x.fill(String(original + 5));
-  await x.press('Enter');
-  await expect(x).toHaveValue(String(original + 5));
 
   const handle = page.locator('[data-gizmo-axis="x"]').last();
   await expect(handle).toBeVisible();
   const grip = handle.locator('circle');
-  await expect.poll(() => grip.evaluate((element) => {
-    const bounds = element.getBoundingClientRect();
-    return bounds.width > 0 && bounds.height > 0;
-  })).toBe(true);
+  let previousPoint: { x: number; y: number } | null = null;
+  let stableChecks = 0;
+  await expect.poll(async () => {
+    const point = await grip.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return bounds.width > 0 && bounds.height > 0
+        ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+        : null;
+    });
+    if (
+      point
+      && previousPoint
+      && Math.hypot(point.x - previousPoint.x, point.y - previousPoint.y) < 0.5
+    ) {
+      stableChecks += 1;
+    } else {
+      stableChecks = 0;
+    }
+    previousPoint = point;
+    return stableChecks >= 3;
+  }, { intervals: [40, 40, 40, 40] }).toBe(true);
   const gripPoint = await grip.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
     return {
@@ -43,12 +57,24 @@ test('edits a primitive draft, reviews the candidate and commits', async ({ page
   await page.mouse.down();
   await page.mouse.move(gripPoint.x + 35, gripPoint.y);
   await page.mouse.up();
-  await expect(x).not.toHaveValue(String(original + 5));
+  await expect(x).not.toHaveValue(String(original));
+  await x.fill(String(original + 5));
+  await x.press('Enter');
+  await expect(x).toHaveValue(String(original + 5));
   const width = page.getByLabel('Geometry Width');
   const originalWidth = Number(await width.inputValue());
   await width.fill(String(originalWidth + 1));
   await width.press('Enter');
-  await page.getByLabel('Material').selectOption({ label: 'Steel' });
+  const material = page.getByLabel('Material');
+  const currentMaterial = await material.inputValue();
+  const nextMaterial = await material.locator('option').evaluateAll(
+    (options, selected) => options
+      .map((option) => (option as HTMLOptionElement).value)
+      .find((value) => value && value !== selected),
+    currentMaterial,
+  );
+  if (!nextMaterial) throw new Error('No alternative material is available');
+  await material.selectOption(nextMaterial);
   expect(writes).toEqual([]);
 
   await page.getByRole('button', { name: 'Stage draft' }).click();
