@@ -15,7 +15,7 @@ import {
   type ICEScene,
   type ICETilesetEvent,
 } from 'ice3';
-import type { StudioReferenceAsset } from '../api/StudioClient';
+import type { StudioReferenceAsset, StudioTransform } from '../api/StudioClient';
 import type { StudioReferenceBinding } from '../session/SessionStore';
 import { measureBounds, type Measurement } from './measure';
 import {
@@ -86,6 +86,7 @@ export class SceneAdapter {
   private sectionRatio: number | null = null;
   private explodeFactor = 0;
   private currentScene: ICEScene | null = null;
+  private readonly transformOverrideOriginals = new Map<ICENode, number[]>();
   private explodeOriginals: Map<ICENode, number[]> | null = null;
   private explodeWorld: Map<ICENode, [number, number, number]> | null = null;
 
@@ -172,8 +173,39 @@ export class SceneAdapter {
     this.engine.requestRender('studio-selection-change');
   }
 
+  setTransformOverride(
+    nodeId: string | null,
+    transform: StudioTransform | null,
+  ): void {
+    this.clearTransformOverride();
+    if (!nodeId || !transform || !this.currentScene) return;
+    applySceneTransformOverride(
+      this.currentScene,
+      nodeId,
+      transform,
+      this.transformOverrideOriginals,
+    );
+    this.engine?.requestRender('draft-transform-preview');
+  }
+
+  clearTransformOverride(): void {
+    if (!this.currentScene || this.transformOverrideOriginals.size === 0) return;
+    restoreSceneTransformOverrides(this.currentScene, this.transformOverrideOriginals);
+    this.engine?.requestRender('draft-transform-clear');
+  }
+
+  getTransformFrame(nodeId: string): {
+    origin: [number, number, number];
+    parentMatrix: number[];
+  } | null {
+    return this.currentScene
+      ? sceneTransformFrame(this.currentScene, nodeId)
+      : null;
+  }
+
   /** Bind the freshly published scene and reset per-scene explosion state. */
   private bindScene(scene: ICEScene): void {
+    this.clearTransformOverride();
     this.currentScene = scene;
     this.explodeOriginals = null;
     this.explodeWorld = null;
@@ -460,6 +492,7 @@ export class SceneAdapter {
       this.engine.releaseGeometry(geometry);
     }
     this.pinnedPacketGeometries.clear();
+    this.clearTransformOverride();
     this.engine.setScene(handle.scene);
     this.bindScene(handle.scene);
     this.applySection();
@@ -512,6 +545,7 @@ export class SceneAdapter {
     this.handle = null;
     this.tilesetHandle?.dispose();
     this.tilesetHandle = null;
+    this.clearTransformOverride();
     this.engine.setScene(scene);
     this.bindScene(scene);
     this.applySection();
@@ -595,6 +629,71 @@ export class SceneAdapter {
     this.lastClip = { near: clip.near, far: clip.far };
     this.camera.setClipPlanes(clip.near, clip.far);
   }
+}
+
+export function applySceneTransformOverride(
+  scene: ICEScene,
+  nodeId: string,
+  transform: StudioTransform,
+  originals: Map<ICENode, number[]>,
+): ICENode | null {
+  const node = findSceneNodeBySelectionId(scene, nodeId);
+  if (!node) return null;
+  if (!originals.has(node)) originals.set(node, localMatrixOf(node));
+  node.setLocalMatrix(transformMatrix(transform) as never);
+  node.updateWorldMatrix();
+  return node;
+}
+
+export function restoreSceneTransformOverrides(
+  _scene: ICEScene,
+  originals: Map<ICENode, number[]>,
+): void {
+  for (const [node, matrix] of originals) {
+    node.setLocalMatrix(matrix as never);
+    node.updateWorldMatrix();
+  }
+  originals.clear();
+}
+
+export function sceneTransformFrame(
+  scene: ICEScene,
+  nodeId: string,
+): { origin: [number, number, number]; parentMatrix: number[] } | null {
+  const node = findSceneNodeBySelectionId(scene, nodeId);
+  if (!node) return null;
+  const position = node.getWorldPosition();
+  return {
+    origin: [position.x, position.y, position.z],
+    parentMatrix: node.parent
+      ? [...node.parent.updateWorldMatrix().elements]
+      : identityMatrix(),
+  };
+}
+
+function findSceneNodeBySelectionId(scene: ICEScene, nodeId: string): ICENode | null {
+  const visit = (node: ICENode): ICENode | null => {
+    if (node.selectionId === nodeId) return node;
+    for (const child of node.children) {
+      const found = visit(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  for (const child of scene.children) {
+    const found = visit(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function identityMatrix(): number[] {
+  return [
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1,
+  ];
 }
 
 export function normalizeEntitySelections(
