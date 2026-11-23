@@ -1605,6 +1605,329 @@ h2 {
   color: var(--success);
 }
 
+.agent-connection--connected {
+  border-color: rgb(104 201 149 / 24%);
+  background: rgb(104 201 149 / 7%);
+  color: var(--success);
+}
+
+.agent-connection--connecting {
+  border-color: rgb(224 170 84 / 24%);
+  background: rgb(224 170 84 / 7%);
+  color: var(--warning);
+}
+
+.agent-connection--unavailable,
+.agent-connection--error {
+  border-color: rgb(234 124 118 / 24%);
+  background: rgb(234 124 118 / 7%);
+  color: var(--danger);
+}
+
+.agent-context-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.agent-context-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: #0d161a;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.agent-context-chip > span {
+  color: var(--muted-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.agent-context-chip strong {
+  overflow: hidden;
+  color: var(--text-soft);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-context-chip--wide {
+  flex: 1 1 180px;
+}
+
+.agent-connecting {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #0d161a;
+}
+
+.agent-connecting > div {
+  display: grid;
+  gap: 2px;
+}
+
+.agent-connecting strong {
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.agent-connecting span:last-child {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-mission {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(145deg, var(--accent-soft), transparent 55%),
+    var(--panel-alt);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+}
+
+.agent-objective {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.agent-objective > span {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 620;
+}
+
+.agent-objective textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: #091115;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.agent-objective textarea:focus {
+  border-color: var(--accent);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.agent-objective textarea:disabled {
+  opacity: 0.72;
+}
+
+.agent-objective small {
+  color: var(--muted-strong);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.agent-mission > .button {
+  justify-self: end;
+  min-width: 142px;
+}
+
+.agent-run,
+.agent-tool-section {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: #0d161a;
+}
+
+.agent-run--running {
+  border-left: 3px solid var(--accent);
+}
+
+.agent-run--failed {
+  border-left: 3px solid var(--danger);
+}
+
+.agent-run--finished {
+  border-left: 3px solid var(--success);
+}
+
+.agent-run__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.agent-run__heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.agent-run__heading strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.agent-run > small {
+  overflow: hidden;
+  color: var(--muted-strong);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-tool-section > span {
+  color: var(--muted-strong);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+}
+
+.agent-tools {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.agent-tool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line-strong);
+}
+
+.agent-tool--finished {
+  border-left-color: var(--success);
+}
+
+.agent-tool--failed {
+  border-left-color: var(--danger);
+}
+
+.agent-tool--started {
+  border-left-color: var(--warning);
+}
+
+.agent-tool code {
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+
+.agent-tool > span {
+  color: var(--muted-strong);
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.agent-tool small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.agent-handoff {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid rgb(104 201 149 / 30%);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, rgb(104 201 149 / 9%), transparent 65%),
+    #0d161a;
+}
+
+.agent-handoff > div {
+  display: grid;
+  gap: 2px;
+}
+
+.agent-handoff span {
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.agent-handoff strong {
+  overflow: hidden;
+  color: var(--text);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-handoff .button {
+  justify-self: start;
+}
+
+.agent-run-error {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid rgb(234 124 118 / 28%);
+  border-radius: var(--radius-md);
+  background: rgb(234 124 118 / 7%);
+}
+
+.agent-run-error strong {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.agent-run-error span {
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
+.agent-run-error .button {
+  justify-self: start;
+}
+
+.agent-offline__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.agent-offline code {
+  padding: 6px 8px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--canvas);
+  color: var(--text-soft);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 10px;
+}
+
 .agent-context {
   display: grid;
   gap: var(--space-2);
@@ -1879,6 +2202,15 @@ h2 {
   .segmented-control button {
     min-height: 44px;
     padding-inline: 12px;
+  }
+
+  .agent-objective textarea {
+    min-height: 132px;
+    font-size: 16px;
+  }
+
+  .agent-mission > .button {
+    width: 100%;
   }
 
   .object-search input {

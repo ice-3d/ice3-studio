@@ -78,6 +78,7 @@ test('keeps review available when Agent Gateway is offline', async ({ page }) =>
   await page.goto('/');
   await page.getByRole('tab', { name: 'Agent' }).click();
   await expect(page.getByText('Agent Gateway is offline')).toBeVisible();
+  await expect(page.getByText('STUDIO_AGENT_GATEWAY_URL', { exact: true })).toBeVisible();
   await expect(page.getByRole('tree').getByRole('button').first()).toBeEnabled();
   await page.getByRole('button', { name: 'Open manual controls' }).click();
   await expect(page.getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');

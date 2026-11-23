@@ -228,6 +228,7 @@ export function Workbench() {
               onOpenManual={() => setDock('inspect')}
               onSubmit={submitAgent}
               onCancel={() => agentStore.cancel()}
+              onRetry={() => agentStore.retry()}
               onReviewChanges={() => setDock('changes')}
             />
           </div>
