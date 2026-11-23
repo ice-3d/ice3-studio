@@ -43,6 +43,7 @@ use crate::capabilities::{
     RequestAuthority, WriteMode, agent_access, authorize_write, classify_request_authority,
 };
 use crate::compute::{ComputeEvaluator, ComputeService, ComputeStatus};
+use crate::agent_bridge::AgentGatewayConfig;
 use crate::preview::{PreviewAdapter, export_source};
 use crate::preview_packet::PACKET_MEDIA_TYPE;
 use crate::scene_session::{
@@ -64,6 +65,7 @@ pub struct ServerConfig {
     pub preview_packet_enabled: bool,
     pub scene_sessions_enabled: bool,
     pub incremental_scene_cache: bool,
+    pub agent_gateway: Option<AgentGatewayConfig>,
 }
 
 impl ServerConfig {
@@ -81,6 +83,7 @@ impl ServerConfig {
             preview_packet_enabled: false,
             scene_sessions_enabled: false,
             incremental_scene_cache: true,
+            agent_gateway: None,
         }
     }
 
