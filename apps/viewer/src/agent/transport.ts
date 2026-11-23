@@ -6,6 +6,20 @@ export type AgentConnection =
 
 export type AgentToolPhase = 'started' | 'finished' | 'failed';
 
+export type AgentCameraContext = {
+  position: [number, number, number];
+  target: [number, number, number];
+  fov: number;
+};
+
+export type AgentContext = {
+  projectId: string;
+  revision: number;
+  selectionIds: string[];
+  focusNodeId: string | null;
+  camera: AgentCameraContext;
+};
+
 export type AgentEvent =
   | { type: 'connection.updated'; connection: AgentConnection }
   | { type: 'gateway.unavailable'; protocolVersion: 1; message: string }
@@ -43,11 +57,7 @@ export type AgentIntent = {
   revision: number;
   selectionIds: string[];
   focusNodeId?: string | null;
-  camera?: {
-    position: [number, number, number];
-    target: [number, number, number];
-    fov: number;
-  };
+  camera?: AgentCameraContext;
 };
 
 export type AgentTransport = {

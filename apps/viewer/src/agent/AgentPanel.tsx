@@ -14,6 +14,7 @@ type AgentPanelProps = {
   revision?: number;
   focusName?: string | null;
   onOpenManual?: () => void;
+  onSubmit?: (text: string) => Promise<void> | void;
 };
 
 export function AgentPanel({
@@ -22,6 +23,7 @@ export function AgentPanel({
   revision,
   focusName,
   onOpenManual,
+  onSubmit,
 }: AgentPanelProps) {
   const [text, setText] = useState('');
   const snapshot = useSyncExternalStore(store.subscribe, () => store.snapshot);
@@ -82,7 +84,7 @@ export function AgentPanel({
         <>
           <form className="agent-composer" onSubmit={(event) => {
             event.preventDefault();
-            void store.submit(text).then(() => setText(''));
+            void Promise.resolve(onSubmit?.(text)).then(() => setText(''));
           }}>
             <label className="field">
               <span>Run objective</span>
