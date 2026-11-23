@@ -197,6 +197,9 @@ export class TransformGizmo {
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
       this.render();
+      if (this.active && this.nodeId && this.transform) {
+        this.scheduleRender();
+      }
     });
   }
 

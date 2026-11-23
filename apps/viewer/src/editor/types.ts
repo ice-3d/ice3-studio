@@ -31,6 +31,7 @@ export type EditorDraft = {
   baseRevision: number;
   baseNode: StudioNode;
   values: EditorValues;
+  stagedValues: EditorValues | null;
   history: EditorValues[];
   future: EditorValues[];
   status: EditorDraftStatus;

@@ -148,7 +148,9 @@ export function Workbench() {
           transformTarget={selected && editorValues
             ? {
                 nodeId: selected.id,
-                baseTransform: selectedDraft?.baseNode.transform ?? identityEditorTransform(),
+                baseTransform: selectedDraft?.stagedValues?.transform
+                  ?? selectedDraft?.baseNode.transform
+                  ?? identityEditorTransform(),
                 transform: editorValues.transform,
               }
             : null}

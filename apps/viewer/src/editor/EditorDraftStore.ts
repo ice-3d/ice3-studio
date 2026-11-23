@@ -30,6 +30,7 @@ export class EditorDraftStore extends ExternalStore<EditorDraftSnapshot> {
       baseRevision: revision,
       baseNode: structuredClone(node),
       values: createEditorValues(node),
+      stagedValues: null,
       history: [],
       future: [],
       status: 'clean',
@@ -118,7 +119,12 @@ export class EditorDraftStore extends ExternalStore<EditorDraftSnapshot> {
 
   markStaged(nodeId: string): void {
     const draft = this.requireDraft(nodeId);
-    this.setDraft({ ...draft, status: 'staged', error: null });
+    this.setDraft({
+      ...draft,
+      stagedValues: structuredClone(draft.values),
+      status: 'staged',
+      error: null,
+    });
   }
 
   markStale(nodeId: string, message: string): void {
@@ -135,8 +141,12 @@ export class EditorDraftStore extends ExternalStore<EditorDraftSnapshot> {
     const drafts = Object.fromEntries(
       Object.entries(this.snapshot.drafts).map(([nodeId, draft]) => [
         nodeId,
-        draft.status === 'staged'
-          ? { ...draft, status: 'dirty' as const }
+        draft.stagedValues
+          ? {
+              ...draft,
+              stagedValues: null,
+              status: draft.status === 'staged' ? 'dirty' as const : draft.status,
+            }
           : draft,
       ]),
     );
@@ -144,9 +154,7 @@ export class EditorDraftStore extends ExternalStore<EditorDraftSnapshot> {
   }
 
   hasDirtyDrafts(): boolean {
-    return Object.values(this.snapshot.drafts).some((draft) => (
-      draft.status === 'dirty' || draft.status === 'staged'
-    ));
+    return Object.values(this.snapshot.drafts).some((draft) => draft.status !== 'clean');
   }
 
   discard(nodeId: string): void {

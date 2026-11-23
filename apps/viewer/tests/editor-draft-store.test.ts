@@ -95,6 +95,34 @@ test('restores staged drafts to dirty and reports unsaved work', () => {
   assert.equal(store.snapshot.drafts[node.id]?.status, 'dirty');
 });
 
+test('keeps the staged transform as the candidate preview baseline', () => {
+  const store = new EditorDraftStore();
+  const initial = store.ensure(node, 1);
+  const staged = {
+    ...initial,
+    transform: {
+      ...initial.transform,
+      translation: { x: 2, y: 0, z: 0 },
+    },
+  };
+  store.commit(node.id, staged);
+  store.markStaged(node.id);
+  const edited = {
+    ...staged,
+    transform: {
+      ...staged.transform,
+      translation: { x: 4, y: 0, z: 0 },
+    },
+  };
+  store.commit(node.id, edited);
+  assert.deepEqual(
+    store.snapshot.drafts[node.id]?.stagedValues?.transform,
+    staged.transform,
+  );
+  store.restoreStagedAsDirty();
+  assert.equal(store.snapshot.drafts[node.id]?.stagedValues, null);
+});
+
 test('uses createEditorValues as the baseline helper', () => {
   assert.deepEqual(createEditorValues(node).transform, node.transform);
 });
