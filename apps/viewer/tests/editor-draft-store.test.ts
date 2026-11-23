@@ -98,3 +98,10 @@ test('restores staged drafts to dirty and reports unsaved work', () => {
 test('uses createEditorValues as the baseline helper', () => {
   assert.deepEqual(createEditorValues(node).transform, node.transform);
 });
+
+test('store snapshots are replaced so React consumers rerender', () => {
+  const store = new EditorDraftStore();
+  const before = store.snapshot;
+  store.ensure(node, 1);
+  assert.notEqual(store.snapshot, before);
+});
