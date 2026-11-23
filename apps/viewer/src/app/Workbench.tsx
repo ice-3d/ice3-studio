@@ -7,19 +7,34 @@ import { Viewport } from '../viewport/Viewport';
 import { FormRenderer } from '../forms/FormRenderer';
 import { useChangeSet, useChangeSetStore } from '../changeset/ChangeSetProvider';
 import { AgentPanel } from '../agent/AgentPanel';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ComputePanel } from '../compute/ComputePanel';
 import { ChangesPanel } from '../changeset/ChangesPanel';
 import { EvidenceDrawer, type EvidenceTab } from './EvidenceDrawer';
 import { mergeDiagnostics } from '../changeset/reviewModel';
 import { RouteInspector } from '../route/RouteInspector';
+import {
+  useEditorDrafts,
+  useEditorDraftStore,
+} from '../editor/EditorDraftProvider';
+import { compileDraftOperations } from '../editor/draftOperations';
+import { TransformEditor } from '../editor/TransformEditor';
+import type {
+  EditorValues,
+  GizmoMode,
+  TransformSpace,
+} from '../editor/types';
 
 export function Workbench() {
   const session = useSession();
   const sessionStore = useSessionStore();
   const changeSetStore = useChangeSetStore();
   const changeSet = useChangeSet();
+  const editorDrafts = useEditorDrafts();
+  const editorDraftStore = useEditorDraftStore();
   const [dock, setDock] = useState<'agent' | 'inspect' | 'changes'>('agent');
+  const [gizmoMode, setGizmoMode] = useState<GizmoMode>('move');
+  const [transformSpace, setTransformSpace] = useState<TransformSpace>('local');
   const [evidenceTab, setEvidenceTab] = useState<EvidenceTab>('operations');
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   const nodes = session.document?.scene.nodes ?? [];
@@ -30,6 +45,41 @@ export function Workbench() {
   const selectedDefinition = definitionId
     ? session.document?.components.find((definition) => definition.id === definitionId)
     : undefined;
+  const selectedDraft = selected ? editorDrafts.drafts[selected.id] : undefined;
+  const editorValues = selectedDraft?.values;
+
+  useEffect(() => {
+    if (dock === 'inspect' && selected && !editorDrafts.drafts[selected.id]) {
+      editorDraftStore.ensure(selected, session.revision);
+    }
+  }, [dock, editorDraftStore, editorDrafts.drafts, selected, session.revision]);
+
+  const updateEditorValues = (values: EditorValues): void => {
+    if (!selected) return;
+    editorDraftStore.ensure(selected, session.revision);
+    editorDraftStore.commit(selected.id, values);
+  };
+
+  const stageDraft = async (): Promise<void> => {
+    if (!selected) return;
+    const draft = editorDraftStore.snapshot.drafts[selected.id];
+    if (!draft || draft.status === 'stale') return;
+    try {
+      const operations = compileDraftOperations(
+        draft.baseNode,
+        draft.values,
+        selectedDefinition,
+      );
+      if (operations.length === 0) return;
+      await changeSetStore.addOperations(session.revision, operations);
+      editorDraftStore.markStaged(selected.id);
+    } catch (cause) {
+      editorDraftStore.markStageFailed(
+        selected.id,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  };
   const changeSetEntries = changeSet.record?.entries ?? [];
   const diagnostics = mergeDiagnostics(
     session.diagnostics,
@@ -91,12 +141,36 @@ export function Workbench() {
               revision={session.revision}
               onSelect={(nodeId) => sessionStore.select([nodeId])}
             />
+            {selectedDraft && editorValues && (
+              <TransformEditor
+                values={editorValues}
+                draft={selectedDraft}
+                materials={session.document?.materials ?? []}
+                mode={gizmoMode}
+                space={transformSpace}
+                onValues={updateEditorValues}
+                onPreviewStart={() => {
+                  if (selected) editorDraftStore.beginPreview(selected.id);
+                }}
+                onMode={setGizmoMode}
+                onSpace={setTransformSpace}
+                onUndo={() => {
+                  if (selected) editorDraftStore.undo(selected.id);
+                }}
+                onRedo={() => {
+                  if (selected) editorDraftStore.redo(selected.id);
+                }}
+                onStage={() => void stageDraft()}
+                onDiscard={() => {
+                  if (selected) editorDraftStore.discard(selected.id);
+                }}
+              />
+            )}
             <FormRenderer
               node={selected}
               definition={selectedDefinition}
-              onStage={async (operations) => {
-                await changeSetStore.addOperations(session.revision, operations);
-              }}
+              values={editorValues}
+              onValues={updateEditorValues}
             />
             <div className="review-actions">
               <div className="review-actions__status">

@@ -23,8 +23,13 @@ test('stages, reviews, and commits a form change', async ({ page }) => {
   await expect(page.getByRole('status')).toContainText('Revision 2');
   await page.getByRole('button', { name: 'Secondary Clarifier B' }).click();
   await page.getByRole('button', { name: 'Inspect selected object' }).click();
+  await expect(page.getByLabel('Position X')).toBeVisible();
+  await expect(page.getByLabel('Rotation Y')).toBeVisible();
+  await expect(page.getByLabel('Scale Z')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stage draft' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Move mode' })).toBeVisible();
   await page.getByLabel('Name').fill('Secondary Clarifier Renamed');
-  await page.getByRole('button', { name: 'Stage changes' }).click();
+  await page.getByRole('button', { name: 'Stage draft' }).click();
   await expect(
     page
       .getByRole('complementary', { name: 'Review dock' })
@@ -53,7 +58,7 @@ test('removes a staged operation and invalidates the candidate', async ({ page }
   await page.getByRole('button', { name: 'Secondary Clarifier A' }).click();
   await page.getByRole('button', { name: 'Inspect selected object' }).click();
   await page.getByLabel('Name').fill('Secondary Clarifier Temporary');
-  await page.getByRole('button', { name: 'Stage changes' }).click();
+  await page.getByRole('button', { name: 'Stage draft' }).click();
   await page.getByRole('tab', { name: 'Changes' }).click();
 
   const changes = page.getByRole('region', { name: 'ChangeSet review' });

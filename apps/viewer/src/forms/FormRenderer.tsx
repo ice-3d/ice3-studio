@@ -4,39 +4,30 @@ import type {
   ComponentInstance,
   StudioNode,
 } from '../api/StudioClient';
-import { compileNodeChanges, type Operation } from './operationCompiler';
-import {
-  compileParameterChanges,
-  formatParameter,
-  type ParameterDraft,
-} from './instanceParameters';
+import { compileParameterChanges, formatParameter } from './instanceParameters';
+import type { EditorValues } from '../editor/types';
 
 type Props = {
   node: StudioNode | undefined;
   definition?: ComponentDefinition;
-  onStage: (operations: Operation[]) => void;
+  values?: EditorValues;
+  onValues(values: EditorValues): void;
 };
 
-export function FormRenderer({ node, definition, onStage }: Props) {
+export function FormRenderer({ node, definition, values, onValues }: Props) {
   const [name, setName] = useState('');
   const [visible, setVisible] = useState(true);
-  const [parameters, setParameters] = useState<ParameterDraft>({});
+  const [parameters, setParameters] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setName(node?.name ?? '');
-    setVisible(node?.visible ?? true);
-    const instance = node?.content?.type === 'component_instance'
-      ? node.content as unknown as ComponentInstance
-      : null;
-    setParameters(Object.fromEntries(definition?.parameters.map((parameter) => [
-      parameter.name,
-      formatParameter(instance?.parameters[parameter.name] ?? parameter.default),
-    ]) ?? []));
+    setName(values?.name ?? node?.name ?? '');
+    setVisible(values?.visible ?? node?.visible ?? true);
+    setParameters(values?.componentParameters ?? {});
     setError(null);
-  }, [definition, node?.id, node?.name, node?.visible]);
+  }, [node?.id, values]);
 
-  if (!node) {
+  if (!node || !values) {
     return (
       <div className="empty-state inspector-empty">
         <span className="empty-state__icon" aria-hidden="true">+</span>
@@ -45,29 +36,37 @@ export function FormRenderer({ node, definition, onStage }: Props) {
       </div>
     );
   }
+
+  const commit = (draft: {
+    name?: string;
+    visible?: boolean;
+    componentParameters?: Record<string, string>;
+  }): void => {
+    const nextParameters = draft.componentParameters ?? parameters;
+    if (definition && node.content?.type === 'component_instance') {
+      try {
+        compileParameterChanges(
+          definition,
+          node.id,
+          node.content as unknown as ComponentInstance,
+          nextParameters,
+        );
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+        return;
+      }
+    }
+    setError(null);
+    onValues({
+      ...values,
+      name: draft.name ?? name,
+      visible: draft.visible ?? visible,
+      componentParameters: nextParameters,
+    });
+  };
+
   return (
-    <form
-      className="inspector-form"
-      aria-label={`Inspect ${node.name}`}
-      onSubmit={(event) => {
-        event.preventDefault();
-        try {
-          const operations = compileNodeChanges(node, { name, visible });
-          if (definition && node.content?.type === 'component_instance') {
-            operations.push(...compileParameterChanges(
-              definition,
-              node.id,
-              node.content as unknown as ComponentInstance,
-              parameters,
-            ));
-          }
-          setError(null);
-          onStage(operations);
-        } catch (cause) {
-          setError(cause instanceof Error ? cause.message : String(cause));
-        }
-      }}
-    >
+    <section className="inspector-form" aria-label={`Inspect ${node.name}`}>
       <div className="inspector-form__heading">
         <div>
           <span className="panel-kicker">Selection</span>
@@ -77,7 +76,10 @@ export function FormRenderer({ node, definition, onStage }: Props) {
           <input
             type="checkbox"
             checked={visible}
-            onChange={(event) => setVisible(event.target.checked)}
+            onChange={(event) => {
+              setVisible(event.target.checked);
+              commit({ visible: event.target.checked });
+            }}
           />
           <span aria-hidden="true" />
           Visible
@@ -86,7 +88,20 @@ export function FormRenderer({ node, definition, onStage }: Props) {
       <div className="field-stack">
         <label className="field">
           <span>Name</span>
-          <input value={name} onChange={(event) => setName(event.target.value)} />
+          <input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              commit({ name: event.target.value });
+            }}
+            onBlur={() => commit({ name })}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                commit({ name });
+              }
+            }}
+          />
         </label>
       </div>
       {definition && node.content?.type === 'component_instance' && (
@@ -105,10 +120,14 @@ export function FormRenderer({ node, definition, onStage }: Props) {
                 <select
                   aria-label={parameter.name}
                   value={parameters[parameter.name] ?? ''}
-                  onChange={(event) => setParameters((current) => ({
-                    ...current,
-                    [parameter.name]: event.target.value,
-                  }))}
+                  onChange={(event) => {
+                    const next = {
+                      ...parameters,
+                      [parameter.name]: event.target.value,
+                    };
+                    setParameters(next);
+                    commit({ componentParameters: next });
+                  }}
                 >
                   {(parameter.valueType.values as string[]).map((value) => (
                     <option value={value} key={value}>{value}</option>
@@ -117,13 +136,26 @@ export function FormRenderer({ node, definition, onStage }: Props) {
               ) : (
                 <input
                   aria-label={parameter.name}
-                  type="text"
                   inputMode="decimal"
-                  value={parameters[parameter.name] ?? ''}
-                  onChange={(event) => setParameters((current) => ({
-                    ...current,
-                    [parameter.name]: event.target.value,
-                  }))}
+                  value={
+                    parameters[parameter.name]
+                    ?? formatParameter(parameter.default)
+                  }
+                  onChange={(event) => {
+                    const next = {
+                      ...parameters,
+                      [parameter.name]: event.target.value,
+                    };
+                    setParameters(next);
+                    commit({ componentParameters: next });
+                  }}
+                  onBlur={() => commit({ componentParameters: parameters })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      commit({ componentParameters: parameters });
+                    }
+                  }}
                 />
               )}
             </label>
@@ -131,10 +163,7 @@ export function FormRenderer({ node, definition, onStage }: Props) {
         </fieldset>
       )}
       {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="inspector-form__actions">
-        <button type="submit" className="button button--secondary">Stage changes</button>
-      </div>
-    </form>
+    </section>
   );
 }
 

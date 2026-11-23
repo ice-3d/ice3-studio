@@ -938,6 +938,126 @@ h2 {
   justify-content: flex-end;
 }
 
+.editor-section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.editor-section__heading,
+.editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.transform-row {
+  display: grid;
+  grid-template-columns: 72px repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.transform-row__label {
+  display: grid;
+  gap: 2px;
+  padding-top: 9px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.transform-row__label small {
+  color: var(--muted-strong);
+  font-size: 9px;
+}
+
+.transform-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #0b1317;
+  color: var(--text);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.transform-row input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 9px;
+}
+
+.segmented-control {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--canvas);
+}
+
+.segmented-control button {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.segmented-control button[aria-pressed="true"] {
+  border-color: rgb(71 196 210 / 35%);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.editor-actions {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.editor-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.draft-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-family: "SFMono-Regular", "Menlo", monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.draft-state--dirty .status-dot,
+.draft-state--failed .status-dot {
+  background: var(--warning);
+}
+
+.draft-state--staged .status-dot {
+  background: var(--success);
+}
+
+.draft-state--stale .status-dot {
+  background: var(--danger);
+}
+
 .button {
   min-height: 36px;
   padding: 0 14px;
