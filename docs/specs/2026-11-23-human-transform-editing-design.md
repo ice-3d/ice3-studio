@@ -126,7 +126,7 @@ NodeDraft {
   values
   history
   future
-  status: clean | dirty | stale | failed
+  status: clean | dirty | staged | stale | failed
   error
 }
 ```
@@ -142,8 +142,10 @@ Transform + name + visible + primitive + component parameters + materialId
 - 首次编辑对象时，从当前 committed node 复制基线。
 - 草稿不会从 candidate Document 创建，避免把未审批值当作新基线。
 - 草稿命令栈最多保留 100 条；超出时丢弃最旧命令。
-- Stage 成功后清除对应草稿。
-- Stage 失败、候选预览失败或提交失败时保留草稿。
+- Stage 成功后把对应草稿标记为 `staged` 并保留值，避免竞态预览期间表单回退到旧值。
+- commit 成功后清除对应草稿。
+- Stage 失败或候选预览失败时保留 dirty/failed 草稿。
+- ChangeSet 被丢弃后把 staged 草稿恢复为 dirty，允许修正后重新 Stage。
 
 ## 6. Scene Preview
 
@@ -257,8 +259,9 @@ stale 草稿禁止 Stage。用户可以选择：
 - Stage 中显示 staging/evaluating 状态。
 - ChangeSet 求值失败时保留草稿并展示诊断。
 - 候选预览失败时保留草稿，仍允许审阅 ChangeSet 和诊断。
+- Stage 成功后保留 staged 草稿，并继续用草稿值显示表单。
 - commit 成功后清除已提交草稿。
-- discard ChangeSet 后保留本地草稿，用户可重新 Stage 或丢弃。
+- discard ChangeSet 后把草稿恢复为 dirty，用户可重新 Stage 或放弃。
 
 ## 9. 视觉与可访问性
 
