@@ -83,6 +83,7 @@
 | `ICE3-STUDIO-SPEC-036` | [连接与管线附件检视](specs/2026-11-21-route-inspection-design.md) | Implemented | `route.inspect` 分段路由、解析端口、附件、宿主、支撑与 Viewer 审查 |
 | `ICE3-STUDIO-SPEC-037` | [Agent 材质内省](specs/2026-11-22-material-introspection-design.md) | Implemented | `material.get` 返回单材质定义、committed revision 与有效 surface |
 | `ICE3-STUDIO-SPEC-038` | [人工 Transform 与基础编辑闭环](specs/2026-11-23-human-transform-editing-design.md) | Implemented | 本地草稿、视口 Transform 手柄、图元/材质编辑与 ChangeSet 闭环 |
+| `ICE3-STUDIO-SPEC-039` | [Agent Gateway 端到端接线](specs/2026-11-23-agent-gateway-integration-design.md) | Approved | Viewer 上下文、同源 Gateway 桥、流式运行状态与 ChangeSet 链接 |
 
 ## 5. 实施计划
 
