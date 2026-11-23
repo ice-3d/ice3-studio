@@ -83,6 +83,7 @@ export class SceneAdapter {
   }>();
   onSelection: ((ids: readonly string[]) => void) | undefined;
   private readonly selectionListeners = new Set<(ids: readonly string[]) => void>();
+  private readonly frameListeners = new Set<() => void>();
   private sectionRatio: number | null = null;
   private explodeFactor = 0;
   private currentScene: ICEScene | null = null;
@@ -132,6 +133,9 @@ export class SceneAdapter {
       for (const listener of this.selectionListeners) listener(normalized);
     });
     engine.on('BEFORE_RENDER', () => this.updateClipPlanes());
+    engine.on('AFTER_RENDER', () => {
+      for (const listener of this.frameListeners) listener();
+    });
     this.engine = engine;
     this.loader = new ICEAssetLoader(engine);
     this.packetLoader = new ICEPreviewPacketLoader({
@@ -325,6 +329,11 @@ export class SceneAdapter {
   addSelectionListener(listener: (ids: readonly string[]) => void): () => void {
     this.selectionListeners.add(listener);
     return () => this.selectionListeners.delete(listener);
+  }
+
+  addFrameListener(listener: () => void): () => void {
+    this.frameListeners.add(listener);
+    return () => this.frameListeners.delete(listener);
   }
 
   /** Project a world point to viewport CSS pixels. */

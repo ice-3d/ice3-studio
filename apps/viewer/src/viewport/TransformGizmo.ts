@@ -44,6 +44,7 @@ export class TransformGizmo {
   private drag: ActiveDrag | null = null;
   private frame = 0;
   private disposed = false;
+  private readonly unsubscribeFrame: () => void;
 
   constructor(
     container: HTMLElement,
@@ -62,6 +63,7 @@ export class TransformGizmo {
     this.svg.addEventListener('pointerup', this.onPointerUp);
     this.svg.addEventListener('pointercancel', this.onPointerCancel);
     window.addEventListener('keydown', this.onKeyDown);
+    this.unsubscribeFrame = adapter.addFrameListener(() => this.scheduleRender());
     this.scheduleRender();
   }
 
@@ -103,6 +105,7 @@ export class TransformGizmo {
     this.svg.removeEventListener('pointerup', this.onPointerUp);
     this.svg.removeEventListener('pointercancel', this.onPointerCancel);
     window.removeEventListener('keydown', this.onKeyDown);
+    this.unsubscribeFrame();
     this.svg.remove();
   }
 
@@ -197,9 +200,6 @@ export class TransformGizmo {
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
       this.render();
-      if (this.active && this.nodeId && this.transform) {
-        this.scheduleRender();
-      }
     });
   }
 
