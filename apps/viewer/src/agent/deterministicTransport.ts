@@ -11,14 +11,21 @@ export function createDeterministicTransport(options: {
   return {
     connection: 'connected',
     async submitIntent() {
+      const requestId = crypto.randomUUID();
       const runId = 'deterministic-run';
       queueMicrotask(() => {
-        emit({ type: 'run.started', runId });
-        emit({ type: 'plan.updated', runId, summary: options.plan });
-        emit({ type: 'changeset.linked', runId, changeSetId: options.changeSetId });
-        emit({ type: 'run.finished', runId });
+        emit({ type: 'run.started', protocolVersion: 1, requestId, runId });
+        emit({ type: 'plan.updated', protocolVersion: 1, runId, summary: options.plan });
+        emit({
+          type: 'changeset.linked',
+          protocolVersion: 1,
+          runId,
+          changeSetId: options.changeSetId,
+          entryIds: [],
+        });
+        emit({ type: 'run.finished', protocolVersion: 1, runId });
       });
-      return { runId };
+      return { requestId };
     },
     async cancel() {},
     subscribe(listener) {

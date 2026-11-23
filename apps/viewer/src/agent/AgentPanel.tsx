@@ -3,7 +3,7 @@ import { AgentStore } from './AgentStore';
 
 const unavailableStore = new AgentStore({
   connection: 'unavailable',
-  submitIntent: async () => ({ runId: '' }),
+  submitIntent: async () => ({ requestId: '' }),
   cancel: async () => {},
   subscribe: () => () => {},
 });

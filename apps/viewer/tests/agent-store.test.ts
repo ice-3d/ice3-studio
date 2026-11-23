@@ -6,7 +6,7 @@ import { createDeterministicTransport } from '../src/agent/deterministicTranspor
 test('Agent failure leaves model review available', async () => {
   const store = new AgentStore({
     connection: 'unavailable',
-    submitIntent: async () => ({ runId: 'run-1' }),
+    submitIntent: async () => ({ requestId: 'request-1' }),
     cancel: async () => {},
     subscribe: () => () => {},
   });
