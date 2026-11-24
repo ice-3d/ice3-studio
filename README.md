@@ -73,15 +73,14 @@ npm run verify
 
 ## 4. 界面
 
-Web Viewer 是界面层，只消费公开 API，没有私有修改路径。工作台以 Agent 为先，同时保留
-Objects / 3D Scene / Review dock：
+Web Viewer 是面向人的界面层，只消费公开 API，没有私有修改路径。工作台以人工建模为
+先，保留 Objects / 3D Scene / Review dock：
 
 | 区域 | 作用 |
 |---|---|
 | Objects | 对象搜索、层级过滤、source/derived identity、完整实体 Selection |
 | 3D Scene | WebGL2 默认、WebGPU 实验性显式开启；渲染当前 revision 或 candidate |
-| Agent | 默认 AI 任务控制台：目标输入、运行计划、工具进度、链接 ChangeSet 和人工接手 |
-| Inspect | 人工 Transform、图元尺寸、组件参数和材质草稿，支持视口手柄、本地撤销和 Stage |
+| Inspect | 默认 tab：人工 Transform、图元尺寸、组件参数和材质草稿，支持视口手柄、本地撤销和 Stage |
 | Changes | 候选 diff、诊断、审阅与人工批准 |
 | Evidence | Operations、Timeline、Diagnostics |
 

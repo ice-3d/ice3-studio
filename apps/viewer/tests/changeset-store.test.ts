@@ -397,34 +397,3 @@ test('discards the active candidate and clears its preview', async () => {
   assert.equal(store.snapshot.candidateUrl, null);
   assert.equal(store.snapshot.status, 'discarded');
 });
-
-test('loads an Agent-linked candidate without evaluating or approving', async () => {
-  let evaluated = false;
-  const client: ChangeSetClient = {
-    createChangeSet: async () => ({ id: 'changeset-linked', version: 1 }),
-    addChangeSetOperations: async () => ({ version: 2 }),
-    removeChangeSetOperations: async () => ({ version: 2 }),
-    evaluateChangeSet: async () => {
-      evaluated = true;
-      throw new Error('must not evaluate');
-    },
-    changeSet: async (id) => ({ ...changeSet, id }),
-    changeSetCandidate: async (id) => ({
-      changeSetId: id,
-      version: 2,
-      baseRevision: 2,
-      status: 'ready',
-      candidateDigest: 'sha256:linked',
-      diff,
-      diagnostics: [],
-    }),
-    commitChangeSet: async () => ({ revision: 3 }),
-    candidatePreview: async () => ({ url: '/previews/candidates/linked' }),
-  };
-  const store = new ChangeSetStore(client);
-  await store.loadLinked('changeset-linked');
-  assert.equal(evaluated, false);
-  assert.equal(store.snapshot.active?.candidateDigest, 'sha256:linked');
-  assert.equal(store.snapshot.canApprove, false);
-  assert.equal(store.snapshot.candidateUrl, '/previews/candidates/linked');
-});

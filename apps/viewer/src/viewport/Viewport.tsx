@@ -25,7 +25,6 @@ type Props = {
   onTransformPreview?: (transform: StudioTransform) => void;
   onTransformPreviewEnd?: (transform: StudioTransform) => void;
   onTransformPreviewCancel?: () => void;
-  onAdapter?: (adapter: SceneAdapter | null) => void;
 };
 
 export function Viewport({
@@ -41,7 +40,6 @@ export function Viewport({
   onTransformPreview,
   onTransformPreviewEnd,
   onTransformPreviewCancel,
-  onAdapter,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<SceneAdapter | null>(null);
@@ -58,15 +56,12 @@ export function Viewport({
     onTransformPreviewEnd,
     onTransformPreviewCancel,
   };
-  const adapterCallback = useRef(onAdapter);
-  adapterCallback.current = onAdapter;
-
   useEffect(() => {
     const adapter = new SceneAdapter();
     adapter.onSelection = onSelection;
     scene.current = adapter;
     if (host.current) {
-      void adapter.mount(host.current).then(() => adapterCallback.current?.(adapter));
+      void adapter.mount(host.current);
     }
     const tool = host.current ? new MeasureTool(host.current, adapter) : null;
     const section = host.current ? new SectionTool(host.current, adapter) : null;
@@ -86,7 +81,6 @@ export function Viewport({
       explode?.dispose();
       transformGizmo?.dispose();
       gizmo.current = null;
-      adapterCallback.current?.(null);
       scene.current = null;
     };
   }, []);

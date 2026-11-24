@@ -492,8 +492,6 @@ DXF 73.2 MB，均可解析。设计见
 | `STUDIO_SESSION_TOKEN` | 写入令牌；不设则随机生成并在启动时打印 |
 | `STUDIO_APPROVAL_TOKEN` | 审批令牌，写入 Cookie 用于提交 ChangeSet |
 | `STUDIO_AGENT_TOKEN` | 供 Agent 使用的令牌 |
-| `STUDIO_AGENT_GATEWAY_URL` | Host-only loopback Gateway WebSocket，例如 `ws://127.0.0.1:9130/agent` |
-| `STUDIO_AGENT_GATEWAY_TOKEN` | Host-only 上游 Gateway Bearer token，不进入浏览器或日志 |
 | `STUDIO_PREVIEW_PACKETS` | 设为 `1` 启用增量 preview packet（实验） |
 | `STUDIO_GPU_SCENE_SESSIONS` | 设为 `1` 启用 GPU 场景会话（实验） |
 | `STUDIO_INCREMENTAL_SCENE_CACHE` | 设为 `0` 关闭 CPU 增量场景缓存（默认开启） |
@@ -577,27 +575,20 @@ Preview 不启动外部进程，也没有可选优化器 fallback。预览失败
 
 | 模块 | 职责 |
 |---|---|
-| `app` | Workbench 主框架、Agent-first Review dock、表头与视觉 token |
+| `app` | Workbench 主框架、Inspect-first Review dock、表头与视觉 token |
 | `viewport` | 视口、SceneAdapter、相机取景、测量工具（双选距离/间隙）、剖切面（Section 开关 + 高度滑块，`?section=` 可预置）、爆炸视图（Explode 开关 + 强度滑块，`?explode=` 可预置）、方向光阴影（Studio 默认关闭，`?shadows=1` 显式启用） |
 | `navigation` | 对象搜索、层级过滤、对象树与树模型 |
 | `editor` | 本地 Transform/图元/材质/组件参数草稿、命令栈、最小 Operation 编译与 Inspector |
 | `forms` | 名称、显隐和组件参数表单渲染 |
 | `changeset` | 候选变更的 Provider、Store 与类型 |
-| `agent` | Agent Mission Control、上下文、对话 Store 与传输层 |
 | `session` | 会话与令牌管理 |
 | `compute` | GPU/compute 证据展示 |
 | `api`、`shared` | RPC 客户端与共享工具 |
 
 Viewer 只调用公开读 API 并订阅 revision 事件，不持有任何私有修改通道。
 
-Agent 面板通过同源 `/agent/ws` 连接 Host 配置的独立 Gateway。它显示连接、单 run
-状态、计划、有界流式消息、工具进度和链接的 ChangeSet；收到链接后载入现有候选并
-切到 Changes，审批与提交仍由人完成。未配置或断线时人工工具保持可用。
-
-Review dock 默认打开 Agent。Agent 面板显示 Gateway 状态、project、revision 和焦点
-object；选择对象只更新 Agent 上下文，用户点击 `Inspect selected object` 后才进入人工
-参数编辑。Agent Gateway 离线不会禁用对象搜索、Inspect、Changes、candidate review 或
-人工提交。
+Review dock 默认打开 Inspect。Agent 通过公开 RPC、MCP 和 ChangeSet API 工作，不嵌入
+Viewer tab、对话界面或 Gateway 会话。Agent 提案统一进入 ChangeSet，由人审阅和提交。
 
 Changes 页展示当前 ChangeSet 的标题、状态、条目来源、操作类型、目标对象、提案字段和
 结构化 diff；`draft`、`ready`、`blocked` 状态可按条目移除 Operation 并重新求值。底部

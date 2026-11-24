@@ -1,7 +1,6 @@
 //! Local API server for ICE3 Studio.
 
 mod agent;
-mod agent_bridge;
 mod auth;
 pub mod capabilities;
 pub mod changeset;
@@ -15,7 +14,6 @@ mod rpc;
 pub mod runtime_tileset;
 pub mod scene_session;
 
-pub use agent_bridge::{AgentBridgeError, AgentGatewayConfig};
 pub use events::ServerEvent;
 pub use rpc::{
     Capabilities, EvaluatedSceneStats, RpcError, RpcRequest, RpcResponse, ServerConfig, TestServer,

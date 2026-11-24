@@ -16,7 +16,6 @@ usd = ["studio-import/usd"]
 
 [dependencies]
 clap.workspace = true
-futures-util.workspace = true
 schemars.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 serde.workspace = true
@@ -25,7 +24,6 @@ sha2.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-tokio-tungstenite.workspace = true
 studio-assets = { path = "../studio-assets" }
 studio-core = { path = "../studio-core" }
 studio-import = { path = "../studio-import", default-features = false }

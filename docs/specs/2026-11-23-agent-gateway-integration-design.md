@@ -2,9 +2,13 @@
 
 > Document ID: ICE3-STUDIO-SPEC-039
 >
-> Status: Implemented
+> Status: Deprecated
 >
 > Owner: ICE3 Studio maintainers
+
+> **已替代：** Viewer 不再嵌入 Agent tab 或 Gateway 会话。Agent 通过公开 RPC/MCP 与
+> ChangeSet API 工作，当前人工工作台设计见
+> [人本优先 Studio 工作台](2026-11-24-human-first-workbench-design.md)。
 
 ## 1. 摘要
 

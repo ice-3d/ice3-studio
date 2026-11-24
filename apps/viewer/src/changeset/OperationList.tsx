@@ -18,7 +18,7 @@ export function OperationList({
     return (
       <div className="empty-state">
         <strong>No staged operations</strong>
-        <span>Use Inspect or an Agent proposal to add a typed operation.</span>
+        <span>Use Inspect to add a typed operation.</span>
       </div>
     );
   }

@@ -87,9 +87,8 @@ proposal token 能读、创建变更集、追加/移除条目、求值，但**�
 
 不要在图省事时把 approval token 写进 MCP 配置——那等于让模型绕过人工审批。
 
-MCP 客户端与 Viewer 内 Agent 面板是两条独立入口：前者由外部客户端持有模型与规划，
-后者由 Host 配置的 loopback Gateway 提供服务。两者都只通过 Studio 公开 API 修改
-ChangeSet，并由人在 Viewer 中提交。
+MCP 客户端持有模型与规划，只通过 Studio 公开 API 修改 ChangeSet；人继续在 Viewer
+中审阅和提交。Viewer 不包含 Agent tab、对话界面或模型配置。
 
 ## 6. 排错
 

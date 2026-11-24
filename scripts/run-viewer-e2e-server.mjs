@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startAgentGateway } from './agent-gateway-fixture.mjs';
 
 const repositoryRoot = process.cwd();
 const workspace = await mkdtemp(join(tmpdir(), 'ice3-studio-viewer-e2e-'));
@@ -16,21 +15,13 @@ await cp(
 );
 
 let cleanedUp = false;
-let gateway;
 let server;
 async function cleanup() {
   if (cleanedUp) return;
   cleanedUp = true;
-  gateway?.close();
   server?.kill('SIGTERM');
   await rm(workspace, { recursive: true, force: true });
 }
-
-gateway = await startAgentGateway({
-  studioUrl: 'http://127.0.0.1:8120',
-  token: 'studio-e2e',
-  projectId: 'wastewater-mini',
-});
 
 server = spawn(
   'cargo',
@@ -58,7 +49,6 @@ server = spawn(
       ...process.env,
       STUDIO_SESSION_TOKEN: 'studio-e2e',
       STUDIO_VIEWER_DIR: join(repositoryRoot, 'apps/viewer/dist'),
-      STUDIO_AGENT_GATEWAY_URL: gateway.url,
     },
     stdio: 'inherit',
   },

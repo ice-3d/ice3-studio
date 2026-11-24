@@ -101,7 +101,6 @@ test('inspects a selected fitting route without leaving Inspect', async ({ page 
   await page.goto('/');
   await page.getByPlaceholder('Search objects').fill('Route reducer');
   await page.getByRole('button', { name: 'Route reducer' }).click();
-  await page.getByRole('button', { name: 'Inspect selected object' }).click();
   const inspector = page.getByRole('region', { name: 'Route inspection' });
   await expect(inspector).toContainText('L-E2E');
   await expect(inspector).toContainText('small');

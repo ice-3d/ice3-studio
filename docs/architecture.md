@@ -162,20 +162,13 @@ Prepare，再发布完整 staging Tileset；`--force` 使用 backup/rename 并�
 
 ### 2.10 Web Viewer
 
-只消费公开 API 和 revision 事件，不直接修改 Document。默认打开 `Agent` tab；在同一个
-三栏工作台中提供 Agent 上下文、3D Scene、Objects、Inspect、Changes 和 Evidence。
+只消费公开 API 和 revision 事件，不直接修改 Document。默认打开 `Inspect` tab；在同一个
+三栏工作台中提供 3D Scene、Objects、Inspect、Changes 和 Evidence。
 
 Objects 搜索会保留匹配项祖先并显示匹配数。Selection 以完整业务实体或 source object
-为单位；Reference Asset 的派生 selection 会映射回同一 binding。用户点击对象后先更新
-Agent 焦点，只有点击 `Inspect selected object` 才进入人工参数编辑。
-
-Agent Gateway 不可用时界面显示离线状态，但对象搜索、参数检查、candidate review 和人工
-提交保持可用。Viewer 不自带模型凭据、Prompt 或 Agent policy。
-
-Agent Gateway 通过 Host 配置的 loopback WebSocket 接入。Studio Server 的同源
-`/agent/ws` 只使用本地 session token 鉴权并转发有界协议；Gateway token 只存在于 Server
-进程。Viewer 提交 project、revision、Selection、焦点和相机上下文，接收计划、消息、
-工具状态和 ChangeSet 链接。链接只载入现有候选，不自动审批或提交。
+为单位；Reference Asset 的派生 selection 会映射回同一 binding。用户点击对象后直接进入
+人工参数编辑。Agent 通过公开 RPC、MCP 和 ChangeSet API 工作，不拥有 Viewer tab、对话
+界面或 Gateway 状态，也不能自动审批或提交。
 
 Inspect 的人工编辑先写入浏览器内 `EditorDraftStore`。Transform 手柄、数值字段、图元尺寸、
 组件参数和已有材质分配共享同一草稿；Stage 才把实际变化编译为 typed Operation 并进入
@@ -277,6 +270,6 @@ Studio 的脚本、测试和构建不再引用旧 repository；repository 归档
 - `ICE3-STUDIO-REF-001` — [能力清单](reference/capabilities.md)
 - `ICE3-STUDIO-REF-002` — [API Reference](reference/api.md)
 - `ICE3-STUDIO-REF-005` — [Asset Pipeline](reference/asset-pipeline.md)
-- `ICE3-STUDIO-SPEC-014` — [Agent 主导工作台设计](specs/2026-11-01-agent-led-workbench-design.md)
+- `ICE3-STUDIO-SPEC-040` — [人本优先 Studio 工作台](specs/2026-11-24-human-first-workbench-design.md)
 - `ICE3-STUDIO-SPEC-016` — [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md)
 - `ICE3-DOC-ADR-006` — [Agent 主导的 Studio 工作台](https://github.com/ice-3d/ice3-doc/blob/main/docs/decisions/0006-agent-led-studio-workbench.md)

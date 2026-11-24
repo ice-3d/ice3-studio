@@ -58,7 +58,7 @@
 | `ICE3-STUDIO-SPEC-011` | [Large Reference Asset Editing](specs/2026-10-31-large-reference-assets-design.md) | Historical | 外部大型资产、轻量绑定和流式预览的已完成设计记录 |
 | `ICE3-STUDIO-SPEC-012` | [工程评审级污水处理厂资产](specs/2026-11-01-realistic-wastewater-plant-asset-design.md) | Historical | 默认污水厂资产的已完成设计记录 |
 | `ICE3-STUDIO-SPEC-013` | [污水处理厂工艺拓扑与工程管线校正](specs/2026-11-01-wastewater-process-piping-correction-design.md) | Implemented | 工艺拓扑、连续弯头、防扭转扫掠、功能配色、路径安全、三通、异径管和穿墙套管 |
-| `ICE3-STUDIO-SPEC-014` | [Agent 主导的 Studio 工作台](specs/2026-11-01-agent-led-workbench-design.md) | Implemented | Agent 默认入口、工作上下文、实体 Selection 和人工接手 |
+| `ICE3-STUDIO-SPEC-014` | [Agent 主导的 Studio 工作台](specs/2026-11-01-agent-led-workbench-design.md) | Deprecated | 已由 SPEC-040 的人工建模优先工作台替代 |
 | `ICE3-STUDIO-SPEC-015` | [Studio Runtime Tileset 导出](specs/2026-11-01-studio-runtime-tileset-export-design.md) | Deprecated | 由 Studio 原生 Asset Pipeline 取代的 Sidecar 方案 |
 | `ICE3-STUDIO-SPEC-016` | [Studio 原生 Asset Pipeline 迁移](specs/2026-11-01-native-asset-pipeline-migration-design.md) | Implemented | Source Import、Asset、Partition、LOD 和 Tileset 已全部迁入 Studio |
 | `ICE3-STUDIO-SPEC-017` | [Studio 原生 STEP 与 IFC Source Import](specs/2026-11-02-native-step-ifc-import-design.md) | Implemented | STEP、IFC、parity 与 Toolchain adapter 退役 |
@@ -83,7 +83,8 @@
 | `ICE3-STUDIO-SPEC-036` | [连接与管线附件检视](specs/2026-11-21-route-inspection-design.md) | Implemented | `route.inspect` 分段路由、解析端口、附件、宿主、支撑与 Viewer 审查 |
 | `ICE3-STUDIO-SPEC-037` | [Agent 材质内省](specs/2026-11-22-material-introspection-design.md) | Implemented | `material.get` 返回单材质定义、committed revision 与有效 surface |
 | `ICE3-STUDIO-SPEC-038` | [人工 Transform 与基础编辑闭环](specs/2026-11-23-human-transform-editing-design.md) | Implemented | 本地草稿、视口 Transform 手柄、图元/材质编辑与 ChangeSet 闭环 |
-| `ICE3-STUDIO-SPEC-039` | [Agent Gateway 端到端接线](specs/2026-11-23-agent-gateway-integration-design.md) | Implemented | Viewer 上下文、同源 Gateway 桥、流式运行状态与 ChangeSet 链接 |
+| `ICE3-STUDIO-SPEC-039` | [Agent Gateway 端到端接线](specs/2026-11-23-agent-gateway-integration-design.md) | Deprecated | 已移除 Viewer 内嵌 Agent 与 Gateway 会话，由 SPEC-040 替代 |
+| `ICE3-STUDIO-SPEC-040` | [人本优先 Studio 工作台](specs/2026-11-24-human-first-workbench-design.md) | Implemented | 默认 Inspect、人工建模优先，Agent 仅通过公开 RPC/MCP 与 ChangeSet 工作 |
 
 ## 5. 实施计划
 
@@ -106,7 +107,7 @@
 | `ICE3-STUDIO-PLAN-016` | [污水处理厂工艺拓扑校正实施计划](plans/2026-11-01-wastewater-process-topology-correction.md) | Historical | P&ID 端口、污泥和沼气链路的历史记录 |
 | `ICE3-STUDIO-PLAN-017` | [工程管线圆滑路径与功能配色实施计划](plans/2026-11-01-engineered-pipe-routing-color.md) | Historical | 连续弯头、扫掠防扭转和功能配色的历史记录 |
 | `ICE3-STUDIO-PLAN-030` | [管线工程安全门禁实施计划](plans/2026-11-19-route-safety-gate.md) | Implemented | 管线碰撞、净空面、端点接入、支撑间距、性能与资产迁移步骤 |
-| `ICE3-STUDIO-PLAN-018` | [Agent 主导工作台实施计划](plans/2026-11-01-agent-led-workbench.md) | Implemented | Agent 默认 tab、上下文、实体选择、人工接手和响应式验收 |
+| `ICE3-STUDIO-PLAN-018` | [Agent 主导工作台实施计划](plans/2026-11-01-agent-led-workbench.md) | Historical | 已移除的 Agent 默认 tab 历史实施记录 |
 | `ICE3-STUDIO-PLAN-019` | [Studio 原生 Asset Pipeline Phase 1](plans/2026-11-01-native-asset-pipeline-phase-1.md) | Implemented | Rust GLB、partition、LOD、Tileset、binding manifest 和 CLI 导出 |
 | `ICE3-STUDIO-PLAN-020` | [Studio 原生 Asset Pipeline Phase 2](plans/2026-11-01-native-asset-pipeline-phase-2.md) | Implemented | glTF/GLB、OBJ/MTL Source Import 和 OBJ Toolchain 退役 |
 | `ICE3-STUDIO-PLAN-021` | [Studio 原生 Asset Pipeline Phase 3](plans/2026-11-02-native-asset-pipeline-phase-3.md) | Historical | FBX/USD importer、隔离 worker 和 bridge 退役的历史记录 |
@@ -123,7 +124,7 @@
 | `ICE3-STUDIO-PLAN-033` | [连接与管线附件检视实施计划](plans/2026-11-21-route-inspection.md) | Implemented | `route.inspect`、Agent 工具、Viewer Inspector 与 Chrome 验收 |
 | `ICE3-STUDIO-PLAN-034` | [Agent 材质内省实施计划](plans/2026-11-22-material-introspection.md) | Implemented | `material.get`、有效 surface、schema 与 Agent 评测 |
 | `ICE3-STUDIO-PLAN-035` | [人工 Transform 与基础编辑闭环实施计划](plans/2026-11-23-human-transform-editing.md) | Implemented | 本地草稿、视口手柄、最小 Operation、Chrome E2E 与完整门禁 |
-| `ICE3-STUDIO-PLAN-036` | [Agent Gateway 端到端接线实施计划](plans/2026-11-23-agent-gateway-integration.md) | Implemented | 同源 Gateway 桥、真实上下文、AI-first 控制台、ChangeSet 链接与 Chrome E2E |
+| `ICE3-STUDIO-PLAN-036` | [Agent Gateway 端到端接线实施计划](plans/2026-11-23-agent-gateway-integration.md) | Historical | 已移除的 Viewer 内嵌 Agent Gateway 历史实施记录 |
 
 ## 6. 状态说明
 

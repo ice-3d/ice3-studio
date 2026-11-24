@@ -2,9 +2,12 @@
 
 > Document ID: ICE3-STUDIO-PLAN-036
 >
-> Status: Implemented
+> Status: Historical
 >
 > Owner: ICE3 Studio maintainers
+
+> **历史状态：** 本文记录已移除的 Viewer 内嵌 Agent Gateway 实验。当前方向是
+> [人本优先 Studio 工作台](../specs/2026-11-24-human-first-workbench-design.md)。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans. This repository prohibits subagents unless the user explicitly enables them; execute natively.
 

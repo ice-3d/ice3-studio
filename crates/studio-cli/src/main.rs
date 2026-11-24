@@ -772,7 +772,6 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     .is_ok_and(|value| value == "1"),
                 incremental_scene_cache: std::env::var("STUDIO_INCREMENTAL_SCENE_CACHE")
                     .map_or(true, |value| value != "0"),
-                agent_gateway: studio_server::AgentGatewayConfig::from_env()?,
             })
             .await?;
         }

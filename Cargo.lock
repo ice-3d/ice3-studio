@@ -2698,7 +2698,6 @@ name = "studio-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
- "futures-util",
  "reqwest",
  "schemars",
  "serde",
@@ -2713,7 +2712,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tokio-tungstenite",
 ]
 
 [[package]]

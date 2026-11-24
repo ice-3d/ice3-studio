@@ -38,7 +38,6 @@ use tower_http::services::{ServeDir, ServeFile};
 use ts_rs::TS;
 
 use crate::ServerEvent;
-use crate::agent_bridge::AgentGatewayConfig;
 use crate::auth::{approval_cookie, bearer_token};
 use crate::capabilities::{
     RequestAuthority, WriteMode, agent_access, authorize_write, classify_request_authority,
@@ -65,7 +64,6 @@ pub struct ServerConfig {
     pub preview_packet_enabled: bool,
     pub scene_sessions_enabled: bool,
     pub incremental_scene_cache: bool,
-    pub agent_gateway: Option<AgentGatewayConfig>,
 }
 
 impl ServerConfig {
@@ -83,7 +81,6 @@ impl ServerConfig {
             preview_packet_enabled: false,
             scene_sessions_enabled: false,
             incremental_scene_cache: true,
-            agent_gateway: None,
         }
     }
 
@@ -213,7 +210,6 @@ pub(crate) struct Session {
 #[derive(Clone)]
 struct AppState {
     session: Arc<Mutex<Session>>,
-    agent_gateway: Option<AgentGatewayConfig>,
 }
 
 struct SessionCredentials {
@@ -376,7 +372,6 @@ pub async fn start_test_server(config: ServerConfig) -> TestServer {
             scene_sessions_enabled: config.scene_sessions_enabled,
             incremental_scene_cache: config.incremental_scene_cache,
         },
-        config.agent_gateway.clone(),
     )
     .await
     .expect("test server state");
@@ -417,7 +412,6 @@ pub async fn start_test_server_at(root: &Path) -> TestServer {
             scene_sessions_enabled: config.scene_sessions_enabled,
             incremental_scene_cache: config.incremental_scene_cache,
         },
-        None,
     )
     .await
     .expect("restart test server state");
@@ -467,7 +461,6 @@ pub async fn serve(config: ServerConfig) -> Result<(), Box<dyn std::error::Error
             scene_sessions_enabled: config.scene_sessions_enabled,
             incremental_scene_cache: config.incremental_scene_cache,
         },
-        config.agent_gateway,
     )
     .await?;
     println!("{}", listener.local_addr()?);
@@ -489,7 +482,6 @@ async fn initialize_state(
     fixture: Option<&std::path::Path>,
     port: u16,
     compute: ComputeOptions,
-    agent_gateway: Option<AgentGatewayConfig>,
 ) -> Result<(AppState, tokio::net::TcpListener), Box<dyn std::error::Error>> {
     std::fs::create_dir_all(root)?;
     let path = WorkspacePath::new(root, project_id)?;
@@ -547,7 +539,6 @@ async fn initialize_state(
             bootstrap_expires_at_ms: now_ms().saturating_add(60_000),
             bootstrap_consumed: false,
         })),
-        agent_gateway,
     };
     let listener =
         tokio::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, port))).await?;
@@ -567,7 +558,6 @@ fn build_router(state: AppState, viewer_dir: Option<PathBuf>) -> Router {
             post(rpc).layer(DefaultBodyLimit::max(MAX_RPC_BODY_BYTES)),
         )
         .route("/ws", get(websocket))
-        .route("/agent/ws", get(agent_websocket))
         .route("/schemas/{name}", get(schema_file))
         .route(
             "/reference-assets/{asset_id}/tileset.json",
@@ -1525,26 +1515,6 @@ async fn websocket(
         return StatusCode::UNAUTHORIZED.into_response();
     }
     upgrade.on_upgrade(move |socket| websocket_loop(socket, events))
-}
-
-async fn agent_websocket(
-    State(state): State<AppState>,
-    Query(query): Query<HttpToken>,
-    headers: HeaderMap,
-    upgrade: WebSocketUpgrade,
-) -> Response {
-    let authorized = {
-        let session = state.session.lock().expect("session lock");
-        query.token.as_deref() == Some(session.token.as_str())
-            || bearer_token(&headers) == Some(session.token.as_str())
-    };
-    if !authorized {
-        return StatusCode::UNAUTHORIZED.into_response();
-    }
-    let config = state.agent_gateway.clone();
-    upgrade
-        .max_message_size(crate::agent_bridge::MAX_AGENT_MESSAGE_BYTES)
-        .on_upgrade(move |socket| crate::agent_bridge::run(socket, config))
 }
 
 async fn websocket_loop(mut socket: WebSocket, mut events: broadcast::Receiver<ServerEvent>) {

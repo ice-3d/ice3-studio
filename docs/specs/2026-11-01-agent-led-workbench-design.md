@@ -2,9 +2,12 @@
 
 > Document ID: ICE3-STUDIO-SPEC-014
 >
-> Status: Implemented
+> Status: Deprecated
 >
 > Owner: ICE3 Studio maintainers
+
+> **已替代：** Viewer 不再以 Agent 为默认入口。当前方向见
+> [人本优先 Studio 工作台](2026-11-24-human-first-workbench-design.md)。
 
 ## 1. 目标
 
